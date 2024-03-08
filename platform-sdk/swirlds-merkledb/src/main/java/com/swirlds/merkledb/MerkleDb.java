@@ -636,7 +636,7 @@ public final class MerkleDb {
      * @return List of loaded tables
      */
     @SuppressWarnings("rawtypes")
-    private static AtomicReferenceArray<TableMetadata> loadMetadata(final Path dir) {
+    public static AtomicReferenceArray<TableMetadata> loadMetadata(final Path dir) {
         final AtomicReferenceArray<TableMetadata> tableConfigs = new AtomicReferenceArray<>(MAX_TABLES);
         final Path tableConfigFile = dir.resolve(METADATA_FILENAME);
         if (Files.exists(tableConfigFile)) {
@@ -709,7 +709,7 @@ public final class MerkleDb {
      *
      */
     @SuppressWarnings("rawtypes")
-    private static class TableMetadata {
+    public static class TableMetadata {
 
         private final int tableId;
 
