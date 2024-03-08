@@ -34,7 +34,7 @@ public final class ParsedBucket extends Bucket {
     /**
      * Create a new bucket with the default size.
      */
-    ParsedBucket() {
+    public ParsedBucket() {
         this(null);
     }
 
@@ -225,7 +225,7 @@ public final class ParsedBucket extends Bucket {
      * in a bucket, and a bucket entry already exists for the same key, instead of creating
      * a new entry, we just update the value in the existing entry.
      */
-    private static class BucketEntry {
+    public static class BucketEntry {
 
         /** Key hash code */
         private final int hashCode;
