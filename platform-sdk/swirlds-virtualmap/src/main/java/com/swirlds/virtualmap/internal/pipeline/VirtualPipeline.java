@@ -585,7 +585,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * @param supplier
      * 		The supplier. Cannot be null.
      */
-    <V, E extends Exception> V pausePipelineAndExecute(final String label, final CheckedSupplier<V, E> supplier)
+    public <V, E extends Exception> V pausePipelineAndExecute(final String label, final CheckedSupplier<V, E> supplier)
             throws E {
         Objects.requireNonNull(supplier);
         final CountDownLatch waitForBackgroundThreadToStart = new CountDownLatch(1);
