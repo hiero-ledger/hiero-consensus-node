@@ -14,7 +14,7 @@ public class BucketSerializer {
     private final ReusableBucketPool reusableBucketPool;
 
     public BucketSerializer() {
-        reusableBucketPool = new ReusableBucketPool(Bucket::new);
+        reusableBucketPool = new ReusableBucketPool(ParsedBucket::new);
     }
 
     /**
