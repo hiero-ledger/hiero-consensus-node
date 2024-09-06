@@ -49,7 +49,7 @@ public final class ParsedBucket extends Bucket {
     /**
      * Create a new bucket with the default size.
      */
-    ParsedBucket() {
+    public ParsedBucket() {
         this(null);
     }
 
