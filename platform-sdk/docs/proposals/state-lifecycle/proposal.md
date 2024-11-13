@@ -33,7 +33,8 @@ These methods correspond to the state lifecycle as follows:
 
 [![State lifecycle](state-lifecycle.svg)](state-lifecycle.svg)
 
-Note that the `loadSnapshot` method doesn't really belong to `com.swirlds.state.State`, as it's a method of the class, and in some cases, we may need to load the snapshot before we have an instance of the state. This method should be moved.
+Note that the `loadSnapshot` method doesn't really belong to `com.swirlds.state.State`, as it's a method of the class, and in some cases, we may need to load the snapshot before we have an instance of the state. 
+This method should be moved to a separate class that will be responsible for managing the state lifecycle.
 
 - `SwirldStateManager` needs refactoring. The current implementation has two sets of responsibilities:
   - Keeping track of the references to the latest immutable state and the latest mutable state. This includes creating a copy of the state and updating the references.
