@@ -36,9 +36,11 @@ These methods correspond to the state lifecycle as follows:
 Note that the `loadSnapshot` method doesn't really belong to `com.swirlds.state.State`, as it's a method of the class, and in some cases, we may need to load the snapshot before we have an instance of the state. 
 This method should be moved to a separate class that will be responsible for managing the state lifecycle.
 
-- `SwirldStateManager` needs refactoring. The current implementation has two sets of responsibilities:
-  - Keeping track of the references to the latest immutable state and the latest mutable state. This includes creating a copy of the state and updating the references.
-  - Handling Platform-related events:
+`SwirldStateManager` needs refactoring. The current implementation has two sets of responsibilities:
+  - Keeping track of the references to the latest immutable state and the latest mutable state. This includes creating a copy of the state and updating the references. 
+  This functionality belongs to `swirlds-state-api`.   
+  
+  - Handling Platform-related events (belongs to `swirlds-platform-core`):
     - Handling consensus rounds.
     - Sealing consensus rounds.
     - Keeping the `freeze time` parameter up-to-date.
@@ -47,21 +49,27 @@ This method should be moved to a separate class that will be responsible for man
 
 These two sets of responsibilities should be separated. The `swirlds-state-impl` should not have any details related to the platform. However, it should provide all necessary levers for the platform to interact with the state and its lifecycle.
 
-Therefore, `swirlds-state-impl` needs a `StateManager` class that will have the following responsibilities:
+Therefore, `swirlds-state-api` needs a `StateManager` interface with an implementation `StateManagerImpl` in `swirlds-state-impl`  that will have the following responsibilities:
+- Genesis state initialization.
 - Keeping track of the references to the latest immutable state and the latest mutable state.
 - Tracking states that existed before the latest immutable state. These should be available for lookup by their round number.
-- Evicting old states that are no longer needed.
+- Restricts mutability of the state to a single object. That is, only one state object should be mutable only once.
+- Evicting old states that are no longer needed. `evictState` method *must* fail if the state is still mutable.
 - Loading snapshots from the disk.
 
 Additionally, there should be a configuration parameter that limits the number of states kept in memory. When the limit is reached, the oldest state should be evicted.
+Currently, we rely on the implicit garbage collection. We have a reference count mechanism to achieve this.
+We want to get rid of this mechanism and rely on the explicit eviction mechanism.
 
-The interface should look as follows:
+The interface will look something like this:
 
 ```java
 public interface StateManager {
+    State createGenesisState();
+    
     State getLatestImmutableState();
     
-    State getLatestMutableState();
+    State getMutableState();
     
     State getState(long round);
     
