@@ -69,7 +69,7 @@ The interface will look something like this:
 
 ```java
 public interface StateManager {
-    State createGenesisState();
+    State createEmptyState();
     
     State getLatestImmutableState();
     
