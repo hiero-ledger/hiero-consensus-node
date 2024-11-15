@@ -61,7 +61,7 @@ Additionally, there should be a configuration parameter that limits the number o
 Currently, we rely on the implicit garbage collection. We have a reference count mechanism to achieve this.
 We want to get rid of this mechanism and rely on the explicit eviction mechanism.
 
-The following diagram illustrates the proposed illustrate management:
+The following diagram illustrates an example of the states in memory throughout their lifecycles:
 
 [![Multistate management](multi-state-management.png)](multi-state-management.png)
 
