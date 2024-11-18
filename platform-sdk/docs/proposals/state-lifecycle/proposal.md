@@ -50,7 +50,7 @@ This method should be moved to a separate class that will be responsible for man
 These two sets of responsibilities should be separated. The `swirlds-state-impl` should not have any details related to the platform. However, it should provide all necessary levers for the platform to interact with the state and its lifecycle.
 
 Therefore, `swirlds-state-api` needs a `StateManager` interface with an implementation `StateManagerImpl` in `swirlds-state-impl`  that will have the following responsibilities:
-- Genesis state initialization.
+- Create an empty state
 - Keeping track of the references to the latest immutable state and the latest mutable state.
 - Tracking states that existed before the latest immutable state. These should be available for lookup by their round number.
 - Restricts mutability of the state to a single object. That is, only one state object should be mutable only once.
