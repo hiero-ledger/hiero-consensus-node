@@ -54,7 +54,7 @@ Therefore, `swirlds-state-api` needs a `StateManager` interface with an implemen
 - Keeping track of the references to the latest immutable state and the latest mutable state.
 - Tracking states that existed before the latest immutable state. These should be available for lookup by their round number.
 - Restricts mutability of the state to a single object. That is, only one state object should be mutable only once.
-- Evicting old states that are no longer needed. `evictState` method *must* fail if the state is still mutable.
+- Evicting old states from memory that are no longer needed. `evictState` method *must* fail if the state is still mutable.
 - Loading snapshots from the disk.
 
 Additionally, there should be a configuration parameter that limits the number of states kept in memory. When the limit is reached, the oldest state should be evicted.
