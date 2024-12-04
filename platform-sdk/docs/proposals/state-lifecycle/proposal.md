@@ -74,7 +74,7 @@ The following diagram illustrates an example of the states in memory throughout 
 [![Multistate management](multi-states.svg)](multi-states.svg)
 
 Also, `swirlds-state-api` needs a `SnapshotManager` interface with an implementation `SnapshotManagerImpl` in `swirlds-state-impl` that will have the following responsibilities:
-- Load snapshots from the disk. A state loaded from a snapshot must be immutable and available for look up by the round number.
+- Load snapshots from the disk. A state loaded from a snapshot is immutable and available for look up by the round number.
 - Evict the loaded state by the round number when the state is no longer needed.
 
 This functionality is separated from the `StateLifecycleManager` for the following reasons:
