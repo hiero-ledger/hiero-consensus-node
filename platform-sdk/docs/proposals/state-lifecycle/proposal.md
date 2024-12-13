@@ -21,98 +21,38 @@ There is an initiative to create self-contained State modules (`swirlds-state-ap
 
 ## Design & Architecture
 
-### Reservation count mechanism
+### Reservation Count Mechanism
 
-This mechanism is already implemented as a part of the Merkle tree implementation. However, it's importnant to mention it here
-to provide important context for understanding how exactly the state lifecycle management will work.
+The reservation count mechanism ensures that an object is not garbage collected until it is no longer needed. 
+This mechanism is implemented using a combination of the `Reservable` and `Releasable` interfaces. 
+A state object, like any other Merkle tree node, can be reserved and released. The number of reservations and releases is tracked via a reference count.
 
-Every Merkle tree node implements the following interface:
+An important concept to understand with this mechanism, and the classes implementing these interfaces, 
+is the distinction between **implicit reservations** and **explicit reservations**.
 
-```java
-/**
- *
- * An object that can be reserved and released. Number of reservations and releases are tracked via a reference count.
- *
- * An important paradigm to understand with this interface and with classes that implement this interface are
- * "implicit reservations" and "explicit reservations".
- 
- * When an object is initially constructed, it is considered to have an implicit reservation. Even though
- * its reservation count is 0, we don't want to garbage collect it -- as presumably the caller of the constructor
- * still needs the object. The reservation count of an object with an implicit reservation is 0. Calling
- * {@link #release()} on an object with an implicit reservation will cause that object to be destroyed.
- *
- * When an object with an implicit reservation has {@link #reserve()} called on it the first time, that reservation
- * becomes explicit and has a reservation count of 1. After this point in time, the reservation remains explicit
- * until the object is eventually destroyed. It is impossible for an object with an explicit reservation to
- * return to having an implicit reservation. If at any time after the object obtains an explicit reservation it
- * has {@link #release()} called enough times to reduce its reference count to 0, then that object is destroyed
- * and has its reference count set to -1.
- */
-public interface Reservable extends Releasable {
+#### Implicit Reservations
 
-    /**
-     * The reference count of an object with an implicit reference.
-     */
-    int IMPLICIT_REFERENCE_COUNT = 0;
+When an object is initially constructed, it is considered to have an implicit reservation. 
+Although its reservation count is 0, it will not be garbage collected because the caller of the constructor 
+is presumed to still need the object. The reservation count for an object with an implicit reservation is 0. 
+If `Releasable#release()` is called on such an object, it will be destroyed.
 
-    /**
-     * The reference count of an object with an explicit reference.
-     */
-    int DESTROYED_REFERENCE_COUNT = -1;
+#### Explicit Reservations
 
-    /**
-     * Acquire a reservation on this object. Increments the reference count by 1.
-     *
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
-     * 		if this object has been fully released and destroyed
-     */
-    void reserve();
+When an object with an implicit reservation has `Reservable#reserve()` called on it for the first time, the reservation 
+becomes explicit, and its reservation count increases to 1. From this point forward, the reservation remains 
+explicit until the object is destroyed. An object with an explicit reservation cannot return to having an implicit reservation.
 
-    /**
-     * Attempts to acquire a reservation on this object. If the object is destroyed, the reservation attempt will fail.
-     *
-     * @return true if a reservation was acquired.
-     */
-    boolean tryReserve();
+If, at any time after obtaining an explicit reservation, the object has `Releasable#release()` called enough times 
+to reduce its reservation count to 0, the object will be destroyed, and its reservation count will be set to -1.
 
-    /**
-     * <p>
-     * Release a reservation on an object. Decrements the reference count by 1. If this method releases
-     * the last reservation, then this object should be destroyed.
-     * </p>
-     *
-     * <p>
-     * Should be called exactly once for each time {@link #reserve()} is called. The exception to this rule is
-     * if this object only has an implicit reference (i.e. {@link #getReservationCount()} returns
-     * {@link #IMPLICIT_REFERENCE_COUNT}). An object has an implicit reference immediately after it is constructed
-     * but before {@link #reserve()} has been called the first time. If called with an implicit reference, this
-     * object will be destroyed.
-     * </p>
-     *
-     * @return true if this call to release() caused the object to become destroyed
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
-     * 		this object has already been fully released and destroyed
-     */
-    @Override
-    boolean release();
+---
 
-    /**
-     * Get the total number of times {@link #reserve()} has been called minus the number of times {@link #release()}
-     * has been called. Will return {@link #IMPLICIT_REFERENCE_COUNT} if {@link #reserve()} has never been called,
-     * or {@link #DESTROYED_REFERENCE_COUNT} if this object has been fully released.
-     *
-     * @return
-     */
-    int getReservationCount();
-}
+We rely on this mechanism to manage the number of states kept in memory.
 
-```
+**Important**: It is the responsibility of the client code to ensure that the state is released once it is no longer needed.
 
-We're going to rely on this mechanism to manage the number of states that are kept in memory. 
-
-**Important**: It's up to the client code to make sure that the state is released once it's no longer needed.
-
-Once the reservation count reaches 0, the state will be eligible for garbage collection.
+Once the reservation count reaches 0, the state becomes eligible for garbage collection.
 
 ### Java classes
 
