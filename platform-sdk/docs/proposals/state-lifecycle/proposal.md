@@ -122,18 +122,18 @@ public interface StateLifecycleManager {
   /**
    * Calling this method creates a mutable copy of the state. The previous mutable state becomes immutable, 
    * replacing the current latest immutable state, and is accessible via the {@link #getLatestImmutableState} method.
+   * Also, creation of a copy creates an async task to compute the hash of the new immutable state. 
+   * Once the hash is calculated, the corresponding state object will be updated with the hash. 
+   * 
    * @return a mutable copy of the state
    */
   State copy();
-
-  /**
-   * Hashes the latest immutable state on demand if it is not already hashed. If the state is already hashed, this method is a no-op.
-   */
-  void computeHash();
+  
 }
 ```
 
 Note that after the refactoring `State` will no longer have the `copy`, `computeHash`, `createSnapshot`, and `loadSnapshot` methods.
+Also, the signature of `State#getHash()` method will change to `Future<Hash> getHash()` to accommodate the async computation of the hash.
 
 ### State Initialization
 
