@@ -155,6 +155,7 @@ Additionally, this logic is tightly coupled with other functionalities, such as:
 - State reservation
 
 Invalid state file cleanup and hash validation should be moved to the `StateLifecycleManager` implementation. The remaining responsibilities belong to the platform code.
+Note that the round is deemed invalid if an attempt to read it ends with `IOException` for one reason or the other.
 
 As part of this design, the code responsible for state initialization should be refactored and centralized in the `StateLifecycleManager`. The platform code should then use the `StateLifecycleManager` to retrieve either a mutable state or the latest immutable copy.
 
