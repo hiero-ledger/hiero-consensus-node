@@ -1,4 +1,4 @@
-# Lifecycle management for the State
+# Lifecycle Management for the State
 
 ## Summary
 
@@ -11,27 +11,30 @@ This proposal describes a possible implementation of state lifecycle management 
 
 ## Purpose and Context
 
-There is an initiative to create self-contained State modules (`swirlds-state-api` and `swirlds-state-impl`) that would have minimal dependencies, 
-and specifically, they should not depend on `swirlds-platform-core`. Part of this initiative is the implementation of a 
-state lifecycle management mechanism that could be used by both the Consensus Node and the Block Node.
+There is an initiative to create self-contained State modules (`swirlds-state-api` and `swirlds-state-impl`) that have minimal dependencies. Specifically, these modules should not depend on `swirlds-platform-core`. As part of this initiative, a state lifecycle management mechanism will be implemented for use by both the Consensus Node and the Block Node.
 
 ### Requirements
 
-- Add an interface representing state lifecycle management and its implementation.
-- Update the current State API to be coherent with this State Lifecycle API.
-- Implement this set of APIs and migrate the existing code to use it.
+- Introduce an interface representing state lifecycle management and its implementation.
+- Update the current State API to align with the State Lifecycle API.
+- Implement these APIs and migrate existing code to use them.
 
 ## Design & Architecture
 
 ### Summary 
 
-The following design details describe a solution for managing the lifecycle of the state object. It covers the following aspects:
-- state initialization (loading a snapshot or creating a new state)
-- maintaining references to the mutable state and the latest immutable state
-- restricting mutability to a single state object
-- loading snapshots from the disk 
+The following design describes a solution for managing the lifecycle of the state object. It covers the following aspects:
+
+- State initialization (loading a snapshot or creating a new state)  
+- Maintaining references to the mutable state and the latest immutable state  
+- Restricting mutability to a single state object  
+- Loading snapshots from disk  
+
+## Current State of the Code
 
 ### Reservation Count Mechanism
+
+This section provides important context about how state objects are managed in memory.
 
 The reservation count mechanism ensures that an object is not garbage collected until it is no longer needed. 
 This mechanism is implemented using a combination of the `Reservable` and `Releasable` interfaces. 
@@ -64,113 +67,135 @@ We rely on this mechanism to manage the number of states kept in memory.
 
 Once the reservation count reaches 0, the state becomes eligible for garbage collection.
 
-### Java classes
+---
 
-- `com.swirlds.state.State` has the following lifecycle-related methods:
-  - `State copy()`: creates a copy of the state, which is mutable. The source of the copy becomes immutable.
-  - `void computeHash()`: computes the hash of the immutable state.
-  - `void createSnapshot(Path targetPath)`: creates a snapshot of the state at the specified path.
-  - `State loadSnapshot(Path sourcePath)`: loads the snapshot from the specified path.
+### Java Classes
+
+`com.swirlds.state.State` provides the following lifecycle-related methods:
+
+- `State copy()`: Creates a mutable copy of the state. The source state becomes immutable.  
+- `void computeHash()`: Computes the hash of the immutable state.  
+- `void createSnapshot(Path targetPath)`: Creates a snapshot of the state at the specified path.  
+- `State loadSnapshot(Path sourcePath)`: Loads a snapshot from the specified path.  
 
 These methods correspond to the state lifecycle as follows:
 
 [![State lifecycle](state-lifecycle.svg)](state-lifecycle.svg)
 
-All of these methods should be moved do a separate class, which will be responsible for managing the state lifecycle. This design will provide clearer separation of concerns.
-`com.swirlds.state.State` should only be responsible for accessing and modifying the state, and the state lifecycle should be managed externally.
+---
 
-The `SwirldStateManager` class requires refactoring. The current implementation has two sets of responsibilities:
-- Keeping track of the references to the latest immutable state and the latest mutable state. This includes creating a copy of the state and updating the references.
-  This functionality should reside in `swirlds-state-api`.
+### `SwirldStateManager`
 
-- Handling Platform-related events (belongs to `swirlds-platform-core`):
-  - Handling consensus rounds.
-  - Sealing consensus rounds.
-  - Keeping the `freeze time` parameter up-to-date.
-  - Providing state for signing.
-  - Initializing the state by extracting it from the signed state.
+The `SwirldStateManager` class handles all interactions with the state object in the context of the platform.  
 
-These two sets of responsibilities should be separated. The `swirlds-state-impl` should not have any details related to the platform. However, it should offer all necessary mechanisms for the platform to interact with the state and its lifecycle.
+The current implementation of `SwirldStateManager` has two distinct responsibilities:
 
-Therefore, `swirlds-state-api` needs a `StateLifecycleManager` interface with an implementation `StateLifecycleManagerImpl` in `swirlds-state-impl`  that will have the following responsibilities:
-- Create/load an initial state as a starting point. If no snapshot is available, it should create a new state. 
-- Managing references to the latest immutable state and the latest mutable state.
-- Restrict mutability to a single state. Specifically, only one state object should be mutable at a time. To achieve this, we need to use a combination of `StateLifecycleManager.copy` method and `NonCopyableState` class.
-- Load snapshots from the disk. A state loaded from a snapshot must be immutable.
+1. **State Management**:  
+   - Managing references to the latest immutable state and the latest mutable state.  
+   - Creating copies of the state and updating references.  
+   This functionality belongs in `swirlds-state-api`.  
+
+2. **Platform-Related Event Handling** (belongs to `swirlds-platform-core`):  
+   - Handling consensus rounds  
+   - Sealing consensus rounds  
+   - Keeping the `freeze time` parameter up to date  
+   - Providing the state for signing  
+   - Initializing the state by extracting it from the signed state  
+
+## Proposed Changes
+
+All lifecycle-related methods from `com.swirlds.state.State` should be moved to a separate class responsible for managing the state lifecycle. This will provide a clearer separation of concerns.  
+
+- `com.swirlds.state.State` should focus solely on accessing and modifying the state.  
+- The state lifecycle will be managed externally.
+
+The `SwirldStateManager` class requires refactoring to separate its two distinct responsibilities. `swirlds-state-impl` should not include any platform-specific details but should provide the necessary mechanisms for the platform to interact with the state and its lifecycle.
+
+### `StateLifecycleManager` Interface
+
+To achieve this, `swirlds-state-api` will define a `StateLifecycleManager` interface, with an implementation `StateLifecycleManagerImpl` in `swirlds-state-impl`. The interface will handle:
+
+- Creating/loading an initial state. If no snapshot is available, a new state will be created.  
+- Managing references to the latest immutable state and the latest mutable state.  
+- Restricting mutability to a single state object. Specifically, only one state can be mutable at a time.  
+- Loading snapshots from disk. States loaded from snapshots are immutable.  
 
 The interface will look something like this:
 
 ```java
 public interface StateLifecycleManager {
-  /**
-   * Get the latest immutable state.
-   */
-  State getLatestImmutableState();
+    /**
+     * Get the latest immutable state.
+     */
+    State getLatestImmutableState();
 
-  /**
-   * Get the mutable state.
-   */
-  State getMutableState();
+    /**
+     * Get the mutable state.
+     */
+    State getMutableState();
 
-  /**
-   * Load an immutable copy of a state from the snapshot at the specified path. 
-   * @param sourcePath the path to the snapshot
-   * @return the immutable state loaded from the snapshot
-   */
-  State loadSnapshot(Path sourcePath);
+    /**
+     * Load an immutable copy of a state from the snapshot at the specified path.
+     * @param sourcePath the path to the snapshot
+     * @return the immutable state loaded from the snapshot
+     */
+    State loadSnapshot(Path sourcePath);
 
-  /**
-   * Calling this method creates a mutable copy of the state. The previous mutable state becomes immutable, 
-   * replacing the current latest immutable state, and is accessible via the {@link #getLatestImmutableState} method.
-   * Also, creation of a copy creates an async task to compute the hash of the new immutable state. 
-   * Once the hash is calculated, the corresponding state object will be updated with the hash. 
-   * 
-   * @return a mutable copy of the state
-   */
-  State copy();
-  
+    /**
+     * Creates a mutable copy of the state. The previous mutable state becomes immutable,
+     * replacing the latest immutable state. A task to compute the hash of the new immutable 
+     * state is also created asynchronously.
+     * 
+     * @return a mutable copy of the state
+     */
+    State copyMutableState();
 }
 ```
 
-Note that after the refactoring `State` will no longer have the `copy`, `computeHash`, `createSnapshot`, and `loadSnapshot` methods.
-Also, the signature of `State#getHash()` method will change to `Future<Hash> getHash()` to accommodate the async computation of the hash.
+**Notes**:  
+
+- The `State` interface will no longer include `copy`, `computeHash`, `createSnapshot`, or `loadSnapshot` methods.  
+- The `State#getHash()` method will change its signature to `Future<Hash> getHash()` to accommodate asynchronous hash computation.  
+
+---
 
 ### State Initialization
 
 The current state initialization logic is fragmented across multiple classes and methods, including:
 
-- `ServicesMain#main`
-- `Hedera#newMerkleStateRoot`
-- `StartupStateUtils.getInitialState`
-- `StartupStateUtils.loadStateFile`
-- `StartupStateUtils.loadLatestState`
-- `SignedStateFileReader.readStateFile`
+- `ServicesMain#main`  
+- `Hedera#newMerkleStateRoot`  
+- `StartupStateUtils.getInitialState`  
+- `StartupStateUtils.loadStateFile`  
+- `StartupStateUtils.loadLatestState`  
+- `SignedStateFileReader.readStateFile`  
 
 Additionally, this logic is tightly coupled with other functionalities, such as:
 
-- State signatures
-- Platform service registration
-- Invalid state file cleanup
-- Hash validation
-- State reservation
+- State signatures  
+- Platform service registration  
+- Invalid state file cleanup  
+- Hash validation  
+- State reservation  
 
-Invalid state file cleanup and hash validation should be moved to the `StateLifecycleManager` implementation. The remaining responsibilities belong to the platform code.
-Note that the round is deemed invalid if an attempt to read it ends with `IOException` for one reason or the other.
+Invalid state file cleanup and hash validation should be moved to the `StateLifecycleManager`. The remaining responsibilities belong to the platform code.  
 
-As part of this design, the code responsible for state initialization should be refactored and centralized in the `StateLifecycleManager`. The platform code should then use the `StateLifecycleManager` to retrieve either a mutable state or the latest immutable copy.
+This refactoring will ensure that state initialization logic is centralized in the `StateLifecycleManager`. The platform code will use `StateLifecycleManager` to retrieve either a mutable state or the latest immutable copy.
 
-This should be the end result of the refactoring:
+The end result will look like this:
 
 [![State lifecycle](state-lifecycle-new.svg)](state-lifecycle-new.svg)
+
+---
 
 ### Metrics
 
 No additional metrics are required for this functionality.
 
-### Performance impact
+### Performance Impact
 
-This change doesn't introduce any performance impact. 
+This change introduces no performance impact.
 
 ## Testing
 
-This functionality should be covered by a combination of unit tests and integration tests. Additionally, we need to ensure that no functionality is broken after refactoring `SwirldStateManager` and replacing it with `StateLifecycleManager`.
+This functionality will be covered by a combination of unit tests and integration tests. Additionally, we need to ensure that no functionality is broken after refactoring `SwirldStateManager` and replacing it with `StateLifecycleManager`.
