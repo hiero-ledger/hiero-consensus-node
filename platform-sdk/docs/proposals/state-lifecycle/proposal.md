@@ -11,7 +11,9 @@ This proposal describes a possible implementation of state lifecycle management 
 
 ## Purpose and Context
 
-There is an initiative to create self-contained State modules (`swirlds-state-api` and `swirlds-state-impl`) that would have minimal dependencies, and specifically, they should not depend on `swirlds-platform-core`. Part of this initiative is the implementation of a state lifecycle management mechanism that could be used by both the Consensus Node and the Block Node.
+There is an initiative to create self-contained State modules (`swirlds-state-api` and `swirlds-state-impl`) that would have minimal dependencies, 
+and specifically, they should not depend on `swirlds-platform-core`. Part of this initiative is the implementation of a 
+state lifecycle management mechanism that could be used by both the Consensus Node and the Block Node.
 
 ### Requirements
 
@@ -20,6 +22,14 @@ There is an initiative to create self-contained State modules (`swirlds-state-ap
 - Implement this set of APIs and migrate the existing code to use it.
 
 ## Design & Architecture
+
+### Summary 
+
+The following design details describe a solution for managing the lifecycle of the state object. It covers the following aspects:
+- state initialization (loading a snapshot or creating a new state)
+- maintaining references to the mutable state and the latest immutable state
+- restricting mutability to a single state object
+- loading snapshots from the disk 
 
 ### Reservation Count Mechanism
 
@@ -66,7 +76,8 @@ These methods correspond to the state lifecycle as follows:
 
 [![State lifecycle](state-lifecycle.svg)](state-lifecycle.svg)
 
-Note that the loadSnapshot method does not truly belong to `com.swirlds.state.State`, as it is a class-level method, and in some cases, it may be necessary to load a snapshot before an instance of the state is available.
+All of these methods should be moved do a separate class, which will be responsible for managing the state lifecycle. This design will provide clearer separation of concerns.
+`com.swirlds.state.State` should only be responsible for accessing and modifying the state, and the state lifecycle should be managed externally.
 
 The `SwirldStateManager` class requires refactoring. The current implementation has two sets of responsibilities:
 - Keeping track of the references to the latest immutable state and the latest mutable state. This includes creating a copy of the state and updating the references.
@@ -114,26 +125,15 @@ public interface StateLifecycleManager {
    * @return a mutable copy of the state
    */
   State copy();
+
+  /**
+   * Hashes the latest immutable state on demand if it is not already hashed. If the state is already hashed, this method is a no-op.
+   */
+  void computeHash();
 }
 ```
 
-The following diagram illustrates an example of the states in memory throughout their lifecycles:
-
-[![Multistate management](multi-states.svg)](multi-states.svg)
-
-### Restricting Copying
-
-To ensure that only `StateLifecycleManager` could manage mutability of the state object, a new implementation of the `State` interface must be introduced:
-
-```java
-public final class NonCopyableState implements State {
-    private State delegate; 
-    // All methods delegate to the delegate object except for the copy method.
-    // For the copy method, we retain the default implementation, which throws an `UnsupportedOperationException`.
-}
-```
-
-Client code requiring a mutable copy of the state must use the `copy` method provided by the `StateLifecycleManager` interface.
+Note that after the refactoring `State` will no longer have the `copy`, `computeHash`, `createSnapshot`, and `loadSnapshot` methods.
 
 ### State Initialization
 
@@ -157,6 +157,10 @@ Additionally, this logic is tightly coupled with other functionalities, such as:
 Invalid state file cleanup and hash validation should be moved to the `StateLifecycleManager` implementation. The remaining responsibilities belong to the platform code.
 
 As part of this design, the code responsible for state initialization should be refactored and centralized in the `StateLifecycleManager`. The platform code should then use the `StateLifecycleManager` to retrieve either a mutable state or the latest immutable copy.
+
+This should be the end result of the refactoring:
+
+[![State lifecycle](state-lifecycle-new.svg)](state-lifecycle-new.svg)
 
 ### Metrics
 
