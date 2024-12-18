@@ -125,26 +125,20 @@ The interface will look something like this:
 ```java
 public interface StateLifecycleManager {
     /**
-     * Get the latest immutable state.
-     */
-    State getLatestImmutableState();
-
-    /**
      * Get the mutable state.
      */
     State getMutableState();
 
-    /**
-     * Load an immutable copy of a state from the snapshot at the specified path.
-     * @param sourcePath the path to the snapshot
-     * @return the immutable state loaded from the snapshot
-     */
-    State loadSnapshot(Path sourcePath);
+   /**
+    * Creates a snapshot for the latest immutable state. 
+    * 
+    * @param targetPath The path to save the snapshot.
+    */
+    State createSnapshot(final @NonNull Path targetPath);
 
     /**
      * Creates a mutable copy of the state. The previous mutable state becomes immutable,
-     * replacing the latest immutable state. A task to compute the hash of the new immutable 
-     * state is also created asynchronously.
+     * replacing the latest immutable state. 
      * 
      * @return a mutable copy of the state
      */
@@ -152,10 +146,48 @@ public interface StateLifecycleManager {
 }
 ```
 
-**Notes**:  
+---
 
-- The `State` interface will no longer include `copy`, `computeHash`, `createSnapshot`, or `loadSnapshot` methods.  
-- The `State#getHash()` method will change its signature to `Future<Hash> getHash()` to accommodate asynchronous hash computation.  
+### Implementation Details
+
+The implementation will include the methods defined in the interface and two additional static utility methods:
+
+```java
+public class StateLifecycleManagerImpl implements StateLifecycleManager {
+    /**
+     * Load an immutable copy of a state from the snapshot at the specified path.
+     *
+     * @param sourcePath the path to the snapshot
+     * @return the immutable state loaded from the snapshot
+     */
+    public static State loadSnapshot(Path sourcePath) {
+        // implementation
+    }
+
+    /**
+     * Returns a list of paths to snapshots discovered in the specified directory.
+     *
+     * @param sourcePath the path to the directory
+     * @return a list of paths to snapshots
+     */
+    public static List<Path> discover(Path sourcePath) {
+        // implementation
+    }
+}
+```
+
+---
+
+### Notes
+
+- The `StateLifecycleManager` implementation will maintain a **1-to-1 relationship** with the state. 
+The assumption is that the application will require only one mutable state at a time, and this state should be initialized during the application's startup.  
+- If client code needs a state loaded from an arbitrary snapshot, it can directly use the `StateLifecycleManagerImpl#loadSnapshot` method, which is `static`. 
+In this scenario, the `StateLifecycleManager` instance is unnecessary, as the loaded state will be immutable and hashed.  
+- The `createSnapshot` method requires the latest immutable state to be hashed. It will block on the `Future` returned by the `State#getHash()` method until the hash is ready.  
+- The `State` interface will no longer include the `copy`, `computeHash`, `createSnapshot`, or `loadSnapshot` methods.  
+- The signature of the `State#getHash()` method will change to `Future<Hash> getHash()` to accommodate asynchronous hash computation.  
+- The `copyMutableState` method, in addition to creating a mutable copy, will also asynchronously initiate the hashing of the previous state, which became immutable.  
 
 ---
 
