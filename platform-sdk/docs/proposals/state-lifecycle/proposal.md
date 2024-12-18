@@ -116,7 +116,8 @@ The `SwirldStateManager` class requires refactoring to separate its two distinct
 To achieve this, `swirlds-state-api` will define a `StateLifecycleManager` interface, with an implementation `StateLifecycleManagerImpl` in `swirlds-state-impl`. The interface will handle:
 
 - Creating/loading an initial state. If no snapshot is available, a new state will be created.  
-- Managing references to the latest immutable state and the latest mutable state.  
+- Managing references to the latest immutable state and the latest mutable state.
+- Resetting the mutable state to the latest immutable state.
 - Restricting mutability to a single state object. Specifically, only one state can be mutable at a time.  
 - Loading snapshots from disk. States loaded from snapshots are immutable.  
 
@@ -128,6 +129,11 @@ public interface StateLifecycleManager {
      * Get the mutable state.
      */
     State getMutableState();
+
+   /**
+    * Reset the mutable state to the latest immutable state.
+    */
+   void resetMutableState();
 
    /**
     * Creates a snapshot for the latest immutable state. 
@@ -184,6 +190,8 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
 The assumption is that the application will require only one mutable state at a time, and this state should be initialized during the application's startup.  
 - If client code needs a state loaded from an arbitrary snapshot, it can directly use the `StateLifecycleManagerImpl#loadSnapshot` method, which is `static`. 
 In this scenario, the `StateLifecycleManager` instance is unnecessary, as the loaded state will be immutable and hashed.  
+- The `resetMutableState` method is to effectively revert all the changes since the last copy was made. This method will require additional code changes
+as we normally do not allow creation of immutable state copies. 
 - The `createSnapshot` method requires the latest immutable state to be hashed. It will block on the `Future` returned by the `State#getHash()` method until the hash is ready.  
 - The `State` interface will no longer include the `copy`, `computeHash`, `createSnapshot`, or `loadSnapshot` methods.  
 - The signature of the `State#getHash()` method will change to `Future<Hash> getHash()` to accommodate asynchronous hash computation.  
