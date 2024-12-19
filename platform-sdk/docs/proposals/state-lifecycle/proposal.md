@@ -108,6 +108,25 @@ All lifecycle-related methods from `com.swirlds.state.State` should be moved to 
 
 - `com.swirlds.state.State` should focus solely on accessing and modifying the state.  
 - The state lifecycle will be managed externally.
+- Its hash will be computed asynchronously and managed externally.
+
+```java
+public interface State {
+   @NonNull
+   ReadableStates getReadableStates(@NonNull String serviceName);
+
+   @NonNull
+   WritableStates getWritableStates(@NonNull String serviceName);
+
+   default void registerCommitListener(@NonNull final StateChangeListener listener)l;
+   
+   @Nullable
+   Future<Hash> getHashFuture();
+}
+```
+#### Notes
+- The signature of the `State#getHash()` method will change to `Future<Hash> getHash()` to accommodate asynchronous hash computation.
+- The `State` interface will no longer include the `copy`, `computeHash`, `createSnapshot`, or `loadSnapshot` methods.
 
 The `SwirldStateManager` class requires refactoring to separate its two distinct responsibilities. `swirlds-state-impl` should not include any platform-specific details but should provide the necessary mechanisms for the platform to interact with the state and its lifecycle.
 
@@ -152,6 +171,19 @@ public interface StateLifecycleManager {
 }
 ```
 
+#### Notes
+
+- Initial version of the interface included `getLatestImmutableState` method, but upon further consideration, 
+it was removed as it is not necessary. After the state becomes immutable, only three things can happen to it:
+  - It can be hashed
+  - It can be stored to disk as a snapshot
+  - It can become a source for a mutable copy in case of the `resetMutableState` operation
+
+  All these operations are managed by the `StateLifecycleManager` implementation, and therefore the client code does not need to access the immutable state directly.
+- The `resetMutableState` method is to effectively revert all the changes since the last copy was made. This method will require additional code changes
+  as we normally do not allow creation of immutable state copies.
+- The `createSnapshot` method requires the latest immutable state to be hashed. It will block on the `Future` returned by the `State#getHash()` method until the hash is ready.
+
 ---
 
 ### Implementation Details
@@ -182,19 +214,13 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
 }
 ```
 
----
 
-### Notes
+#### Notes
 
 - The `StateLifecycleManager` implementation will maintain a **1-to-1 relationship** with the state. 
 The assumption is that the application will require only one mutable state at a time, and this state should be initialized during the application's startup.  
 - If client code needs a state loaded from an arbitrary snapshot, it can directly use the `StateLifecycleManagerImpl#loadSnapshot` method, which is `static`. 
 In this scenario, the `StateLifecycleManager` instance is unnecessary, as the loaded state will be immutable and hashed.  
-- The `resetMutableState` method is to effectively revert all the changes since the last copy was made. This method will require additional code changes
-as we normally do not allow creation of immutable state copies. 
-- The `createSnapshot` method requires the latest immutable state to be hashed. It will block on the `Future` returned by the `State#getHash()` method until the hash is ready.  
-- The `State` interface will no longer include the `copy`, `computeHash`, `createSnapshot`, or `loadSnapshot` methods.  
-- The signature of the `State#getHash()` method will change to `Future<Hash> getHash()` to accommodate asynchronous hash computation.  
 - The `copyMutableState` method, in addition to creating a mutable copy, will also asynchronously initiate the hashing of the previous state, which became immutable.  
 
 ---
@@ -220,7 +246,8 @@ Additionally, this logic is tightly coupled with other functionalities, such as:
 
 Invalid state file cleanup and hash validation should be moved to the `StateLifecycleManager`. The remaining responsibilities belong to the platform code.  
 
-This refactoring will ensure that state initialization logic is centralized in the `StateLifecycleManager`. The platform code will use `StateLifecycleManager` to retrieve either a mutable state or the latest immutable copy.
+This refactoring will ensure that state initialization logic is centralized in the `StateLifecycleManager` implementation. 
+The platform code will use `StateLifecycleManager` to retrieve either a mutable state or the latest immutable copy.
 
 The end result will look like this:
 
