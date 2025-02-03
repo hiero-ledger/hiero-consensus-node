@@ -28,7 +28,6 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
-import static com.swirlds.platform.state.service.PlatformStateFacade.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -39,7 +38,6 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -61,8 +59,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
@@ -226,11 +222,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // If the platform handled this round, it must eventually hash its end state
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
-        final var platformState = state.getReadableStates(PlatformStateService.NAME)
-                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
-                .get();
-        requireNonNull(platformState);
-        if (isFreezeRound(platformState, round)) {
+        if (platformStateFacade.isFreezeRound(state, round)) {
             // Track freeze round numbers because they always end a block
             freezeRoundNumber = round.getRoundNum();
         }
@@ -256,7 +248,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .number(blockNumber)
                     .previousBlockHash(lastBlockHash)
                     .hashAlgorithm(SHA2_384)
-                    .softwareVersion(platformState.creationSoftwareVersionOrThrow())
+                    .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
                     .hapiProtoVersion(hapiVersion);
             signerReady = blockHashSigner.isReady();
             if (signerReady) {
@@ -529,13 +521,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return false;
         }
         return roundNumber % roundsPerBlock == 0 || roundNumber == freezeRoundNumber;
-    }
-
-    private boolean isFreezeRound(@NonNull final PlatformState platformState, @NonNull final Round round) {
-        return isInFreezePeriod(
-                round.getConsensusTimestamp(),
-                platformState.freezeTime() == null ? null : asInstant(platformState.freezeTime()),
-                platformState.lastFrozenTime() == null ? null : asInstant(platformState.lastFrozenTime()));
     }
 
     class BlockStreamManagerTask {

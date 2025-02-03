@@ -28,7 +28,6 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.platform.NodeId;
@@ -41,7 +40,7 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.SocketConnection;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
@@ -138,7 +137,7 @@ final class ReconnectTest {
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
 
             final MerkleCryptography cryptography = MerkleCryptoFactory.getInstance();
-            cryptography.digestSync((MerkleInternal) signedState.getState());
+            cryptography.digestSync(signedState.getState());
 
             final ReconnectLearner receiver = buildReceiver(
                     signedState.getState(),
@@ -194,7 +193,7 @@ final class ReconnectTest {
     }
 
     private ReconnectLearner buildReceiver(
-            final PlatformMerkleStateRoot state,
+            final MerkleNodeState state,
             final Connection connection,
             final ReconnectMetrics reconnectMetrics,
             final PlatformStateFacade platformStateFacade) {

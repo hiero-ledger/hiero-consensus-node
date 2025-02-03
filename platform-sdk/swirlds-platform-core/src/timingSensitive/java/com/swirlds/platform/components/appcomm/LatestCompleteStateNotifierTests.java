@@ -59,9 +59,8 @@ public class LatestCompleteStateNotifierTests {
             try {
                 assertThat(senderLatch.await(1, TimeUnit.SECONDS)).isTrue();
                 assertFalse(
-                        n.getStateRoot().isDestroyed(),
-                        "State should not be destroyed until the callback has completed");
-                assertEquals(signedState.getState(), n.getStateRoot(), "Unexpected State");
+                        n.getState().isDestroyed(), "State should not be destroyed until the callback has completed");
+                assertEquals(signedState.getState(), n.getState(), "Unexpected State");
             } catch (Throwable e) {
                 notificationProcessingErrorRef.set(e);
                 throw new RuntimeException(e);
