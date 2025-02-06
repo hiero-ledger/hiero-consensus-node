@@ -20,9 +20,9 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "timestamp.proto";
-import "sidecar_file.proto";
+import "services/basic_types.proto";
+import "services/timestamp.proto";
+import "streams/sidecar_file.proto";
 
 /**
  * A Block Item for record files.

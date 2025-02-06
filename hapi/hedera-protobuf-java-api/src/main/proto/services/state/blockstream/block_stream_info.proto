@@ -15,8 +15,8 @@ syntax = "proto3";
 package com.hedera.hapi.node.state.blockstream;
 
 // SPDX-License-Identifier: Apache-2.0
-import "timestamp.proto";
-import "basic_types.proto";
+import "services/timestamp.proto";
+import "services/basic_types.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.blockstream">>> This comment is special code for setting PBJ Compiler java package

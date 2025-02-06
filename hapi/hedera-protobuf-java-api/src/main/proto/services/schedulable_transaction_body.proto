@@ -20,60 +20,60 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.scheduled">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "system_delete.proto";
-import "system_undelete.proto";
-import "freeze.proto";
+import "services/system_delete.proto";
+import "services/system_undelete.proto";
+import "services/freeze.proto";
 
-import "contract_call.proto";
-import "contract_create.proto";
-import "contract_update.proto";
+import "services/contract_call.proto";
+import "services/contract_create.proto";
+import "services/contract_update.proto";
 
-import "crypto_create.proto";
-import "crypto_delete.proto";
-import "crypto_transfer.proto";
-import "crypto_update.proto";
-import "crypto_approve_allowance.proto";
-import "crypto_delete_allowance.proto";
+import "services/crypto_create.proto";
+import "services/crypto_delete.proto";
+import "services/crypto_transfer.proto";
+import "services/crypto_update.proto";
+import "services/crypto_approve_allowance.proto";
+import "services/crypto_delete_allowance.proto";
 
-import "file_append.proto";
-import "file_create.proto";
-import "file_delete.proto";
-import "file_update.proto";
+import "services/file_append.proto";
+import "services/file_create.proto";
+import "services/file_delete.proto";
+import "services/file_update.proto";
 
-import "contract_delete.proto";
+import "services/contract_delete.proto";
 
-import "consensus_create_topic.proto";
-import "consensus_update_topic.proto";
-import "consensus_delete_topic.proto";
-import "consensus_submit_message.proto";
+import "services/consensus_create_topic.proto";
+import "services/consensus_update_topic.proto";
+import "services/consensus_delete_topic.proto";
+import "services/consensus_submit_message.proto";
 
-import "token_create.proto";
-import "token_freeze_account.proto";
-import "token_unfreeze_account.proto";
-import "token_grant_kyc.proto";
-import "token_revoke_kyc.proto";
-import "token_delete.proto";
-import "token_update.proto";
-import "token_mint.proto";
-import "token_burn.proto";
-import "token_wipe_account.proto";
-import "token_associate.proto";
-import "token_dissociate.proto";
-import "token_fee_schedule_update.proto";
-import "token_pause.proto";
-import "token_unpause.proto";
-import "token_update_nfts.proto";
-import "token_reject.proto";
-import "token_cancel_airdrop.proto";
-import "token_claim_airdrop.proto";
-import "token_airdrop.proto";
+import "services/token_create.proto";
+import "services/token_freeze_account.proto";
+import "services/token_unfreeze_account.proto";
+import "services/token_grant_kyc.proto";
+import "services/token_revoke_kyc.proto";
+import "services/token_delete.proto";
+import "services/token_update.proto";
+import "services/token_mint.proto";
+import "services/token_burn.proto";
+import "services/token_wipe_account.proto";
+import "services/token_associate.proto";
+import "services/token_dissociate.proto";
+import "services/token_fee_schedule_update.proto";
+import "services/token_pause.proto";
+import "services/token_unpause.proto";
+import "services/token_update_nfts.proto";
+import "services/token_reject.proto";
+import "services/token_cancel_airdrop.proto";
+import "services/token_claim_airdrop.proto";
+import "services/token_airdrop.proto";
 
-import "schedule_delete.proto";
-import "util_prng.proto";
+import "services/schedule_delete.proto";
+import "services/util_prng.proto";
 
-import "node_create.proto";
-import "node_update.proto";
-import "node_delete.proto";
+import "services/node_create.proto";
+import "services/node_update.proto";
+import "services/node_delete.proto";
 
 /**
  * A schedulable transaction.

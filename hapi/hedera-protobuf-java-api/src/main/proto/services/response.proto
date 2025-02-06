@@ -18,40 +18,40 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "get_by_key.proto";
-import "get_by_solidity_id.proto";
+import "services/get_by_key.proto";
+import "services/get_by_solidity_id.proto";
 
-import "contract_call_local.proto";
-import "contract_get_bytecode.proto";
-import "contract_get_info.proto";
-import "contract_get_records.proto";
+import "services/contract_call_local.proto";
+import "services/contract_get_bytecode.proto";
+import "services/contract_get_info.proto";
+import "services/contract_get_records.proto";
 
-import "crypto_get_account_balance.proto";
-import "crypto_get_account_records.proto";
-import "crypto_get_info.proto";
-import "crypto_get_live_hash.proto";
-import "crypto_get_stakers.proto";
+import "services/crypto_get_account_balance.proto";
+import "services/crypto_get_account_records.proto";
+import "services/crypto_get_info.proto";
+import "services/crypto_get_live_hash.proto";
+import "services/crypto_get_stakers.proto";
 
-import "file_get_contents.proto";
-import "file_get_info.proto";
+import "services/file_get_contents.proto";
+import "services/file_get_info.proto";
 
-import "transaction_get_receipt.proto";
-import "transaction_get_record.proto";
-import "transaction_get_fast_record.proto";
+import "services/transaction_get_receipt.proto";
+import "services/transaction_get_record.proto";
+import "services/transaction_get_fast_record.proto";
 
-import "consensus_get_topic_info.proto";
+import "services/consensus_get_topic_info.proto";
 
-import "network_get_version_info.proto";
-import "network_get_execution_time.proto";
+import "services/network_get_version_info.proto";
+import "services/network_get_execution_time.proto";
 
-import "token_get_account_nft_infos.proto";
-import "token_get_info.proto";
-import "token_get_nft_info.proto";
-import "token_get_nft_infos.proto";
+import "services/token_get_account_nft_infos.proto";
+import "services/token_get_info.proto";
+import "services/token_get_nft_info.proto";
+import "services/token_get_nft_infos.proto";
 
-import "schedule_get_info.proto";
+import "services/schedule_get_info.proto";
 
-import "get_account_details.proto";
+import "services/get_account_details.proto";
 
 /**
  * A single query response.

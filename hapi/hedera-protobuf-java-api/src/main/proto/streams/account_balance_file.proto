@@ -26,8 +26,8 @@ option java_package = "com.hedera.services.stream.proto";
 // <<<pbj.java_package = "com.hedera.hapi.streams">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "timestamp.proto";
+import "services/basic_types.proto";
+import "services/timestamp.proto";
 
 message TokenUnitBalance {
     /**

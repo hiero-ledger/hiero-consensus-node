@@ -24,8 +24,8 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 
-import "basic_types.proto";
-import "duration.proto";
+import "services/basic_types.proto";
+import "services/duration.proto";
 
 /**
  * A Live Hash value associating some item of content to an account.

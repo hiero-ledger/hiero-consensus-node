@@ -16,20 +16,8 @@ tasks.withType<JavaCompile>().configureEach {
 
 sourceSets {
     main {
-        pbj {
-            srcDir(layout.projectDirectory.dir("hedera-protobufs/services"))
-            srcDir(layout.projectDirectory.dir("hedera-protobufs/streams"))
-            srcDir(layout.projectDirectory.dir("hedera-protobufs/block"))
-            srcDir(layout.projectDirectory.dir("hedera-protobufs/platform"))
-            srcDir(layout.projectDirectory.dir("internal-protobufs/network"))
-        }
-        proto {
-            srcDir(layout.projectDirectory.dir("hedera-protobufs/services"))
-            srcDir(layout.projectDirectory.dir("hedera-protobufs/streams"))
-            srcDir(layout.projectDirectory.dir("hedera-protobufs/block"))
-            srcDir(layout.projectDirectory.dir("hedera-protobufs/platform"))
-            srcDir(layout.projectDirectory.dir("internal-protobufs/network"))
-        }
+        pbj.srcDir(layout.projectDirectory.dir(protoApiSrc))
+        proto.srcDir(layout.projectDirectory.dir(protoApiSrc))
     }
 }
 

@@ -18,12 +18,12 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "custom_fees.proto";
-import "query_header.proto";
-import "response_header.proto";
-import "timestamp.proto";
-import "duration.proto";
+import "services/basic_types.proto";
+import "services/custom_fees.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/timestamp.proto";
+import "services/duration.proto";
 
 /**
  * Request information for a token.

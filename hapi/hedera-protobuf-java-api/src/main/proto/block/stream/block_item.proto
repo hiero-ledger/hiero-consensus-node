@@ -28,15 +28,15 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "event/event_transaction.proto";
-import "stream/block_proof.proto";
-import "stream/record_file_item.proto";
-import "stream/input/event_metadata.proto";
-import "stream/input/round_header.proto";
-import "stream/output/block_header.proto";
-import "stream/output/state_changes.proto";
-import "stream/output/transaction_output.proto";
-import "stream/output/transaction_result.proto";
+import "platform/event/event_transaction.proto";
+import "block/stream/block_proof.proto";
+import "block/stream/record_file_item.proto";
+import "block/stream/input/event_metadata.proto";
+import "block/stream/input/round_header.proto";
+import "block/stream/output/block_header.proto";
+import "block/stream/output/state_changes.proto";
+import "block/stream/output/transaction_output.proto";
+import "block/stream/output/transaction_result.proto";
 
 /**
  * A single item within a block stream.

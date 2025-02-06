@@ -24,10 +24,10 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "query_header.proto";
-import "response_header.proto";
-import "crypto_add_live_hash.proto";
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/crypto_add_live_hash.proto";
 
 /**
  * Request detail for a specific live hash associated to a specific account.

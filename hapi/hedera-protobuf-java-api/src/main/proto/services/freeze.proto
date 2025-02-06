@@ -18,9 +18,9 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.freeze">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "timestamp.proto";
-import "basic_types.proto";
-import "freeze_type.proto";
+import "services/timestamp.proto";
+import "services/basic_types.proto";
+import "services/freeze_type.proto";
 
 /**
  * A transaction body for all five freeze transactions.

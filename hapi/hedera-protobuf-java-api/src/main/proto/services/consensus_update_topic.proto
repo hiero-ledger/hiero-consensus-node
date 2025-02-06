@@ -19,10 +19,10 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";
-import "basic_types.proto";
-import "custom_fees.proto";
-import "duration.proto";
-import "timestamp.proto";
+import "services/basic_types.proto";
+import "services/custom_fees.proto";
+import "services/duration.proto";
+import "services/timestamp.proto";
 
 /**
  * Update the fields of an existing HCS topic.

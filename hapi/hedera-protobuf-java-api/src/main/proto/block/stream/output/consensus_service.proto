@@ -23,7 +23,7 @@ syntax = "proto3";
 
 package com.hedera.hapi.block.stream.output;
 
-import "custom_fees.proto";
+import "services/custom_fees.proto";
 
 // SPDX-License-Identifier: Apache-2.0
 option java_package = "com.hedera.hapi.block.stream.output.protoc";

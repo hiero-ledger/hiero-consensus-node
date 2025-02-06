@@ -8,7 +8,7 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";
-import "basic_types.proto";
+import "services/basic_types.proto";
 
 /**
  * Transaction body to modify address book node attributes.

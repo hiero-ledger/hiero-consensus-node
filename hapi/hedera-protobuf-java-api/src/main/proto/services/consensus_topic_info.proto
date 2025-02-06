@@ -18,10 +18,10 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.consensus">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "custom_fees.proto";
-import "duration.proto";
-import "timestamp.proto";
+import "services/basic_types.proto";
+import "services/custom_fees.proto";
+import "services/duration.proto";
+import "services/timestamp.proto";
 
 /**
  * A query response describing the current state of a topic for the Hedera

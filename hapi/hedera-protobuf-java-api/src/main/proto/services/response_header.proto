@@ -18,8 +18,8 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.base">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "query_header.proto";
-import "response_code.proto";
+import "services/query_header.proto";
+import "services/response_code.proto";
 
 /**
  * A standard header returned with every query response.

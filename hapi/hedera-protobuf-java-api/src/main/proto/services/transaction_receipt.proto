@@ -19,9 +19,9 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "response_code.proto";
-import "exchange_rate.proto";
+import "services/basic_types.proto";
+import "services/response_code.proto";
+import "services/exchange_rate.proto";
 
 /**
  * The summary of a transaction's result so far.<br/>

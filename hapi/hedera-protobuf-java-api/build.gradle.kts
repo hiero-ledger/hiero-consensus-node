@@ -20,16 +20,3 @@ plugins {
 }
 
 description = "Hedera Protobuf Java API"
-
-sourceSets {
-    main {
-        proto.setSrcDirs(
-            listOf(
-                layout.projectDirectory.dir("src/main/proto/services"),
-                layout.projectDirectory.dir("src/main/proto/streams"),
-                layout.projectDirectory.dir("src/main/proto/block"),
-                layout.projectDirectory.dir("src/main/proto/platform"),
-            )
-        )
-    }
-}

@@ -18,7 +18,7 @@ option java_package = "com.hedera.hapi.block.stream.input.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream.input">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "event/event_core.proto";
+import "platform/event/event_core.proto";
 
 /**
  * A header for a single event.<br/>

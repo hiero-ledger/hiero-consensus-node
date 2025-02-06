@@ -27,10 +27,10 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "transaction_record.proto";
-import "basic_types.proto";
-import "query_header.proto";
-import "response_header.proto";
+import "services/transaction_record.proto";
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
 
 /**
  * Get the tx record of a transaction, given its transaction ID.

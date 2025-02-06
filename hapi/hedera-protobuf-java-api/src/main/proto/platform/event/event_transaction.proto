@@ -14,7 +14,7 @@ syntax = "proto3";
 package com.hedera.hapi.platform.event;
 
 // SPDX-License-Identifier: Apache-2.0
-import "event/state_signature_transaction.proto";
+import "platform/event/state_signature_transaction.proto";
 
 option java_package = "com.hedera.hapi.platform.event.legacy";
 // <<<pbj.java_package = "com.hedera.hapi.platform.event">>> This comment is special code for setting PBJ Compiler java package

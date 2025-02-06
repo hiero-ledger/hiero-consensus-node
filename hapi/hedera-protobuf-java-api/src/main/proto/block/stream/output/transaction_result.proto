@@ -18,9 +18,9 @@ option java_package = "com.hedera.hapi.block.stream.output.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream.output">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "response_code.proto";
-import "timestamp.proto";
+import "services/basic_types.proto";
+import "services/response_code.proto";
+import "services/timestamp.proto";
 
 /**
  * While we have the state changes as part of the block stream,

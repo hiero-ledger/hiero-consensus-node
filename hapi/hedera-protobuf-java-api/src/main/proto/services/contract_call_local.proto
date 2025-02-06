@@ -19,10 +19,10 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.contract">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "contract_types.proto";
-import "query_header.proto";
-import "response_header.proto";
+import "services/basic_types.proto";
+import "services/contract_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
 
 /**
  * Call a view function of a given smart contract<br/>

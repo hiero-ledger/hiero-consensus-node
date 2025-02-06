@@ -26,10 +26,10 @@ option java_package = "com.hedera.services.stream.proto";
 // <<<pbj.java_package = "com.hedera.hapi.streams">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "basic_types.proto";
-import "transaction.proto";
-import "transaction_record.proto";
-import "hash_object.proto";
+import "services/basic_types.proto";
+import "services/transaction.proto";
+import "services/transaction_record.proto";
+import "streams/hash_object.proto";
 
 /**
  * RecordStreamFile is used to serialize all RecordStreamItems that are part of the
