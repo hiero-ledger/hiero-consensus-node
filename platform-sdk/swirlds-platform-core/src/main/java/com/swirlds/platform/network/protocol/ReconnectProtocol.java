@@ -31,6 +31,7 @@ import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.reconnect.*;
 import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
@@ -56,6 +57,7 @@ public class ReconnectProtocol implements Protocol {
     private final SignedStateValidator validator;
     private final ThreadManager threadManager;
     private final FallenBehindManager fallenBehindManager;
+    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Provides the platform status.
@@ -78,7 +80,8 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final SignedStateValidator validator,
             @NonNull final FallenBehindManager fallenBehindManager,
             final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
@@ -89,6 +92,7 @@ public class ReconnectProtocol implements Protocol {
         this.reconnectController = Objects.requireNonNull(reconnectController);
         this.validator = Objects.requireNonNull(validator);
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
+        this.platformStateFacade = platformStateFacade;
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
         this.configuration = Objects.requireNonNull(configuration);
         this.time = Objects.requireNonNull(platformContext.getTime());
@@ -118,7 +122,8 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final Runnable clearAllPipelinesForReconnect,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final NodeId selfId,
-            @NonNull final GossipController gossipController) {
+            @NonNull final GossipController gossipController,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -152,8 +157,14 @@ public class ReconnectProtocol implements Protocol {
                             .resetFallenBehind(); // this is almost direct communication to SyncProtocol
                 },
                 new ReconnectLearnerFactory(
-                        platformContext, threadManager, roster, reconnectConfig.asyncStreamTimeout(), reconnectMetrics),
-                stateConfig);
+                        platformContext,
+                        threadManager,
+                        roster,
+                        reconnectConfig.asyncStreamTimeout(),
+                        reconnectMetrics,
+                        platformStateFacade),
+                stateConfig,
+                platformStateFacade);
         var reconnectController =
                 new ReconnectController(reconnectConfig, threadManager, reconnectHelper, gossipController::resume);
 
@@ -167,10 +178,11 @@ public class ReconnectProtocol implements Protocol {
                 reconnectConfig.asyncStreamTimeout(),
                 reconnectMetrics,
                 reconnectController,
-                new DefaultSignedStateValidator(platformContext),
+                new DefaultSignedStateValidator(platformContext, platformStateFacade),
                 sharedState.syncManager(),
                 sharedState.currentPlatformStatus()::get,
-                platformContext.getConfiguration());
+                platformContext.getConfiguration(),
+                platformStateFacade);
     }
 
     /**
@@ -192,6 +204,7 @@ public class ReconnectProtocol implements Protocol {
                 fallenBehindManager,
                 platformStatusSupplier,
                 configuration,
-                time);
+                time,
+                platformStateFacade);
     }
 }

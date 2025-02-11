@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -273,11 +274,11 @@ class DefaultSignedStateValidatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        validator = new DefaultSignedStateValidator(platformContext);
+        validator = new DefaultSignedStateValidator(platformContext, TEST_PLATFORM_STATE_FACADE);
 
         final SignedState signedState = stateSignedByNodes(signingNodes);
         final SignedStateValidationData originalData =
-                new SignedStateValidationData(signedState.getState().getReadablePlatformState(), roster);
+                new SignedStateValidationData(signedState.getState(), roster, TEST_PLATFORM_STATE_FACADE);
 
         final boolean shouldSucceed = stateHasEnoughWeight(nodes, signingNodes);
         if (shouldSucceed) {

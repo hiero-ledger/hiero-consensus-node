@@ -23,6 +23,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStat
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.nio.file.Files.exists;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -159,8 +160,8 @@ class StateFileManagerTests {
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
         MerkleDb.resetDefaultInstancePath();
-        final DeserializedSignedState deserializedSignedState =
-                readStateFile(TestPlatformContextBuilder.create().build().getConfiguration(), stateFile);
+        final DeserializedSignedState deserializedSignedState = readStateFile(
+                TestPlatformContextBuilder.create().build().getConfiguration(), stateFile, TEST_PLATFORM_STATE_FACADE);
         MerkleCryptoFactory.getInstance()
                 .digestTreeSync(
                         deserializedSignedState.reservedSignedState().get().getState());
@@ -193,8 +194,8 @@ class StateFileManagerTests {
             Files.createFile(savedDir);
         }
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
 
@@ -213,8 +214,8 @@ class StateFileManagerTests {
                 new RandomSignedStateGenerator().setUseBlockingState(true).build();
         ((BlockingState) signedState.getState()).enableBlockingSerialization();
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
         signedState.markAsStateToSave(FATAL_ERROR);
         makeImmutable(signedState);
 
@@ -240,8 +241,8 @@ class StateFileManagerTests {
     void saveISSignedState() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
         signedState.markAsStateToSave(ISS);
         makeImmutable(signedState);
         manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test")));
@@ -281,8 +282,8 @@ class StateFileManagerTests {
         final int averageTimeBetweenStates = 10;
         final double standardDeviationTimeBetweenStates = 0.5;
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
         final SavedStateController controller = new DefaultSavedStateController(context);
 
         Instant timestamp;
@@ -362,7 +363,8 @@ class StateFileManagerTests {
                                             TestPlatformContextBuilder.create()
                                                     .build()
                                                     .getConfiguration(),
-                                            savedStateInfo.stateFile())
+                                            savedStateInfo.stateFile(),
+                                            TEST_PLATFORM_STATE_FACADE)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");
@@ -405,8 +407,8 @@ class StateFileManagerTests {
 
         final int count = 10;
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
 
         final Path statesDirectory =
                 signedStateFilePath.getSignedStatesDirectoryForSwirld(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);

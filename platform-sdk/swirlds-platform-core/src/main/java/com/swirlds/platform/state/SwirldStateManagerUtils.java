@@ -19,10 +19,9 @@ package com.swirlds.platform.state;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
 
 import com.swirlds.platform.metrics.StateMetrics;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -44,7 +43,8 @@ public final class SwirldStateManagerUtils {
     public static PlatformMerkleStateRoot fastCopy(
             @NonNull final PlatformMerkleStateRoot state,
             @NonNull final StateMetrics stats,
-            @NonNull final SoftwareVersion softwareVersion) {
+            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         Objects.requireNonNull(softwareVersion);
 
@@ -52,8 +52,7 @@ public final class SwirldStateManagerUtils {
 
         // Create a fast copy
         final PlatformMerkleStateRoot copy = state.copy();
-        final var platformState = copy.getWritablePlatformState();
-        platformState.setCreationSoftwareVersion(softwareVersion);
+        platformStateFacade.setCreationSoftwareVersionTo(copy, softwareVersion);
 
         // Increment the reference count because this reference becomes the new value
         copy.reserve();
@@ -63,30 +62,5 @@ public final class SwirldStateManagerUtils {
         stats.stateCopyMicros((copyEnd - copyStart) * NANOSECONDS_TO_MICROSECONDS);
 
         return copy;
-    }
-
-    /**
-     * Determines if a {@code timestamp} is in a freeze period according to the provided timestamps.
-     *
-     * @param consensusTime  the consensus time to check
-     * @param freezeTime     the freeze time
-     * @param lastFrozenTime the last frozen time
-     * @return true is the {@code timestamp} is in a freeze period
-     */
-    public static boolean isInFreezePeriod(
-            @NonNull final Instant consensusTime,
-            @Nullable final Instant freezeTime,
-            @Nullable final Instant lastFrozenTime) {
-
-        // if freezeTime is not set, or consensusTime is before freezeTime, we are not in a freeze period
-        // if lastFrozenTime is equal to or after freezeTime, which means the nodes have been frozen once at/after the
-        // freezeTime, we are not in a freeze period
-        if (freezeTime == null || consensusTime.isBefore(freezeTime)) {
-            return false;
-        }
-        // Now we should check whether the nodes have been frozen at the freezeTime.
-        // when consensusTime is equal to or after freezeTime,
-        // and lastFrozenTime is before freezeTime, we are in a freeze period.
-        return lastFrozenTime == null || lastFrozenTime.isBefore(freezeTime);
     }
 }

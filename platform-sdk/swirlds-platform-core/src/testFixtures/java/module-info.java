@@ -17,6 +17,7 @@
 module com.swirlds.platform.core.test.fixtures {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.base;
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
@@ -26,7 +27,6 @@ module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.state.impl.test.fixtures;
     requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
-    requires com.swirlds.base;
     requires com.swirlds.component.framework;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;

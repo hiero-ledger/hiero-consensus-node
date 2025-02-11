@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.merkle.singleton.ValueLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -67,12 +68,13 @@ public final class StateUtils {
      * @throws ClassCastException If the object or codec is not for type {@code T}.
      */
     public static <T> int writeToStream(
-            @NonNull final OutputStream out, @NonNull final Codec<T> codec, @NonNull final T object)
+            @NonNull final OutputStream out, @NonNull final Codec<T> codec, @Nullable final T object)
             throws IOException {
+        final var stream = new WritableStreamingData(out);
+
         final var byteStream = new ByteArrayOutputStream();
         codec.write(object, new WritableStreamingData(byteStream));
 
-        final var stream = new WritableStreamingData(out);
         stream.writeInt(byteStream.size());
         stream.writeBytes(byteStream.toByteArray());
         return byteStream.size();
@@ -88,11 +90,12 @@ public final class StateUtils {
      * @throws IOException If the input stream throws it or parsing fails
      * @throws ClassCastException If the object or codec is not for type {@code T}.
      */
-    @NonNull
+    @Nullable
     public static <T> T readFromStream(@NonNull final InputStream in, @NonNull final Codec<T> codec)
             throws IOException {
         final var stream = new ReadableStreamingData(in);
         final var size = stream.readInt();
+
         stream.limit((long) size + Integer.BYTES); // +4 for the size
         try {
             return codec.parse(stream);

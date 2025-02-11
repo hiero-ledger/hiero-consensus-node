@@ -50,6 +50,7 @@ import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
 import com.swirlds.platform.health.entropy.OSEntropyChecker;
 import com.swirlds.platform.health.filesystem.OSFileSystemChecker;
 import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.swirldapp.AppLoaderException;
 import com.swirlds.platform.swirldapp.SwirldAppLoader;
@@ -227,7 +228,9 @@ public final class BootstrapUtils {
      * @return true if there is a software upgrade, false otherwise
      */
     public static boolean detectSoftwareUpgrade(
-            @NonNull final SoftwareVersion appVersion, @Nullable final SignedState loadedSignedState) {
+            @NonNull final SoftwareVersion appVersion,
+            @Nullable final SignedState loadedSignedState,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(appVersion, "The app version must not be null.");
 
         final SoftwareVersion loadedSoftwareVersion;
@@ -235,7 +238,7 @@ public final class BootstrapUtils {
             loadedSoftwareVersion = null;
         } else {
             PlatformMerkleStateRoot state = loadedSignedState.getState();
-            loadedSoftwareVersion = state.getReadablePlatformState().getCreationSoftwareVersion();
+            loadedSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
         }
         final int versionComparison = loadedSoftwareVersion == null ? 1 : appVersion.compareTo(loadedSoftwareVersion);
         final boolean softwareUpgrade;
