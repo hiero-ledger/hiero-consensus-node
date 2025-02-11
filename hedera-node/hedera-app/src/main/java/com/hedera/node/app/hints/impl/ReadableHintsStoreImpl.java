@@ -21,13 +21,18 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONS
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_KEY;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_KEY;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_KEY;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -41,6 +46,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.StreamSupport;
 
 /**
  * Provides read access to the {@link HintsConstruction} and {@link PreprocessingVote} instances in state.
@@ -50,6 +58,8 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     private final ReadableSingletonState<HintsConstruction> nextConstruction;
     private final ReadableSingletonState<HintsConstruction> activeConstruction;
     private final ReadableKVState<PreprocessingVoteId, PreprocessingVote> votes;
+    private final ReadableSingletonState<CRSState> crs;
+    private final ReadableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
 
     public ReadableHintsStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
@@ -57,6 +67,8 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
         this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
         this.activeConstruction = states.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY);
         this.votes = states.get(PREPROCESSING_VOTES_KEY);
+        this.crs = states.getSingleton(CRS_STATE_KEY);
+        this.crsPublications = states.get(CRS_PUBLICATIONS_KEY);
     }
 
     @Override
@@ -123,6 +135,19 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
             }
         }
         return publications;
+    }
+
+    @Override
+    public @NonNull CRSState getCrsState() {
+        return requireNonNull(crs.get());
+    }
+
+    @Override
+    public List<CrsPublicationTransactionBody> getCrsPublications() {
+        return StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(crsPublications.keys(), Spliterator.ORDERED), false)
+                .map(crsPublications::get)
+                .toList();
     }
 
     private boolean constructionIsFor(

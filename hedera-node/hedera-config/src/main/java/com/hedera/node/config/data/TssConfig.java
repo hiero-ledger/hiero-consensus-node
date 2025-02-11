@@ -30,5 +30,8 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionHintsKeyGracePeriod,
         @ConfigProperty(defaultValue = "60s") @NetworkProperty Duration bootstrapProofKeyGracePeriod,
         @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionProofKeyGracePeriod,
+        @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration crsUpdateContributionTime,
+        @ConfigProperty(defaultValue = "5s") @NetworkProperty Duration crsFinalizationDelay,
+        @ConfigProperty(defaultValue = "1024") @NetworkProperty int initialCrsParties,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled) {}

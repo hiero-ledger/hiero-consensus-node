@@ -22,8 +22,9 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.ReadableHintsStore;
+import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -51,6 +52,7 @@ public class HintsControllers {
     private final HintsSubmissions submissions;
     private final HintsContext context;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
+    private Supplier<Configuration> configurationSupplier;
 
     /**
      * May be null if the node has just started, or if the network has completed the most up-to-date
@@ -67,7 +69,8 @@ public class HintsControllers {
             @NonNull final HintsLibraryCodec codec,
             @NonNull final HintsSubmissions submissions,
             @NonNull final HintsContext context,
-            @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier) {
+            @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
+            @NonNull final Supplier<Configuration> configurationSupplier) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.codec = requireNonNull(codec);
@@ -75,20 +78,21 @@ public class HintsControllers {
         this.library = requireNonNull(library);
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
+        this.configurationSupplier = requireNonNull(configurationSupplier);
     }
 
     /**
      * Creates a new controller for the given hinTS construction, sourcing its rosters from the given store.
      *
      * @param activeRosters the active rosters
-     * @param construction the hinTS construction
-     * @param hintsStore the hinTS store
+     * @param construction  the hinTS construction
+     * @param hintsStore    the hinTS store
      * @return the result of the operation
      */
     public @NonNull HintsController getOrCreateFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HintsConstruction construction,
-            @NonNull final ReadableHintsStore hintsStore) {
+            @NonNull final WritableHintsStore hintsStore) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(hintsStore);
@@ -124,6 +128,15 @@ public class HintsControllers {
     }
 
     /**
+     * Returns the in-progress controller for the hinTS construction with the given party size.
+     *
+     * @return the controller, if it exists
+     */
+    public Optional<HintsController> getAnyInProgress() {
+        return Optional.ofNullable(controller);
+    }
+
+    /**
      * Stops the current controller, if it exists.
      */
     public void stop() {
@@ -135,15 +148,16 @@ public class HintsControllers {
 
     /**
      * Returns a new controller for the given active rosters and hinTS construction.
+     *
      * @param activeRosters the active rosters
-     * @param construction the hinTS construction
-     * @param hintsStore the hints store
+     * @param construction  the hinTS construction
+     * @param hintsStore    the hints store
      * @return the controller
      */
     private HintsController newControllerFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HintsConstruction construction,
-            @NonNull final ReadableHintsStore hintsStore) {
+            @NonNull final WritableHintsStore hintsStore) {
         final var weights = activeRosters.transitionWeights();
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertHintsController(construction.constructionId());
@@ -164,7 +178,9 @@ public class HintsControllers {
                     votes,
                     publications,
                     submissions,
-                    context);
+                    context,
+                    configurationSupplier,
+                    hintsStore);
         }
     }
 

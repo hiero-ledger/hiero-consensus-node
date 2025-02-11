@@ -19,6 +19,7 @@ package com.hedera.node.app.hints.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -81,6 +82,25 @@ public class InertHintsController implements HintsController {
 
     @Override
     public void cancelPendingWork() {
+        // No-op
+    }
+
+    @Override
+    public void addCrsPublication(
+            @NonNull final CrsPublicationTransactionBody publication,
+            @NonNull final Instant consensusTime,
+            @NonNull final WritableHintsStore hintsStore) {
+        requireNonNull(publication);
+        requireNonNull(consensusTime);
+        requireNonNull(hintsStore);
+        // No-op
+    }
+
+    @Override
+    public void verifyCrsUpdate(
+            @NonNull final CrsPublicationTransactionBody publication, @NonNull final WritableHintsStore hintsStore) {
+        requireNonNull(publication);
+        requireNonNull(hintsStore);
         // No-op
     }
 }

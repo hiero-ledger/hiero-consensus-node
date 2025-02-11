@@ -17,6 +17,7 @@
 package com.hedera.node.app.hints.impl;
 
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -84,4 +85,15 @@ public interface HintsController {
      * Cancels any pending work that this controller has scheduled.
      */
     void cancelPendingWork();
+
+    /**
+     * Adds a CRS publication to the controller's state, if the network is still gathering contributions.
+     * @param publication the CRS publication
+     */
+    void addCrsPublication(
+            @NonNull CrsPublicationTransactionBody publication,
+            @NonNull Instant consensusTime,
+            @NonNull WritableHintsStore hintsStore);
+
+    void verifyCrsUpdate(@NonNull CrsPublicationTransactionBody publication, @NonNull WritableHintsStore hintsStore);
 }

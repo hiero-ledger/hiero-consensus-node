@@ -25,6 +25,8 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONGESTION_STARTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CRS_PUBLICATIONS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CRS_STATE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ENTITY_COUNTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ENTITY_ID;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
@@ -218,6 +220,8 @@ public class BlockImplUtils {
                         case "ACTIVE_HINTS_CONSTRUCTION" -> STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal();
                         case "NEXT_HINTS_CONSTRUCTION" -> STATE_ID_NEXT_HINTS_CONSTRUCTION.protoOrdinal();
                         case "PREPROCESSING_VOTES" -> STATE_ID_PREPROCESSING_VOTES.protoOrdinal();
+                        case "CRS_STATE" -> STATE_ID_CRS_STATE.protoOrdinal();
+                        case "CRS_PUBLICATIONS" -> STATE_ID_CRS_PUBLICATIONS.protoOrdinal();
                         default -> UNKNOWN_STATE_ID;
                     };
                     case "HistoryService" -> switch (stateKey) {

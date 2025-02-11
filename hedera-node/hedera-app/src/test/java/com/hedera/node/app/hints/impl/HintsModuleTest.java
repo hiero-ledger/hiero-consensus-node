@@ -18,6 +18,7 @@ package com.hedera.node.app.hints.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.hedera.node.app.hints.handlers.CrsPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.handlers.HintsKeyPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsPartialSignatureHandler;
@@ -38,11 +39,17 @@ class HintsModuleTest {
     @Mock
     private HintsPartialSignatureHandler partialSignatureHandler;
 
+    @Mock
+    private CrsPublicationHandler crsPublicationHandler;
+
     @Test
     void constructsHintsHandlers() {
         assertInstanceOf(
                 HintsHandlers.class,
                 HintsModule.provideHintsHandlers(
-                        keyPublicationHandler, preprocessingVoteHandler, partialSignatureHandler));
+                        keyPublicationHandler,
+                        preprocessingVoteHandler,
+                        partialSignatureHandler,
+                        crsPublicationHandler));
     }
 }
