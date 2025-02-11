@@ -62,6 +62,7 @@ import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -76,6 +77,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.MerkleStateRoot;
@@ -219,7 +221,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var servicesVersion = versionConfig.servicesVersion();
         final var addressBook = loadLegacyBookWithGeneratedCerts(pathToAddressBook);
         final var metrics = new NoOpMetrics();
-        final var hedera = ServicesMain.newHedera(metrics);
+        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(ServicesSoftwareVersion::new));
         this.state = hedera.newMerkleStateRoot();
         final var platformConfig = ServicesMain.buildPlatformConfig();
         hedera.initializeStatesApi(

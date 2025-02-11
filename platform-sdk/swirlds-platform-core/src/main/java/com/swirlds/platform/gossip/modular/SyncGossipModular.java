@@ -39,6 +39,7 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
 import com.swirlds.platform.network.protocol.*;
 import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -98,7 +99,8 @@ public class SyncGossipModular implements Gossip {
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final Consumer<SignedState> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.network = new PeerCommunication(platformContext, roster, selfId, keysAndCerts);
 
@@ -149,7 +151,8 @@ public class SyncGossipModular implements Gossip {
                         clearAllPipelinesForReconnect,
                         swirldStateManager,
                         selfId,
-                        controller),
+                        controller,
+                        platformStateFacade),
                 SyncProtocol.create(platformContext, sharedState, intakeEventCounter, roster));
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);

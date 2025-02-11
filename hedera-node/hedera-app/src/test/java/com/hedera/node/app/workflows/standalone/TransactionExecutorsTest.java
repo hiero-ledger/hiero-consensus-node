@@ -25,6 +25,7 @@ import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.DEFAULT_NODE_INFO;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -412,7 +413,8 @@ public class TransactionExecutorsTest {
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                TEST_PLATFORM_STATE_FACADE);
         final var writableStates = state.getWritableStates(FileService.NAME);
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));

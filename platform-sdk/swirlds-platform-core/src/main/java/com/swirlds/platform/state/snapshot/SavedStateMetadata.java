@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,8 @@ import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -162,30 +163,34 @@ public record SavedStateMetadata(
      * @param signedState the signed state
      * @param selfId      the ID of the node that created the signed state
      * @param now         the current time
+     * @param platformStateFacade  the facade to access the platform state
      * @return the signed state metadata
      */
     public static SavedStateMetadata create(
-            @NonNull final SignedState signedState, @NonNull final NodeId selfId, @NonNull final Instant now) {
+            @NonNull final SignedState signedState,
+            @NonNull final NodeId selfId,
+            @NonNull final Instant now,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         Objects.requireNonNull(signedState, "signedState must not be null");
-        Objects.requireNonNull(signedState.getState().getHash(), "state must be hashed");
+        PlatformMerkleStateRoot state = signedState.getState();
+        Objects.requireNonNull(state.getHash(), "state must be hashed");
         Objects.requireNonNull(now, "now must not be null");
 
-        final PlatformStateAccessor platformState = signedState.getState().getReadablePlatformState();
-        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(signedState.getState());
+        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
 
         final List<NodeId> signingNodes = signedState.getSigSet().getSigningNodes();
         Collections.sort(signingNodes);
 
         return new SavedStateMetadata(
                 signedState.getRound(),
-                signedState.getState().getHash(),
-                signedState.getState().getHash().toMnemonic(),
-                platformState.getSnapshot().nextConsensusNumber(),
+                state.getHash(),
+                state.getHash().toMnemonic(),
+                platformStateFacade.consensusSnapshotOf(state).nextConsensusNumber(),
                 signedState.getConsensusTimestamp(),
-                platformState.getLegacyRunningEventHash(),
-                platformState.getLegacyRunningEventHash().toMnemonic(),
-                platformState.getAncientThreshold(),
-                convertToString(platformState.getCreationSoftwareVersion()),
+                platformStateFacade.legacyRunningEventHashOf(state),
+                platformStateFacade.legacyRunningEventHashOf(state).toMnemonic(),
+                platformStateFacade.ancientThresholdOf(state),
+                convertToString(platformStateFacade.creationSoftwareVersionOf(state)),
                 now,
                 selfId,
                 signingNodes,

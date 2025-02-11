@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.roster;
 
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -51,7 +52,7 @@ class RosterServiceTest {
 
     @BeforeEach
     void setUp() {
-        rosterService = new RosterService(canAdopt, onAdopt, stateSupplier);
+        rosterService = new RosterService(canAdopt, onAdopt, stateSupplier, TEST_PLATFORM_STATE_FACADE);
     }
 
     @Test

@@ -57,12 +57,18 @@ public class BlockingState extends PlatformMerkleStateRoot {
     private static final long CLASS_ID = 0xa7d6e4b5feda7ce5L;
 
     private final BlockingStringLeaf value;
+    private TestPlatformStateFacade platformStateFacade;
+
+    public BlockingState() {
+        this(new TestPlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
+    }
 
     /**
      * Constructs a new instance of {@link BlockingState}.
      */
-    public BlockingState() {
+    public BlockingState(TestPlatformStateFacade platformStateFacade) {
         super(version -> new BasicSoftwareVersion(version.major()));
+        this.platformStateFacade = platformStateFacade;
         value = new BlockingStringLeaf();
         setChild(1, value);
     }
@@ -95,7 +101,7 @@ public class BlockingState extends PlatformMerkleStateRoot {
         if (!(obj instanceof final BlockingState that)) {
             return false;
         }
-        return Objects.equals(this.getReadablePlatformState(), that.getReadablePlatformState());
+        return Objects.equals(platformStateFacade.platformStateOf(this), platformStateFacade.platformStateOf(that));
     }
 
     /**

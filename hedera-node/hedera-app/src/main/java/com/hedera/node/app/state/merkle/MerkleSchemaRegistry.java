@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFIN
 import static com.hedera.node.app.state.merkle.VersionUtils.alreadyIncludesStateDefs;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
 import static com.hedera.node.app.workflows.handle.metric.UnavailableMetrics.UNAVAILABLE_METRICS;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
 import static java.util.Objects.requireNonNull;
 
@@ -39,6 +38,7 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -180,6 +180,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      * @param sharedValues A map of shared values for cross-service migration patterns
      * @param migrationStateChanges Tracker for state changes during migration
      * @param startupNetworks The startup networks to use for the migrations
+     * @param platformStateFacade The platform state facade to use for the migrations
      * @throws IllegalArgumentException if the {@code currentVersion} is not at least the
      * {@code previousVersion} or if the {@code state} is not an instance of {@link MerkleStateRoot}
      */
@@ -196,7 +197,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @Nullable final WritableEntityIdStore entityIdStore,
             @NonNull final Map<String, Object> sharedValues,
             @NonNull final MigrationStateChanges migrationStateChanges,
-            @NonNull final StartupNetworks startupNetworks) {
+            @NonNull final StartupNetworks startupNetworks,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(state);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
@@ -210,7 +212,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
         if (!(state instanceof MerkleStateRoot stateRoot)) {
             throw new IllegalArgumentException("The state must be an instance of " + MerkleStateRoot.class.getName());
         }
-        final long roundNumber = PLATFORM_STATE_SERVICE.roundOf(stateRoot);
+        final long roundNumber = platformStateFacade.roundOf(stateRoot);
         if (schemas.isEmpty()) {
             logger.info("Service {} does not use state", serviceName);
             return;

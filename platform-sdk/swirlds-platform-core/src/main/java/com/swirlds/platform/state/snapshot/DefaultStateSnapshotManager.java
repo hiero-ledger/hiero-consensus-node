@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2018-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.events.EventConstants;
@@ -76,6 +77,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     private final Configuration configuration;
 
+    private final PlatformStateFacade platformStateFacade;
+
     /**
      * the platform context
      */
@@ -98,12 +101,14 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * @param mainClassName the main class name of this node
      * @param selfId        the ID of this node
      * @param swirldName    the name of the swirld
+     * @param platformStateFacade the facade to access the platform state
      */
     public DefaultStateSnapshotManager(
             @NonNull final PlatformContext platformContext,
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
-            @NonNull final String swirldName) {
+            @NonNull final String swirldName,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.time = platformContext.getTime();
@@ -111,6 +116,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         this.mainClassName = Objects.requireNonNull(mainClassName);
         this.swirldName = Objects.requireNonNull(swirldName);
         configuration = platformContext.getConfiguration();
+        this.platformStateFacade = platformStateFacade;
         signedStateFilePath = new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
         metrics = new StateSnapshotManagerMetrics(platformContext);
     }
@@ -176,7 +182,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
 
     private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
         try {
-            SignedStateFileWriter.writeSignedStateToDisk(platformContext, selfId, directory, state, getReason(state));
+            SignedStateFileWriter.writeSignedStateToDisk(
+                    platformContext, selfId, directory, state, getReason(state), platformStateFacade);
             return true;
         } catch (final Throwable e) {
             logger.error(

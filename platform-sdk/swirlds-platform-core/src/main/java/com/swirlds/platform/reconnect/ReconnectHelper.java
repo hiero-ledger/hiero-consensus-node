@@ -26,9 +26,11 @@ import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -63,15 +65,19 @@ public class ReconnectHelper {
     /** configuration for the state from the platform */
     private final StateConfig stateConfig;
 
+    /** provides access to the platform state */
+    private final PlatformStateFacade platformStateFacade;
+
     public ReconnectHelper(
-            final Runnable pauseGossip,
-            final Clearable clearAll,
-            final Supplier<PlatformMerkleStateRoot> workingStateSupplier,
-            final LongSupplier lastCompleteRoundSupplier,
-            final ReconnectLearnerThrottle reconnectLearnerThrottle,
-            final Consumer<SignedState> loadSignedState,
-            final ReconnectLearnerFactory reconnectLearnerFactory,
-            StateConfig stateConfig) {
+            @NonNull final Runnable pauseGossip,
+            @NonNull final Clearable clearAll,
+            @NonNull final Supplier<PlatformMerkleStateRoot> workingStateSupplier,
+            @NonNull final LongSupplier lastCompleteRoundSupplier,
+            @NonNull final ReconnectLearnerThrottle reconnectLearnerThrottle,
+            @NonNull final Consumer<SignedState> loadSignedState,
+            @NonNull final ReconnectLearnerFactory reconnectLearnerFactory,
+            @NonNull final StateConfig stateConfig,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.pauseGossip = pauseGossip;
         this.clearAll = clearAll;
         this.workingStateSupplier = workingStateSupplier;
@@ -80,6 +86,7 @@ public class ReconnectHelper {
         this.loadSignedState = loadSignedState;
         this.reconnectLearnerFactory = reconnectLearnerFactory;
         this.stateConfig = stateConfig;
+        this.platformStateFacade = platformStateFacade;
     }
 
     /**
@@ -147,7 +154,7 @@ public class ReconnectHelper {
                 """
                 Information for state received during reconnect:
                 {}""",
-                () -> reservedState.get().getState().getInfoString(stateConfig.debugHashDepth()));
+                () -> platformStateFacade.getInfoString(reservedState.get().getState(), stateConfig.debugHashDepth()));
 
         return reservedState;
     }

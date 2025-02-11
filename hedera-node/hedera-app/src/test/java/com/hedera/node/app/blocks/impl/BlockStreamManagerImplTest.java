@@ -28,6 +28,7 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -222,7 +223,8 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,
-                SemanticVersion.DEFAULT);
+                SemanticVersion.DEFAULT,
+                TEST_PLATFORM_STATE_FACADE);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -242,7 +244,8 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,
-                SemanticVersion.DEFAULT);
+                SemanticVersion.DEFAULT,
+                TEST_PLATFORM_STATE_FACADE);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -631,7 +634,8 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,
-                SemanticVersion.DEFAULT);
+                SemanticVersion.DEFAULT,
+                TEST_PLATFORM_STATE_FACADE);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
         infoRef.set(blockStreamInfo);

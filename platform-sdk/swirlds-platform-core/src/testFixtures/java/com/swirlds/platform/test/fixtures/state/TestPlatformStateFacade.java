@@ -14,29 +14,30 @@
  * limitations under the License.
  */
 
-package com.hedera.node.app.platform;
+package com.swirlds.platform.test.fixtures.state;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
-import dagger.Module;
-import dagger.Provides;
+import com.swirlds.state.State;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
-import javax.inject.Singleton;
 
-@Module
-public interface PlatformStateModule {
+public class TestPlatformStateFacade extends PlatformStateFacade {
+    public static final TestPlatformStateFacade TEST_PLATFORM_STATE_FACADE =
+            new TestPlatformStateFacade(v -> SoftwareVersion.NO_VERSION);
 
-    @Provides
-    @Singleton
-    static Function<SemanticVersion, SoftwareVersion> softwareVersionFactory() {
-        return ServicesSoftwareVersion::new;
+    public TestPlatformStateFacade(Function<SemanticVersion, SoftwareVersion> versionFactory) {
+        super(versionFactory);
     }
 
-    @Provides
-    @Singleton
-    static PlatformStateFacade platformStateFacade(Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
-        return new PlatformStateFacade(ServicesSoftwareVersion::new);
+    /**
+     * The method is made public for testing purposes.
+     */
+    @NonNull
+    @Override
+    public PlatformStateModifier getWritablePlatformStateOf(@NonNull State state) {
+        return super.getWritablePlatformStateOf(state);
     }
 }

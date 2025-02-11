@@ -17,6 +17,7 @@
 package com.hedera.node.app.state.merkle;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -313,8 +314,9 @@ class SerializationTest extends MerkleTestBase {
                 mock(WritableEntityIdStore.class),
                 new HashMap<>(),
                 migrationStateChanges,
-                startupNetworks);
-        loadedTree.migrate(MerkleStateRoot.CURRENT_VERSION);
+                startupNetworks,
+                TEST_PLATFORM_STATE_FACADE);
+        (loadedTree).migrate(MerkleStateRoot.CURRENT_VERSION);
     }
 
     private PlatformMerkleStateRoot createMerkleHederaState(Schema schemaV1) {
@@ -336,7 +338,8 @@ class SerializationTest extends MerkleTestBase {
                 mock(WritableEntityIdStore.class),
                 new HashMap<>(),
                 migrationStateChanges,
-                startupNetworks);
+                startupNetworks,
+                TEST_PLATFORM_STATE_FACADE);
         return originalTree;
     }
 

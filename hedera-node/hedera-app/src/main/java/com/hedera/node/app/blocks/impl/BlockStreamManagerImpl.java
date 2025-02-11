@@ -28,7 +28,7 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
-import static com.swirlds.platform.state.SwirldStateManagerUtils.isInFreezePeriod;
+import static com.swirlds.platform.state.service.PlatformStateFacade.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -60,6 +60,7 @@ import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.Round;
@@ -103,6 +104,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final DiskNetworkExport diskNetworkExport;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
+    private final PlatformStateFacade platformStateFacade;
 
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
@@ -176,12 +178,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final InitialStateHash initialStateHash,
-            @NonNull final SemanticVersion version) {
+            @NonNull final SemanticVersion version,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
+        this.platformStateFacade = platformStateFacade;
         requireNonNull(configProvider);
         final var config = configProvider.getConfiguration();
         this.hapiVersion = hapiVersionFrom(config);
@@ -387,7 +391,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         "Writing network info to disk @ {} (REASON = {})",
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
-                DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
+                DiskStartupNetworks.writeNetworkInfo(
+                        state, exportPath, EnumSet.allOf(InfoType.class), platformStateFacade);
             }
         }
     }

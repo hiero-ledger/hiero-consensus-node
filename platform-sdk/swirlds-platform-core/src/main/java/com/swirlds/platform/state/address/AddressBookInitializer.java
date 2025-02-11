@@ -25,6 +25,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.Address;
@@ -127,7 +128,8 @@ public class AddressBookInitializer {
             @NonNull final SignedState initialState,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycles stateLifecycles) {
+            @NonNull final StateLifecycles stateLifecycles,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.selfId = Objects.requireNonNull(selfId, "The selfId must not be null.");
         this.currentVersion = Objects.requireNonNull(currentVersion, "The currentVersion must not be null.");
         this.softwareUpgrade = softwareUpgrade;
@@ -138,7 +140,7 @@ public class AddressBookInitializer {
                 platformContext.getConfiguration().getConfigData(AddressBookConfig.class);
         this.initialState = Objects.requireNonNull(initialState, "The initialState must not be null.");
 
-        final var book = buildAddressBook(retrieveActiveOrGenesisRoster(initialState.getState()));
+        final var book = buildAddressBook(retrieveActiveOrGenesisRoster(initialState.getState(), platformStateFacade));
         this.stateAddressBook = (book == null || book.getSize() == 0) ? null : book;
         if (stateAddressBook == null && !initialState.isGenesisState()) {
             throw new IllegalStateException("Only genesis states can have null address books.");

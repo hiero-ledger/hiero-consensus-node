@@ -51,8 +51,10 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
+import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.StateMetadata;
@@ -86,6 +88,8 @@ class PlatformMerkleStateRootTest extends MerkleTestBase {
     /** The merkle tree we will test with */
     private PlatformMerkleStateRoot stateRoot;
 
+    private TestPlatformStateFacade platformStateFacade;
+
     /**
      * Start with an empty Merkle Tree, but with the "fruit" map and metadata created and ready to
      * be added.
@@ -96,6 +100,7 @@ class PlatformMerkleStateRootTest extends MerkleTestBase {
         FakeStateLifecycles.registerMerkleStateRootClassIds();
         setupFruitMerkleMap();
         stateRoot = new PlatformMerkleStateRoot(softwareVersionSupplier);
+        platformStateFacade = new TestPlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(stateRoot);
     }
 
@@ -819,7 +824,7 @@ class PlatformMerkleStateRootTest extends MerkleTestBase {
         @Test
         @DisplayName("Test access to the platform state")
         void testAccessToPlatformStateData() {
-            PlatformStateModifier randomPlatformState = randomPlatformState(stateRoot.getWritablePlatformState());
+            PlatformStateModifier randomPlatformState = randomPlatformState(stateRoot, platformStateFacade);
             stateRoot.updatePlatformState(randomPlatformState);
             ReadableSingletonState<PlatformState> readableSingletonState = stateRoot
                     .getReadableStates(PlatformStateService.NAME)
@@ -835,12 +840,12 @@ class PlatformMerkleStateRootTest extends MerkleTestBase {
         @Test
         @DisplayName("Test update of the platform state")
         void testUpdatePlatformStateData() {
-            PlatformStateModifier randomPlatformState = randomPlatformState(stateRoot.getWritablePlatformState());
+            PlatformStateModifier randomPlatformState = randomPlatformState(stateRoot, platformStateFacade);
             stateRoot.updatePlatformState(randomPlatformState);
             WritableStates writableStates = stateRoot.getWritableStates(PlatformStateService.NAME);
             WritableSingletonState<PlatformState> writableSingletonState =
                     writableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY);
-            PlatformStateModifier newPlatformState = randomPlatformState(stateRoot.getWritablePlatformState());
+            PlatformStateModifier newPlatformState = randomPlatformState(stateRoot, platformStateFacade);
             writableSingletonState.put(toPbjPlatformState(newPlatformState));
             ((CommittableWritableStates) writableStates).commit();
 
