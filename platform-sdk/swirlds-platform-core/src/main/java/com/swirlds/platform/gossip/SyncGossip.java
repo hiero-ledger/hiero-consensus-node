@@ -205,7 +205,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
         // create an instance that can create new outbound connections
         final OutboundConnectionCreator connectionCreator =
-                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, roster);
+                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, peers);
         connectionManagers = new StaticConnectionManagers(topology, connectionCreator);
         final InboundConnectionHandler inboundConnectionHandler = new InboundConnectionHandler(
                 platformContext,
@@ -250,7 +250,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
         networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId, peers);
         platformContext.getMetrics().addUpdater(networkMetrics::update);
 
-        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), roster);
+        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), peers);
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 
@@ -383,7 +383,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                     .setThreadName("SyncProtocolWith" + otherId)
                     .setHangingThreadPeriod(hangingThreadDuration)
                     .setWork(new ProtocolNegotiatorThread(
-                            connectionManagers.getManager(otherId, topology.shouldConnectTo(otherId)),
+                            connectionManagers.getManager(otherId),
                             syncConfig.syncSleepAfterFailedNegotiation(),
                             handshakeProtocols,
                             new NegotiationProtocols(List.of(

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2018-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,4 +48,11 @@ public interface ConnectionManager {
      * 		thrown if the thread is interrupted while handing over the new connection
      */
     void newConnection(final Connection connection) throws InterruptedException;
+
+    /**
+     * Returns whenever connection is supposed to be outbound
+     *
+     * @return true if connection is outbound (we connect to remote node), false if we are listening for incoming connection
+     */
+    boolean isOutbound();
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package com.swirlds.platform.test.network;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -69,8 +68,9 @@ class StaticConnectionManagersTest {
         final NodeId neighbor = neighbors.get(r.nextInt(neighbors.size()));
 
         if (topology.shouldConnectToMe(neighbor)) {
-            final ConnectionManager manager = managers.getManager(neighbor, false);
+            final ConnectionManager manager = managers.getManager(neighbor);
             assertNotNull(manager, "should have a manager for this connection");
+            assertFalse(manager.isOutbound(), "should be inbound connection");
             final Connection c1 = new FakeConnection(selfId, neighbor);
             managers.newConnection(c1);
             assertSame(c1, manager.waitForConnection(), "the manager should have received the connection supplied");
@@ -80,8 +80,9 @@ class StaticConnectionManagersTest {
             assertFalse(c1.connected(), "the new connection should have disconnected the old one");
             assertSame(c2, manager.waitForConnection(), "c2 should have replaced c1");
         } else {
-            final ConnectionManager manager = managers.getManager(neighbor, false);
-            assertNull(manager, "should not have a manager for this connection");
+            final ConnectionManager manager = managers.getManager(neighbor);
+            assertNotNull(manager, "should have a manager for this connection");
+            assertTrue(manager.isOutbound(), "should be outbound connection");
             final Connection c = new FakeConnection(selfId, neighbor);
             managers.newConnection(c);
             assertFalse(
@@ -108,14 +109,16 @@ class StaticConnectionManagersTest {
                 final NodeId peerId = inv.getArgument(0, NodeId.class);
                 return new FakeConnection(selfId, peerId);
             });
-            final ConnectionManager manager = managers.getManager(neighbor, true);
+            final ConnectionManager manager = managers.getManager(neighbor);
             assertNotNull(manager, "should have a manager for this connection");
+            assertTrue(manager.isOutbound(), "should be outbound connection");
             assertTrue(
                     manager.waitForConnection().connected(),
-                    "outbound connections should be esablished by the manager");
+                    "outbound connections should be established by the manager");
         } else {
-            final ConnectionManager manager = managers.getManager(neighbor, true);
-            assertNull(manager, "should not have a manager for this connection");
+            final ConnectionManager manager = managers.getManager(neighbor);
+            assertNotNull(manager, "should have a manager for this connection");
+            assertFalse(manager.isOutbound(), "should be inbound connection");
         }
     }
 }
