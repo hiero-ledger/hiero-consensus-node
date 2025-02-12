@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,12 +43,15 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pb
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractLoginfo;
@@ -255,6 +258,21 @@ class ConversionUtilsTest {
         assertEquals(
                 newContractNum,
                 actual.adminKey().contractIDOrElse(ContractID.DEFAULT).contractNum());
+    }
+
+    @Test
+    void evmAddressConversionTest() {
+        final long shard = 1L;
+        final long realm = 2L;
+        final long num = 3L;
+        final byte[] expected = new byte[20];
+        System.arraycopy(Ints.toByteArray((int) shard), 0, expected, 0, 4);
+        System.arraycopy(Longs.toByteArray(realm), 0, expected, 4, 8);
+        System.arraycopy(Longs.toByteArray(num), 0, expected, 12, 8);
+
+        final byte[] actual = asEvmAddress(shard, realm, num);
+
+        assertArrayEquals(expected, actual, "EVM address is not as expected");
     }
 
     private byte[] bloomFor(@NonNull final Log log) {

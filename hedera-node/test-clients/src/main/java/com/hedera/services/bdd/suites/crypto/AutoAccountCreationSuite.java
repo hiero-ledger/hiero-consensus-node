@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.PropertySource.asAccount;
 import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
@@ -111,7 +113,6 @@ import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -1533,7 +1534,7 @@ public class AutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> cannotAutoCreateWithTxnToLongZero() {
         final AtomicReference<ByteString> evmAddress = new AtomicReference<>();
-        final var longZeroAddress = ByteString.copyFrom(CommonUtils.unhex("0000000000000000000000000000000fffffffff"));
+        final var longZeroAddress = ByteString.copyFrom(asSolidityAddress(shard, realm, 5555));
 
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

@@ -58,7 +58,7 @@ import java.util.stream.Stream;
 public interface HapiPropertySource {
 
     String ENTITY_STRING = "%d.%d.%d";
-    // Default shard and realm static ID building and comparisons
+    // Default shard and realm for static ID building and comparisons
     int shard = 0;
     long realm = 0;
 

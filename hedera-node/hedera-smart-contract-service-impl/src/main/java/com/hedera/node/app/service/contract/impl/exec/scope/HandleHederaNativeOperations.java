@@ -40,6 +40,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -109,8 +110,14 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public void setNonce(final long contractNumber, final long nonce) {
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         tokenServiceApi.setNonce(
-                AccountID.newBuilder().accountNum(contractNumber).build(), nonce);
+                AccountID.newBuilder()
+                        .shardNum(hederaConfig.shard())
+                        .realmNum(hederaConfig.realm())
+                        .accountNum(contractNumber)
+                        .build(),
+                nonce);
     }
 
     /**

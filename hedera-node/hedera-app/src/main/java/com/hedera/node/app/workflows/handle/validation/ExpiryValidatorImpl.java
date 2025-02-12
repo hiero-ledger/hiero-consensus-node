@@ -218,13 +218,13 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
     private void validateAutoRenewAccount(final AccountID accountID) {
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
 
+        if (isSentinelAccount(accountID)) {
+            // 0.0.0 is a sentinel number that says to remove the current auto-renew account
+            return;
+        }
         validateTrue(
                 accountID.shardNum() == hederaConfig.shard() && accountID.realmNum() == hederaConfig.realm(),
                 INVALID_AUTORENEW_ACCOUNT);
-        if (accountID.hasAccountNum() && accountID.accountNumOrThrow() == 0L) {
-            // 0L is a sentinel number that says to remove the current auto-renew account
-            return;
-        }
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
         try {
             final var account = accountStore.getAccountById(accountID);
@@ -246,5 +246,12 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
         } catch (final ArithmeticException ae) {
             return a > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
         }
+    }
+
+    private boolean isSentinelAccount(@NonNull final AccountID accountID) {
+        return accountID.hasAccountNum()
+                && accountID.shardNum() == 0L
+                && accountID.realmNum() == 0L
+                && accountID.accountNum() == 0L;
     }
 }

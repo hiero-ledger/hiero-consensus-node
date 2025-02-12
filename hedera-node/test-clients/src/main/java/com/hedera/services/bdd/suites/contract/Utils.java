@@ -333,20 +333,28 @@ public class Utils {
     }
 
     public static AccountID accountId(final ByteString evmAddress) {
-        return AccountID.newBuilder().setAlias(evmAddress).build();
+        return AccountID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setAlias(evmAddress)
+                .build();
     }
 
     public static Key aliasContractIdKey(final String hexedEvmAddress) {
         return Key.newBuilder()
-                .setContractID(
-                        ContractID.newBuilder().setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
+                .setContractID(ContractID.newBuilder()
+                        .setShardNum(shard)
+                        .setRealmNum(realm)
+                        .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
                 .build();
     }
 
     public static Key aliasDelegateContractKey(final String hexedEvmAddress) {
         return Key.newBuilder()
-                .setDelegatableContractId(
-                        ContractID.newBuilder().setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
+                .setDelegatableContractId(ContractID.newBuilder()
+                        .setShardNum(shard)
+                        .setRealmNum(realm)
+                        .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
                 .build();
     }
 
