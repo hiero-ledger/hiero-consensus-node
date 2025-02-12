@@ -141,16 +141,6 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
     }
 
     /**
-     *  Returns the string representing the name of this {@link NodeId} using convention
-     * "nodeX" where X is {@link NodeId#id()} + 1
-     * @return "nodeX" where X = this.id + 1. E.g.: {@link NodeId#FIRST_NODE_ID} is "node1".
-     */
-    @NonNull
-    public String nameString() {
-        return "node" + (id + 1);
-    }
-
-    /**
      * {@inheritDoc}
      */
     @NonNull

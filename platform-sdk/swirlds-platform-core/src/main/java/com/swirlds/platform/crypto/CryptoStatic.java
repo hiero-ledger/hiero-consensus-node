@@ -35,6 +35,7 @@ import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.network.PeerInfo;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.address.Address;
@@ -324,7 +325,7 @@ public final class CryptoStatic {
      * @return the file name that is supposed to store the private key for the supplied member
      */
     private static String getPrivateKeysFileName(final NodeId nodeId) {
-        return "private-" + nodeId.nameString() + ".pfx";
+        return "private-" + RosterUtils.formatNodeName(nodeId) + ".pfx";
     }
 
     /**

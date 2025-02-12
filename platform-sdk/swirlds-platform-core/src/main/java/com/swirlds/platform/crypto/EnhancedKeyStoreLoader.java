@@ -27,6 +27,7 @@ import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -96,15 +97,16 @@ import org.bouncycastle.util.io.pem.PemWriter;
  * <p>
  * This implementation will attempt to load the private key stores in the following order:
  *     <ol>
- *         <li>Enhanced private key store ({@code [type]-private-[nodeId].pem})</li>
- *         <li>Legacy private key store ({@code private-[nodeId].pfx})</li>
+ *         <li>Enhanced private key store ({@code [type]-private-[nodeName].pem})</li>
+ *         <li>Legacy private key store ({@code private-[nodeName].pfx})</li>
  *     </ol>
  * <p>
  *     Public key stores are loaded in the following order:
  *     <ol>
- *          <li>Enhanced certificate store ({@code [type]-public-[nodeId].pem})</li>
+ *          <li>Enhanced certificate store ({@code [type]-public-[nodeName].pem})</li>
  *          <li>Legacy certificate store ({@code public.pfx})</li>
  *     </ol>
+ *     where {@code nodeName} is the string "node"+(NodeId+1)
  */
 public class EnhancedKeyStoreLoader {
     /**
@@ -830,7 +832,8 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path privateKeyStore(@NonNull NodeId nodeId, @NonNull KeyCertPurpose purpose) {
         Objects.requireNonNull(purpose, MSG_PURPOSE_NON_NULL);
-        return keyStoreDirectory.resolve(String.format("%s-private-%s.pem", purpose.prefix(), nodeId.nameString()));
+        return keyStoreDirectory.resolve(
+                String.format("%s-private-%s.pem", purpose.prefix(), RosterUtils.formatNodeName(nodeId)));
     }
 
     /**
@@ -844,7 +847,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path legacyPrivateKeyStore(@NonNull NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ALIAS_NON_NULL);
-        return keyStoreDirectory.resolve(String.format("private-%s.pfx", nodeId.nameString()));
+        return keyStoreDirectory.resolve(String.format("private-%s.pfx", RosterUtils.formatNodeName(nodeId)));
     }
 
     /**
@@ -861,7 +864,8 @@ public class EnhancedKeyStoreLoader {
     private Path certificateStore(@NonNull NodeId nodeId, @NonNull KeyCertPurpose purpose) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
         Objects.requireNonNull(purpose, MSG_PURPOSE_NON_NULL);
-        return keyStoreDirectory.resolve(String.format("%s-public-%s.pem", purpose.prefix(), nodeId.nameString()));
+        return keyStoreDirectory.resolve(
+                String.format("%s-public-%s.pem", purpose.prefix(), RosterUtils.formatNodeName(nodeId)));
     }
 
     /**
@@ -1200,8 +1204,8 @@ public class EnhancedKeyStoreLoader {
         iterateAddressBook(addressBook, (i, nodeId, address) -> {
             if (localNodes.contains(nodeId)) {
                 // extract private keys for local nodes
-                final Path sPrivateKeyLocation =
-                        keyStoreDirectory.resolve(String.format("s-private-%s.pem", nodeId.nameString()));
+                final Path sPrivateKeyLocation = keyStoreDirectory.resolve(
+                        String.format("s-private-%s.pem", RosterUtils.formatNodeName(nodeId)));
                 final Path ksLocation = legacyPrivateKeyStore(nodeId);
                 if (!Files.exists(sPrivateKeyLocation) && Files.exists(ksLocation)) {
                     logger.trace(
@@ -1241,7 +1245,7 @@ public class EnhancedKeyStoreLoader {
 
             // extract certificates for all nodes
             final Path sCertificateLocation =
-                    keyStoreDirectory.resolve(String.format("s-public-%s.pem", nodeId.nameString()));
+                    keyStoreDirectory.resolve(String.format("s-public-%s.pem", RosterUtils.formatNodeName(nodeId)));
             final Path ksLocation = legacyCertificateStore();
             if (!Files.exists(sCertificateLocation) && Files.exists(ksLocation)) {
                 logger.trace(
