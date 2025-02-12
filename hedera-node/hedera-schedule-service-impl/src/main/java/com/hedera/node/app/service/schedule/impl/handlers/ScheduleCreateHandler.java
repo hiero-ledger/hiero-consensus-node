@@ -43,7 +43,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
@@ -57,6 +56,7 @@ import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -87,15 +87,18 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
     private static final Logger log = LogManager.getLogger(ScheduleCreateHandler.class);
 
     private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
+    private final EntityIdFactory idFactory;
     private final InstantSource instantSource;
     private final Throttle.Factory throttleFactory;
 
     @Inject
     public ScheduleCreateHandler(
+            @NonNull final EntityIdFactory idFactory,
             @NonNull final InstantSource instantSource,
             @NonNull final Throttle.Factory throttleFactory,
             @NonNull final ScheduleFeeCharging feeCharging) {
         super(feeCharging);
+        this.idFactory = requireNonNull(idFactory);
         this.instantSource = requireNonNull(instantSource);
         this.throttleFactory = requireNonNull(throttleFactory);
     }
@@ -155,7 +158,6 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
         final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
-        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var consensusNow = context.consensusNow();
         final var defaultLifetime = ledgerConfig.scheduleTxExpiryTimeSecs();
         final var provisionalSchedule =
@@ -223,11 +225,8 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var schedulingTxnId =
                 provisionalSchedule.originalCreateTransactionOrThrow().transactionIDOrThrow();
         final var schedulerId = schedulingTxnId.accountIDOrThrow();
-        final var scheduleId = ScheduleID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .scheduleNum(context.entityNumGenerator().newEntityNum())
-                .build();
+        final var scheduleId =
+                idFactory.newScheduleId(context.entityNumGenerator().newEntityNum());
         var schedule = provisionalSchedule
                 .copyBuilder()
                 .scheduleId(scheduleId)

@@ -94,6 +94,8 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -133,6 +135,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
+    protected static final int SHARD = 1;
+    protected static final long REALM = 2;
     protected static final Instant originalInstant = Instant.ofEpochSecond(12345678910L);
     protected static final long stakePeriodStart =
             LocalDate.ofInstant(originalInstant, ZONE_UTC).toEpochDay() - 1;
@@ -403,6 +407,9 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     protected Account tokenReceiverNoAssociationsAccount;
     protected Account hbarReceiverAccount;
     protected Account zeroAccount;
+
+    /* ---------- Ids ---------- */
+    protected EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
 
     /* ---------- Maps for updating both readable and writable stores ---------- */
     private Map<AccountID, Account> accountsMap;

@@ -57,7 +57,9 @@ import com.hedera.node.app.service.consensus.impl.validators.ConsensusCustomFees
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -81,7 +83,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ConsensusCreateTopicTest extends ConsensusTestBase {
+class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
+    private static final long SHARD = 1L;
+    private static final long REALM = 2L;
 
     @Mock
     private ReadableAccountStore accountStore;
@@ -109,6 +113,8 @@ class ConsensusCreateTopicTest extends ConsensusTestBase {
 
     @Mock
     private WritableEntityCounters entityCounters;
+
+    private final EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
 
     private WritableTopicStore topicStore;
     private Configuration config;
@@ -151,10 +157,10 @@ class ConsensusCreateTopicTest extends ConsensusTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new ConsensusCreateTopicHandler(new ConsensusCustomFeesValidator());
         config = HederaTestConfigBuilder.create()
                 .withValue("topics.maxNumber", 10L)
                 .getOrCreateConfig();
+        subject = new ConsensusCreateTopicHandler(idFactory, new ConsensusCustomFeesValidator());
         topicStore = new WritableTopicStore(writableStates, entityCounters);
         given(handleContext.configuration()).willReturn(config);
 
@@ -292,16 +298,8 @@ class ConsensusCreateTopicTest extends ConsensusTestBase {
     void handleWorksAsExpected() {
         final var adminKey = SIMPLE_KEY_A;
         final var submitKey = SIMPLE_KEY_B;
-        final var shard = 5;
-        final var realm = 10L;
         final var txnBody = newCreateTxn(adminKey, submitKey, true);
         final var op = txnBody.consensusCreateTopic();
-        final var configuration = HederaTestConfigBuilder.create()
-                .withValue("topics.maxNumber", 10L)
-                .withValue("hedera.shard", shard)
-                .withValue("hedera.realm", realm)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
         given(handleContext.body()).willReturn(txnBody);
 
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
@@ -317,8 +315,8 @@ class ConsensusCreateTopicTest extends ConsensusTestBase {
         subject.handle(handleContext);
 
         final var topicID = TopicID.newBuilder()
-                .shardNum(shard)
-                .realmNum(realm)
+                .shardNum(SHARD)
+                .realmNum(REALM)
                 .topicNum(1_234L)
                 .build();
         final var createdTopic = topicStore.getTopic(topicID);
@@ -355,8 +353,8 @@ class ConsensusCreateTopicTest extends ConsensusTestBase {
 
         subject.handle(handleContext);
 
-        final var createdTopic =
-                topicStore.getTopic(TopicID.newBuilder().topicNum(1_234L).build());
+        final var topicId = idFactory.newTopicId(1_234L);
+        final var createdTopic = topicStore.getTopic(topicId);
         assertNotNull(createdTopic);
 
         final var actualTopic = createdTopic;
@@ -367,9 +365,8 @@ class ConsensusCreateTopicTest extends ConsensusTestBase {
         assertEquals(1_234_567L + op.autoRenewPeriod().seconds(), actualTopic.expirationSecond());
         assertEquals(op.autoRenewPeriod().seconds(), actualTopic.autoRenewPeriod());
         assertEquals(autoRenewId, actualTopic.autoRenewAccountId());
-        final var topicID = TopicID.newBuilder().topicNum(1_234L).build();
-        verify(recordBuilder).topicID(topicID);
-        assertNotNull(topicStore.getTopic(TopicID.newBuilder().topicNum(1_234L).build()));
+        verify(recordBuilder).topicID(topicId);
+        assertNotNull(topicStore.getTopic(topicId));
     }
 
     @Test
@@ -520,8 +517,11 @@ class ConsensusCreateTopicTest extends ConsensusTestBase {
 
         subject.handle(handleContext);
 
-        final var createdTopic =
-                topicStore.getTopic(TopicID.newBuilder().topicNum(1_234L).build());
+        final var createdTopic = topicStore.getTopic(TopicID.newBuilder()
+                .shardNum(SHARD)
+                .realmNum(REALM)
+                .topicNum(1_234L)
+                .build());
         assertNotNull(createdTopic);
 
         final var actualTopic = createdTopic;
@@ -531,9 +531,9 @@ class ConsensusCreateTopicTest extends ConsensusTestBase {
         assertEquals(1_234_567L + op.autoRenewPeriod().seconds(), actualTopic.expirationSecond());
         assertEquals(op.autoRenewPeriod().seconds(), actualTopic.autoRenewPeriod());
         assertEquals(autoRenewId, actualTopic.autoRenewAccountId());
-        final var topicID = TopicID.newBuilder().topicNum(1_234L).build();
+        final var topicID = idFactory.newTopicId(1_234L);
         verify(recordBuilder).topicID(topicID);
-        assertNotNull(topicStore.getTopic(TopicID.newBuilder().topicNum(1_234L).build()));
+        assertNotNull(topicStore.getTopic(topicID));
     }
 
     @Test
