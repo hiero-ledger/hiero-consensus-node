@@ -13,7 +13,7 @@ import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.swirlds.state.State;
+import com.swirlds.platform.state.MerkleNodeState;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SavepointStackImplBlocksStreamModeTest {
     @Mock
-    private State state;
+    private MerkleNodeState state;
 
     @Mock
     private StreamBuilder streamBuilder;

@@ -13,6 +13,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
@@ -228,6 +229,7 @@ public class RandomSignedStateGenerator {
                 deleteOnBackgroundThread,
                 pcesRound,
                 platformStateFacade);
+        signedState.init(PlatformContext.create(configuration));
 
         MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
         if (stateHash != null) {

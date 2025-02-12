@@ -69,9 +69,9 @@ import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -159,7 +159,7 @@ public class UserTxnFactory {
      * @return the new user transaction, or {@code null} if the transaction is not a user transaction
      */
     public @Nullable UserTxn createUserTxn(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final ConsensusTransaction platformTxn,
             @NonNull final Instant consensusNow,
@@ -210,7 +210,7 @@ public class UserTxnFactory {
      * @return the new user transaction
      */
     public UserTxn createUserTxn(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Instant consensusNow,
             @NonNull final TransactionType type,
@@ -374,7 +374,7 @@ public class UserTxnFactory {
      * @return the new root savepoint stack
      */
     public SavepointStackImpl createRootSavepointStack(
-            @NonNull final State state, @NonNull final TransactionType type) {
+            @NonNull final MerkleNodeState state, @NonNull final TransactionType type) {
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
