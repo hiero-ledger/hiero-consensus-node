@@ -5,7 +5,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.state.State;
+import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -18,7 +18,7 @@ public interface Savepoint extends BuilderSink {
      *
      * @return the state
      */
-    State state();
+    MerkleNodeState state();
 
     /**
      * Rolls back all changes made in this savepoint, making any necessary changes to the stream item builders

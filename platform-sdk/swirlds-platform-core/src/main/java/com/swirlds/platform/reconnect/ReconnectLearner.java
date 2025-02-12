@@ -3,6 +3,7 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
@@ -17,6 +18,8 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -206,8 +209,19 @@ public class ReconnectLearner {
                 false,
                 false,
                 platformStateFacade);
+        newSignedState.init(platformContext);
         SignedStateFileReader.registerServiceStates(newSignedState);
         newSignedState.setSigSet(sigSet);
+
+        // FIXME: remove
+        logger.info(
+                STARTUP.getMarker(),
+                "Platform state: %s"
+                        .formatted(newSignedState
+                                .getState()
+                                .getReadableStates(PlatformStateService.NAME)
+                                .getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
+                                .get()));
 
         final double mbReceived = connection.getDis().getSyncByteCounter().getMebiBytes();
         logger.info(
