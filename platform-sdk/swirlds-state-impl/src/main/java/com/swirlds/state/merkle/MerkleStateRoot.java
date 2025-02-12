@@ -106,7 +106,7 @@ public class MerkleStateRoot extends PartialNaryMerkleInternal implements Merkle
      */
     private static final ReadableStates EMPTY_READABLE_STATES = new EmptyReadableStates();
 
-    private static final long CLASS_ID = 0x8e300b0dfdafbb1bL;
+    private static final long CLASS_ID = 0x8e300b0dfdafbb1aL;
     // Migrates from `PlatformState` to State API singleton
     public static final int CURRENT_VERSION = 31;
 
