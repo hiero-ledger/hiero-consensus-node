@@ -4,7 +4,6 @@ package com.swirlds.platform.network.protocol;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.heartbeats.HeartbeatPeerProtocol;
 import com.swirlds.platform.network.NetworkMetrics;
@@ -45,15 +44,13 @@ public class HeartbeatProtocol implements Protocol {
     /**
      * Utility method for creating HeartbeatProtocol from shared state, while staying compatible with pre-refactor code
      * @param platformContext   the platform context
-     * @param sharedState       temporary class to share state between various protocols in modularized gossip, to be removed
+     * @param networkMetrics  Network metrics, for recording roundtrip heartbeat time
      * @return constructed HeartbeatProtocol
      */
-    public static HeartbeatProtocol create(PlatformContext platformContext, SyncGossipSharedProtocolState sharedState) {
+    public static HeartbeatProtocol create(PlatformContext platformContext, NetworkMetrics networkMetrics) {
         var syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         return new HeartbeatProtocol(
-                Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()),
-                sharedState.networkMetrics(),
-                platformContext.getTime());
+                Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()), networkMetrics, platformContext.getTime());
     }
 
     /**

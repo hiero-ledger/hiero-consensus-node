@@ -5,13 +5,10 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionManager;
-import com.swirlds.platform.network.InboundConnectionManager;
-import com.swirlds.platform.network.OutboundConnectionManager;
+import com.swirlds.platform.network.*;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,18 +17,24 @@ import org.apache.logging.log4j.Logger;
  */
 public class StaticConnectionManagers {
     private static final Logger logger = LogManager.getLogger(StaticConnectionManagers.class);
-    private final Map<NodeId, ConnectionManager> connectionManagers;
+    private final ConcurrentHashMap<NodeId, ConnectionManager> connectionManagers;
+    private final OutboundConnectionCreator connectionCreator;
 
     public StaticConnectionManagers(final NetworkTopology topology, final OutboundConnectionCreator connectionCreator) {
-        // is thread safe because it never changes
-        connectionManagers = new HashMap<>();
+        this.connectionCreator = connectionCreator;
+        connectionManagers = new ConcurrentHashMap<>();
         for (final NodeId neighbor : topology.getNeighbors()) {
-            if (topology.shouldConnectToMe(neighbor)) {
-                connectionManagers.put(neighbor, new InboundConnectionManager());
-            }
-            if (topology.shouldConnectTo(neighbor)) {
-                connectionManagers.put(neighbor, new OutboundConnectionManager(neighbor, connectionCreator));
-            }
+            updateManager(topology, neighbor);
+        }
+    }
+
+    private void updateManager(NetworkTopology topology, NodeId neighbor) {
+        if (topology.shouldConnectToMe(neighbor)) {
+            connectionManagers.put(neighbor, new InboundConnectionManager());
+        } else if (topology.shouldConnectTo(neighbor)) {
+            connectionManagers.put(neighbor, new OutboundConnectionManager(neighbor, connectionCreator));
+        } else {
+            connectionManagers.remove(neighbor);
         }
     }
 
@@ -70,6 +73,23 @@ public class StaticConnectionManagers {
                     e);
             newConn.disconnect();
             throw e;
+        }
+    }
+
+    /**
+     * Update information about possible peers;
+     * In the case data for the same peer changes (one with the same nodeId), it should be present in both removed and added lists,
+     * with old data in removed and fresh data in added.
+     * @param added peers to add
+     * @param removed peers to remove
+     * @param topology new topology with all the changes applied
+     */
+    public void addRemovePeers(List<PeerInfo> added, List<PeerInfo> removed, StaticTopology topology) {
+        for (PeerInfo peerInfo : removed) {
+            connectionManagers.remove(peerInfo.nodeId());
+        }
+        for (PeerInfo peerInfo : added) {
+            updateManager(topology, peerInfo.nodeId());
         }
     }
 }

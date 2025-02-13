@@ -10,16 +10,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.security.auth.x500.X500Principal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Identifies a connected peer from a list of trusted peers
+ * Identifies a connected peer from a list of trusted peers; it is used only to handle incoming connections
  */
 public class NetworkPeerIdentifier {
 
@@ -31,7 +30,7 @@ public class NetworkPeerIdentifier {
     private final RateLimitedLogger noPeerFoundLogger;
 
     // a mapping of X500Principal and their peers
-    private final Map<X500Principal, PeerInfo> x501PrincipalsAndPeers;
+    private final ConcurrentHashMap<X500Principal, PeerInfo> x501PrincipalsAndPeers;
 
     /**
      * constructor
@@ -43,7 +42,8 @@ public class NetworkPeerIdentifier {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(peers);
         noPeerFoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(5));
-        this.x501PrincipalsAndPeers = HashMap.newHashMap(peers.size());
+        this.x501PrincipalsAndPeers = new ConcurrentHashMap<>();
+
         for (final PeerInfo peerInfo : peers) {
             x501PrincipalsAndPeers.put(
                     ((X509Certificate) peerInfo.signingCertificate()).getSubjectX500Principal(), peerInfo);
@@ -74,5 +74,23 @@ public class NetworkPeerIdentifier {
                     agreementCert);
         }
         return matchedPeer;
+    }
+
+    /**
+     * Update information about possible peers;
+     * In the case data for the same peer changes (one with the same nodeId), it should be present in both removed and added lists,
+     * with old data in removed and fresh data in added.
+     * @param added peers to add
+     * @param removed peers to remove
+     */
+    public void addRemovePeers(List<PeerInfo> added, List<PeerInfo> removed) {
+        for (final PeerInfo peerInfo : removed) {
+            x501PrincipalsAndPeers.remove(((X509Certificate) peerInfo.signingCertificate()).getSubjectX500Principal());
+        }
+
+        for (final PeerInfo peerInfo : added) {
+            x501PrincipalsAndPeers.put(
+                    ((X509Certificate) peerInfo.signingCertificate()).getSubjectX500Principal(), peerInfo);
+        }
     }
 }

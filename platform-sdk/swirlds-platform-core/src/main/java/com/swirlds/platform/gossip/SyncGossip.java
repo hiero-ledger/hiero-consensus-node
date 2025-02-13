@@ -232,10 +232,10 @@ public class SyncGossip implements ConnectionTracker, Gossip {
 
         reconnectThrottle = new ReconnectThrottle(reconnectConfig, platformContext.getTime());
 
-        networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId, peers);
+        networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId);
         platformContext.getMetrics().addUpdater(networkMetrics::update);
 
-        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), peers);
+        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 
