@@ -325,11 +325,11 @@ jobs:
                           },
                           {
                             "type": "mrkdwn",
-                            "text": "<${{ github.server_url }}/hashgraph/hedera-services/tree/v${{ steps.version.outputs.number }}|v${{ steps.version.outputs.number }}>"
+                            "text": "<${{ github.server_url }}/hiero-ledger/hiero-consensus-node/tree/v${{ steps.version.outputs.number }}|v${{ steps.version.outputs.number }}>"
                           },
                           {
                             "type": "mrkdwn",
-                            "text": "<${{ github.server_url }}/hashgraph/hedera-services/tree/${{ needs.check-branch.outputs.branch-name }}|${{ needs.check-branch.outputs.branch-name }}>"
+                            "text": "<${{ github.server_url }}/hiero-ledger/hiero-consensus-node/tree/${{ needs.check-branch.outputs.branch-name }}|${{ needs.check-branch.outputs.branch-name }}>"
                           }
                         ]
                       },
