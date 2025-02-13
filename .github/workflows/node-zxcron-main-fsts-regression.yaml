@@ -25,7 +25,7 @@ defaults:
 jobs:
   trigger-task:
     name: Trigger Daily Run
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-small-scheduler
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4

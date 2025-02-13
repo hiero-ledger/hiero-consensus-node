@@ -41,7 +41,7 @@ env:
 jobs:
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -194,7 +194,7 @@ jobs:
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - abbreviated-panel
       - extended-test-suite
@@ -238,7 +238,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - abbreviated-panel
       - extended-test-suite

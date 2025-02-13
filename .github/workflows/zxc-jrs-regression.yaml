@@ -183,7 +183,7 @@ permissions:
 jobs:
   jrs-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
       - name: Harden Runner
