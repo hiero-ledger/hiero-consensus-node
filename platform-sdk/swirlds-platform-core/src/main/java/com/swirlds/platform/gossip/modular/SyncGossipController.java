@@ -2,27 +2,28 @@
 package com.swirlds.platform.gossip.modular;
 
 import com.swirlds.base.state.Startable;
-import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Responsible for main control of gossip activity. Handles {@link #pause()} and {@link #resume()} from {@link GossipController}
  * for runtime control, plus {@link #start()} for initial startup. At the moment {@link #stop()} is not really used,
  * not all resources will be properly stopped/cleaned when calling it and it is not defined if it should be startable again.
- *
- *
  */
 public class SyncGossipController implements GossipController {
+
+    private static final Logger logger = LogManager.getLogger(SyncGossipController.class);
 
     private final SyncGossipSharedProtocolState sharedState;
     private final IntakeEventCounter intakeEventCounter;
     private boolean started = false;
     private final List<Startable> startableButNotStoppable = new ArrayList<>();
-    private final List<StoppableThread> syncProtocolThreads = new ArrayList<>();
+
+    private final Map<Object, DedicatedStoppableThread> dedicatedThreads = new HashMap<>();
+    private final List<DedicatedStoppableThread> dedicatedThreadsToModify = new ArrayList<>();
 
     /**
      * Creates new gossip controller
@@ -47,12 +48,44 @@ public class SyncGossipController implements GossipController {
      * Registers threads which should be started when {@link #start()} method is called and stopped on {@link #stop()}
      * @param things thread to start
      */
-    public void registerThingsToStart(Collection<? extends StoppableThread> things) {
-        syncProtocolThreads.addAll(things);
+    public void registerDedicatedThreads(Collection<DedicatedStoppableThread> things) {
+        dedicatedThreadsToModify.addAll(things);
     }
 
     /**
-     * Start gossiping. Spin up all the threads registered in {@link #registerThingsToStart(Collection)} and {@link #registerThingToStartButNotStop(Startable)}
+     * Should be called after {@link #registerDedicatedThreads(Collection)} to actually start/stop threads; it is split into half
+     * because this method can be called only for running system, so during startup, dedicated threads will be registered a lot earlier
+     * than started
+     * Method can be called many times, it will be no-op if no dedicate thread changes were made in meantime
+     * Do NOT call this method concurrently; it is not protected against such access and can have undefined behaviour
+     */
+    void applyDedicatedThreadsToModify() {
+        if (!started) {
+            logger.warn("Cannot apply dedicated threads status when gossip is not started");
+            return;
+        }
+        for (DedicatedStoppableThread dst : dedicatedThreadsToModify) {
+            var newThread = dst.thread();
+            var oldThread = dedicatedThreads.remove(dst.key());
+            if (newThread == null) {
+                if (oldThread != null && oldThread.thread() != null) {
+                    oldThread.thread().interrupt();
+                } else {
+                    logger.warn("Dedicated thread {} was not found, but we were asked to stop it", dst.key());
+                }
+            } else {
+                if (oldThread != null && oldThread.thread() != null) {
+                    oldThread.thread().interrupt();
+                }
+                dedicatedThreads.put(dst.key(), dst);
+                newThread.start();
+            }
+        }
+        dedicatedThreadsToModify.clear();
+    }
+
+    /**
+     * Start gossiping. Spin up all the threads registered in {@link #registerDedicatedThreads(Collection)} and {@link #registerThingToStartButNotStop(Startable)}
      */
     void start() {
         if (started) {
@@ -60,13 +93,14 @@ public class SyncGossipController implements GossipController {
         }
         started = true;
         startableButNotStoppable.forEach(Startable::start);
-        syncProtocolThreads.forEach(Startable::start);
+
+        applyDedicatedThreadsToModify();
     }
 
     /**
      * Stop gossiping.
      * This method is not fully working. It stops some threads, but leaves others running
-     * (see {@link #registerThingsToStart(Collection)} and {@link #registerThingToStartButNotStop(Startable)})
+     * (see {@link #registerDedicatedThreads(Collection)} and {@link #registerThingToStartButNotStop(Startable)})
      * In particular, you cannot call {@link #start()} () after calling stop (use {@link #pause()}{@link #resume()} as needed)
      */
     void stop() {
@@ -78,8 +112,8 @@ public class SyncGossipController implements GossipController {
         // wait for all existing syncs to stop. no new ones will be started, since gossip has been halted, and
         // we've fallen behind
         sharedState.syncPermitProvider().waitForAllPermitsToBeReleased();
-        for (final StoppableThread thread : syncProtocolThreads) {
-            thread.stop();
+        for (final DedicatedStoppableThread dst : dedicatedThreads.values()) {
+            dst.thread().stop();
         }
     }
 
