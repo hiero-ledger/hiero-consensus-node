@@ -37,7 +37,7 @@ env:
 jobs:
   determine-build-candidate:
     name: Fetch Latest Build Candidate
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     outputs:
       build-candidate-exists: ${{ steps.find-build-candidates.outputs.build-candidate-exists }}
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
@@ -92,7 +92,7 @@ jobs:
 
   promote-build-candidate:
     name: Promote Build Candidate
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs: determine-build-candidate
     outputs:
       build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
@@ -151,7 +151,7 @@ jobs:
 
   report-promotion:
     name: Report Build Promotion
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate
@@ -219,7 +219,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate

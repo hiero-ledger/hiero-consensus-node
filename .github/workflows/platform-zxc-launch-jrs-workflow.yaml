@@ -53,7 +53,7 @@ defaults:
 jobs:
   launch-workflow:
     name: Launch Workflow
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-small-scheduler
     if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
       - name: Harden Runner

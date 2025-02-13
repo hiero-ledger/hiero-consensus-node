@@ -29,7 +29,9 @@ permissions:
 jobs:
   snyk:
     name: Snyk Monitor
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-large
+    # turn off snyk monitor job until we can look at and fix aggregation of data
+    if: ${{ false }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
@@ -48,7 +50,6 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
         with:
-          build-root-directory: hedera-node
           gradle-version: wrapper
 
       - name: Compile
@@ -68,7 +69,6 @@ jobs:
         run: npm install -g snyk
 
       - name: Run Snyk Monitor
-        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk monitor --all-sub-projects --policy-path=.snyk --trust-policies
+        run: snyk monitor --all-projects --policy-path=.snyk --trust-policies --org=hiero-consensus-node --debug
