@@ -9,13 +9,10 @@ import com.swirlds.common.units.TimeUnit;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.network.PeerInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Collection of metrics related to reconnects
@@ -46,7 +43,7 @@ public class ReconnectMetrics {
     /**
      * Number of reconnect rejections per second per peer in the address book.
      */
-    private final Map<Long, CountPerSecond> rejectionFrequency = new HashMap<>();
+    private final ConcurrentHashMap<Long, CountPerSecond> rejectionFrequency = new ConcurrentHashMap<>();
 
     private static final LongAccumulator.Config SENDER_DURATION_CONFIG = new LongAccumulator.Config(
                     RECONNECT_CATEGORY, "senderReconnectDurationSeconds")
@@ -63,6 +60,7 @@ public class ReconnectMetrics {
             .withDescription("duration of reconnect as a receiver")
             .withUnit(TimeUnit.UNIT_SECONDS.getAbbreviation());
     private final LongAccumulator receiverReconnectDurationSeconds;
+    private final Metrics metrics;
 
     // Assuming that reconnect is a "singleton" operation (a single node cannot teach multiple learners
     // simultaneously, and a single node cannot learn from multiple teachers at once), we maintain
@@ -76,33 +74,17 @@ public class ReconnectMetrics {
      *
      * @param metrics
      * 		reference to the metrics-system
-     * @param peers the list of peers reflecting the address book to register metrics for
      * @throws IllegalArgumentException if {@code metrics} is {@code null}
      */
-    public ReconnectMetrics(@NonNull final Metrics metrics, @NonNull final List<PeerInfo> peers) {
+    public ReconnectMetrics(@NonNull final Metrics metrics) {
         Objects.requireNonNull(metrics, "metrics");
-        Objects.requireNonNull(peers, "peers");
         senderStartTimes = metrics.getOrCreate(SENDER_START_TIMES_CONFIG);
         receiverStartTimes = metrics.getOrCreate(RECEIVER_START_TIMES_CONFIG);
         senderEndTimes = metrics.getOrCreate(SENDER_END_TIMES_CONFIG);
         receiverEndTimes = metrics.getOrCreate(RECEIVER_END_TIMES_CONFIG);
         senderReconnectDurationSeconds = metrics.getOrCreate(SENDER_DURATION_CONFIG);
         receiverReconnectDurationSeconds = metrics.getOrCreate(RECEIVER_DURATION_CONFIG);
-
-        peers.forEach(entry -> {
-            final long nodeId = entry.nodeId().id();
-            rejectionFrequency.put(
-                    nodeId,
-                    new CountPerSecond(
-                            metrics,
-                            new CountPerSecond.Config(
-                                            PLATFORM_CATEGORY,
-                                            String.format("reconnectRejections_per_sec_%02d", nodeId))
-                                    .withDescription(String.format(
-                                            "number of reconnections rejected per second from node %02d", nodeId))
-                                    .withUnit("rejectionsPerSec")
-                                    .withFormat(FORMAT_10_0)));
-        });
+        this.metrics = metrics;
     }
 
     public void incrementSenderStartTimes() {
@@ -133,9 +115,18 @@ public class ReconnectMetrics {
      * @param nodeId the peer being rejected.
      */
     public void recordReconnectRejection(final long nodeId) {
-        final Long id = nodeId;
-        if (rejectionFrequency.containsKey(id)) {
-            rejectionFrequency.get(id).count();
-        }
+        rejectionFrequency
+                .computeIfAbsent(
+                        nodeId,
+                        newId -> new CountPerSecond(
+                                metrics,
+                                new CountPerSecond.Config(
+                                                PLATFORM_CATEGORY,
+                                                String.format("reconnectRejections_per_sec_%02d", newId))
+                                        .withDescription(String.format(
+                                                "number of reconnections rejected per second from node %02d", newId))
+                                        .withUnit("rejectionsPerSec")
+                                        .withFormat(FORMAT_10_0)))
+                .count();
     }
 }
