@@ -29,7 +29,7 @@ defaults:
 jobs:
   collect-logs:
     name: Collect Workflow Run Logs
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
