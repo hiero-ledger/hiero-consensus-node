@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.config.test.fixtures {
     exports com.hedera.node.config.testfixtures;
 
@@ -10,5 +11,5 @@ module com.hedera.node.config.test.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.platform.core;
     requires com.swirlds.virtualmap;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }
