@@ -227,7 +227,7 @@ public class SignedState implements SignedStateInfo {
                 platformContext.getMetrics(),
                 platformContext.getMerkleCryptography(),
                 () -> {
-                    ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
+                    final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
                     return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
                 });
     }
