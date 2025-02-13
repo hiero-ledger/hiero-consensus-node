@@ -293,7 +293,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final Configuration nodeConfiguration,
             @NonNull final Configuration platformConfiguration,
             @NonNull final Metrics metrics,
-            @NonNull final MerkleStateRoot stateRoot) {
+            @NonNull final MerkleStateRoot<?> stateRoot) {
         // Create the new states (based on the schema) which, thanks to the above, does not
         // expand the set of states that the migration code will see
         schema.statesToCreate(nodeConfiguration).stream()

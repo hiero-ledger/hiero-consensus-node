@@ -23,10 +23,10 @@ import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.interfaces.MerkleTraversable;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,8 +58,7 @@ public class StateEditorRm extends StateEditorOperation {
         final int indexInParent = parentInfo.indexInParent();
 
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorRm.run()")) {
-            final MerkleTraversable state =
-                    (MerkleTraversable) reservedSignedState.get().getState();
+            final MerkeNodeState state = reservedSignedState.get().getState();
             final MerkleNode child = state.getNodeAtRoute(destinationRoute);
 
             if (logger.isInfoEnabled(LogMarker.CLI.getMarker())) {
@@ -73,7 +72,7 @@ public class StateEditorRm extends StateEditorOperation {
             parent.setChild(indexInParent, null);
 
             // Invalidate hashes in path down from root
-            new MerkleRouteIterator(state.cast(), parent.getRoute()).forEachRemaining(Hashable::invalidateHash);
+            new MerkleRouteIterator(state, parent.getRoute()).forEachRemaining(Hashable::invalidateHash);
         }
     }
 }

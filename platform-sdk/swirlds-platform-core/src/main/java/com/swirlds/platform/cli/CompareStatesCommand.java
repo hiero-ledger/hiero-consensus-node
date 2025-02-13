@@ -142,7 +142,7 @@ public final class CompareStatesCommand extends AbstractCommand {
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
         try {
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(signedState.get().getState().cast())
+                    .digestTreeAsync(signedState.get().getState())
                     .get();
         } catch (final InterruptedException | ExecutionException e) {
             throw new RuntimeException("unable to hash state", e);
@@ -168,9 +168,7 @@ public final class CompareStatesCommand extends AbstractCommand {
             try (final ReservedSignedState stateB = loadAndHashState(platformContext, stateBPath)) {
                 SignedStateComparison.printMismatchedNodes(
                         SignedStateComparison.mismatchedNodeIterator(
-                                stateA.get().getState().cast(),
-                                stateB.get().getState().cast(),
-                                deepComparison),
+                                stateA.get().getState(), stateB.get().getState(), deepComparison),
                         nodeLimit);
             }
         }

@@ -54,6 +54,7 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.roster.RosterHistory;
 import com.swirlds.platform.scratchpad.Scratchpad;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
@@ -63,7 +64,6 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.util.RandomBuilder;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -88,7 +88,7 @@ public final class PlatformBuilder {
     private final SoftwareVersion softwareVersion;
     private final ReservedSignedState initialState;
 
-    private final StateLifecycles<State> stateLifecycles;
+    private final StateLifecycles<MerkeNodeState> stateLifecycles;
     private final PlatformStateFacade platformStateFacade;
 
     private final NodeId selfId;

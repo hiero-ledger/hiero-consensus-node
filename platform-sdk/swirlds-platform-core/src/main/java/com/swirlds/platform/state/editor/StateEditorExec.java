@@ -93,7 +93,7 @@ public class StateEditorExec extends StateEditorOperation {
                 try (final ReservedSignedState reservedSignedState =
                         getStateEditor().getState("StateEditorExec.run()")) {
                     new MerkleRouteIterator(
-                                    reservedSignedState.get().getState().cast(),
+                                    reservedSignedState.get().getState(),
                                     parentInfo.parent().getRoute())
                             .forEachRemaining(Hashable::invalidateHash);
                 }

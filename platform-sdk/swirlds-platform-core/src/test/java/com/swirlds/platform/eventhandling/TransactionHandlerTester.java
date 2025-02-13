@@ -21,13 +21,12 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.withSettings;
 
-import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.roster.RosterRetriever;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
@@ -53,9 +52,9 @@ public class TransactionHandlerTester {
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
-    private final StateLifecycles<State> stateLifecycles;
+    private final StateLifecycles<MerkeNodeState> stateLifecycles;
     private final TestPlatformStateFacade platformStateFacade;
-    private final State consensusState;
+    private final MerkeNodeState consensusState;
 
     /**
      * Constructs a new {@link TransactionHandlerTester} with the given {@link AddressBook}.
@@ -67,12 +66,11 @@ public class TransactionHandlerTester {
                 TestPlatformContextBuilder.create().build();
         platformState = new PlatformStateValueAccumulator();
 
-        consensusState = mock(State.class, withSettings().extraInterfaces(Reservable.class));
+        consensusState = mock(MerkeNodeState.class);
         platformStateFacade = mock(TestPlatformStateFacade.class);
 
         stateLifecycles = mock(StateLifecycles.class);
         when(consensusState.copy()).thenReturn(consensusState);
-        when(consensusState.cast()).thenReturn(consensusState);
         when(platformStateFacade.getWritablePlatformStateOf(consensusState)).thenReturn(platformState);
 
         when(stateLifecycles.onSealConsensusRound(any(), any())).thenReturn(true);
@@ -138,7 +136,7 @@ public class TransactionHandlerTester {
     /**
      * @return the {@link StateLifecycles} used by this tester
      */
-    public StateLifecycles<State> getStateLifecycles() {
+    public StateLifecycles<MerkeNodeState> getStateLifecycles() {
         return stateLifecycles;
     }
 

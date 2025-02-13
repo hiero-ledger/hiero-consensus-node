@@ -24,7 +24,6 @@ import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,7 +65,7 @@ public final class BirthRoundStateMigration {
             return;
         }
 
-        final State state = initialState.getState();
+        final MerkeNodeState state = initialState.getState();
         final boolean alreadyMigrated = platformStateFacade.firstVersionInBirthRoundModeOf(state) != null;
         if (alreadyMigrated) {
             // Birth round migration was completed at a prior time, no action needed.
@@ -109,6 +108,6 @@ public final class BirthRoundStateMigration {
         platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
 
         state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state.cast());
+        MerkleCryptoFactory.getInstance().digestTreeSync(state);
     }
 }

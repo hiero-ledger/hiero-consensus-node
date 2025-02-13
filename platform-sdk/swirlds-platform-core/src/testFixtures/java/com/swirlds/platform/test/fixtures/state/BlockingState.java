@@ -36,7 +36,7 @@ import java.util.concurrent.CountDownLatch;
  * Node that some of the {@link MerkleStateRoot} methods are intentionally not implemented. If a test needs these methods,
  * {@link MerkleStateRoot} should be used instead.
  */
-public class BlockingState extends MerkleStateRoot {
+public class BlockingState extends TestMerkleStateRoot {
 
     static {
         try {

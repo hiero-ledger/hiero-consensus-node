@@ -85,6 +85,7 @@ import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
@@ -116,7 +117,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>This class simply delegates to {@link Hedera}.
  */
-public class ServicesMain implements SwirldMain<State> {
+public class ServicesMain implements SwirldMain<MerkeNodeState> {
     private static final Logger logger = LogManager.getLogger(ServicesMain.class);
 
     /**
@@ -167,7 +168,7 @@ public class ServicesMain implements SwirldMain<State> {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull State newStateRoot() {
+    public @NonNull MerkeNodeState newStateRoot() {
         return hederaOrThrow().newStateRoot();
     }
 
@@ -175,7 +176,7 @@ public class ServicesMain implements SwirldMain<State> {
      * {@inheritDoc}
      */
     @Override
-    public StateLifecycles<State> newStateLifecycles() {
+    public StateLifecycles<MerkeNodeState> newStateLifecycles() {
         return new StateLifecyclesImpl(hederaOrThrow());
     }
 
@@ -211,7 +212,7 @@ public class ServicesMain implements SwirldMain<State> {
      *     and the working directory <i>settings.txt</i>, providing the same
      *     {@link Hedera#newStateRoot()} method reference as the genesis state
      *     factory. (<b>IMPORTANT:</b> This step instantiates and invokes
-     *     {@link StateLifecycles#onStateInitialized(State, Platform, InitTrigger, SoftwareVersion)}
+     *     {@link StateLifecycles#onStateInitialized(MerkeNodeState, Platform, InitTrigger, SoftwareVersion)}
      *     on a {@link MerkleStateRoot} instance that delegates the call back to our
      *     Hedera instance.)</li>
      *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase
@@ -302,7 +303,7 @@ public class ServicesMain implements SwirldMain<State> {
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
-        StateLifecycles<State> stateLifecycles = hedera.newStateLifecycles();
+        StateLifecycles<MerkeNodeState> stateLifecycles = hedera.newStateLifecycles();
         final var maybeDiskAddressBook = loadLegacyAddressBook();
         final var reservedState = loadInitialState(
                 platformConfig,
@@ -505,7 +506,7 @@ public class ServicesMain implements SwirldMain<State> {
             @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
             @NonNull final SoftwareVersion softwareVersion,
-            @NonNull final Supplier<State> stateRootSupplier,
+            @NonNull final Supplier<MerkeNodeState> stateRootSupplier,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,

@@ -25,11 +25,11 @@ import com.swirlds.logging.legacy.payload.ReconnectLoadFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -53,7 +53,7 @@ public class ReconnectHelper {
     /** clears all data that is no longer needed since we fell behind */
     private final Clearable clearAll;
     /** supplier of the initial signed state against which to perform a delta based reconnect */
-    private final Supplier<State> workingStateSupplier;
+    private final Supplier<MerkeNodeState> workingStateSupplier;
     /** provides the latest signed state round for which we have a supermajority of signatures */
     private final LongSupplier lastCompleteRoundSupplier;
     /** throttles reconnect learner attempts */
@@ -71,7 +71,7 @@ public class ReconnectHelper {
     public ReconnectHelper(
             @NonNull final Runnable pauseGossip,
             @NonNull final Clearable clearAll,
-            @NonNull final Supplier<State> workingStateSupplier,
+            @NonNull final Supplier<MerkeNodeState> workingStateSupplier,
             @NonNull final LongSupplier lastCompleteRoundSupplier,
             @NonNull final ReconnectLearnerThrottle reconnectLearnerThrottle,
             @NonNull final Consumer<SignedState> loadSignedState,

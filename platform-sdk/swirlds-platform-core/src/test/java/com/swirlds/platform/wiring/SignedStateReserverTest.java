@@ -20,10 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.withSettings;
 
-import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.ValueReference;
@@ -34,10 +31,10 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.crypto.SignatureVerifier;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.State;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -52,8 +49,7 @@ class SignedStateReserverTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        State mock = mock(State.class, withSettings().extraInterfaces(Reservable.class));
-        when(mock.cast()).thenReturn(mock);
+        MerkeNodeState mock = mock(MerkeNodeState.class);
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
                 mock(SignatureVerifier.class),

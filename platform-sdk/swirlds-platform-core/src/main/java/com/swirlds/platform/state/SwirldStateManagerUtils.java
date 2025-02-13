@@ -18,7 +18,6 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
 
-import com.swirlds.common.Reservable;
 import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -42,8 +41,8 @@ public final class SwirldStateManagerUtils {
      * @param softwareVersion the current software version
      * @return the newly created state copy
      */
-    public static State fastCopy(
-            @NonNull final State state,
+    public static MerkeNodeState fastCopy(
+            @NonNull final MerkeNodeState state,
             @NonNull final StateMetrics stats,
             @NonNull final SoftwareVersion softwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade) {
@@ -53,12 +52,11 @@ public final class SwirldStateManagerUtils {
         final long copyStart = System.nanoTime();
 
         // Create a fast copy
-        final State copy = state.copy();
-        final Reservable reservable = copy.cast();
+        final MerkeNodeState copy = state.copy();
         platformStateFacade.setCreationSoftwareVersionTo(copy, softwareVersion);
 
         // Increment the reference count because this reference becomes the new value
-        reservable.reserve();
+        copy.reserve();
 
         final long copyEnd = System.nanoTime();
 

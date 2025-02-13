@@ -29,11 +29,11 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.state.State;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -47,14 +47,14 @@ class StateTest {
     @DisplayName("Test Copy")
     void testCopy() {
 
-        final State state = randomSignedState().getState();
-        final State copy = state.copy();
+        final MerkeNodeState state = randomSignedState().getState();
+        final MerkeNodeState copy = state.copy();
 
         assertNotSame(state, copy, "copy should not return the same object");
 
         state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state.cast());
-        MerkleCryptoFactory.getInstance().digestTreeSync(copy.cast());
+        MerkleCryptoFactory.getInstance().digestTreeSync(state);
+        MerkleCryptoFactory.getInstance().digestTreeSync(copy);
 
         assertEquals(state.getHash(), copy.getHash(), "copy should be equal to the original");
         assertFalse(state.isDestroyed(), "copy should not have been deleted");
@@ -69,7 +69,7 @@ class StateTest {
     @Tag(TestComponentTags.MERKLE)
     @DisplayName("Test Try Reserve")
     void tryReserveTest() {
-        final Reservable state = randomSignedState().getState().cast();
+        final MerkeNodeState state = randomSignedState().getState();
         assertEquals(
                 1,
                 state.getReservationCount(),
@@ -87,7 +87,7 @@ class StateTest {
 
     private static SignedState randomSignedState() {
         Random random = new Random(0);
-        MerkleStateRoot merkleStateRoot = new MerkleStateRoot();
+        MerkeNodeState merkleStateRoot = new TestMerkleStateRoot();
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),

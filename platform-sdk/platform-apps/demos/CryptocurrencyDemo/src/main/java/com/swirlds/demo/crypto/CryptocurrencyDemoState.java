@@ -30,6 +30,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * these cryptocurrencies won't have any actual value.
  */
 @ConstructableIgnored
-public class CryptocurrencyDemoState extends MerkleStateRoot {
+public class CryptocurrencyDemoState extends MerkleStateRoot<CryptocurrencyDemoState> implements MerkeNodeState {
 
     /**
      * The version history of this class.
@@ -180,6 +181,7 @@ public class CryptocurrencyDemoState extends MerkleStateRoot {
         return numTrades;
     }
 
+    @NonNull
     @Override
     public synchronized CryptocurrencyDemoState copy() {
         throwIfImmutable();
@@ -322,5 +324,10 @@ public class CryptocurrencyDemoState extends MerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.MIGRATE_TO_SERIALIZABLE;
+    }
+
+    @Override
+    protected CryptocurrencyDemoState copyingConstructor() {
+        return new CryptocurrencyDemoState(this);
     }
 }

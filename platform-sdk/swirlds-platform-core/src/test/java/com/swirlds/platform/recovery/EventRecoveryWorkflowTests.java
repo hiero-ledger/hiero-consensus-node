@@ -41,11 +41,11 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.recovery.internal.StreamedRound;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.state.State;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -119,8 +119,8 @@ class EventRecoveryWorkflowTests {
         final List<PlatformEvent> preHandleList = new ArrayList<>();
         final AtomicBoolean roundHandled = new AtomicBoolean(false);
 
-        final StateLifecycles<State> stateLifecycles = mock(StateLifecycles.class);
-        final State immutableState = mock(State.class);
+        final StateLifecycles<MerkeNodeState> stateLifecycles = mock(StateLifecycles.class);
+        final MerkeNodeState immutableState = mock(MerkeNodeState.class);
         doAnswer(invocation -> {
                     assertFalse(roundHandled.get(), "round should not have been handled yet");
                     preHandleList.add(invocation.getArgument(0));
@@ -135,7 +135,7 @@ class EventRecoveryWorkflowTests {
                 .when(stateLifecycles)
                 .onHandleConsensusRound(any(), same(immutableState), any());
 
-        final State mutableState = mock(State.class);
+        final MerkeNodeState mutableState = mock(MerkeNodeState.class);
         doAnswer(invocation -> {
                     fail("immutable state should pre-handle transactions");
                     return null;

@@ -36,6 +36,7 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
@@ -83,7 +84,7 @@ public final class StartupStateUtils {
             @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
             @NonNull final SoftwareVersion softwareVersion,
-            @NonNull final Supplier<State> genesisStateBuilder,
+            @NonNull final Supplier<MerkeNodeState> genesisStateBuilder,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
@@ -174,7 +175,7 @@ public final class StartupStateUtils {
         requireNonNull(configuration);
         requireNonNull(initialSignedState);
 
-        final State stateCopy = initialSignedState.getState().copy();
+        final MerkeNodeState stateCopy = initialSignedState.getState().copy();
         final SignedState signedStateCopy = new SignedState(
                 configuration,
                 CryptoStatic::verifySignature,
@@ -186,8 +187,7 @@ public final class StartupStateUtils {
                 platformStateFacade);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
-        final Hash hash = MerkleCryptoFactory.getInstance()
-                .digestTreeSync(initialSignedState.getState().cast());
+        final Hash hash = MerkleCryptoFactory.getInstance().digestTreeSync(initialSignedState.getState());
         return new HashedReservedSignedState(signedStateCopy.reserve("Copied initial state"), hash);
     }
 
@@ -272,10 +272,11 @@ public final class StartupStateUtils {
             }
         }
 
-        final State state = deserializedSignedState.reservedSignedState().get().getState();
+        final MerkeNodeState state =
+                deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
-        final Hash newHash = rehashTree(state.cast());
+        final Hash newHash = rehashTree(state);
 
         final SoftwareVersion loadedVersion = platformStateFacade.creationSoftwareVersionOf(state);
 
@@ -332,7 +333,7 @@ public final class StartupStateUtils {
             @NonNull final Configuration configuration,
             @NonNull final AddressBook addressBook,
             @NonNull final SoftwareVersion appVersion,
-            @NonNull final State stateRoot,
+            @NonNull final MerkeNodeState stateRoot,
             @NonNull final PlatformStateFacade platformStateFacade) {
         initGenesisState(configuration, stateRoot, platformStateFacade, addressBook, appVersion);
 

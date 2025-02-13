@@ -26,8 +26,8 @@ import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.test.fixtures.state.BlockingState;
-import com.swirlds.state.State;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -70,11 +70,11 @@ class StateTests {
 
         io.startReading();
 
-        final State decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
-        MerkleCryptoFactory.getInstance().digestTreeSync(decodedState.cast());
+        final MerkeNodeState decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        MerkleCryptoFactory.getInstance().digestTreeSync(decodedState);
 
         assertEquals(merkleStateRoot.getHash(), decodedState.getHash(), "expected trees to be equal");
-        assertTrue(areTreesEqual(merkleStateRoot, decodedState.cast()), "expected trees to be equal");
+        assertTrue(areTreesEqual(merkleStateRoot, decodedState), "expected trees to be equal");
     }
 
     @Test
