@@ -36,6 +36,7 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -194,7 +195,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         void migrateFromV9ToV10() {
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
-                    new MerkleStateRoot(),
+                    new TestMerkleStateRoot(),
                     version(9, 0, 0),
                     latestVersion,
                     config,
@@ -223,7 +224,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             for (int i = 1; i < versions.length; i++) {
                 versions[i] = version(0, i, 0);
             }
-            merkleTree = new MerkleStateRoot();
+            merkleTree = new TestMerkleStateRoot();
         }
 
         @Test

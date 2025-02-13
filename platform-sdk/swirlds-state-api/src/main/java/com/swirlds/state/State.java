@@ -122,15 +122,4 @@ public interface State extends FastCopyable, Hashable {
     default State loadSnapshot(final @NonNull Path targetPath) throws IOException {
         throw new UnsupportedOperationException();
     }
-
-    /**
-     * Blindly cast this state into the given type, will fail if node is not actually that type.
-     *
-     * @param <T>
-     * 		this node will be cast into this type
-     */
-    @SuppressWarnings("unchecked")
-    default <T extends State> T cast() {
-        return (T) this;
-    }
 }

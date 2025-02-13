@@ -43,6 +43,7 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -52,7 +53,6 @@ import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -207,7 +207,7 @@ class SavedStateMetadataTests {
 
         final SignedState signedState = mock(SignedState.class);
         final SigSet sigSet = mock(SigSet.class);
-        final State state = mock(State.class);
+        final MerkeNodeState state = mock(MerkeNodeState.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         final ConsensusSnapshot consensusSnapshot = mock(ConsensusSnapshot.class);
         when(state.getHash()).thenReturn(randomHash(random));

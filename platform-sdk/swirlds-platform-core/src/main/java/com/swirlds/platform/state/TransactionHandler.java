@@ -26,7 +26,6 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.metrics.StateMetrics;
-import com.swirlds.state.State;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -60,8 +59,8 @@ public class TransactionHandler {
      * 		the stateLifecycles to apply {@code round} to
      * @param stateRoot the state root to apply {@code round} to
      */
-    public <T extends State> Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleRound(
-            final ConsensusRound round, final StateLifecycles<State> stateLifecycles, final T stateRoot) {
+    public <T extends MerkeNodeState> Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleRound(
+            final ConsensusRound round, final StateLifecycles<MerkeNodeState> stateLifecycles, final T stateRoot) {
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();
 

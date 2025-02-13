@@ -105,7 +105,7 @@ class BirthRoundStateMigrationTests {
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState().cast());
+        rehashTree(signedState.getState());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
@@ -126,7 +126,7 @@ class BirthRoundStateMigrationTests {
             v.setFirstVersionInBirthRoundMode(previousSoftwareVersion);
             v.setLowestJudgeGenerationBeforeBirthRoundMode(100);
         });
-        rehashTree(signedState.getState().cast());
+        rehashTree(signedState.getState());
         final Hash originalHash = signedState.getState().getHash();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
@@ -135,7 +135,7 @@ class BirthRoundStateMigrationTests {
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState().cast());
+        rehashTree(signedState.getState());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }

@@ -33,9 +33,9 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,7 +58,7 @@ final class ServicesMainTest {
     private Hedera hedera;
 
     @Mock
-    private MerkleStateRoot state;
+    private MerkeNodeState state;
 
     private final ServicesMain subject = new ServicesMain();
 

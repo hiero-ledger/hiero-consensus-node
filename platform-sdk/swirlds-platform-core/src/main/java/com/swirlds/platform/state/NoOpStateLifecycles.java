@@ -25,7 +25,6 @@ import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.Event;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
@@ -34,13 +33,13 @@ import java.util.function.Consumer;
  * A no-op implementation of {@link StateLifecycles} that does nothing.
  * It's useful for auxiliary code that doesn't handle new transactions (State Editor, State commands, Event Recovery workflow, etc.).
  */
-public enum NoOpStateLifecycles implements StateLifecycles<State> {
+public enum NoOpStateLifecycles implements StateLifecycles<MerkeNodeState> {
     NO_OP_STATE_LIFECYCLES;
 
     @Override
     public void onPreHandle(
             @NonNull Event event,
-            @NonNull State state,
+            @NonNull MerkeNodeState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         // no-op
     }
@@ -48,20 +47,20 @@ public enum NoOpStateLifecycles implements StateLifecycles<State> {
     @Override
     public void onHandleConsensusRound(
             @NonNull Round round,
-            @NonNull State state,
+            @NonNull MerkeNodeState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         // no-op
     }
 
     @Override
-    public boolean onSealConsensusRound(@NonNull Round round, @NonNull State state) {
+    public boolean onSealConsensusRound(@NonNull Round round, @NonNull MerkeNodeState state) {
         // no-op
         return true;
     }
 
     @Override
     public void onStateInitialized(
-            @NonNull State state,
+            @NonNull MerkeNodeState state,
             @NonNull Platform platform,
             @NonNull InitTrigger trigger,
             @Nullable SoftwareVersion previousVersion) {
@@ -70,12 +69,12 @@ public enum NoOpStateLifecycles implements StateLifecycles<State> {
 
     @Override
     public void onUpdateWeight(
-            @NonNull State state, @NonNull AddressBook configAddressBook, @NonNull PlatformContext context) {
+            @NonNull MerkeNodeState state, @NonNull AddressBook configAddressBook, @NonNull PlatformContext context) {
         // no-op
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull State recoveredState) {
+    public void onNewRecoveredState(@NonNull MerkeNodeState recoveredState) {
         // no-op
     }
 }

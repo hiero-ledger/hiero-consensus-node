@@ -28,6 +28,7 @@ import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import java.io.IOException;
@@ -84,7 +85,7 @@ class StateRegistryTests {
         final List<MerkleStateRoot> states = new LinkedList<>();
         // Create a bunch of states
         for (int i = 0; i < 100; i++) {
-            states.add(new MerkleStateRoot());
+            states.add(new TestMerkleStateRoot());
             assertEquals(
                     states.size(),
                     RuntimeObjectRegistry.getActiveObjectsCount(MerkleStateRoot.class),
@@ -92,7 +93,7 @@ class StateRegistryTests {
         }
 
         // Fast copy a state
-        final MerkleStateRoot stateToCopy = new MerkleStateRoot();
+        final MerkleStateRoot stateToCopy = new TestMerkleStateRoot();
         states.add(stateToCopy);
         final MerkleStateRoot copyOfStateToCopy = stateToCopy.copy();
         states.add(copyOfStateToCopy);
@@ -104,7 +105,7 @@ class StateRegistryTests {
         final Path dir = testDirectory;
 
         // Deserialize a state
-        final MerkleStateRoot stateToSerialize = new MerkleStateRoot();
+        final TestMerkleStateRoot stateToSerialize = new TestMerkleStateRoot();
         final TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade(softwareVersionSupplier);
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(stateToSerialize);
         final var platformState = platformStateFacade.getWritablePlatformStateOf(stateToSerialize);

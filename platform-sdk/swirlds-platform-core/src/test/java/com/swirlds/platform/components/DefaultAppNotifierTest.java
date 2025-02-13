@@ -37,6 +37,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.IssListener;
 import com.swirlds.platform.system.state.notifications.IssNotification;
@@ -46,7 +47,6 @@ import com.swirlds.platform.system.state.notifications.NewSignedStateNotificatio
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatus;
-import com.swirlds.state.State;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -88,7 +88,7 @@ public class DefaultAppNotifierTest {
 
     @Test
     void testReconnectCompleteNotificationSent() {
-        final State state = mock(State.class);
+        final MerkeNodeState state = mock(MerkeNodeState.class);
         final ReconnectCompleteNotification notification =
                 new ReconnectCompleteNotification(100L, Instant.now(), state);
 
@@ -114,7 +114,7 @@ public class DefaultAppNotifierTest {
 
     @Test
     void testLatestCompleteStateNotificationSent() {
-        final State state = mock(State.class);
+        final MerkeNodeState state = mock(MerkeNodeState.class);
         final CompletionCallback<NotificationResult<NewSignedStateNotification>> cleanup =
                 mock(CompletionCallback.class);
         final NewSignedStateNotification signedStateNotification =

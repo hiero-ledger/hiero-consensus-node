@@ -22,6 +22,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.Hedera;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -29,7 +30,6 @@ import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.Event;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
@@ -37,7 +37,7 @@ import java.util.function.Consumer;
 /**
  * Implements the major lifecycle events for Hedera Services by delegating to a Hedera instance.
  */
-public class StateLifecyclesImpl implements StateLifecycles<State> {
+public class StateLifecyclesImpl implements StateLifecycles<MerkeNodeState> {
     private final Hedera hedera;
 
     public StateLifecyclesImpl(@NonNull final Hedera hedera) {
@@ -47,7 +47,7 @@ public class StateLifecyclesImpl implements StateLifecycles<State> {
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final State state,
+            @NonNull final MerkeNodeState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         hedera.onPreHandle(event, state, stateSignatureTransactionCallback);
     }
@@ -55,13 +55,13 @@ public class StateLifecyclesImpl implements StateLifecycles<State> {
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final State state,
+            @NonNull final MerkeNodeState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         hedera.onHandleConsensusRound(round, state, stateSignatureTxnCallback);
     }
 
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final MerkeNodeState state) {
         requireNonNull(state);
         requireNonNull(round);
         return hedera.onSealConsensusRound(round, state);
@@ -69,7 +69,7 @@ public class StateLifecyclesImpl implements StateLifecycles<State> {
 
     @Override
     public void onStateInitialized(
-            @NonNull final State state,
+            @NonNull final MerkeNodeState state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable SoftwareVersion previousVersion) {
@@ -78,14 +78,14 @@ public class StateLifecyclesImpl implements StateLifecycles<State> {
 
     @Override
     public void onUpdateWeight(
-            @NonNull final State stateRoot,
+            @NonNull final MerkeNodeState stateRoot,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext context) {
         // No-op
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull final State recoveredStateRoot) {
+    public void onNewRecoveredState(@NonNull final MerkeNodeState recoveredStateRoot) {
         hedera.onNewRecoveredState();
     }
 }

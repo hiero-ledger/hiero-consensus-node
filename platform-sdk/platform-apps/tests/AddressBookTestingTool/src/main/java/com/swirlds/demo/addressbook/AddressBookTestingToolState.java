@@ -30,6 +30,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.utility.ByteUtils;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
@@ -45,7 +46,8 @@ import org.apache.logging.log4j.Logger;
  * State for the AddressBookTestingTool.
  */
 @ConstructableIgnored
-public class AddressBookTestingToolState extends MerkleStateRoot {
+public class AddressBookTestingToolState extends MerkleStateRoot<AddressBookTestingToolState>
+        implements MerkeNodeState {
 
     private static final Logger logger = LogManager.getLogger(AddressBookTestingToolState.class);
 
@@ -120,6 +122,7 @@ public class AddressBookTestingToolState extends MerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized AddressBookTestingToolState copy() {
         throwIfImmutable();
@@ -168,5 +171,10 @@ public class AddressBookTestingToolState extends MerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.ORIGINAL;
+    }
+
+    @Override
+    protected AddressBookTestingToolState copyingConstructor() {
+        return new AddressBookTestingToolState(this);
     }
 }

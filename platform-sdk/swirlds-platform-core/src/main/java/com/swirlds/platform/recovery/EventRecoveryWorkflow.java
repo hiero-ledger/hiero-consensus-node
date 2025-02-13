@@ -52,6 +52,7 @@ import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.RecoveredState;
 import com.swirlds.platform.recovery.internal.RecoveryPlatform;
 import com.swirlds.platform.recovery.internal.StreamedRound;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -350,7 +351,7 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Hashing resulting signed state");
         try {
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(signedState.get().getState().cast())
+                    .digestTreeAsync(signedState.get().getState())
                     .get();
         } catch (final InterruptedException e) {
             throw new RuntimeException("interrupted while attempting to hash the state", e);
@@ -387,7 +388,7 @@ public final class EventRecoveryWorkflow {
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
         final SignedState previousState = previousSignedState.get();
         previousState.getState().throwIfImmutable();
-        final State newState = previousState.getState().copy();
+        final MerkeNodeState newState = previousState.getState().copy();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
         new DefaultEventHasher().hashEvent(lastEvent);
 
@@ -401,7 +402,7 @@ public final class EventRecoveryWorkflow {
             v.setCreationSoftwareVersion(platformStateFacade.creationSoftwareVersionOf(previousState.getState()));
         });
 
-        applyTransactions(stateLifecycles, previousState.getState(), newState.cast(), round);
+        applyTransactions(stateLifecycles, previousState.getState(), newState, round);
 
         final boolean isFreezeState = isFreezeState(
                 previousState.getConsensusTimestamp(),
@@ -479,9 +480,9 @@ public final class EventRecoveryWorkflow {
      * @param round          the current round
      */
     static void applyTransactions(
-            final StateLifecycles<State> stateLifecycles,
-            final State immutableState,
-            final State mutableState,
+            final StateLifecycles<MerkeNodeState> stateLifecycles,
+            final MerkeNodeState immutableState,
+            final MerkeNodeState mutableState,
             final Round round) {
 
         mutableState.throwIfImmutable();

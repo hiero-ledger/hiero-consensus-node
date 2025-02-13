@@ -27,6 +27,7 @@ package com.swirlds.demo.stress;
  */
 
 import com.swirlds.common.constructable.ConstructableIgnored;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -35,7 +36,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * purposes.
  */
 @ConstructableIgnored
-public class StressTestingToolState extends MerkleStateRoot {
+public class StressTestingToolState extends MerkleStateRoot<StressTestingToolState> implements MerkeNodeState {
     private static final long CLASS_ID = 0x79900efa3127b6eL;
 
     /** A running sum of transaction contents */
@@ -59,6 +60,7 @@ public class StressTestingToolState extends MerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized StressTestingToolState copy() {
         throwIfImmutable();
@@ -88,6 +90,11 @@ public class StressTestingToolState extends MerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.NO_ADDRESS_BOOK_IN_STATE;
+    }
+
+    @Override
+    protected StressTestingToolState copyingConstructor() {
+        return new StressTestingToolState(this);
     }
 
     /**

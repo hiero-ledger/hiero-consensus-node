@@ -142,6 +142,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -210,7 +211,7 @@ import org.apache.logging.log4j.Logger;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera implements SwirldMain<State>, PlatformStatusChangeListener, AppContext.Gossip {
+public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusChangeListener, AppContext.Gossip {
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
     // FUTURE: This should come from configuration, not be hardcoded.
@@ -311,7 +312,7 @@ public final class Hedera implements SwirldMain<State>, PlatformStatusChangeList
      */
     private final StartupNetworksFactory startupNetworksFactory;
 
-    private final StateLifecycles<State> stateLifecycles;
+    private final StateLifecycles<MerkeNodeState> stateLifecycles;
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -360,7 +361,7 @@ public final class Hedera implements SwirldMain<State>, PlatformStatusChangeList
     /**
      * The state root supplier to use for creating a new state root.
      */
-    private final Supplier<State> stateRootSupplier;
+    private final Supplier<MerkeNodeState> stateRootSupplier;
 
     /**
      * The action to take, if any, when a consensus round is sealed.
@@ -533,13 +534,13 @@ public final class Hedera implements SwirldMain<State>, PlatformStatusChangeList
                 .forEach(servicesRegistry::register);
         try {
             stateLifecycles = new StateLifecyclesImpl(this);
-            final Supplier<State> baseSupplier = MerkleStateRoot::new;
+            final Supplier<MerkeNodeState> baseSupplier = HederaStateRoot::new;
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
             onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> {};
             // And the factory for the MerkleStateRoot class id must be our constructor
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    MerkleStateRoot.class, () -> (RuntimeConstructable) stateRootSupplier.get()));
+            constructableRegistry.registerConstructable(
+                    new ClassConstructorPair(MerkleStateRoot.class, stateRootSupplier::get));
         } catch (final ConstructableRegistryException e) {
             logger.error("Failed to register " + MerkleStateRoot.class + " factory with ConstructableRegistry", e);
             throw new IllegalStateException(e);
@@ -575,7 +576,7 @@ public final class Hedera implements SwirldMain<State>, PlatformStatusChangeList
      */
     @Override
     @NonNull
-    public State newStateRoot() {
+    public MerkeNodeState newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -583,7 +584,7 @@ public final class Hedera implements SwirldMain<State>, PlatformStatusChangeList
      * {@inheritDoc}
      */
     @Override
-    public StateLifecycles<State> newStateLifecycles() {
+    public StateLifecycles<MerkeNodeState> newStateLifecycles() {
         return stateLifecycles;
     }
 
@@ -1280,7 +1281,7 @@ public final class Hedera implements SwirldMain<State>, PlatformStatusChangeList
         }
     }
 
-    private State withListeners(@NonNull final State root) {
+    private MerkeNodeState withListeners(@NonNull final MerkeNodeState root) {
         root.registerCommitListener(boundaryStateChangeListener);
         root.registerCommitListener(kvStateChangeListener);
         return root;
