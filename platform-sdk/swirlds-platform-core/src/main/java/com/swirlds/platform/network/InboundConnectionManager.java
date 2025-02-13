@@ -26,7 +26,7 @@ public class InboundConnectionManager implements ConnectionManager {
     /** locks the connection managed by this instance */
     private final AutoClosableResourceLock<Connection> lock = Locks.createResourceLock(currentConn);
     /** condition to wait on for a new connection */
-    private final Condition newConnection = lock.newCondition();
+    private final Condition newConnectionSignal = lock.newCondition();
 
     /**
      * {@inheritDoc}
@@ -61,7 +61,7 @@ public class InboundConnectionManager implements ConnectionManager {
     private Connection waitForNewConnection() throws InterruptedException {
         try (final LockedResource<Connection> lockedConn = lock.lock()) {
             while (!lockedConn.getResource().connected()) {
-                newConnection.await();
+                newConnectionSignal.await();
             }
             return lockedConn.getResource();
         }
@@ -92,7 +92,7 @@ public class InboundConnectionManager implements ConnectionManager {
             }
             old.disconnect();
             lockedConn.setResource(connection);
-            newConnection.signalAll();
+            newConnectionSignal.signalAll();
         }
     }
 
