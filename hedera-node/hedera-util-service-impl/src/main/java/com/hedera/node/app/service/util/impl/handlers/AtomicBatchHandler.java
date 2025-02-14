@@ -18,6 +18,7 @@ package com.hedera.node.app.service.util.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -99,7 +100,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                 throw new PreCheckException(e.getStatus());
             }
 
-            if (!set.add(txBody)) throw new PreCheckException(BATCH_LIST_CONTAINS_DUPLICATES);
+            validateTruePreCheck(set.add(txBody), BATCH_LIST_CONTAINS_DUPLICATES);
 
             // validate batch key exists on each inner transaction
             if (!txBody.hasBatchKey()) {
@@ -128,11 +129,6 @@ public class AtomicBatchHandler implements TransactionHandler {
         requireNonNull(op);
         List<Transaction> transactions = atomicBatchTransactionBody.transactions();
 
-        if (transactions.size()
-                > context.configuration().getConfigData(AtomicBatchConfig.class).maxNumberOfTransactions()) {
-            throw new PreCheckException(BATCH_SIZE_LIMIT_EXCEEDED);
-        }
-
         for (var transaction : transactions) {
             // check how to parse it correctly or maybe throw an exception
             final TransactionBody txBody;
@@ -141,7 +137,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             } catch (HandleException e) {
                 throw new PreCheckException(e.getStatus());
             }
-            context.requireKeyOrThrow(txBody.batchKey(), BAD_ENCODING);
+            context.requireKeyOrThrow(txBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
     }
@@ -154,7 +150,14 @@ public class AtomicBatchHandler implements TransactionHandler {
             throw new HandleException(NOT_SUPPORTED);
         }
         final var txnBodies = new ArrayList<TransactionBody>();
-        for (final var transaction : op.transactions()) {
+        List<Transaction> transactions = op.transactions();
+
+        if (transactions.size()
+                > context.configuration().getConfigData(AtomicBatchConfig.class).maxNumberOfTransactions()) {
+            throw new HandleException(BATCH_SIZE_LIMIT_EXCEEDED);
+        }
+
+        for (final var transaction : transactions) {
             try {
                 txnBodies.add(bodyParser.apply(transaction));
             } catch (HandleException e) {

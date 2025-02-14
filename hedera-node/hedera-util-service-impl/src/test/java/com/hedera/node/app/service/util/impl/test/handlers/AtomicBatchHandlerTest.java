@@ -166,17 +166,6 @@ class AtomicBatchHandlerTest {
     }
 
     @Test
-    void preHandleBatchSizeExceedsMaxBatchSize() {
-        final var transaction1 = mock(Transaction.class);
-        final var transaction2 = mock(Transaction.class);
-        final var transaction3 = mock(Transaction.class);
-        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2, transaction3);
-        given(preHandleContext.body()).willReturn(txnBody);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED, msg.responseCode());
-    }
-
-    @Test
     void preHandleBatchWithBatchKeyIsNull() throws PreCheckException {
         final var transaction1 = mock(Transaction.class);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1);
@@ -186,10 +175,10 @@ class AtomicBatchHandlerTest {
                 .build();
         given(preHandleContext.body()).willReturn(txnBody);
         given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
-        given(preHandleContext.requireKeyOrThrow(innerTxnBody1.batchKey(), BAD_ENCODING))
-                .willThrow(new PreCheckException(BAD_ENCODING));
+        given(preHandleContext.requireKeyOrThrow(innerTxnBody1.batchKey(), INVALID_BATCH_KEY))
+                .willThrow(new PreCheckException(INVALID_BATCH_KEY));
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(ResponseCodeEnum.BAD_ENCODING, msg.responseCode());
+        assertEquals(ResponseCodeEnum.INVALID_BATCH_KEY, msg.responseCode());
     }
 
     @Test
@@ -228,6 +217,17 @@ class AtomicBatchHandlerTest {
         given(recordBuilder.status()).willReturn(UNKNOWN);
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(INNER_TRANSACTION_FAILED, msg.getStatus());
+    }
+
+    @Test
+    void handleBatchSizeExceedsMaxBatchSize() {
+        final var transaction1 = mock(Transaction.class);
+        final var transaction2 = mock(Transaction.class);
+        final var transaction3 = mock(Transaction.class);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2, transaction3);
+        given(handleContext.body()).willReturn(txnBody);
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED, msg.getStatus());
     }
 
     @Test

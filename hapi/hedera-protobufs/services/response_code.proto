@@ -1740,4 +1740,9 @@ enum ResponseCodeEnum {
      * The batch key is set for atomic batch user transaction
      */
     BATCH_KEY_SET_FOR_ATOMIC_BATCH = 393;
+
+    /**
+     * The batch key is not valid
+     */
+    INVALID_BATCH_KEY = 394;
 }
