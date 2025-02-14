@@ -27,7 +27,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -62,7 +62,7 @@ class TransactionPrehandlerTests {
                 .close();
 
         final SignedState signedState = mock(SignedState.class);
-        final MerkeNodeState stateRoot = mock(MerkeNodeState.class);
+        final MerkleNodeState stateRoot = mock(MerkleNodeState.class);
         when(signedState.getState()).thenReturn(stateRoot);
 
         final SignedStateNexus latestImmutableStateNexus = mock(SignedStateNexus.class);

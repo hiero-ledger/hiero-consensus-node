@@ -24,7 +24,7 @@ import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,7 +54,7 @@ public class StateEditorSwap extends StateEditorOperation {
             final StateEditor.ParentInfo parentInfoA = getStateEditor().getParentInfo(pathA);
             final StateEditor.ParentInfo parentInfoB = getStateEditor().getParentInfo(pathB);
 
-            final MerkeNodeState merkleTraversable = reservedSignedState.get().getState();
+            final MerkleNodeState merkleTraversable = reservedSignedState.get().getState();
             final MerkleNode nodeA = merkleTraversable.getNodeAtRoute(parentInfoA.target());
             final MerkleNode nodeB = merkleTraversable.getNodeAtRoute(parentInfoB.target());
 

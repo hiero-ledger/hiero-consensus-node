@@ -41,8 +41,8 @@ public final class SwirldStateManagerUtils {
      * @param softwareVersion the current software version
      * @return the newly created state copy
      */
-    public static MerkeNodeState fastCopy(
-            @NonNull final MerkeNodeState state,
+    public static MerkleNodeState fastCopy(
+            @NonNull final MerkleNodeState state,
             @NonNull final StateMetrics stats,
             @NonNull final SoftwareVersion softwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade) {
@@ -52,7 +52,7 @@ public final class SwirldStateManagerUtils {
         final long copyStart = System.nanoTime();
 
         // Create a fast copy
-        final MerkeNodeState copy = state.copy();
+        final MerkleNodeState copy = state.copy();
         platformStateFacade.setCreationSoftwareVersionTo(copy, softwareVersion);
 
         // Increment the reference count because this reference becomes the new value

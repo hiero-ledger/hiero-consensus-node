@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -51,8 +51,8 @@ class PlatformStateFacadeTest {
     public static final Function<SemanticVersion, SoftwareVersion> VERSION_FACTORY =
             v -> new BasicSoftwareVersion(v.major());
     private static TestPlatformStateFacade platformStateFacade;
-    private static MerkeNodeState state;
-    private static MerkeNodeState emptyState;
+    private static MerkleNodeState state;
+    private static MerkleNodeState emptyState;
     private static PlatformStateModifier platformStateModifier;
 
     @BeforeAll

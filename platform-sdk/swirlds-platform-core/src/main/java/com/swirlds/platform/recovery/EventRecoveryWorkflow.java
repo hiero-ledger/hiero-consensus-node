@@ -52,7 +52,7 @@ import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.RecoveredState;
 import com.swirlds.platform.recovery.internal.RecoveryPlatform;
 import com.swirlds.platform.recovery.internal.StreamedRound;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -388,7 +388,7 @@ public final class EventRecoveryWorkflow {
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
         final SignedState previousState = previousSignedState.get();
         previousState.getState().throwIfImmutable();
-        final MerkeNodeState newState = previousState.getState().copy();
+        final MerkleNodeState newState = previousState.getState().copy();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
         new DefaultEventHasher().hashEvent(lastEvent);
 
@@ -480,9 +480,9 @@ public final class EventRecoveryWorkflow {
      * @param round          the current round
      */
     static void applyTransactions(
-            final StateLifecycles<MerkeNodeState> stateLifecycles,
-            final MerkeNodeState immutableState,
-            final MerkeNodeState mutableState,
+            final StateLifecycles<MerkleNodeState> stateLifecycles,
+            final MerkleNodeState immutableState,
+            final MerkleNodeState mutableState,
             final Round round) {
 
         mutableState.throwIfImmutable();

@@ -142,7 +142,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -162,7 +162,6 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -211,7 +210,7 @@ import org.apache.logging.log4j.Logger;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusChangeListener, AppContext.Gossip {
+public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatusChangeListener, AppContext.Gossip {
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
     // FUTURE: This should come from configuration, not be hardcoded.
@@ -312,7 +311,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
      */
     private final StartupNetworksFactory startupNetworksFactory;
 
-    private final StateLifecycles<MerkeNodeState> stateLifecycles;
+    private final StateLifecycles<MerkleNodeState> stateLifecycles;
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -347,7 +346,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
 
     /**
      * A {@link StateChangeListener} that accumulates state changes that are only reported once per block; in the
-     * current system, these are the singleton and queue updates. Every {@link MerkleStateRoot} will have this
+     * current system, these are the singleton and queue updates. Every {@link HederaStateRoot} will have this
      * listener registered.
      */
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -361,7 +360,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
     /**
      * The state root supplier to use for creating a new state root.
      */
-    private final Supplier<MerkeNodeState> stateRootSupplier;
+    private final Supplier<MerkleNodeState> stateRootSupplier;
 
     /**
      * The action to take, if any, when a consensus round is sealed.
@@ -424,7 +423,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
      * with the given {@link ConstructableRegistry}.
      *
      * <p>This registration is a critical side effect that must happen called before any Platform initialization
-     * steps that try to create or deserialize a {@link MerkleStateRoot}.
+     * steps that try to create or deserialize a {@link HederaStateRoot}.
      *
      * @param constructableRegistry  the registry to register {@link RuntimeConstructable} factories with
      * @param registryFactory        the factory to use for creating the services registry
@@ -534,15 +533,15 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
                 .forEach(servicesRegistry::register);
         try {
             stateLifecycles = new StateLifecyclesImpl(this);
-            final Supplier<MerkeNodeState> baseSupplier = HederaStateRoot::new;
+            final Supplier<MerkleNodeState> baseSupplier = HederaStateRoot::new;
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
             onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
             // And the factory for the MerkleStateRoot class id must be our constructor
             constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(MerkleStateRoot.class, stateRootSupplier::get));
+                    new ClassConstructorPair(HederaStateRoot.class, stateRootSupplier::get));
         } catch (final ConstructableRegistryException e) {
-            logger.error("Failed to register " + MerkleStateRoot.class + " factory with ConstructableRegistry", e);
+            logger.error("Failed to register " + HederaStateRoot.class + " factory with ConstructableRegistry", e);
             throw new IllegalStateException(e);
         }
     }
@@ -576,7 +575,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
      */
     @Override
     @NonNull
-    public MerkeNodeState newStateRoot() {
+    public MerkleNodeState newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -584,7 +583,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
      * {@inheritDoc}
      */
     @Override
-    public StateLifecycles<MerkeNodeState> newStateLifecycles() {
+    public StateLifecycles<MerkleNodeState> newStateLifecycles() {
         return stateLifecycles;
     }
 
@@ -777,7 +776,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
      * {@inheritDoc}
      *
      * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state created from
-     * {@link #newStateRoot()} or an instance of {@link MerkleStateRoot} created by the platform and
+     * {@link #newStateRoot()} or an instance of {@link HederaStateRoot} created by the platform and
      * loaded from the saved state).
      *
      * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(State, Platform, InitTrigger)}
@@ -891,7 +890,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
         if (daggerApp != null) {
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
-            if (state instanceof MerkleStateRoot msr) {
+            if (state instanceof HederaStateRoot msr) {
                 msr.close();
             }
 
@@ -1279,7 +1278,7 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
         }
     }
 
-    private MerkeNodeState withListeners(@NonNull final MerkeNodeState root) {
+    private MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
         root.registerCommitListener(boundaryStateChangeListener);
         root.registerCommitListener(kvStateChangeListener);
         return root;

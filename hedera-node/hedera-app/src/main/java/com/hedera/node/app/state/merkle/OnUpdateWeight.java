@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 package com.hedera.node.app.state.merkle;
 
+import com.hedera.node.app.HederaStateRoot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -26,7 +26,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public interface OnUpdateWeight {
     void updateWeight(
-            @NonNull final MerkleStateRoot state,
+            @NonNull final HederaStateRoot state,
             @NonNull AddressBook configAddressBook,
             @NonNull final PlatformContext context);
 }

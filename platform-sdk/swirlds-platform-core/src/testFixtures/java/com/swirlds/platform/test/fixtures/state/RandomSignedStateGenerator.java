@@ -40,7 +40,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -75,7 +75,7 @@ public class RandomSignedStateGenerator {
 
     final Random random;
 
-    private MerkeNodeState state;
+    private MerkleNodeState state;
     private Long round;
     private Hash legacyRunningEventHash;
     private Roster roster;
@@ -146,7 +146,7 @@ public class RandomSignedStateGenerator {
             softwareVersionInstance = softwareVersion;
         }
 
-        final MerkeNodeState stateInstance;
+        final MerkleNodeState stateInstance;
         registerMerkleStateRootClassIds();
         final long roundInstance;
         if (round == null) {
@@ -314,7 +314,7 @@ public class RandomSignedStateGenerator {
      *
      * @return this object
      */
-    public RandomSignedStateGenerator setState(final MerkeNodeState state) {
+    public RandomSignedStateGenerator setState(final MerkleNodeState state) {
         this.state = state;
         return this;
     }
