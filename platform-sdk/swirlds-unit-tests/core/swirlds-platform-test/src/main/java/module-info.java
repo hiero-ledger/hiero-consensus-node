@@ -25,7 +25,6 @@ module com.swirlds.platform.test {
     requires com.hedera.node.hapi;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions.test.fixtures;
-    requires com.swirlds.state.impl;
     requires java.desktop;
     requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;

@@ -31,7 +31,7 @@ import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.state.PlatformState;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -82,7 +82,7 @@ class PlatformStateTests {
     @SuppressWarnings("resource")
     void platformStateSerializationTest() throws IOException, ConstructableRegistryException {
         registerMerkleStateRootClassIds();
-        final MerkleStateRoot root = new MerkleStateRoot();
+        final TestMerkleStateRoot root = new TestMerkleStateRoot();
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(root);
 
         final InputOutputStream io = new InputOutputStream();
@@ -91,7 +91,7 @@ class PlatformStateTests {
 
         io.startReading();
 
-        final MerkleStateRoot decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        final TestMerkleStateRoot decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
 
         MerkleCryptoFactory.getInstance().digestTreeSync(root);
         MerkleCryptoFactory.getInstance().digestTreeSync(decodedState);

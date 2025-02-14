@@ -49,6 +49,7 @@ import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
+import com.swirlds.state.spi.EmptyWritableStates;
 import com.swirlds.state.spi.KVChangeListener;
 import com.swirlds.state.spi.QueueChangeListener;
 import com.swirlds.state.spi.ReadableKVState;
@@ -97,16 +98,12 @@ import org.apache.logging.log4j.Logger;
  * consider nesting service nodes in a MerkleMap, or some other such approach to get a binary tree.
  */
 @ConstructableIgnored
-public class MerkleStateRoot extends PartialNaryMerkleInternal implements MerkleInternal, State {
+public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends PartialNaryMerkleInternal
+        implements MerkleInternal, State {
 
     private static final Logger logger = LogManager.getLogger(MerkleStateRoot.class);
 
-    /**
-     * Used when asked for a service's readable states that we don't have
-     */
-    private static final ReadableStates EMPTY_READABLE_STATES = new EmptyReadableStates();
-
-    private static final long CLASS_ID = 0x8e300b0dfdafbb1aL;
+    private static final long CLASS_ID = 0x8e300b0dfdafbb1bL;
     // Migrates from `PlatformState` to State API singleton
     public static final int CURRENT_VERSION = 31;
 
@@ -176,7 +173,7 @@ public class MerkleStateRoot extends PartialNaryMerkleInternal implements Merkle
      *
      * @param from The other state to fast-copy from. Cannot be null.
      */
-    protected MerkleStateRoot(@NonNull final MerkleStateRoot from) {
+    protected MerkleStateRoot(@NonNull final MerkleStateRoot<T> from) {
         // Copy the Merkle route from the source instance
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
@@ -253,7 +250,7 @@ public class MerkleStateRoot extends PartialNaryMerkleInternal implements Merkle
     @NonNull
     public ReadableStates getReadableStates(@NonNull String serviceName) {
         if (services.get(serviceName) == null) {
-            return EMPTY_READABLE_STATES;
+            return EmptyReadableStates.INSTANCE;
         }
         return readableStatesMap.computeIfAbsent(serviceName, s -> new MerkleReadableStates(services.get(s)));
     }
@@ -266,7 +263,7 @@ public class MerkleStateRoot extends PartialNaryMerkleInternal implements Merkle
     public WritableStates getWritableStates(@NonNull final String serviceName) {
         throwIfImmutable();
         if (services.get(serviceName) == null) {
-            return new MerkleWritableStates(serviceName, Map.of());
+            return EmptyWritableStates.INSTANCE;
         }
         return writableStatesMap.computeIfAbsent(serviceName, s -> {
             final var stateMetadata = services.getOrDefault(s, Map.of());
@@ -290,12 +287,18 @@ public class MerkleStateRoot extends PartialNaryMerkleInternal implements Merkle
      */
     @NonNull
     @Override
-    public MerkleStateRoot copy() {
+    public T copy() {
         throwIfImmutable();
         throwIfDestroyed();
         setImmutable(true);
-        return new MerkleStateRoot(this);
+        return copyingConstructor();
     }
+
+    /**
+     * Creates a copy of the instance.
+     * @return a copy of the instance
+     */
+    protected abstract T copyingConstructor();
 
     @Override
     public MerkleNode migrate(int version) {
@@ -556,8 +559,8 @@ public class MerkleStateRoot extends PartialNaryMerkleInternal implements Merkle
 
         @NonNull
         @Override
-        public <T> ReadableSingletonState<T> getSingleton(@NonNull String stateKey) {
-            final ReadableSingletonState<T> instance = (ReadableSingletonState<T>) singletonInstances.get(stateKey);
+        public <S> ReadableSingletonState<S> getSingleton(@NonNull String stateKey) {
+            final ReadableSingletonState<S> instance = (ReadableSingletonState<S>) singletonInstances.get(stateKey);
             if (instance != null) {
                 return instance;
             }
@@ -740,8 +743,8 @@ public class MerkleStateRoot extends PartialNaryMerkleInternal implements Merkle
 
         @NonNull
         @Override
-        public <T> WritableSingletonState<T> getSingleton(@NonNull String stateKey) {
-            return (WritableSingletonState<T>) super.getSingleton(stateKey);
+        public <S> WritableSingletonState<S> getSingleton(@NonNull String stateKey) {
+            return (WritableSingletonState<S>) super.getSingleton(stateKey);
         }
 
         @NonNull
@@ -939,15 +942,9 @@ public class MerkleStateRoot extends PartialNaryMerkleInternal implements Merkle
     /**
      * {@inheritDoc}
      */
-    @Override
-    public MerkleStateRoot loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (MerkleStateRoot)
-                MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
-    }
-
     @SuppressWarnings("unchecked")
     @Override
-    public MerkleStateRoot cast() {
-        return super.cast();
+    public T loadSnapshot(@NonNull Path targetPath) throws IOException {
+        return (T) MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
     }
 }

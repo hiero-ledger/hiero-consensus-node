@@ -77,9 +77,9 @@ import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -133,7 +133,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
-    private State state;
+    private MerkeNodeState state;
 
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
@@ -230,7 +230,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var stateToBeCopied = state;
         state = state.copy();
         // get the state hash before applying the state changes from current block
-        this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.cast());
+        this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied);
 
         logger.info("Registered all Service and migrated state definitions to version {}", servicesVersion);
     }
@@ -248,7 +248,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
-                startOfStateHash = CRYPTO.digestTreeSync(stateToBeCopied.cast()).getBytes();
+                startOfStateHash = CRYPTO.digestTreeSync(stateToBeCopied).getBytes();
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();
@@ -314,14 +314,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state.getWritableStates(EntityIdService.NAME).<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
         assertEntityCountsMatch(entityCounts);
 
-        CRYPTO.digestTreeSync(state.cast());
+        CRYPTO.digestTreeSync(state);
         final var rootHash = requireNonNull(state.getHash()).getBytes();
         if (!expectedRootHash.equals(rootHash)) {
             final var expectedHashes = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
             if (expectedHashes == null) {
                 throw new AssertionError("No expected hashes found in " + pathToNode0SwirldsLog);
             }
-            final var actualHashes = hashesFor(state.cast());
+            final var actualHashes = hashesFor(state);
             final var errorMsg = new StringBuilder("Hashes did not match for the following states,");
             expectedHashes.forEach((stateName, expectedHash) -> {
                 final var actualHash = actualHashes.get(stateName);

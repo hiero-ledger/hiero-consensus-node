@@ -58,8 +58,7 @@ public class DefaultStateHasher implements StateHasher {
         final Instant start = Instant.now();
         try {
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(
-                            stateAndRound.reservedSignedState().get().getState().cast())
+                    .digestTreeAsync(stateAndRound.reservedSignedState().get().getState())
                     .get();
 
             metrics.reportHashingTime(Duration.between(start, Instant.now()));

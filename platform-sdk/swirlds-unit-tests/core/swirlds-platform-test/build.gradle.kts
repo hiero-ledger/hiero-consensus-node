@@ -43,6 +43,7 @@ testModuleInfo {
     requires("com.hedera.pbj.runtime")
     requires("com.swirlds.merkle")
     requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.state.impl")
     requires("awaitility")
     requires("org.junit.jupiter.params")
     requires("org.mockito.junit.jupiter")

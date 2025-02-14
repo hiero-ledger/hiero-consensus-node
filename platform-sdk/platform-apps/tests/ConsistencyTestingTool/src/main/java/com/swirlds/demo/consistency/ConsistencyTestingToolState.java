@@ -25,6 +25,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.utility.NonCryptographicHashing;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
@@ -44,7 +45,8 @@ import org.apache.logging.log4j.Logger;
  * State for the Consistency Testing Tool
  */
 @ConstructableIgnored
-public class ConsistencyTestingToolState extends MerkleStateRoot {
+public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTestingToolState>
+        implements MerkeNodeState {
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
     private static final long CLASS_ID = 0xda03bb07eb897d82L;
 
@@ -272,6 +274,11 @@ public class ConsistencyTestingToolState extends MerkleStateRoot {
     public synchronized ConsistencyTestingToolState copy() {
         throwIfImmutable();
         setImmutable(true);
+        return new ConsistencyTestingToolState(this);
+    }
+
+    @Override
+    protected ConsistencyTestingToolState copyingConstructor() {
         return new ConsistencyTestingToolState(this);
     }
 }

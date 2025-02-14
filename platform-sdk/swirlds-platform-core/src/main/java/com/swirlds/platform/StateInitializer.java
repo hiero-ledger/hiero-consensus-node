@@ -25,13 +25,13 @@ import static com.swirlds.platform.system.SoftwareVersion.NO_VERSION;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
@@ -39,7 +39,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Encapsulates the logic for calling
- * {@link StateLifecycles#onStateInitialized(State, Platform, InitTrigger, SoftwareVersion)}
+ * {@link StateLifecycles#onStateInitialized(MerkeNodeState, Platform, InitTrigger, SoftwareVersion)}
  * startup time.
  */
 public final class StateInitializer {
@@ -73,7 +73,7 @@ public final class StateInitializer {
             trigger = RESTART;
         }
 
-        final State initialState = signedState.getState();
+        final MerkeNodeState initialState = signedState.getState();
 
         // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
         // of that state here. That copy should have caused the hash to be cleared.
@@ -89,7 +89,7 @@ public final class StateInitializer {
                 () -> {
                     try {
                         MerkleCryptoFactory.getInstance()
-                                .digestTreeAsync(initialState.cast())
+                                .digestTreeAsync(initialState)
                                 .get();
                     } catch (final ExecutionException e) {
                         throw new RuntimeException(e);

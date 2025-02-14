@@ -27,6 +27,7 @@ package com.swirlds.demo.stats.signing;
  */
 
 import com.swirlds.common.constructable.ConstructableIgnored;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -38,7 +39,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * optional sequence number check.
  */
 @ConstructableIgnored
-public class StatsSigningTestingToolState extends MerkleStateRoot {
+public class StatsSigningTestingToolState extends MerkleStateRoot<StatsSigningTestingToolState>
+        implements MerkeNodeState {
 
     private static final long CLASS_ID = 0x79900efa3127b6eL;
 
@@ -62,6 +64,7 @@ public class StatsSigningTestingToolState extends MerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized StatsSigningTestingToolState copy() {
         throwIfImmutable();
@@ -91,6 +94,11 @@ public class StatsSigningTestingToolState extends MerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.MIGRATE_TO_SERIALIZABLE;
+    }
+
+    @Override
+    protected StatsSigningTestingToolState copyingConstructor() {
+        return new StatsSigningTestingToolState();
     }
 
     /**

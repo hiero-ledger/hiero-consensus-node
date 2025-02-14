@@ -23,10 +23,10 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.wiring.components.StateAndRound;
-import com.swirlds.state.State;
 import java.util.Queue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +39,7 @@ class StateHashedNotificationTest {
     private static final Hash HASH = new Hash(new byte[48]);
 
     @Mock
-    private State merkleRoot;
+    private MerkeNodeState merkleRoot;
 
     @Mock
     private SignedState signedState;

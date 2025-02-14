@@ -47,9 +47,9 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
@@ -78,7 +78,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class MerkleStateRootTest extends MerkleTestBase {
     /** The merkle tree we will test with */
-    private MerkleStateRoot stateRoot;
+    private TestMerkleStateRoot stateRoot;
 
     /**
      * Start with an empty Merkle Tree, but with the "fruit" map and metadata created and ready to
@@ -89,7 +89,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         setupConstructableRegistry();
         FakeStateLifecycles.registerMerkleStateRootClassIds();
         setupFruitMerkleMap();
-        stateRoot = new MerkleStateRoot();
+        stateRoot = new TestMerkleStateRoot();
         stateRoot.init(new FakeTime(), new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
     }
 

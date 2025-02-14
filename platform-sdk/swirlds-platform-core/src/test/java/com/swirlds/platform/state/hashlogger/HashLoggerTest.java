@@ -25,23 +25,21 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.withSettings;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
-import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig_;
+import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
-import com.swirlds.state.State;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.Logger;
@@ -154,11 +152,10 @@ public class HashLoggerTest {
         final MerkleNode merkleNode = MerkleTestUtils.buildLessSimpleTree();
         MerkleCryptoFactory.getInstance().digestTreeSync(merkleNode);
         final SignedState signedState = mock(SignedState.class);
-        final State state = mock(State.class, withSettings().extraInterfaces(HasMerkleRoute.class));
+        final MerkeNodeState state = mock(MerkeNodeState.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
         when(platformState.getRound()).thenReturn(round);
-        final HasMerkleRoute stateWithRoute = (HasMerkleRoute) state;
-        when(stateWithRoute.getRoute()).thenReturn(merkleNode.getRoute());
+        when(state.getRoute()).thenReturn(merkleNode.getRoute());
         when(state.getHash()).thenReturn(merkleNode.getHash());
 
         when(signedState.getState()).thenReturn(state);
