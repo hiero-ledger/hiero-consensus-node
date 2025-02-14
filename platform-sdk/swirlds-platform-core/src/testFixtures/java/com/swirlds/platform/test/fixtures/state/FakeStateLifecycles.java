@@ -39,7 +39,6 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
@@ -51,6 +50,7 @@ import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.Event;
+import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -73,7 +73,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 
-public enum FakeStateLifecycles implements StateLifecycles<MerkeNodeState> {
+public enum FakeStateLifecycles implements StateLifecycles<State> {
     FAKE_MERKLE_STATE_LIFECYCLES;
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
@@ -93,8 +93,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkeNodeState> {
     public static void registerMerkleStateRootClassIds() {
         try {
             ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.registerConstructable(
-                    new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
+            registry.registerConstructable(new ClassConstructorPair(MerkleStateRoot.class, MerkleStateRoot::new));
             registry.registerConstructable(new ClassConstructorPair(SingletonNode.class, SingletonNode::new));
             registry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
             registry.registerConstructable(new ClassConstructorPair(
@@ -118,21 +117,24 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkeNodeState> {
                 .forEach(def -> registerWithSystem(new StateMetadata<>(name, schema, def), registry));
     }
 
-    public List<StateChanges.Builder> initStates(@NonNull final MerkeNodeState state) {
+    public List<StateChanges.Builder> initStates(@NonNull final State state) {
         List<StateChanges.Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
         list.addAll(initRosterState(state));
         return list;
     }
 
-    public List<StateChanges.Builder> initPlatformState(@NonNull final MerkeNodeState state) {
+    public List<StateChanges.Builder> initPlatformState(@NonNull final State state) {
+        if (!(state instanceof MerkleStateRoot merkleStateRoot)) {
+            throw new IllegalArgumentException("Can only be used with MerkleStateRoot instances");
+        }
         final var schema = new V0540PlatformStateSchema(config -> new BasicSoftwareVersion(1));
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
                     final var md = new StateMetadata<>(PlatformStateService.NAME, schema, def);
                     if (def.singleton()) {
-                        state.putServiceStateIfAbsent(
+                        merkleStateRoot.putServiceStateIfAbsent(
                                 md,
                                 () -> new SingletonNode<>(
                                         md.serviceName(),
@@ -152,7 +154,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkeNodeState> {
         return Collections.emptyList();
     }
 
-    public List<StateChanges.Builder> initRosterState(@NonNull final MerkeNodeState state) {
+    public List<StateChanges.Builder> initRosterState(@NonNull final State state) {
         if (!(state instanceof MerkleStateRoot merkleStateRoot)) {
             throw new IllegalArgumentException("Can only be used with MerkleStateRoot instances");
         }
@@ -204,7 +206,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkeNodeState> {
     @Override
     public void onPreHandle(
             @NonNull Event event,
-            @NonNull MerkeNodeState state,
+            @NonNull State state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         // no-op
     }
@@ -212,13 +214,13 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkeNodeState> {
     @Override
     public void onHandleConsensusRound(
             @NonNull Round round,
-            @NonNull MerkeNodeState state,
+            @NonNull State state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         // no-op
     }
 
     @Override
-    public boolean onSealConsensusRound(@NonNull Round round, @NonNull MerkeNodeState state) {
+    public boolean onSealConsensusRound(@NonNull Round round, @NonNull State state) {
         // Touch this round
         round.getRoundNum();
         return true;
@@ -226,7 +228,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkeNodeState> {
 
     @Override
     public void onStateInitialized(
-            @NonNull MerkeNodeState state,
+            @NonNull State state,
             @NonNull Platform platform,
             @NonNull InitTrigger trigger,
             @Nullable SoftwareVersion previousVersion) {
@@ -235,12 +237,12 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkeNodeState> {
 
     @Override
     public void onUpdateWeight(
-            @NonNull MerkeNodeState state, @NonNull AddressBook configAddressBook, @NonNull PlatformContext context) {
+            @NonNull State state, @NonNull AddressBook configAddressBook, @NonNull PlatformContext context) {
         // no-op
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull MerkeNodeState recoveredState) {
+    public void onNewRecoveredState(@NonNull State recoveredState) {
         // no-op
     }
 }

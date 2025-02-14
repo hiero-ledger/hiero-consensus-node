@@ -103,7 +103,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
             }
             System.out.printf("Hashing state %n");
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(reservedSignedState.get().getState())
+                    .digestTreeAsync(reservedSignedState.get().getState().cast())
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
             writeSignedStateFilesToDirectory(

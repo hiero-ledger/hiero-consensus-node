@@ -40,7 +40,6 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.SocketConnection;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
@@ -49,6 +48,7 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.Weight
 import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.state.State;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -137,7 +137,7 @@ final class ReconnectTest {
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
 
             final MerkleCryptography cryptography = MerkleCryptoFactory.getInstance();
-            cryptography.digestSync(signedState.getState());
+            cryptography.digestSync(signedState.getState().cast());
 
             final ReconnectLearner receiver = buildReceiver(
                     signedState.getState(),
@@ -193,7 +193,7 @@ final class ReconnectTest {
     }
 
     private ReconnectLearner buildReceiver(
-            final MerkeNodeState state,
+            final State state,
             final Connection connection,
             final ReconnectMetrics reconnectMetrics,
             final PlatformStateFacade platformStateFacade) {

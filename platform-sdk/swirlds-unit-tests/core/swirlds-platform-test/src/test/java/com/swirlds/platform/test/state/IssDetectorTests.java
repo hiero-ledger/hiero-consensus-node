@@ -42,7 +42,6 @@ import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
@@ -55,6 +54,7 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.EventImplTestUtils;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -842,7 +842,7 @@ class IssDetectorTests extends PlatformTest {
     private static ReservedSignedState mockState(final long round, final Hash hash) {
         final ReservedSignedState rs = mock(ReservedSignedState.class);
         final SignedState ss = mock(SignedState.class);
-        final MerkeNodeState s = mock(MerkeNodeState.class);
+        final State s = mock(State.class);
         when(rs.get()).thenReturn(ss);
         when(ss.getState()).thenReturn(s);
         when(ss.getRound()).thenReturn(round);

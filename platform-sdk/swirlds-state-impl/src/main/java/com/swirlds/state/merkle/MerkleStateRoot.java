@@ -98,12 +98,11 @@ import org.apache.logging.log4j.Logger;
  * consider nesting service nodes in a MerkleMap, or some other such approach to get a binary tree.
  */
 @ConstructableIgnored
-public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends PartialNaryMerkleInternal
-        implements MerkleInternal, State {
+public class MerkleStateRoot extends PartialNaryMerkleInternal implements MerkleInternal, State {
 
     private static final Logger logger = LogManager.getLogger(MerkleStateRoot.class);
 
-    private static final long CLASS_ID = 0x8e300b0dfdafbb1bL;
+    private static final long CLASS_ID = 0x8e300b0dfdafbb1aL;
     // Migrates from `PlatformState` to State API singleton
     public static final int CURRENT_VERSION = 31;
 
@@ -173,7 +172,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      *
      * @param from The other state to fast-copy from. Cannot be null.
      */
-    protected MerkleStateRoot(@NonNull final MerkleStateRoot<T> from) {
+    protected MerkleStateRoot(@NonNull final MerkleStateRoot from) {
         // Copy the Merkle route from the source instance
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
@@ -287,18 +286,12 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      */
     @NonNull
     @Override
-    public T copy() {
+    public MerkleStateRoot copy() {
         throwIfImmutable();
         throwIfDestroyed();
         setImmutable(true);
-        return copyingConstructor();
+        return new MerkleStateRoot(this);
     }
-
-    /**
-     * Creates a copy of the instance.
-     * @return a copy of the instance
-     */
-    protected abstract T copyingConstructor();
 
     @Override
     public MerkleNode migrate(int version) {
@@ -559,8 +552,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
         @NonNull
         @Override
-        public <S> ReadableSingletonState<S> getSingleton(@NonNull String stateKey) {
-            final ReadableSingletonState<S> instance = (ReadableSingletonState<S>) singletonInstances.get(stateKey);
+        public <T> ReadableSingletonState<T> getSingleton(@NonNull String stateKey) {
+            final ReadableSingletonState<T> instance = (ReadableSingletonState<T>) singletonInstances.get(stateKey);
             if (instance != null) {
                 return instance;
             }
@@ -743,8 +736,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
         @NonNull
         @Override
-        public <S> WritableSingletonState<S> getSingleton(@NonNull String stateKey) {
-            return (WritableSingletonState<S>) super.getSingleton(stateKey);
+        public <T> WritableSingletonState<T> getSingleton(@NonNull String stateKey) {
+            return (WritableSingletonState<T>) super.getSingleton(stateKey);
         }
 
         @NonNull
@@ -942,9 +935,15 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     /**
      * {@inheritDoc}
      */
+    @Override
+    public MerkleStateRoot loadSnapshot(@NonNull Path targetPath) throws IOException {
+        return (MerkleStateRoot)
+                MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
+    }
+
     @SuppressWarnings("unchecked")
     @Override
-    public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (T) MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
+    public MerkleStateRoot cast() {
+        return super.cast();
     }
 }

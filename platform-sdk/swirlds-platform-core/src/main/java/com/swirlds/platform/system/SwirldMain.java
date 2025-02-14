@@ -19,7 +19,6 @@ package com.swirlds.platform.system;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,7 +28,7 @@ import java.util.List;
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
  * run() method should run until the user quits the swirld.
  */
-public interface SwirldMain<T extends MerkeNodeState> extends Runnable {
+public interface SwirldMain<T extends State> extends Runnable {
 
     /**
      * Get configuration types to be registered.
@@ -50,7 +49,7 @@ public interface SwirldMain<T extends MerkeNodeState> extends Runnable {
      *
      * <p>
      * Any changes necessary to initialize {@link State} should be made in
-     * {@link StateLifecycles#onStateInitialized(MerkeNodeState, Platform, InitTrigger, SoftwareVersion)}
+     * {@link StateLifecycles#onStateInitialized(State, Platform, InitTrigger, SoftwareVersion)}
      * </p>
      *
      * @param platform the Platform that instantiated this SwirldMain

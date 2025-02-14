@@ -32,13 +32,12 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.EmptyReadableStates;
 import java.time.Instant;
 import java.util.function.Function;
@@ -51,15 +50,15 @@ class PlatformStateFacadeTest {
     public static final Function<SemanticVersion, SoftwareVersion> VERSION_FACTORY =
             v -> new BasicSoftwareVersion(v.major());
     private static TestPlatformStateFacade platformStateFacade;
-    private static MerkeNodeState state;
-    private static MerkeNodeState emptyState;
+    private static MerkleStateRoot state;
+    private static MerkleStateRoot emptyState;
     private static PlatformStateModifier platformStateModifier;
 
     @BeforeAll
     static void beforeAll() {
-        state = new TestMerkleStateRoot();
+        state = new MerkleStateRoot();
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
-        emptyState = new TestMerkleStateRoot();
+        emptyState = new MerkleStateRoot();
         platformStateFacade = new TestPlatformStateFacade(VERSION_FACTORY);
         platformStateModifier = randomPlatformState(state, platformStateFacade);
     }
@@ -113,7 +112,7 @@ class PlatformStateFacadeTest {
 
     @Test
     void testPlatformStateOf_noPlatformState() {
-        final TestMerkleStateRoot noPlatformState = new TestMerkleStateRoot();
+        final MerkleStateRoot noPlatformState = new MerkleStateRoot();
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
     }
@@ -208,7 +207,7 @@ class PlatformStateFacadeTest {
 
     @Test
     void testSetSnapshotTo() {
-        TestMerkleStateRoot randomState = new TestMerkleStateRoot();
+        MerkleStateRoot randomState = new MerkleStateRoot();
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();

@@ -27,9 +27,7 @@ package com.swirlds.demo.stats;
  */
 
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the
@@ -39,7 +37,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * optional sequence number check.
  */
 @ConstructableIgnored
-public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements MerkeNodeState {
+public class StatsDemoState extends MerkleStateRoot {
 
     /**
      * The version history of this class.
@@ -71,7 +69,6 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
     public synchronized StatsDemoState copy() {
         throwIfImmutable();
@@ -101,10 +98,5 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.MIGRATE_TO_SERIALIZABLE;
-    }
-
-    @Override
-    protected StatsDemoState copyingConstructor() {
-        return new StatsDemoState(this);
     }
 }

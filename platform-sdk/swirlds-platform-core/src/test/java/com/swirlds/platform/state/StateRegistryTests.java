@@ -28,7 +28,6 @@ import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -36,6 +35,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
+
+import com.swirlds.state.merkle.MerkleStateRoot;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -78,33 +79,33 @@ class StateRegistryTests {
 
         assertEquals(
                 0,
-                RuntimeObjectRegistry.getActiveObjectsCount(TestMerkleStateRoot.class),
+                RuntimeObjectRegistry.getActiveObjectsCount(MerkleStateRoot.class),
                 "no states have been created yet");
 
-        final List<TestMerkleStateRoot> states = new LinkedList<>();
+        final List<MerkleStateRoot> states = new LinkedList<>();
         // Create a bunch of states
         for (int i = 0; i < 100; i++) {
-            states.add(new TestMerkleStateRoot());
+            states.add(new MerkleStateRoot());
             assertEquals(
                     states.size(),
-                    RuntimeObjectRegistry.getActiveObjectsCount(TestMerkleStateRoot.class),
+                    RuntimeObjectRegistry.getActiveObjectsCount(MerkleStateRoot.class),
                     "actual count should match expected count");
         }
 
         // Fast copy a state
-        final TestMerkleStateRoot stateToCopy = new TestMerkleStateRoot();
+        final MerkleStateRoot stateToCopy = new MerkleStateRoot();
         states.add(stateToCopy);
-        final TestMerkleStateRoot copyOfStateToCopy = stateToCopy.copy();
+        final MerkleStateRoot copyOfStateToCopy = stateToCopy.copy();
         states.add(copyOfStateToCopy);
         assertEquals(
                 states.size(),
-                RuntimeObjectRegistry.getActiveObjectsCount(TestMerkleStateRoot.class),
+                RuntimeObjectRegistry.getActiveObjectsCount(MerkleStateRoot.class),
                 "actual count should match expected count");
 
         final Path dir = testDirectory;
 
         // Deserialize a state
-        final TestMerkleStateRoot stateToSerialize = new TestMerkleStateRoot();
+        final MerkleStateRoot stateToSerialize = new MerkleStateRoot();
         final TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade(softwareVersionSupplier);
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(stateToSerialize);
         final var platformState = platformStateFacade.getWritablePlatformStateOf(stateToSerialize);
@@ -117,11 +118,11 @@ class StateRegistryTests {
         final InputOutputStream io = new InputOutputStream();
         io.getOutput().writeMerkleTree(dir, stateToSerialize);
         io.startReading();
-        final TestMerkleStateRoot deserializedState = io.getInput().readMerkleTree(dir, 5);
+        final MerkleStateRoot deserializedState = io.getInput().readMerkleTree(dir, 5);
         states.add(deserializedState);
         assertEquals(
                 states.size(),
-                RuntimeObjectRegistry.getActiveObjectsCount(TestMerkleStateRoot.class),
+                RuntimeObjectRegistry.getActiveObjectsCount(MerkleStateRoot.class),
                 "actual count should match expected count");
 
         // Deleting states in a random order should cause the number of states to decrease
@@ -130,7 +131,7 @@ class StateRegistryTests {
             states.remove(random.nextInt(states.size())).release();
             assertEquals(
                     states.size(),
-                    RuntimeObjectRegistry.getActiveObjectsCount(TestMerkleStateRoot.class),
+                    RuntimeObjectRegistry.getActiveObjectsCount(MerkleStateRoot.class),
                     "actual count should match expected count");
         }
     }

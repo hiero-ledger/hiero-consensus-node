@@ -51,7 +51,7 @@ import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -108,7 +108,7 @@ public class StartupStateUtilsTests {
     static void beforeAll() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
         ConstructableRegistry.getInstance()
-                .registerConstructable(new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
+                .registerConstructable(new ClassConstructorPair(MerkleStateRoot.class, MerkleStateRoot::new));
     }
 
     @NonNull
@@ -221,7 +221,7 @@ public class StartupStateUtilsTests {
 
         assertEquals(latestState.getRound(), loadedState.getRound());
         assertEquals(latestState.getState().getHash(), loadedState.getState().getHash());
-        RandomSignedStateGenerator.releaseReservable(loadedState.getState());
+        RandomSignedStateGenerator.releaseReservable(loadedState.getState().cast());
     }
 
     @Test
@@ -309,7 +309,7 @@ public class StartupStateUtilsTests {
         }
 
         if (loadedState != null) {
-            RandomSignedStateGenerator.releaseReservable(loadedState.getState());
+            RandomSignedStateGenerator.releaseReservable(loadedState.getState().cast());
         }
 
         final Path savedStateDirectory = signedStateFilePath

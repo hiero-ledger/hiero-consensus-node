@@ -33,7 +33,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.events.ConsensusEvent;
@@ -55,7 +54,7 @@ import java.util.function.Supplier;
  * State for the ISSTestingTool.
  */
 @ConstructableIgnored
-public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> implements MerkeNodeState {
+public class ISSTestingToolState extends MerkleStateRoot {
 
     private static class ClassVersion {
         public static final int ORIGINAL = 1;
@@ -197,7 +196,6 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
     public synchronized ISSTestingToolState copy() {
         throwIfImmutable();
@@ -224,10 +222,5 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.ORIGINAL;
-    }
-
-    @Override
-    protected ISSTestingToolState copyingConstructor() {
-        return new ISSTestingToolState(this);
     }
 }

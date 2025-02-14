@@ -85,7 +85,7 @@ public final class SignedStateFileReader {
         final SignedState newSignedState = new SignedState(
                 configuration,
                 CryptoStatic::verifySignature,
-                data.stateRoot().cast(),
+                (State) data.stateRoot(),
                 "SignedStateFileReader.readStateFile()",
                 false,
                 false,

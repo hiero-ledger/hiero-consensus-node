@@ -17,7 +17,6 @@
 package com.swirlds.platform.listeners;
 
 import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.state.State;
 import java.time.Instant;
 
@@ -28,10 +27,9 @@ public class ReconnectCompleteNotification extends AbstractNotification {
 
     private long roundNumber;
     private Instant consensusTimestamp;
-    private MerkeNodeState state;
+    private State state;
 
-    public ReconnectCompleteNotification(
-            final long roundNumber, final Instant consensusTimestamp, final MerkeNodeState state) {
+    public ReconnectCompleteNotification(final long roundNumber, final Instant consensusTimestamp, final State state) {
         this.roundNumber = roundNumber;
         this.consensusTimestamp = consensusTimestamp;
         this.state = state;
