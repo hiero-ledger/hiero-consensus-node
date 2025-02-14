@@ -16,9 +16,7 @@
 
 package com.hedera.node.app.spi.workflows;
 
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -26,7 +24,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 @SuppressWarnings("UnusedReturnValue")
 public interface PureChecksContext {
-
     /**
      * Gets the {@link TransactionBody}
      *
@@ -35,17 +32,6 @@ public interface PureChecksContext {
     @NonNull
     TransactionBody body();
 
-    /**
-     * Returns the current {@link Configuration}.
-     *
-     * @return the {@link Configuration}
-     */
-    @NonNull
-    Configuration configuration();
-
     @NonNull
     void executeInnerPureCheck(@NonNull TransactionBody body) throws PreCheckException;
-
-    @NonNull
-    TransactionBody bodyFromTransaction(@NonNull final Transaction tx) throws PreCheckException;
 }

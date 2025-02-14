@@ -234,7 +234,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         ingestChecker.verifyReadyForTransactions();
 
                         // 3.ii Validate CryptoTransfer
-                        queryChecker.validateCryptoTransfer(transactionInfo, configuration);
+                        queryChecker.validateCryptoTransfer(transactionInfo);
 
                         // 3.iii Check permissions
                         queryChecker.checkPermissions(payerID, function);

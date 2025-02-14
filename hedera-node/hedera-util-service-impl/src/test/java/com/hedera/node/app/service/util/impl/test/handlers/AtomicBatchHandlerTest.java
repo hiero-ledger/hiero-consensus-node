@@ -133,7 +133,7 @@ class AtomicBatchHandlerTest {
     }
 
     @Test
-    void failsIfInnerTxNodeIdSetToOtherThanZero() throws PreCheckException {
+    void failsIfInnerTxNodeIdSetToOtherThanZero() {
         final var transaction = mock(Transaction.class);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
