@@ -19,6 +19,7 @@ package com.swirlds.platform.state.hasher;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,7 +60,7 @@ public class DefaultStateHasher implements StateHasher {
         try {
             MerkleCryptoFactory.getInstance()
                     .digestTreeAsync(
-                            stateAndRound.reservedSignedState().get().getState().cast())
+                            (MerkleNode) stateAndRound.reservedSignedState().get().getState())
                     .get();
 
             metrics.reportHashingTime(Duration.between(start, Instant.now()));
