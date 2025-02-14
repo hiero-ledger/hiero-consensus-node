@@ -152,8 +152,7 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
                     outputStream,
                     START_OBJECT_RUNNING_HASH,
                     startObjectRunningHash,
-                    com.hedera.hapi.streams.HashObject.PROTOBUF::write,
-                    com.hedera.hapi.streams.HashObject.PROTOBUF::measureRecord);
+                    com.hedera.hapi.streams.HashObject.PROTOBUF);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

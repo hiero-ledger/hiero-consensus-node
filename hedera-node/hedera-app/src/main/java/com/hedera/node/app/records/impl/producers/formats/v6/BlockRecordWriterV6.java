@@ -313,15 +313,13 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                     outputStream,
                     HAPI_PROTO_VERSION,
                     hapiProtoVersion,
-                    SemanticVersion.PROTOBUF::write,
-                    SemanticVersion.PROTOBUF::measureRecord);
+                    SemanticVersion.PROTOBUF);
             // [2] - start_object_running_hash
             writeMessage(
                     outputStream,
                     START_OBJECT_RUNNING_HASH,
                     startObjectRunningHash,
-                    HashObject.PROTOBUF::write,
-                    HashObject.PROTOBUF::measureRecord);
+                    HashObject.PROTOBUF);
         } catch (final IOException e) {
             logger.warn("Error writing header to record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);
@@ -340,8 +338,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                     outputStream,
                     END_OBJECT_RUNNING_HASH,
                     endRunningHash,
-                    HashObject.PROTOBUF::write,
-                    HashObject.PROTOBUF::measureRecord);
+                    HashObject.PROTOBUF);
             // [5] - block_number
             writeLong(outputStream, BLOCK_NUMBER, blockNumber);
             // [6] - sidecars
@@ -349,8 +346,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                     outputStream,
                     SIDECARS,
                     sidecarMetadata == null ? Collections.emptyList() : sidecarMetadata,
-                    SidecarMetadata.PROTOBUF::write,
-                    SidecarMetadata.PROTOBUF::measureRecord);
+                    SidecarMetadata.PROTOBUF);
         } catch (IOException e) {
             logger.warn("Error writing footer to record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);
