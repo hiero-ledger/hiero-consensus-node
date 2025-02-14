@@ -166,9 +166,7 @@ public class ProcessUtils {
                     + (metadata.nodeId() == NODE_ID_TO_SUSPEND ? "y" : "n") + ",address=*:"
                     + (FIRST_AGENT_PORT + metadata.nodeId()));
         }
-        commandLine.add("-XX:+UnlockExperimentalVMOptions");
-        commandLine.add("-XX:+UseZGC");
-        commandLine.add("-XX:+ZGenerational");
+        commandLine.add("-Xmx6g");
         commandLine.addAll(List.of(
                 "-classpath",
                 // Use the same classpath that started this process, excluding test-clients
