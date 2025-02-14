@@ -77,7 +77,7 @@ import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.lifecycle.Service;
@@ -133,7 +133,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
-    private MerkeNodeState state;
+    private MerkleNodeState state;
 
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")

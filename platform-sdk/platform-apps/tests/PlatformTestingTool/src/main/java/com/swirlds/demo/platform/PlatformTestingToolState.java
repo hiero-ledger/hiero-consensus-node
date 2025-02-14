@@ -44,7 +44,7 @@ import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKe
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
@@ -68,7 +68,7 @@ import org.apache.logging.log4j.MarkerManager;
  * consists of an optional sequence number and random bytes.
  */
 @ConstructableIgnored
-public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToolState> implements MerkeNodeState {
+public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToolState> implements MerkleNodeState {
 
     static final long CLASS_ID = 0xc0900cfa7a24db76L;
     private static final Logger logger = LogManager.getLogger(PlatformTestingToolState.class);

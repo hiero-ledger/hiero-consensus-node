@@ -47,7 +47,7 @@ import org.junit.jupiter.api.Test;
 class SwirldsStateManagerTests {
 
     private SwirldStateManager swirldStateManager;
-    private MerkeNodeState initialState;
+    private MerkleNodeState initialState;
 
     @BeforeEach
     void setup() {
@@ -138,8 +138,8 @@ class SwirldsStateManagerTests {
                         + "decremented.");
     }
 
-    private static MerkeNodeState newState(PlatformStateFacade platformStateFacade) {
-        final MerkeNodeState state = new TestMerkleStateRoot();
+    private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
+        final MerkleNodeState state = new TestMerkleStateRoot();
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
 
         platformStateFacade.setCreationSoftwareVersionTo(state, new BasicSoftwareVersion(nextInt(1, 100)));

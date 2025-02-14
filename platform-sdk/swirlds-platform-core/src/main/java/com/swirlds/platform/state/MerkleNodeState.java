@@ -29,11 +29,11 @@ import java.util.function.Supplier;
  * Represent a state backed up by the Merkle tree. It's a {@link MerkleNode} and provides methods to put service states
  * into the merkle tree.
  */
-public interface MerkeNodeState extends State, MerkleNode {
+public interface MerkleNodeState extends State, MerkleNode {
 
     @NonNull
     @Override
-    MerkeNodeState copy();
+    MerkleNodeState copy();
 
     /**
      * Puts the defined service state and its associated node into the merkle tree. The precondition

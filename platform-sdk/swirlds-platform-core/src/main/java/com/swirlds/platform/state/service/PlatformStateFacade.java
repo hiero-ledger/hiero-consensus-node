@@ -159,7 +159,7 @@ public class PlatformStateFacade {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()) {
             // fallback to lookup directly in the Merkle tree, useful for loading the state from disk
-            if (state instanceof MerkleStateRoot merkleStateRoot) {
+            if (state instanceof MerkleStateRoot<?> merkleStateRoot) {
                 final int index = merkleStateRoot.findNodeIndex(PlatformStateService.NAME, PLATFORM_STATE_KEY);
                 return index == -1
                         ? UNINITIALIZED_PLATFORM_STATE

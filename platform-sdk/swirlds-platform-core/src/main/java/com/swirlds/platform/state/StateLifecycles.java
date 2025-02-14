@@ -35,7 +35,7 @@ import java.util.function.Consumer;
  * meant to be created once at the start of the application and then used for the lifetime of the application.
  *
  */
-public interface StateLifecycles<T extends MerkeNodeState> {
+public interface StateLifecycles<T extends MerkleNodeState> {
     /**
      * Called when an event is added to the hashgraph used to compute consensus ordering
      * for this node.

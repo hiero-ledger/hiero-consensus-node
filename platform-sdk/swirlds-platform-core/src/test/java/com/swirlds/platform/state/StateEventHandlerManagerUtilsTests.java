@@ -37,7 +37,7 @@ public class StateEventHandlerManagerUtilsTests {
     @Test
     void testFastCopyIsMutable() {
 
-        final MerkeNodeState state = new TestMerkleStateRoot();
+        final MerkleNodeState state = new TestMerkleStateRoot();
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
         state.reserve();
         final StateMetrics stats = mock(StateMetrics.class);

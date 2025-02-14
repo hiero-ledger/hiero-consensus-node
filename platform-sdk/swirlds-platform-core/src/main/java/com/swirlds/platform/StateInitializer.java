@@ -25,7 +25,7 @@ import static com.swirlds.platform.system.SoftwareVersion.NO_VERSION;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
@@ -39,7 +39,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Encapsulates the logic for calling
- * {@link StateLifecycles#onStateInitialized(MerkeNodeState, Platform, InitTrigger, SoftwareVersion)}
+ * {@link StateLifecycles#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
  * startup time.
  */
 public final class StateInitializer {
@@ -73,7 +73,7 @@ public final class StateInitializer {
             trigger = RESTART;
         }
 
-        final MerkeNodeState initialState = signedState.getState();
+        final MerkleNodeState initialState = signedState.getState();
 
         // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
         // of that state here. That copy should have caused the hash to be cleared.

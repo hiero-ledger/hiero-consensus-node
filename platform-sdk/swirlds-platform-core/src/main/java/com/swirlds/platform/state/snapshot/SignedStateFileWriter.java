@@ -35,7 +35,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -73,7 +73,7 @@ public final class SignedStateFileWriter {
     public static void writeHashInfoFile(
             @NonNull final PlatformContext platformContext,
             @NonNull final Path directory,
-            @NonNull final MerkeNodeState state,
+            @NonNull final MerkleNodeState state,
             @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
@@ -161,7 +161,7 @@ public final class SignedStateFileWriter {
         Objects.requireNonNull(signedState);
 
         final State state = signedState.getState();
-        if (state instanceof MerkleStateRoot merkleStateRoot) {
+        if (state instanceof MerkleStateRoot<?> merkleStateRoot) {
             merkleStateRoot.setTime(platformContext.getTime());
         }
 
