@@ -26,7 +26,7 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,7 +58,7 @@ public class StateEditorRm extends StateEditorOperation {
         final int indexInParent = parentInfo.indexInParent();
 
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorRm.run()")) {
-            final MerkeNodeState state = reservedSignedState.get().getState();
+            final MerkleNodeState state = reservedSignedState.get().getState();
             final MerkleNode child = state.getNodeAtRoute(destinationRoute);
 
             if (logger.isInfoEnabled(LogMarker.CLI.getMarker())) {

@@ -27,7 +27,7 @@ package com.swirlds.demo.hello;
  */
 
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import java.util.List;
  * order that they were handled.
  */
 @ConstructableIgnored
-public class HelloSwirldDemoState extends MerkleStateRoot<HelloSwirldDemoState> implements MerkeNodeState {
+public class HelloSwirldDemoState extends MerkleStateRoot<HelloSwirldDemoState> implements MerkleNodeState {
 
     /**
      * The version history of this class.

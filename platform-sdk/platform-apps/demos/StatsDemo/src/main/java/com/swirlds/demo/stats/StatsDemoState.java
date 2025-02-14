@@ -27,7 +27,7 @@ package com.swirlds.demo.stats;
  */
 
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -39,7 +39,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * optional sequence number check.
  */
 @ConstructableIgnored
-public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements MerkeNodeState {
+public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements MerkleNodeState {
 
     /**
      * The version history of this class.

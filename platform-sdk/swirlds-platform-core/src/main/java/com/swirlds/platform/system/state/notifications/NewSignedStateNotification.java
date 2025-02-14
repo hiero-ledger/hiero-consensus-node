@@ -17,7 +17,7 @@
 package com.swirlds.platform.system.state.notifications;
 
 import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import java.time.Instant;
 
@@ -28,7 +28,7 @@ import java.time.Instant;
  */
 public class NewSignedStateNotification extends AbstractNotification {
 
-    private final MerkeNodeState state;
+    private final MerkleNodeState state;
     private final long round;
     private final Instant consensusTimestamp;
 
@@ -39,7 +39,7 @@ public class NewSignedStateNotification extends AbstractNotification {
      * @param round              the round that is now fully signed
      * @param consensusTimestamp the consensus timestamp of the round that is now fully signed
      */
-    public NewSignedStateNotification(final MerkeNodeState state, final long round, final Instant consensusTimestamp) {
+    public NewSignedStateNotification(final MerkleNodeState state, final long round, final Instant consensusTimestamp) {
         this.state = state;
         this.round = round;
         this.consensusTimestamp = consensusTimestamp;

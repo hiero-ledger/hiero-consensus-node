@@ -30,7 +30,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *   ﹉∏﹉∏﹉                   ﹉∏﹉∏﹉
  * </pre>
  */
-public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolState> implements MerkeNodeState {
+public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolState> implements MerkleNodeState {
 
     private static final long CLASS_ID = 0xa49b3822a4136ac6L;
 
@@ -93,8 +93,8 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
      * @return merkle tree root
      */
     @NonNull
-    public static MerkeNodeState getStateRootNode() {
-        final MerkeNodeState state = new TurtleTestingToolState();
+    public static MerkleNodeState getStateRootNode() {
+        final MerkleNodeState state = new TurtleTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
         FAKE_MERKLE_STATE_LIFECYCLES.initRosterState(state);
 

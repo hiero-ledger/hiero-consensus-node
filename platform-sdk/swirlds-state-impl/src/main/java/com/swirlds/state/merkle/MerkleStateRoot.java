@@ -49,7 +49,6 @@ import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
-import com.swirlds.state.spi.EmptyWritableStates;
 import com.swirlds.state.spi.KVChangeListener;
 import com.swirlds.state.spi.QueueChangeListener;
 import com.swirlds.state.spi.ReadableKVState;
@@ -249,10 +248,10 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     @Override
     @NonNull
     public ReadableStates getReadableStates(@NonNull String serviceName) {
-        if (services.get(serviceName) == null) {
-            return EmptyReadableStates.INSTANCE;
-        }
-        return readableStatesMap.computeIfAbsent(serviceName, s -> new MerkleReadableStates(services.get(s)));
+        return readableStatesMap.computeIfAbsent(serviceName, s -> {
+            final var stateMetadata = services.get(s);
+            return stateMetadata == null ? EmptyReadableStates.INSTANCE : new MerkleReadableStates(stateMetadata);
+        });
     }
 
     /**
@@ -262,9 +261,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     @NonNull
     public WritableStates getWritableStates(@NonNull final String serviceName) {
         throwIfImmutable();
-        if (services.get(serviceName) == null) {
-            return EmptyWritableStates.INSTANCE;
-        }
         return writableStatesMap.computeIfAbsent(serviceName, s -> {
             final var stateMetadata = services.getOrDefault(s, Map.of());
             return new MerkleWritableStates(serviceName, stateMetadata);

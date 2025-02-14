@@ -85,7 +85,7 @@ import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
@@ -99,7 +99,6 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.List;
@@ -117,7 +116,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>This class simply delegates to {@link Hedera}.
  */
-public class ServicesMain implements SwirldMain<MerkeNodeState> {
+public class ServicesMain implements SwirldMain<MerkleNodeState> {
     private static final Logger logger = LogManager.getLogger(ServicesMain.class);
 
     /**
@@ -168,7 +167,7 @@ public class ServicesMain implements SwirldMain<MerkeNodeState> {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull MerkeNodeState newStateRoot() {
+    public @NonNull MerkleNodeState newStateRoot() {
         return hederaOrThrow().newStateRoot();
     }
 
@@ -176,7 +175,7 @@ public class ServicesMain implements SwirldMain<MerkeNodeState> {
      * {@inheritDoc}
      */
     @Override
-    public StateLifecycles<MerkeNodeState> newStateLifecycles() {
+    public StateLifecycles<MerkleNodeState> newStateLifecycles() {
         return new StateLifecyclesImpl(hederaOrThrow());
     }
 
@@ -212,8 +211,8 @@ public class ServicesMain implements SwirldMain<MerkeNodeState> {
      *     and the working directory <i>settings.txt</i>, providing the same
      *     {@link Hedera#newStateRoot()} method reference as the genesis state
      *     factory. (<b>IMPORTANT:</b> This step instantiates and invokes
-     *     {@link StateLifecycles#onStateInitialized(MerkeNodeState, Platform, InitTrigger, SoftwareVersion)}
-     *     on a {@link MerkleStateRoot} instance that delegates the call back to our
+     *     {@link StateLifecycles#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
+     *     on a {@link MerkleNodeState} instance that delegates the call back to our
      *     Hedera instance.)</li>
      *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase
      *     validation and register notification listeners on the platform.</li>
@@ -240,7 +239,7 @@ public class ServicesMain implements SwirldMain<MerkeNodeState> {
      *      method with the {@link ConstructableRegistry} as the factory for the Services state root
      *      class id.</li>
      * </ol>
-     *  Now, note that {@link Hedera#newStateRoot()} returns {@link MerkleStateRoot}
+     *  Now, note that {@link Hedera#newStateRoot()} returns {@link MerkleNodeState}
      *  instances that delegate their lifecycle methods to an injected instance of
      *  {@link StateLifecycles}---and the implementation of that
      *  injected by {@link Hedera#newStateRoot()} delegates these calls back to the Hedera
@@ -303,7 +302,7 @@ public class ServicesMain implements SwirldMain<MerkeNodeState> {
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
-        StateLifecycles<MerkeNodeState> stateLifecycles = hedera.newStateLifecycles();
+        StateLifecycles<MerkleNodeState> stateLifecycles = hedera.newStateLifecycles();
         final var maybeDiskAddressBook = loadLegacyAddressBook();
         final var reservedState = loadInitialState(
                 platformConfig,
@@ -506,7 +505,7 @@ public class ServicesMain implements SwirldMain<MerkeNodeState> {
             @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
             @NonNull final SoftwareVersion softwareVersion,
-            @NonNull final Supplier<MerkeNodeState> stateRootSupplier,
+            @NonNull final Supplier<MerkleNodeState> stateRootSupplier,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,

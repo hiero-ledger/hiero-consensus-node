@@ -53,12 +53,12 @@ public class SwirldStateManager implements FreezePeriodChecker {
     /**
      * reference to the state that reflects all known consensus transactions
      */
-    private final AtomicReference<MerkeNodeState> stateRef = new AtomicReference<>();
+    private final AtomicReference<MerkleNodeState> stateRef = new AtomicReference<>();
 
     /**
      * The most recent immutable state. No value until the first fast copy is created.
      */
-    private final AtomicReference<MerkeNodeState> latestImmutableState = new AtomicReference<>();
+    private final AtomicReference<MerkleNodeState> latestImmutableState = new AtomicReference<>();
 
     /**
      * Handle transactions by applying them to a state
@@ -75,7 +75,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      */
     private final SoftwareVersion softwareVersion;
 
-    private final StateLifecycles<MerkeNodeState> stateLifecycles;
+    private final StateLifecycles<MerkleNodeState> stateLifecycles;
 
     private final PlatformStateFacade platformStateFacade;
 
@@ -95,7 +95,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
             @NonNull final NodeId selfId,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SoftwareVersion softwareVersion,
-            @NonNull final StateLifecycles<MerkeNodeState> stateLifecycles,
+            @NonNull final StateLifecycles<MerkleNodeState> stateLifecycles,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         requireNonNull(platformContext);
@@ -118,7 +118,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      *
      * @param state the initial state
      */
-    public void setInitialState(@NonNull final MerkeNodeState state) {
+    public void setInitialState(@NonNull final MerkleNodeState state) {
         requireNonNull(state);
 
         state.throwIfDestroyed("state must not be destroyed");
@@ -135,12 +135,12 @@ public class SwirldStateManager implements FreezePeriodChecker {
 
     /**
      * Handles the events in a consensus round. Implementations are responsible for invoking
-     * {@link StateLifecycles#onHandleConsensusRound(Round, MerkeNodeState, Consumer)} .
+     * {@link StateLifecycles#onHandleConsensusRound(Round, MerkleNodeState, Consumer)} .
      *
      * @param round the round to handle
      */
     public Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleConsensusRound(final ConsensusRound round) {
-        final MerkeNodeState state = stateRef.get();
+        final MerkleNodeState state = stateRef.get();
 
         uptimeTracker.handleRound(round);
         return transactionHandler.handleRound(round, stateLifecycles, state);
@@ -152,7 +152,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      */
     public boolean sealConsensusRound(@NonNull final Round round) {
         requireNonNull(round);
-        final MerkeNodeState state = stateRef.get();
+        final MerkleNodeState state = stateRef.get();
         return stateLifecycles.onSealConsensusRound(round, state);
     }
 
@@ -160,7 +160,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      * Returns the consensus state. The consensus state could become immutable at any time. Modifications must not be
      * made to the returned state.
      */
-    public MerkeNodeState getConsensusState() {
+    public MerkleNodeState getConsensusState() {
         return stateRef.get();
     }
 
@@ -182,7 +182,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      * @param signedState the signed state to load
      */
     public void loadFromSignedState(@NonNull final SignedState signedState) {
-        MerkeNodeState state = signedState.getState();
+        MerkleNodeState state = signedState.getState();
 
         state.throwIfDestroyed("state must not be destroyed");
         state.throwIfImmutable("state must be mutable");
@@ -190,8 +190,8 @@ public class SwirldStateManager implements FreezePeriodChecker {
         fastCopyAndUpdateRefs(state);
     }
 
-    private void fastCopyAndUpdateRefs(final MerkeNodeState state) {
-        final MerkeNodeState newState = fastCopy(state, stats, softwareVersion, platformStateFacade);
+    private void fastCopyAndUpdateRefs(final MerkleNodeState state) {
+        final MerkleNodeState newState = fastCopy(state, stats, softwareVersion, platformStateFacade);
 
         // Set latest immutable first to prevent the newly immutable stateRoot from being deleted between setting the
         // stateRef and the latestImmutableState
@@ -204,7 +204,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      *
      * @param state a new mutable state
      */
-    private void setState(final MerkeNodeState state) {
+    private void setState(final MerkleNodeState state) {
         final var currVal = stateRef.get();
         if (currVal != null) {
             currVal.release();
@@ -214,7 +214,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
         stateRef.set(state);
     }
 
-    private void setLatestImmutableState(final MerkeNodeState immutableState) {
+    private void setLatestImmutableState(final MerkleNodeState immutableState) {
         final State currVal = latestImmutableState.get();
         if (currVal != null) {
             currVal.release();
@@ -246,7 +246,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      * @return a copy of the state to use for the next signed state
      * @see State#copy()
      */
-    public MerkeNodeState getStateForSigning() {
+    public MerkleNodeState getStateForSigning() {
         fastCopyAndUpdateRefs(stateRef.get());
         return latestImmutableState.get();
     }

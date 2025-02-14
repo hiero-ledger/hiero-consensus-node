@@ -29,7 +29,7 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -47,8 +47,8 @@ class StateTest {
     @DisplayName("Test Copy")
     void testCopy() {
 
-        final MerkeNodeState state = randomSignedState().getState();
-        final MerkeNodeState copy = state.copy();
+        final MerkleNodeState state = randomSignedState().getState();
+        final MerkleNodeState copy = state.copy();
 
         assertNotSame(state, copy, "copy should not return the same object");
 
@@ -69,7 +69,7 @@ class StateTest {
     @Tag(TestComponentTags.MERKLE)
     @DisplayName("Test Try Reserve")
     void tryReserveTest() {
-        final MerkeNodeState state = randomSignedState().getState();
+        final MerkleNodeState state = randomSignedState().getState();
         assertEquals(
                 1,
                 state.getReservationCount(),
@@ -87,7 +87,7 @@ class StateTest {
 
     private static SignedState randomSignedState() {
         Random random = new Random(0);
-        MerkeNodeState merkleStateRoot = new TestMerkleStateRoot();
+        MerkleNodeState merkleStateRoot = new TestMerkleStateRoot();
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),
