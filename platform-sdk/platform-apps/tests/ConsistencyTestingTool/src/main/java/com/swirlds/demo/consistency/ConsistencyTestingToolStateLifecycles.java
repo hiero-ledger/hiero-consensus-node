@@ -117,7 +117,7 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
                     "Setting freeze time to {} seconds after genesis.",
                     freezeAfterGenesis.getSeconds());
             platformStateFacade.bulkUpdateOf(state, v -> {
-                v.setLastFrozenTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+                v.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
             });
         }
 
