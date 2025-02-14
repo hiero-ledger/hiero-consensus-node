@@ -34,8 +34,8 @@ public class FreezeTransactionHandler {
         logger.debug(LOGM_FREEZE, "Handling FreezeTransaction: " + transaction);
         try {
 
-            platformStateFacade.bulkUpdateOf(state, v ->
-                    v.setFreezeTime(Instant.ofEpochSecond(transaction.getStartTimeEpochSecond())));
+            platformStateFacade.bulkUpdateOf(
+                    state, v -> v.setFreezeTime(Instant.ofEpochSecond(transaction.getStartTimeEpochSecond())));
             return true;
         } catch (IllegalArgumentException ex) {
             logger.warn(LOGM_FREEZE, "FreezeTransactionHandler::freeze fails. {}", ex.getMessage());
