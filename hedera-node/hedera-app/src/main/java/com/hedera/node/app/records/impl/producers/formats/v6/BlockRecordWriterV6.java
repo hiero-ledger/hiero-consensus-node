@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -309,17 +309,9 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             // Write the record file version int first to start of file
             outputStream.writeInt(VERSION_6);
             // [1] - hapi_proto_version
-            writeMessage(
-                    outputStream,
-                    HAPI_PROTO_VERSION,
-                    hapiProtoVersion,
-                    SemanticVersion.PROTOBUF);
+            writeMessage(outputStream, HAPI_PROTO_VERSION, hapiProtoVersion, SemanticVersion.PROTOBUF);
             // [2] - start_object_running_hash
-            writeMessage(
-                    outputStream,
-                    START_OBJECT_RUNNING_HASH,
-                    startObjectRunningHash,
-                    HashObject.PROTOBUF);
+            writeMessage(outputStream, START_OBJECT_RUNNING_HASH, startObjectRunningHash, HashObject.PROTOBUF);
         } catch (final IOException e) {
             logger.warn("Error writing header to record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);
@@ -334,11 +326,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     private void writeFooter(@NonNull final HashObject endRunningHash) throws UncheckedIOException {
         try {
             // [4] - end_object_running_hash
-            writeMessage(
-                    outputStream,
-                    END_OBJECT_RUNNING_HASH,
-                    endRunningHash,
-                    HashObject.PROTOBUF);
+            writeMessage(outputStream, END_OBJECT_RUNNING_HASH, endRunningHash, HashObject.PROTOBUF);
             // [5] - block_number
             writeLong(outputStream, BLOCK_NUMBER, blockNumber);
             // [6] - sidecars
