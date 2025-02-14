@@ -135,12 +135,14 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         for (var transaction : transactions) {
             // check how to parse it correctly or maybe throw an exception
-            final var body = context.bodyFromTransaction(transaction);
-            final var payerId = body.transactionIDOrThrow().accountIDOrThrow();
-
-            context.requireKeyOrThrow(body.batchKey(), BAD_ENCODING);
-            // this method will dispatch the prehandle transaction of each transaction in the batch
-            context.executeInnerPreHandle(body, payerId);
+            final TransactionBody txBody;
+            try {
+                txBody = bodyParser.apply(transaction);
+            } catch (HandleException e) {
+                throw new PreCheckException(e.getStatus());
+            }
+            context.requireKeyOrThrow(txBody.batchKey(), BAD_ENCODING);
+            // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
     }
 

@@ -150,7 +150,7 @@ class AtomicBatchHandlerTest {
     }
 
     @Test
-    void failsIfInnerTxMissingBatchKey() throws PreCheckException {
+    void failsIfInnerTxMissingBatchKey() {
         final var transaction = mock(Transaction.class);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp)
@@ -166,28 +166,12 @@ class AtomicBatchHandlerTest {
     }
 
     @Test
-    void preHandleBatchSizeExceedsMaxBatchSize() throws PreCheckException {
-        final var batchKey = SIMPLE_KEY_A;
+    void preHandleBatchSizeExceedsMaxBatchSize() {
         final var transaction1 = mock(Transaction.class);
         final var transaction2 = mock(Transaction.class);
         final var transaction3 = mock(Transaction.class);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2, transaction3);
-        final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp, batchKey)
-                .consensusCreateTopic(
-                        ConsensusCreateTopicTransactionBody.newBuilder().build())
-                .build();
-        final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, batchKey)
-                .consensusDeleteTopic(
-                        ConsensusDeleteTopicTransactionBody.newBuilder().build())
-                .build();
-        final var innerTxnBody3 = newTxnBodyBuilder(payerId3, consensusTimestamp, batchKey)
-                .consensusDeleteTopic(
-                        ConsensusDeleteTopicTransactionBody.newBuilder().build())
-                .build();
         given(preHandleContext.body()).willReturn(txnBody);
-        given(preHandleContext.bodyFromTransaction(transaction1)).willReturn(innerTxnBody1);
-        given(preHandleContext.bodyFromTransaction(transaction2)).willReturn(innerTxnBody2);
-        given(preHandleContext.bodyFromTransaction(transaction3)).willReturn(innerTxnBody3);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED, msg.responseCode());
     }
@@ -201,7 +185,7 @@ class AtomicBatchHandlerTest {
                         ConsensusCreateTopicTransactionBody.newBuilder().build())
                 .build();
         given(preHandleContext.body()).willReturn(txnBody);
-        given(preHandleContext.bodyFromTransaction(transaction1)).willReturn(innerTxnBody1);
+        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
         given(preHandleContext.requireKeyOrThrow(innerTxnBody1.batchKey(), BAD_ENCODING))
                 .willThrow(new PreCheckException(BAD_ENCODING));
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
@@ -223,8 +207,8 @@ class AtomicBatchHandlerTest {
                         ConsensusDeleteTopicTransactionBody.newBuilder().build())
                 .build();
         given(preHandleContext.body()).willReturn(txnBody);
-        given(preHandleContext.bodyFromTransaction(transaction1)).willReturn(innerTxnBody1);
-        given(preHandleContext.bodyFromTransaction(transaction2)).willReturn(innerTxnBody2);
+        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
+        given(bodyParser.apply(transaction2)).willReturn(innerTxnBody2);
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
     }
 
