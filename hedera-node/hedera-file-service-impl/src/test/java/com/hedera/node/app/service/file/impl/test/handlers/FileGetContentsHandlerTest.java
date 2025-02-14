@@ -49,7 +49,9 @@ import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,8 +72,18 @@ class FileGetContentsHandlerTest extends FileTestBase {
 
     private FileGetContentsHandler subject;
 
+    private Configuration config;
+
     @BeforeEach
     void setUp() {
+        config = HederaTestConfigBuilder.create()
+                .withValue("cryptoCreateWithAlias.enabled", true)
+                .withValue("ledger.maxAutoAssociations", 5000)
+                .withValue("entities.limitTokenAssociations", false)
+                .withValue("tokens.maxPerAccount", 1000)
+                .withValue("hedera.shard", 5L)
+                .withValue("hedera.realm", 10L)
+                .getOrCreateConfig();
         subject = new FileGetContentsHandler(usageEstimator, genesisSchema);
     }
 
@@ -197,7 +209,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
                 .build();
         final var expectedContent = getExpectedContent();
-
+        given(handleContext.configuration()).willReturn(config);
         final var query = createGetFileContentQueryFromEntityId(fileId.fileNum());
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
@@ -248,7 +260,11 @@ class FileGetContentsHandlerTest extends FileTestBase {
     }
 
     private Query createGetFileContentQueryFromEntityId(long fileNum) {
-        final FileID fileID = new EntityIdFactoryImpl(5L, 10L).newFileId(fileNum);
+
+        final FileID fileID = new EntityIdFactoryImpl(
+                        Long.parseLong(config.getValue("hedera.shard")),
+                        Long.parseLong(config.getValue("hedera.realm")))
+                .newFileId(fileNum);
         final var data = FileGetContentsQuery.newBuilder()
                 .fileID(fileID)
                 .header(QueryHeader.newBuilder().payment(Transaction.DEFAULT).build())
