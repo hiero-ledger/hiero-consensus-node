@@ -216,24 +216,31 @@ public class TransactionChecker {
         // also verifies that the transaction is not too large.
         checkTransactionDeprecation(tx);
 
+        final TransactionBody txBody;
         final Bytes bodyBytes;
         final SignatureMap signatureMap;
-        if (tx.signedTransactionBytes().length() > 0) {
-            final var signedTransaction = parseStrict(
-                    tx.signedTransactionBytes().toReadableSequentialData(),
-                    SignedTransaction.PROTOBUF,
-                    INVALID_TRANSACTION);
-            bodyBytes = signedTransaction.bodyBytes();
-            signatureMap = signedTransaction.sigMap();
-        } else {
-            bodyBytes = tx.bodyBytes();
+        if (tx.hasBody()) {
+            txBody = tx.bodyOrThrow();
+            bodyBytes = TransactionBody.PROTOBUF.toBytes(txBody);
             signatureMap = tx.sigMap();
+        } else {
+            if (tx.signedTransactionBytes().length() > 0) {
+                final var signedTransaction = parseStrict(
+                        tx.signedTransactionBytes().toReadableSequentialData(),
+                        SignedTransaction.PROTOBUF,
+                        INVALID_TRANSACTION);
+                bodyBytes = signedTransaction.bodyBytes();
+                signatureMap = signedTransaction.sigMap();
+            } else {
+                bodyBytes = tx.bodyBytes();
+                signatureMap = tx.sigMap();
+            }
+            txBody = parseStrict(
+                    bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
         }
         if (signatureMap == null) {
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
-        final var txBody =
-                parseStrict(bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
         final HederaFunctionality functionality;
         try {
             functionality = HapiUtils.functionOf(txBody);
@@ -270,39 +277,37 @@ public class TransactionChecker {
      * @throws NullPointerException if {@code tx} is {@code null}
      */
     private void checkTransactionDeprecation(@NonNull final Transaction tx) throws PreCheckException {
-        // There are three ways a transaction can be used. Two of these are deprecated. One is not supported:
-        //   1. body & sigs. DEPRECATED, NOT SUPPORTED
-        //   2. sigMap & bodyBytes. DEPRECATED, SUPPORTED
-        //   3. signedTransactionBytes. SUPPORTED
+        // There are three ways a transaction can be used. Two of these are deprecated:
+        //   1. body & sigMap. SUPPORTED
+        //   2. bodyBytes & sigMap. DEPRECATED, SUPPORTED
+        //   3. signedTransactionBytes. DEPRECATED, SUPPORTED
         //
-        // While #1 above is NOT SUPPORTED, we also don't throw an error if either or both field is used
-        // as long as the transaction ALSO has either #2 or #3 populated. This seems really odd, and ideally
-        // we would be able to remove support for #1 entirely. To do this, we need metrics to see if anyone
-        // is using #1 in any way.
-        if (tx.hasBody() || tx.hasSigs()) {
+        // While Transaction.sigs is not supported, we also don't throw an error if it is used as long as sigMap
+        // is also populated. This seems really odd, and ideally we would be able to remove support for sigs entirely.
+        // To do this, we need metrics to see if anyone is using it in any way.
+        if (tx.hasSigs()) {
             superDeprecatedCounter.increment();
         }
 
-        // A transaction can either use signedTransactionBytes, or sigMap and bodyBytes. Using
-        // sigMap and bodyBytes is deprecated.
-        final var hasSignedTxnBytes = tx.signedTransactionBytes().length() > 0;
-        final var hasDeprecatedSigMap = tx.sigMap() != null;
+        // A transaction can either use signedTransactionBytes, or sigMap and body/bodyBytes.
+        // The usage of signedTransactionBytes and bodyBytes is deprecated.
+        final var hasBody = tx.hasBody();
+        final var hasSigMap = tx.hasSigMap();
+        final var hasDeprecatedSignedTxnBytes = tx.signedTransactionBytes().length() > 0;
         final var hasDeprecatedBodyBytes = tx.bodyBytes().length() > 0;
 
-        // Increment the counter if either of `bodyBytes` or `sigMap` were used
-        if (hasDeprecatedSigMap || hasDeprecatedBodyBytes) {
+        // Increment the counter if either of `bodyBytes` or `signedTransactionBytes` were used
+        if (hasDeprecatedSignedTxnBytes || hasDeprecatedBodyBytes) {
             deprecatedCounter.increment();
         }
 
-        // The user either has to use `signedTransactionBytes`, or `bodyBytes` and `sigMap`, but not both.
-        if (hasSignedTxnBytes) {
-            if (hasDeprecatedBodyBytes || hasDeprecatedSigMap) {
-                throw new PreCheckException(INVALID_TRANSACTION);
-            }
-        } else if (!hasDeprecatedBodyBytes) {
-            // If they didn't use `signedTransactionBytes` and they didn't use `bodyBytes` then they didn't send a body
-            // NOTE: If they sent a `sigMap` without a `bodyBytes`, then the `sigMap` will be ignored, just like
-            // `body` and `sigs` are. This isn't really nice but not fatal.
+        // The user either has to use `signedTransactionBytes`, or `body`/`bodyBytes` with `sigMap`, but no other
+        // combination
+        if ((hasBody && hasDeprecatedBodyBytes)
+                || hasDeprecatedSignedTxnBytes && (hasBody || hasSigMap || hasDeprecatedBodyBytes)) {
+            throw new PreCheckException(INVALID_TRANSACTION);
+        }
+        if (!hasBody && !hasDeprecatedBodyBytes && !hasDeprecatedSignedTxnBytes) {
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
     }
