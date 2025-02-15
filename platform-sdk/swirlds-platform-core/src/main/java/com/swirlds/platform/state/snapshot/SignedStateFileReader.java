@@ -85,7 +85,7 @@ public final class SignedStateFileReader {
         final SignedState newSignedState = new SignedState(
                 configuration,
                 CryptoStatic::verifySignature,
-                data.stateRoot().cast(),
+                (MerkleNodeState) data.stateRoot(),
                 "SignedStateFileReader.readStateFile()",
                 false,
                 false,
