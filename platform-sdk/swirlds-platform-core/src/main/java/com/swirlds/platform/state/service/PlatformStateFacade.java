@@ -71,7 +71,7 @@ public class PlatformStateFacade {
     public SemanticVersion creationSemanticVersionOf(@NonNull final State state) {
         requireNonNull(state);
         final PlatformState platformState = platformStateOf(state);
-        return platformState == null ? null : platformState.creationSoftwareVersion();
+        return platformState == null ? null : platformState.creationSoftwareVersionOrThrow();
     }
 
     /**
