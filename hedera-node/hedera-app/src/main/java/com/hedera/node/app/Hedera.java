@@ -540,9 +540,9 @@ public final class Hedera implements SwirldMain<MerkeNodeState>, PlatformStatusC
             onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> {};
             // And the factory for the MerkleStateRoot class id must be our constructor
             constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(MerkleStateRoot.class, stateRootSupplier::get));
+                    new ClassConstructorPair(HederaStateRoot.class, stateRootSupplier::get));
         } catch (final ConstructableRegistryException e) {
-            logger.error("Failed to register " + MerkleStateRoot.class + " factory with ConstructableRegistry", e);
+            logger.error("Failed to register " + HederaStateRoot.class + " factory with ConstructableRegistry", e);
             throw new IllegalStateException(e);
         }
     }
