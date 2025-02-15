@@ -34,6 +34,7 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.uptime.UptimeTracker;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.MerkeNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Queue;

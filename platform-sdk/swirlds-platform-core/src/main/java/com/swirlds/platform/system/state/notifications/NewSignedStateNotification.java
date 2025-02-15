@@ -17,8 +17,8 @@
 package com.swirlds.platform.system.state.notifications;
 
 import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.MerkeNodeState;
 import java.time.Instant;
 
 /**

@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-package com.swirlds.platform.state;
+package com.swirlds.state.merkle;
 
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.StateMetadata;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;

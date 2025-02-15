@@ -32,8 +32,8 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.state.merkle.MerkeNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
@@ -43,7 +43,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 @ConstructableIgnored
-public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingToolState> implements MerkeNodeState {
+public class MigrationTestingToolState extends MerkleStateRoot /*<MigrationTestingToolState>*/
+        implements MerkeNodeState {
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolState.class);
 
     /**
@@ -251,8 +252,8 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
         return ClassVersion.VIRTUAL_MAP;
     }
 
-    @Override
-    protected MigrationTestingToolState copyingConstructor() {
-        return new MigrationTestingToolState(this);
-    }
+    //    @Override
+    //    protected MigrationTestingToolState copyingConstructor() {
+    //        return new MigrationTestingToolState(this);
+    //    }
 }

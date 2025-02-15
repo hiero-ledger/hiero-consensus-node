@@ -18,7 +18,7 @@ package com.swirlds.platform.turtle.runner;
 
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 
-import com.swirlds.platform.state.*;
+import com.swirlds.state.merkle.MerkeNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -30,7 +30,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *   ﹉∏﹉∏﹉                   ﹉∏﹉∏﹉
  * </pre>
  */
-public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolState> implements MerkeNodeState {
+public class TurtleTestingToolState extends MerkleStateRoot /*<TurtleTestingToolState>*/ implements MerkeNodeState {
 
     private static final long CLASS_ID = 0xa49b3822a4136ac6L;
 
@@ -82,10 +82,10 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
         return new TurtleTestingToolState(this);
     }
 
-    @Override
-    protected TurtleTestingToolState copyingConstructor() {
-        return new TurtleTestingToolState(this);
-    }
+    //    @Override
+    //    protected TurtleTestingToolState copyingConstructor() {
+    //        return new TurtleTestingToolState(this);
+    //    }
 
     /**
      * Creates a merkle node to act as a state tree root.

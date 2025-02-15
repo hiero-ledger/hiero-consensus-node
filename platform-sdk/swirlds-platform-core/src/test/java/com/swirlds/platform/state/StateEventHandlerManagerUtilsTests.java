@@ -26,6 +26,7 @@ import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.MerkeNodeState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

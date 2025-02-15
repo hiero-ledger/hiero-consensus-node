@@ -19,9 +19,9 @@ package com.swirlds.platform.system;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.state.MerkeNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.MerkeNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 

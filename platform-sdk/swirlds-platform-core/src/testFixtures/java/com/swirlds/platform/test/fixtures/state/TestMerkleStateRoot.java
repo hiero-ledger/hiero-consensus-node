@@ -16,10 +16,10 @@
 
 package com.swirlds.platform.test.fixtures.state;
 
-import com.swirlds.platform.state.MerkeNodeState;
+import com.swirlds.state.merkle.MerkeNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 
-public class TestMerkleStateRoot extends MerkleStateRoot<TestMerkleStateRoot> implements MerkeNodeState {
+public class TestMerkleStateRoot extends MerkleStateRoot /*<TestMerkleStateRoot>*/ implements MerkeNodeState {
 
     public TestMerkleStateRoot() {
         // empty constructor
@@ -29,8 +29,8 @@ public class TestMerkleStateRoot extends MerkleStateRoot<TestMerkleStateRoot> im
         super(that);
     }
 
-    @Override
-    protected TestMerkleStateRoot copyingConstructor() {
-        return new TestMerkleStateRoot(this);
-    }
+    //    @Override
+    //    protected TestMerkleStateRoot copyingConstructor() {
+    //        return new TestMerkleStateRoot(this);
+    //    }
 }

@@ -26,6 +26,7 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.metrics.StateMetrics;
+import com.swirlds.state.merkle.MerkeNodeState;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
