@@ -267,7 +267,8 @@ class ChildDispatchFactoryTest {
                                 DispatchOptions.StakingRewards.ON,
                                 DispatchOptions.UsePresetTxnId.NO,
                                 NOOP_FEE_CHARGING,
-                                PropagateFeeChargingStrategy.YES)));
+                                PropagateFeeChargingStrategy.YES),
+                        null));
         assertInstanceOf(UnknownHederaFunctionality.class, exception.getCause());
         assertEquals("Unknown Hedera Functionality", exception.getMessage());
     }

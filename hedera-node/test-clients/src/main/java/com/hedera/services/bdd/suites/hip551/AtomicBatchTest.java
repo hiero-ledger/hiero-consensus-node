@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDE
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.propertyPreservingHapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -48,6 +49,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
@@ -61,6 +63,7 @@ import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollow
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 
 import com.google.protobuf.ByteString;
@@ -81,6 +84,44 @@ import org.junit.jupiter.api.Nested;
 
 @HapiTestLifecycle
 public class AtomicBatchTest {
+
+    @HapiTest
+    public Stream<DynamicTest> missingInnerTxnPayerSignatureFails() {
+        final var batchOperator = "batchOperator";
+        final var innerTnxPayer = "innerPayer";
+        final var innerTxnId = "innerId";
+        // crete inner txn with innerTnxPayer, but sign only with DEFAULT_PAYER
+        final var innerTxn = cryptoCreate("foo")
+                .balance(ONE_HBAR)
+                .txnId(innerTxnId)
+                .batchKey(batchOperator)
+                .payingWith(innerTnxPayer)
+                .signedBy(DEFAULT_PAYER);
+
+        return hapiTest(
+                cryptoCreate(batchOperator).balance(ONE_HBAR),
+                cryptoCreate(innerTnxPayer).balance(ONE_HBAR),
+                usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
+                // Since the inner txn is signed by DEFAULT_PAYER, it should fail
+                atomicBatch(innerTxn).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> missingBatchKeyFails() {
+        final var batchOperator = "batchOperator";
+        final var innerTnxPayer = "innerPayer";
+        final var innerTxnId = "innerId";
+        // crete inner txn with innerTnxPayer and without batchKey
+        final var innerTxn =
+                cryptoCreate("foo").balance(ONE_HBAR).txnId(innerTxnId).payingWith(innerTnxPayer);
+
+        return hapiTest(
+                cryptoCreate(batchOperator).balance(ONE_HBAR),
+                cryptoCreate(innerTnxPayer).balance(ONE_HBAR),
+                usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
+                // Since the inner txn doesn't have batchKey, it should fail
+                atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(MISSING_BATCH_KEY));
+    }
 
     @HapiTest
     public Stream<DynamicTest> simpleBatchTest() {
@@ -209,10 +250,8 @@ public class AtomicBatchTest {
                         .payingWith(innerTnxPayer)
                         .balance(ONE_HBAR),
                 atomicBatch(innerTxn1, innerTxn2).hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(innerTxn2));
-        // PreHandleWorkflowImpl.preHandleTransaction() added inner transaction id to deduplicationCache, uncommented
-        // below after neeha's pr 17763
-        // atomicBatch(innerTxn2).hasKnownStatus(INNER_TRANSACTION_FAILED));
+                atomicBatch(innerTxn2),
+                atomicBatch(innerTxn2).hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -525,11 +564,16 @@ public class AtomicBatchTest {
                     newKeyNamed(alias).shape(SECP_256K1_SHAPE),
                     createHollowAccountFrom(alias),
                     getAliasedAccountInfo(alias).isHollow(),
-                    atomicBatch(cryptoCreate("foo").payingWith(alias).batchKey(batchOperator))
+                    atomicBatch(cryptoCreate("foo")
+                                    .payingWith(alias)
+                                    .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
+                                    .batchKey(batchOperator))
                             .payingWith(alias)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
                             .signedBy(alias, batchOperator),
-                    getAliasedAccountInfo(alias).isNotHollow()));
+                    getAliasedAccountInfo(alias)
+                            .has(accountWith().hasNonEmptyKey())
+                            .logged()));
         }
 
         @HapiTest
@@ -544,7 +588,10 @@ public class AtomicBatchTest {
                     createHollowAccountFrom(alias),
                     getAliasedAccountInfo(alias).isHollow(),
                     atomicBatch(
-                                    cryptoCreate("foo").payingWith(alias).batchKey(batchOperator),
+                                    cryptoCreate("foo")
+                                            .payingWith(alias)
+                                            .batchKey(batchOperator)
+                                            .sigMapPrefixes(uniqueWithFullPrefixesFor(alias)),
                                     cryptoCreate("bar")
                                             .alias(ByteString.EMPTY)
                                             .payingWith(alias)

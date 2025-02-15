@@ -19,6 +19,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
@@ -118,6 +119,7 @@ import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -133,6 +135,7 @@ import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -293,6 +296,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             CRYPTO_TRANSFER,
             null);
 
+    final PreHandleResult result =
+            PreHandleResult.preHandleFailure(payerId, null, INVALID_PAYER_ACCOUNT_ID, txnInfo, null, null, null, null);
+
     @BeforeEach
     void setup() {
         when(serviceScopeLookup.getServiceName(any())).thenReturn(TokenService.NAME);
@@ -399,14 +405,14 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             feeAccumulator,
             EMPTY_METADATA,
             transactionChecker,
-            deduplicationCache
+            List.of(result)
         };
 
         final var constructor = DispatchHandleContext.class.getConstructors()[0];
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
-            // Skip signatureMapSize and payerKey
-            if (index == 2 || index == 4) {
+            // Skip signatureMapSize, payerKey, and preHandleResults
+            if (index == 2 || index == 4 || index == 24) {
                 continue;
             }
             assertThatThrownBy(() -> {
@@ -772,6 +778,10 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 Bytes.EMPTY,
                 function,
                 null);
+        final var result = PreHandleResult.preHandleFailure(
+                payerId, null, INVALID_PAYER_ACCOUNT_ID, txnInfo, null, null, null, null);
+        final var results = new ArrayList<PreHandleResult>();
+        results.add(result);
         return new DispatchHandleContext(
                 CONSENSUS_NOW,
                 creatorInfo,
@@ -797,13 +807,13 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 feeAccumulator,
                 EMPTY_METADATA,
                 transactionChecker,
-                deduplicationCache);
+                results);
     }
 
     private void mockNeeded() {
         lenient()
                 .when(childDispatchFactory.createChildDispatch(
-                        any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                        any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(childDispatch);
         lenient().when(childDispatch.recordBuilder()).thenReturn(childRecordBuilder);
         lenient()

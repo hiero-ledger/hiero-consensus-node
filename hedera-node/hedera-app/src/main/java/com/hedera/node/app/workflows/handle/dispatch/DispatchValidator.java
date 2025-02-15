@@ -32,6 +32,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -89,7 +90,10 @@ public class DispatchValidator {
             final var payer =
                     getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
             final var category = dispatch.txnCategory();
-            final var requiresPayerSig = category == SCHEDULED || category == USER;
+            // Check payer signature for all batch inner transactions, scheduled, and user transactions
+            final var requiresPayerSig = category == SCHEDULED
+                    || category == USER
+                    || isBatchInnerTxn(dispatch.txnInfo().txBody());
             if (requiresPayerSig && !isHollow(payer)) {
                 // Skip payer verification for hollow accounts because ingest only submits valid signatures
                 // for hollow payers; and if an account is still hollow here, its alias cannot have changed
@@ -98,7 +102,9 @@ public class DispatchValidator {
                     return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
                 }
             }
-            final var duplicateCheckResult = category != USER && category != NODE
+            final var duplicateCheckResult = category != USER
+                            && category != NODE
+                            && !isBatchInnerTxn(dispatch.txnInfo().txBody())
                     ? NO_DUPLICATE
                     : recordCache.hasDuplicate(
                             dispatch.txnInfo().txBody().transactionIDOrThrow(),
@@ -109,6 +115,10 @@ public class DispatchValidator {
                 case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
             };
         }
+    }
+
+    public static boolean isBatchInnerTxn(final @NonNull TransactionBody txnBody) {
+        return txnBody.hasBatchKey();
     }
 
     /**
@@ -172,7 +182,9 @@ public class DispatchValidator {
      */
     @Nullable
     private ResponseCodeEnum getExpiryError(final @NonNull Dispatch dispatch) {
-        if (dispatch.txnCategory() != USER && dispatch.txnCategory() != NODE) {
+        if (dispatch.txnCategory() != USER
+                && dispatch.txnCategory() != NODE
+                && !isBatchInnerTxn(dispatch.txnInfo().txBody())) {
             return null;
         }
         try {

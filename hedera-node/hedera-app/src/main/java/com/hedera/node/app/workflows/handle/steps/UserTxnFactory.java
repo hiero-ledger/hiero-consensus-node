@@ -352,7 +352,7 @@ public class UserTxnFactory {
                 feeAccumulator,
                 DispatchMetadata.EMPTY_METADATA,
                 transactionChecker,
-                deduplicationCache);
+                preHandleResult.innerResults());
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(
