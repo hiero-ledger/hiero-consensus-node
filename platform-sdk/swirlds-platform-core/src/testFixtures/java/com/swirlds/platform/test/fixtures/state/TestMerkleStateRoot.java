@@ -16,9 +16,11 @@
 
 package com.swirlds.platform.test.fixtures.state;
 
+import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.state.merkle.MerkeNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 
+@ConstructableIgnored
 public class TestMerkleStateRoot extends MerkleStateRoot /*<TestMerkleStateRoot>*/ implements MerkeNodeState {
 
     public TestMerkleStateRoot() {
