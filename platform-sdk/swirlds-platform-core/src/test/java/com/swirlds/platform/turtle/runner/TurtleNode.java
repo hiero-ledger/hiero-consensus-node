@@ -218,9 +218,4 @@ public class TurtleNode {
     public void tick() {
         model.tick();
     }
-
-    @NonNull
-    public ConsensusRoundsHolder getConsensusRoundsHolder() {
-        return consensusRoundsHolder;
-    }
 }
