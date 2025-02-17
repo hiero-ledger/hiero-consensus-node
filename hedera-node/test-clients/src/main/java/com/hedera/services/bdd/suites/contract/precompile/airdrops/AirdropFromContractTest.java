@@ -369,8 +369,8 @@ public class AirdropFromContractTest {
                             .via("AirdropTxn"),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token1.name(), 0L)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token2.name(), 0L)),
-                    getTxnRecord("AirdropTxn").hasChildRecords(recordWith().pendingAirdropsCount(2)),
                     getTxnRecord("AirdropTxn")
+                            .hasChildRecords(recordWith().pendingAirdropsCount(2))
                             .hasChildRecords(recordWith()
                                     .pendingAirdrops(includingFungiblePendingAirdrop(
                                             moving(10L, token1.name()).between(sender.name(), receiver.name()),
@@ -473,18 +473,20 @@ public class AirdropFromContractTest {
                             .call("tokenAirdrop", token, sender, receiver, 1L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)
-                            .via("AirdropTxn"),
+                            .via("AirdropTxn1"),
                     airdropContract
                             .call("tokenAirdrop", token, sender, receiver, 1L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)
-                            .via("AirdropTxn"),
+                            .via("AirdropTxn2"),
                     airdropContract
                             .call("tokenAirdrop", token, sender, receiver, 1L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)
-                            .via("AirdropTxn"),
-                    getTxnRecord("AirdropTxn").hasChildRecords(recordWith().pendingAirdropsCount(1)),
+                            .via("AirdropTxn3"),
+                    getTxnRecord("AirdropTxn1").hasChildRecords(recordWith().pendingAirdropsCount(1)),
+                    getTxnRecord("AirdropTxn2").hasChildRecords(recordWith().pendingAirdropsCount(1)),
+                    getTxnRecord("AirdropTxn3").hasChildRecords(recordWith().pendingAirdropsCount(1)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)));
             allRunFor(
                     spec,
@@ -514,15 +516,15 @@ public class AirdropFromContractTest {
                             .call("tokenAirdrop", token, sender, receiver, 1L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)
-                            .via("AirdropTxn"),
-                    getTxnRecord("AirdropTxn").hasChildRecords(recordWith().pendingAirdropsCount(1)),
+                            .via("AirdropTxn1"),
+                    getTxnRecord("AirdropTxn1").hasChildRecords(recordWith().pendingAirdropsCount(1)),
                     receiver.associateTokens(token),
                     airdropContract
                             .call("tokenAirdrop", token, sender, receiver, 1L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)
-                            .via("AirdropTxn"),
-                    getTxnRecord("AirdropTxn").hasChildRecords(recordWith().pendingAirdropsCount(0)),
+                            .via("AirdropTxn2"),
+                    getTxnRecord("AirdropTxn2").hasChildRecords(recordWith().pendingAirdropsCount(0)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)));
         }));
     }
@@ -531,8 +533,8 @@ public class AirdropFromContractTest {
     @HapiTest
     @DisplayName("Multiple contracts airdrop tokens to multiple accounts.")
     public Stream<DynamicTest> multipleContractsAirdropTokensToMultipleAccounts(
-            @NonNull @Account(maxAutoAssociations = 1, tinybarBalance = 100_000_000L) final SpecAccount receiver1,
-            @NonNull @Account(maxAutoAssociations = 1, tinybarBalance = 100_000_000L) final SpecAccount receiver2,
+            @NonNull @Account(maxAutoAssociations = -1, tinybarBalance = 100_000_000L) final SpecAccount receiver1,
+            @NonNull @Account(maxAutoAssociations = -1, tinybarBalance = 100_000_000L) final SpecAccount receiver2,
             @NonNull @Contract(contract = "EmptyOne", creationGas = 100_000_000L) final SpecContract sender1,
             @NonNull @Contract(contract = "EmptyConstructor", creationGas = 100_000_000L) final SpecContract sender2,
             @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token) {
@@ -543,20 +545,24 @@ public class AirdropFromContractTest {
                     sender2.authorizeContract(airdropContract),
                     sender1.associateTokens(token),
                     sender2.associateTokens(token),
-                    token.treasury().transferUnitsTo(sender1, 10L, token),
-                    token.treasury().transferUnitsTo(sender2, 10L, token));
+                    token.treasury().transferUnitsTo(sender1, 100L, token),
+                    token.treasury().transferUnitsTo(sender2, 100L, token));
+            allRunFor(spec, checkForEmptyBalance(receiver1, List.of(token), List.of()));
+            allRunFor(spec, checkForEmptyBalance(receiver2, List.of(token), List.of()));
             allRunFor(
                     spec,
                     airdropContract
-                            .call("tokenAirdrop", token, sender1, receiver1, 1L)
-                            .sending(85_000_000L)
-                            .gas(1_500_000L)
-                            .via("AirdropTxn"),
-                    airdropContract
-                            .call("tokenAirdrop", token, sender2, receiver2, 1L)
-                            .sending(85_000_000L)
-                            .gas(1_500_000L),
-                    getTxnRecord("AirdropTxn").hasChildRecords(recordWith().pendingAirdropsCount(0)),
+                            .call(
+                                    "tokenNAmountAirdrops",
+                                    prepareTokenAddresses(spec, List.of(token, token)),
+                                    prepareContractAddresses(spec, List.of(sender1, sender2)),
+                                    prepareAccountAddresses(spec, List.of(receiver1, receiver2)),
+                                    1L)
+                            .sending(450_000_000L)
+                            .gas(2_750_000L)
+                            .via("pendingAirdropsMulti"),
+                    getTxnRecord("pendingAirdropsMulti")
+                            .hasChildRecords(recordWith().pendingAirdropsCount(0)),
                     receiver1.getBalance().andAssert(balance -> balance.hasTinyBars(100_000_000L)),
                     receiver2.getBalance().andAssert(balance -> balance.hasTinyBars(100_000_000L)),
                     receiver1.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)),
