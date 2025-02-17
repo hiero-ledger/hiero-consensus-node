@@ -41,7 +41,7 @@ env:
 jobs:
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -194,7 +194,7 @@ jobs:
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - abbreviated-panel
       - extended-test-suite
@@ -238,7 +238,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - abbreviated-panel
       - extended-test-suite
@@ -280,7 +280,7 @@ jobs:
             gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/hashgraph/hedera-services/actions/jobs/$job_id/logs >> run.log
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
           done
 
       - name: Upload log as artifact
