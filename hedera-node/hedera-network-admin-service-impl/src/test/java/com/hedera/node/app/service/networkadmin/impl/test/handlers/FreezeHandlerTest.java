@@ -117,16 +117,18 @@ class FreezeHandlerTest {
             .build();
     private final AccountID nonAdminAccount =
             AccountID.newBuilder().accountNum(9999L).build();
-    private final FreezeHandler subject = new FreezeHandler(
-            new ForkJoinPool(
-                    1,
-                    ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-                    Thread.getDefaultUncaughtExceptionHandler(),
-                    true),
-            entityIdFactory);
+    private FreezeHandler subject;
 
     @BeforeEach
     void setUp() {
+        subject = new FreezeHandler(
+                new ForkJoinPool(
+                        1,
+                        ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+                        Thread.getDefaultUncaughtExceptionHandler(),
+                        true),
+                entityIdFactory);
+
         Configuration config = HederaTestConfigBuilder.createConfig();
         given(preHandleContext.configuration()).willReturn(config);
 
