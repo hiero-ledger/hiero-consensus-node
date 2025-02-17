@@ -490,6 +490,7 @@ public final class PlatformBuilder {
         final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
+                platformWiring,
                 platformContext,
                 model,
                 keysAndCerts,
@@ -518,8 +519,7 @@ public final class PlatformBuilder {
                 new AtomicReference<>(),
                 firstPlatform,
                 stateLifecycles,
-                platformStateFacade,
-                platformWiring);
+                platformStateFacade);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

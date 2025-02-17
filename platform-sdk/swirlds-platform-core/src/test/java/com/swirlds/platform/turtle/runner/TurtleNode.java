@@ -37,12 +37,13 @@ import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.component.framework.wires.input.InputWire;
+import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.builder.PlatformComponentBuilder.SolderWireType;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.internal.ConsensusRound;
@@ -59,11 +60,10 @@ import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
+import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Encapsulates a single node running in a TURTLE network.
@@ -144,6 +144,7 @@ public class TurtleNode {
                 addressBook,
                 platformStateFacade);
         final var initialState = reservedState.state();
+
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         "foo",
                         "bar",
@@ -163,13 +164,7 @@ public class TurtleNode {
 
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
 
-        final SimulatedGossip gossip = network.getGossipInstance(nodeId);
-        gossip.provideIntakeEventCounter(
-                platformComponentBuilder.getBuildingBlocks().intakeEventCounter());
-
-        platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(nodeId));
-
-        platform = platformComponentBuilder.build();
+        final PlatformBuildingBlocks buildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
         final ComponentWiring<ConsensusRoundsHolder, Void> consensusRoundsHolderWiring =
                 new ComponentWiring<>(model, ConsensusRoundsHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
@@ -180,10 +175,18 @@ public class TurtleNode {
         final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =
                 consensusRoundsHolderWiring.getInputWire(ConsensusRoundsHolder::interceptRounds);
 
-        final Map<SolderWireType, InputWire<?>> additionalWires = new HashMap<>();
-        additionalWires.put(SolderWireType.CONSENSUS_ENGINE, consensusRoundsHolderInputWire);
+        final PlatformWiring platformWiring = buildingBlocks.platformWiring();
+        final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
+                platformWiring.getConsensusEngineOutputWire();
+        consensusEngineOutputWire.solderTo(consensusRoundsHolderInputWire);
 
-        platformComponentBuilder.appendAdditionalInputWires(additionalWires);
+        final SimulatedGossip gossip = network.getGossipInstance(nodeId);
+        gossip.provideIntakeEventCounter(
+                platformComponentBuilder.getBuildingBlocks().intakeEventCounter());
+
+        platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(nodeId));
+
+        platform = platformComponentBuilder.build();
     }
 
     /**

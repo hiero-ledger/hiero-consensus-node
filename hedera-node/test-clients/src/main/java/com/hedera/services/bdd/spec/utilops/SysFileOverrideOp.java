@@ -125,7 +125,7 @@ public class SysFileOverrideOp extends UtilOp {
     public void restoreContentsIfNeeded(@NonNull final HapiSpec spec) {
         requireNonNull(spec);
         if (originalContents != null) {
-            var fileNumber = String.format(
+            final var fileNumber = String.format(
                     "%s.%s.%s",
                     spec.startupProperties().getLong("hedera.shard"),
                     spec.startupProperties().getLong("hedera.realm"),

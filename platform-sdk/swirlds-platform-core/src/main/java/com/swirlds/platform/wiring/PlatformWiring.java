@@ -949,13 +949,13 @@ public class PlatformWiring {
     }
 
     /**
-     * Get the wiring for the consensus engine
+     * Get the output wire for consensus engine
      *
      * @return the wiring for the consensus engine
      */
     @NonNull
-    public ComponentWiring<ConsensusEngine, List<ConsensusRound>> getConsensusEngineWiring() {
-        return consensusEngineWiring;
+    public OutputWire<List<ConsensusRound>> getConsensusEngineOutputWire() {
+        return consensusEngineWiring.getOutputWire();
     }
 
     /**

@@ -48,6 +48,7 @@ import com.hedera.node.app.service.token.impl.validators.TokenCreateValidator;
 import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -55,7 +56,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
-import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -69,6 +69,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class TokenCreateHandler extends BaseTokenHandler implements TransactionHandler {
+    private final EntityIdFactory idFactory;
     private final CustomFeesValidator customFeesValidator;
     private final TokenCreateValidator tokenCreateValidator;
 
@@ -79,13 +80,12 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
      */
     @Inject
     public TokenCreateHandler(
+            @NonNull final EntityIdFactory idFactory,
             @NonNull final CustomFeesValidator customFeesValidator,
             @NonNull final TokenCreateValidator tokenCreateValidator) {
-        requireNonNull(customFeesValidator);
-        requireNonNull(tokenCreateValidator);
-
-        this.customFeesValidator = customFeesValidator;
-        this.tokenCreateValidator = tokenCreateValidator;
+        this.idFactory = requireNonNull(idFactory);
+        this.customFeesValidator = requireNonNull(customFeesValidator);
+        this.tokenCreateValidator = requireNonNull(tokenCreateValidator);
     }
 
     @Override
@@ -124,7 +124,6 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         final var op = txn.tokenCreationOrThrow();
         // Create or get needed config and stores
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
-        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var storeFactory = context.storeFactory();
         final var accountStore = storeFactory.writableStore(WritableAccountStore.class);
         final var tokenStore = storeFactory.writableStore(WritableTokenStore.class);
@@ -143,11 +142,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
 
         // build a new token
         final var newTokenNum = context.entityNumGenerator().newEntityNum();
-        final var newTokenId = TokenID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .tokenNum(newTokenNum)
-                .build();
+        final var newTokenId = idFactory.newTokenId(newTokenNum);
         final var newToken = buildToken(newTokenId, op, resolvedExpiryMeta);
 
         // validate custom fees and get back list of fees with created token denomination

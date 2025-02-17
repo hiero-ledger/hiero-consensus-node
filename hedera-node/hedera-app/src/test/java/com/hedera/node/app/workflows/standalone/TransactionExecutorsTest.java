@@ -54,6 +54,7 @@ import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
@@ -390,13 +391,14 @@ public class TransactionExecutorsTest {
                 () -> config,
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
-                () -> NOOP_FEE_CHARGING,
                 new AppThrottleFactory(
                         () -> config,
                         () -> state,
                         () -> ThrottleDefinitions.DEFAULT,
                         ThrottleAccumulator::new,
-                        v -> new ServicesSoftwareVersion()));
+                        v -> new ServicesSoftwareVersion()),
+                () -> NOOP_FEE_CHARGING,
+                new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();

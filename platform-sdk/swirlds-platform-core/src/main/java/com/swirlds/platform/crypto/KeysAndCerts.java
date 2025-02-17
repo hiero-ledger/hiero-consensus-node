@@ -18,6 +18,7 @@ package com.swirlds.platform.crypto;
 
 import com.swirlds.common.crypto.internal.CryptoUtils;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.Key;
 import java.security.KeyPair;
@@ -172,8 +173,9 @@ public record KeysAndCerts(
         final KeyPair sigKeyPair = sigKeyGen.generateKeyPair();
         final KeyPair agrKeyPair = agrKeyGen.generateKeyPair();
 
-        final String dnS = CryptoStatic.distinguishedName("s-" + nodeId.nameString());
-        final String dnA = CryptoStatic.distinguishedName("a-" + nodeId.nameString());
+        final String nodeName = RosterUtils.formatNodeName(nodeId);
+        final String dnS = CryptoStatic.distinguishedName("s-" + nodeName);
+        final String dnA = CryptoStatic.distinguishedName("a-" + nodeName);
 
         // create the 2 certs (java.security.cert.Certificate)
         // both are signed by sigKeyPair, so sigCert is self-signed
