@@ -32,6 +32,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -144,6 +145,7 @@ class InternalEventValidatorTests {
         final GossipEvent nullTransaction = GossipEvent.newBuilder()
                 .eventCore(wholeEvent.eventCore())
                 .signature(wholeEvent.signature())
+                .transactions(List.of(Bytes.EMPTY))
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullTransaction);
 
