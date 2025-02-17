@@ -17,7 +17,6 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
-import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -26,24 +25,17 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
@@ -51,13 +43,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
-import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -66,23 +55,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.Key;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
-
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hederahashgraph.api.proto.java.Key;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -215,14 +194,14 @@ public class AtomicBatchNegativeTest {
 
                     // failing batch duplication
                     atomicBatch(cryptoTransfer(movingHbar(10L).between("sender", "receiver"))
-                            .batchKey("batchOperator")
-                            .signedByPayerAnd("sender"))
+                                    .batchKey("batchOperator")
+                                    .signedByPayerAnd("sender"))
                             .txnId("failingBatch")
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     atomicBatch(cryptoTransfer(movingHbar(10L).between("sender", "receiver"))
-                            .batchKey("batchOperator")
-                            .signedByPayerAnd("sender"))
+                                    .batchKey("batchOperator")
+                                    .signedByPayerAnd("sender"))
                             .txnId("failingBatch")
                             .payingWith("batchOperator")
                             .hasPrecheck(DUPLICATE_TRANSACTION));
@@ -269,27 +248,27 @@ public class AtomicBatchNegativeTest {
                     overridingThrottles("testSystemFiles/artificial-limits.json"),
                     // create batch with 6 contract calls
                     atomicBatch(
-                            contractCall(contract, function, payload)
-                                    .payingWith(payer)
-                                    .batchKey(batchOperator),
-                            contractCall(contract, function, payload)
-                                    .payingWith(payer)
-                                    .batchKey(batchOperator),
-                            contractCall(contract, function, payload)
-                                    .payingWith(payer)
-                                    .batchKey(batchOperator),
-                            contractCall(contract, function, payload)
-                                    .payingWith(payer)
-                                    .batchKey(batchOperator),
-                            contractCall(contract, function, payload)
-                                    .payingWith(payer)
-                                    .batchKey(batchOperator),
-                            contractCall(contract, function, payload)
-                                    .payingWith(payer)
-                                    .batchKey(batchOperator),
-                            contractCall(contract, function, payload)
-                                    .payingWith(payer)
-                                    .batchKey(batchOperator))
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator))
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .signedByPayerAnd(batchOperator)
                             .payingWith(payer));
@@ -304,10 +283,10 @@ public class AtomicBatchNegativeTest {
                     overriding("consensus.handle.maxFollowingRecords", "3"),
                     cryptoCreate(batchOperator),
                     atomicBatch(
-                            cryptoCreate("foo").batchKey(batchOperator),
-                            cryptoCreate("foo").batchKey(batchOperator),
-                            cryptoCreate("foo").batchKey(batchOperator),
-                            cryptoCreate("foo").batchKey(batchOperator))
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator))
                             .hasKnownStatus(MAX_CHILD_RECORDS_EXCEEDED)
                             .signedByPayerAnd(batchOperator));
         }
@@ -326,8 +305,8 @@ public class AtomicBatchNegativeTest {
                     uploadInitCode(contract),
                     contractCreate(contract),
                     atomicBatch(contractCall(contract, function, payload)
-                            .gas(2000001)
-                            .batchKey(batchOperator))
+                                    .gas(2000001)
+                                    .batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED));
         }
@@ -363,9 +342,9 @@ public class AtomicBatchNegativeTest {
                     overriding("atomicBatch.maxNumberOfTransactions", "2"),
                     cryptoCreate(batchOperator),
                     atomicBatch(
-                            cryptoCreate("foo").batchKey(batchOperator),
-                            cryptoCreate("foo").batchKey(batchOperator),
-                            cryptoCreate("foo").batchKey(batchOperator))
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator))
                             .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED)
                             .signedByPayerAnd(batchOperator));
         }
@@ -382,8 +361,8 @@ public class AtomicBatchNegativeTest {
                     usableTxnIdNamed("innerTxn2"),
                     // batch will fail due to insufficient balance
                     atomicBatch(
-                            cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
-                            cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
+                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
+                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
                             .txnId("failingBatch")
                             .payingWith("alice")
                             .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
@@ -392,8 +371,8 @@ public class AtomicBatchNegativeTest {
                             .payingWith(GENESIS),
                     // resubmit the batch
                     atomicBatch(
-                            cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
-                            cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
+                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
+                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
                             .txnId("failingBatch")
                             .payingWith("alice"));
         }
