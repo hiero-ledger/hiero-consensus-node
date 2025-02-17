@@ -34,7 +34,6 @@ import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.MerkleTreeSnapshotReader;
 import com.swirlds.state.merkle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -195,7 +194,7 @@ public final class SignedStateFileReader {
      * @param signedState a signed state to unregister services from
      */
     public static void unregisterServiceStates(@NonNull final SignedState signedState) {
-        final MerkleStateRoot<?> state = (MerkleStateRoot<?>) signedState.getState();
+        final MerkleNodeState state = signedState.getState();
         state.unregisterService(PlatformStateService.NAME);
         state.unregisterService(RosterStateId.NAME);
     }

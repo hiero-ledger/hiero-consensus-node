@@ -91,7 +91,7 @@ public class MerkleTreeSnapshotReader {
             @NonNull final Path stateFile, @NonNull final MerkleDataInputStream in, @NonNull final Path directory)
             throws IOException {
         try {
-            final MerkleStateRoot<?> state = in.readMerkleTree(directory, MAX_MERKLE_NODES_IN_STATE);
+            final PartialNaryMerkleInternal state = in.readMerkleTree(directory, MAX_MERKLE_NODES_IN_STATE);
             final Hash hash = in.readSerializable();
             return new StateFileData(state, hash);
 
