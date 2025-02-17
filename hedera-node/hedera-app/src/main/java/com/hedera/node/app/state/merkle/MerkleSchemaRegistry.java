@@ -27,7 +27,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
-import com.hedera.node.app.HederaStateRoot;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
@@ -39,6 +38,7 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -78,9 +78,9 @@ import org.apache.logging.log4j.Logger;
  * then registers each and every {@link Schema} that it has. Each {@link Schema} is associated with
  * a {@link SemanticVersion}.
  *
- * <p>The Hedera application then calls {@code com.hedera.node.app.Hedera#onMigrate(HederaStateRoot, InitTrigger, Metrics)} on each {@link MerkleSchemaRegistry} instance, supplying it the
+ * <p>The Hedera application then calls {@code com.hedera.node.app.Hedera#onMigrate(MerkleNodeState, InitTrigger, Metrics)} on each {@link MerkleSchemaRegistry} instance, supplying it the
  * application version number and the newly created (or deserialized) but not yet hashed copy of the {@link
- * HederaStateRoot}. The registry determines which {@link Schema}s to apply, possibly taking multiple migration steps,
+ * MerkleNodeState}. The registry determines which {@link Schema}s to apply, possibly taking multiple migration steps,
  * to transition the merkle tree from its current version to the final version.
  */
 public class MerkleSchemaRegistry implements SchemaRegistry {
@@ -183,7 +183,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      * @param startupNetworks The startup networks to use for the migrations
      * @param platformStateFacade The platform state facade to use for the migrations
      * @throws IllegalArgumentException if the {@code currentVersion} is not at least the
-     * {@code previousVersion} or if the {@code state} is not an instance of {@link HederaStateRoot}
+     * {@code previousVersion} or if the {@code state} is not an instance of {@link MerkleNodeState}
      */
     // too many parameters, commented out code
     @SuppressWarnings({"java:S107", "java:S125"})
@@ -210,8 +210,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
         if (isSoOrdered(currentVersion, previousVersion)) {
             throw new IllegalArgumentException("The currentVersion must be at least the previousVersion");
         }
-        if (!(state instanceof HederaStateRoot stateRoot)) {
-            throw new IllegalArgumentException("The state must be an instance of " + HederaStateRoot.class.getName());
+        if (!(state instanceof MerkleNodeState stateRoot)) {
+            throw new IllegalArgumentException("The state must be an instance of " + MerkleNodeState.class.getName());
         }
         final long roundNumber = platformStateFacade.roundOf(stateRoot);
         if (schemas.isEmpty()) {
@@ -294,7 +294,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final Configuration nodeConfiguration,
             @NonNull final Configuration platformConfiguration,
             @NonNull final Metrics metrics,
-            @NonNull final HederaStateRoot stateRoot) {
+            @NonNull final MerkleNodeState stateRoot) {
         // Create the new states (based on the schema) which, thanks to the above, does not
         // expand the set of states that the migration code will see
         schema.statesToCreate(nodeConfiguration).stream()

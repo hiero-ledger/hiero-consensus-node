@@ -94,4 +94,12 @@ public interface MerkleNodeState extends State, MerkleNode {
      * @param serviceName a service to unregister
      */
     void unregisterService(@NonNull final String serviceName);
+
+    /**
+     * Removes the node and metadata from the state merkle tree.
+     *
+     * @param serviceName The service name. Cannot be null.
+     * @param stateKey The state key
+     */
+    void removeServiceState(@NonNull final String serviceName, @NonNull final String stateKey);
 }

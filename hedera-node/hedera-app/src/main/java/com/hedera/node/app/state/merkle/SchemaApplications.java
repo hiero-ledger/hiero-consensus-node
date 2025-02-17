@@ -24,8 +24,8 @@ import static com.hedera.node.app.state.merkle.VersionUtils.isSameVersion;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.app.HederaStateRoot;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -34,7 +34,7 @@ import java.util.Set;
 
 /**
  * Analyzes the ways in which the {@link MerkleSchemaRegistry} should apply a {@link Schema}
- * to the {@link HederaStateRoot}.
+ * to the {@link MerkleNodeState}.
  *
  * @see SchemaApplicationType
  */

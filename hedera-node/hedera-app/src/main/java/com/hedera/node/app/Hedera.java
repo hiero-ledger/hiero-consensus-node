@@ -346,7 +346,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
     /**
      * A {@link StateChangeListener} that accumulates state changes that are only reported once per block; in the
-     * current system, these are the singleton and queue updates. Every {@link HederaStateRoot} will have this
+     * current system, these are the singleton and queue updates. Every {@link MerkleNodeState} will have this
      * listener registered.
      */
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -423,7 +423,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * with the given {@link ConstructableRegistry}.
      *
      * <p>This registration is a critical side effect that must happen called before any Platform initialization
-     * steps that try to create or deserialize a {@link HederaStateRoot}.
+     * steps that try to create or deserialize a {@link MerkleNodeState}.
      *
      * @param constructableRegistry  the registry to register {@link RuntimeConstructable} factories with
      * @param registryFactory        the factory to use for creating the services registry
@@ -776,7 +776,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * {@inheritDoc}
      *
      * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state created from
-     * {@link #newStateRoot()} or an instance of {@link HederaStateRoot} created by the platform and
+     * {@link #newStateRoot()} or an instance of {@link MerkleNodeState} created by the platform and
      * loaded from the saved state).
      *
      * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(State, Platform, InitTrigger)}
