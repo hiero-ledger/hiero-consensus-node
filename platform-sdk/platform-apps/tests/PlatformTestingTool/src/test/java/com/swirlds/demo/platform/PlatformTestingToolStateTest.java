@@ -16,7 +16,6 @@
 
 package com.swirlds.demo.platform;
 
-import static com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType.APPLICATION_TRANSACTION;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_STATES_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,10 +29,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.context.PlatformContext;
@@ -245,11 +242,9 @@ class PlatformTestingToolStateTest {
 
         final TestTransactionWrapper testTransactionWrapper = getTransactionWithRandomType(300);
 
-        final EventTransaction eventTransaction = new EventTransaction(
-                new OneOf<>(APPLICATION_TRANSACTION, Bytes.wrap(testTransactionWrapper.toByteArray())));
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
+                new GossipEvent(eventCore, null, List.of(Bytes.wrap(testTransactionWrapper.toByteArray())));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
@@ -268,8 +263,7 @@ class PlatformTestingToolStateTest {
 
         final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
         final EventCore eventCore = mock(EventCore.class);
-        final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, Collections.emptyList(), List.of(stateSignatureTransactionBytes));
+        final GossipEvent gossipEvent = new GossipEvent(eventCore, null, List.of(stateSignatureTransactionBytes));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
@@ -291,7 +285,6 @@ class PlatformTestingToolStateTest {
         final GossipEvent gossipEvent = new GossipEvent(
                 eventCore,
                 null,
-                Collections.emptyList(),
                 List.of(
                         stateSignatureTransactionBytes,
                         stateSignatureTransactionBytes,

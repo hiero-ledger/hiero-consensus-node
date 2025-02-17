@@ -16,7 +16,6 @@
 
 package com.swirlds.demo.stress;
 
-import static com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType.APPLICATION_TRANSACTION;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -24,10 +23,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
@@ -192,10 +189,8 @@ class StressTestingToolStateTest {
 
         final var pool = new TransactionPool(1, transactionSize);
 
-        final var eventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, Bytes.wrap(pool.transaction())));
         final var eventCore = mock(EventCore.class);
-        final var gossipEvent = new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
+        final var gossipEvent = new GossipEvent(eventCore, null, List.of(Bytes.wrap(pool.transaction())));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 
@@ -213,8 +208,7 @@ class StressTestingToolStateTest {
 
         final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
         final var eventCore = mock(EventCore.class);
-        final var gossipEvent =
-                new GossipEvent(eventCore, null, Collections.emptyList(), List.of(stateSignatureTransactionBytes));
+        final var gossipEvent = new GossipEvent(eventCore, null, List.of(stateSignatureTransactionBytes));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 
@@ -236,7 +230,6 @@ class StressTestingToolStateTest {
         final var gossipEvent = new GossipEvent(
                 eventCore,
                 null,
-                Collections.emptyList(),
                 List.of(
                         stateSignatureTransactionBytes,
                         stateSignatureTransactionBytes,

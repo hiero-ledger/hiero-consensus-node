@@ -287,7 +287,6 @@ class ISSTestingToolStateTest {
         when(eventCore.parents()).thenReturn(Collections.emptyList());
         final var eventTransaction = mock(EventTransaction.class);
         when(gossipEvent.eventCore()).thenReturn(eventCore);
-        when(gossipEvent.eventTransaction()).thenReturn(List.of(eventTransaction));
 
         final var stateSignatureTransactionBytes =
                 StateSignatureTransaction.PROTOBUF.toBytes(StateSignatureTransaction.DEFAULT);
