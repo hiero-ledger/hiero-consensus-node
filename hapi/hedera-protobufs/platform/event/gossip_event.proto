@@ -29,7 +29,6 @@ package com.hedera.hapi.platform.event;
  * limitations under the License.
  */
 
-import "event/event_transaction.proto";
 import "event/event_core.proto";
 
 option java_package = "com.hedera.hapi.platform.event.legacy";
@@ -40,6 +39,9 @@ option java_multiple_files = true;
  * An event that is sent and received via gossip
  */
 message GossipEvent {
+
+  // The EventTransaction field has been reserved because it is no longer
+  // required to be stored in the GossipEvent.
   reserved 3;
 
   /**

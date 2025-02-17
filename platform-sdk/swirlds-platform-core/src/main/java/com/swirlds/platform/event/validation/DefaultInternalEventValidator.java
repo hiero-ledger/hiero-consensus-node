@@ -182,7 +182,8 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             nullField = "version";
         } else if (eventCore.parents().stream().anyMatch(Objects::isNull)) {
             nullField = "parent";
-        } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
+        } else if (gossipEvent.transactions().isEmpty()
+                || gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
             nullField = "transaction";
         }
         if (nullField != null) {
@@ -200,7 +201,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @return true if the transaction is null, otherwise false
      */
     private static boolean isTransactionNull(@Nullable final Bytes transaction) {
-        return transaction == null;
+        return transaction == null || transaction.length() == 0;
     }
 
     /**

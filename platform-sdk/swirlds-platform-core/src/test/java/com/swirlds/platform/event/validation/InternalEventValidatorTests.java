@@ -141,12 +141,11 @@ class InternalEventValidatorTests {
         assertNull(singleNodeValidator.validateEvent(platformEvent));
         assertEquals(6, exitedIntakePipelineCount.get());
 
-        //        final GossipEvent nullTransaction = GossipEvent.newBuilder()
-        //                .eventCore(wholeEvent.eventCore())
-        //                .signature(wholeEvent.signature())
-        //                .transactions(List.of( null))
-        //                .build();
-        //        when(platformEvent.getGossipEvent()).thenReturn(nullTransaction);
+        final GossipEvent nullTransaction = GossipEvent.newBuilder()
+                .eventCore(wholeEvent.eventCore())
+                .signature(wholeEvent.signature())
+                .build();
+        when(platformEvent.getGossipEvent()).thenReturn(nullTransaction);
 
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
