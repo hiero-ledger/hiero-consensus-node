@@ -19,7 +19,6 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.CREATION;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
@@ -41,6 +40,7 @@ import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.address.Address;
@@ -95,7 +95,7 @@ public class SignedState implements SignedStateInfo {
     /**
      * Is this the last state saved before the freeze period
      */
-    private boolean freezeState;
+    private final boolean freezeState;
 
     /**
      * True if this state has been deleted. Used to prevent the same state from being deleted more than once.
@@ -166,6 +166,10 @@ public class SignedState implements SignedStateInfo {
      * True if this round reached consensus during the replaying of the preconsensus event stream.
      */
     private final boolean pcesRound;
+    /**
+     * The facade to access the platform state
+     */
+    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Instantiate a signed state.
@@ -183,6 +187,7 @@ public class SignedState implements SignedStateInfo {
      *                                 states that have been sent to the state garbage collector.
      * @param pcesRound                true if this round reached consensus during the replaying of the preconsensus
      *                                 event stream
+     * @param platformStateFacade      the facade to access the platform state
      */
     public SignedState(
             @NonNull final Configuration configuration,
@@ -191,7 +196,9 @@ public class SignedState implements SignedStateInfo {
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
-            final boolean pcesRound) {
+            final boolean pcesRound,
+            @NonNull final PlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
         state.reserve();
 
         this.signatureVerifier = requireNonNull(signatureVerifier);
@@ -222,7 +229,7 @@ public class SignedState implements SignedStateInfo {
      */
     @Override
     public long getRound() {
-        return state.getReadablePlatformState().getRound();
+        return platformStateFacade.roundOf(state);
     }
 
     /**
@@ -231,7 +238,7 @@ public class SignedState implements SignedStateInfo {
      * @return true if this is the genesis state
      */
     public boolean isGenesisState() {
-        return state.getReadablePlatformState().getRound() == GENESIS_ROUND;
+        return platformStateFacade.isGenesisStateOf(state);
     }
 
     /**
@@ -272,7 +279,7 @@ public class SignedState implements SignedStateInfo {
         Ideally the roster would be captured in the constructor but due to the mutable underlying state, the roster
         can change from underneath us. Therefore, the roster must be regenerated on each access.
          */
-        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state);
+        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
         return requireNonNull(roster, "Roster stored in signed state is null (this should never happen)");
     }
 
@@ -469,7 +476,7 @@ public class SignedState implements SignedStateInfo {
      * @return the consensus timestamp for this signed state.
      */
     public @NonNull Instant getConsensusTimestamp() {
-        return state.getReadablePlatformState().getConsensusTimestamp();
+        return platformStateFacade.consensusTimestampOf(state);
     }
 
     /**

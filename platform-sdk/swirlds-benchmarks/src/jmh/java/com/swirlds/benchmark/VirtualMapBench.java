@@ -63,7 +63,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 long id = Utils.randomLong(maxKey);
                 BenchmarkKey key = new BenchmarkKey(id);
-                BenchmarkValue value = virtualMap.getForModify(key);
+                BenchmarkValue value = virtualMap.get(key);
                 long val = nextValue();
                 if (value != null) {
                     if ((val & 0xff) == 0) {
@@ -71,6 +71,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                         if (verify) map[(int) id] = 0L;
                     } else {
                         value.update(l -> l + val);
+                        virtualMap.put(key, value);
                         if (verify) map[(int) id] += val;
                     }
                 } else {
@@ -164,16 +165,16 @@ public class VirtualMapBench extends VirtualMapBaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 final long id = Utils.randomLong(maxKey);
                 final BenchmarkKey key = new BenchmarkKey(id);
-                BenchmarkValue value = virtualMap.getForModify(key);
+                BenchmarkValue value = virtualMap.get(key);
                 final long val = nextValue();
                 if (value != null) {
                     value.update(l -> l + val);
                     if (verify) map[(int) id] += val;
                 } else {
                     value = new BenchmarkValue(val);
-                    virtualMap.put(key, value);
                     if (verify) map[(int) id] = val;
                 }
+                virtualMap.put(key, value);
                 expirables.addLast(new Expirable(System.currentTimeMillis() + EXPIRY_DELAY, id));
             }
 

@@ -22,7 +22,7 @@ plugins {
 }
 
 dependencies {
-    api(enforcedPlatform("io.netty:netty-bom:4.1.110.Final"))
+    api(platform("io.netty:netty-bom:4.1.118.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -32,7 +32,7 @@ dependencies {
 
 val autoService = "1.1.1"
 val besu = "24.3.3"
-val bouncycastle = "1.79"
+val bouncycastle = "1.80"
 val dagger = "2.55"
 val eclipseCollections = "11.1.0"
 val grpc = "1.70.0"
@@ -42,7 +42,7 @@ val jackson = "2.18.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.15.2"
-val protobuf = "4.28.2"
+val protobuf = "4.29.3"
 val testContainers = "1.20.4"
 val tuweni = "2.4.2"
 val webcompare = "2.1.7"
@@ -64,7 +64,7 @@ dependencies.constraints {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
     api("com.github.ben-manes.caffeine:caffeine:3.1.8") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.2.13") { because("com.github.dockerjava.api") }
+    api("com.github.docker-java:docker-java-api:3.4.1") { because("com.github.dockerjava.api") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.0") {
         because("com.github.spotbugs.annotations")
     }
@@ -133,7 +133,7 @@ dependencies.constraints {
     api("org.junit-pioneer:junit-pioneer:2.3.0") { because("org.junitpioneer") }
     api("org.mockito:mockito-core:$mockito") { because("org.mockito") }
     api("org.mockito:mockito-junit-jupiter:$mockito") { because("org.mockito.junit.jupiter") }
-    api("org.opentest4j:opentest4j:1.2.0") { because("org.opentest4j") }
+    api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
     api("org.testcontainers:testcontainers:$testContainers") { because("org.testcontainers") }
     api("org.testcontainers:junit-jupiter:$testContainers") {
         because("org.testcontainers.junit.jupiter")
@@ -147,7 +147,7 @@ dependencies.constraints {
     api("uk.org.webcompere:system-stubs-jupiter:$webcompare") {
         because("uk.org.webcompere.systemstubs.jupiter")
     }
-    api("com.google.protobuf:protoc:3.25.4")
+    api("com.google.protobuf:protoc:$protobuf")
     api("io.grpc:protoc-gen-grpc-java:$grpc")
 
     api("com.hedera.cryptography:hedera-cryptography-pairings-api:$hederaCryptography") {

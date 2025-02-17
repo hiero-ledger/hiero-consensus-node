@@ -65,6 +65,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -98,6 +99,9 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
 
     @Mock
     private ConfigProvider configProvider;
+
+    @Mock
+    private Configuration configuration;
 
     private CryptoGetAccountBalanceHandler subject;
 
@@ -210,7 +214,6 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
                 MapReadableKVState.<AccountID, Account>builder(ACCOUNTS).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(state);
         final var store = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        ;
         final AccountID invalidRealmAccountId =
                 AccountID.newBuilder().accountNum(5).realmNum(-1L).build();
 
@@ -250,8 +253,6 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        ;
-
         final var query = createGetAccountBalanceQuery(deleteAccountNum);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableAccountStore.class)).thenReturn(readableStore);

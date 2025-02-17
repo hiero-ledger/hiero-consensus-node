@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_OWNER_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -131,6 +132,7 @@ public class HRCTokenRejectTest {
                 nft.call(HRC904, "rejectTokenNFTs", new long[] {1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L})
                         .with(call -> call.payingWith(sender.name()))
                         .gas(1_000_000L)
-                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED)));
+                        .andAssert(txn -> txn.hasKnownStatuses(
+                                CONTRACT_REVERT_EXECUTED, TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED)));
     }
 }

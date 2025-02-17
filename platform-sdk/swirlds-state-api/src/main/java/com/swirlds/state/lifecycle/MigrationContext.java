@@ -122,7 +122,7 @@ public interface MigrationContext {
      * Returns whether this is a genesis migration.
      */
     default boolean isGenesis() {
-        return previousVersion() == null;
+        return previousVersion() == null || previousVersion() == SemanticVersion.DEFAULT;
     }
 
     /**

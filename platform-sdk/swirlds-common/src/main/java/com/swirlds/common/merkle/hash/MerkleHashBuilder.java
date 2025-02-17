@@ -175,6 +175,13 @@ public class MerkleHashBuilder {
             }
             return true;
         }
+
+        @Override
+        protected void onException(Throwable t) {
+            if (!out.isCompletedAbnormally()) {
+                out.completeExceptionally(t);
+            }
+        }
     }
 
     /**

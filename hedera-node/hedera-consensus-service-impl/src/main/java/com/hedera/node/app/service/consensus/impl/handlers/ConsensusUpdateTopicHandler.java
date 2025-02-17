@@ -403,11 +403,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
     }
 
     private boolean designatesAccountRemoval(AccountID id) {
-        return id.shardNum() == 0
-                && id.realmNum() == 0
-                && id.hasAccountNum()
-                && id.accountNum() == 0
-                && id.alias() == null;
+        return id.hasAccountNum() && id.accountNum() == 0 && id.alias() == null;
     }
 
     private FeeData usageGivenExplicit(

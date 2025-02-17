@@ -86,6 +86,6 @@ public class StateLifecyclesImpl implements StateLifecycles<PlatformMerkleStateR
 
     @Override
     public void onNewRecoveredState(@NonNull final PlatformMerkleStateRoot recoveredStateRoot) {
-        hedera.onNewRecoveredState(recoveredStateRoot);
+        hedera.onNewRecoveredState();
     }
 }

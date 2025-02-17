@@ -22,6 +22,8 @@ import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusH
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -39,6 +41,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.simulatePostUpgradeTransaction;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.given;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -50,6 +53,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.writeToNodeWorkingDirs;
 import static com.hedera.services.bdd.spec.utilops.grouping.GroupingVerbs.getSystemFiles;
@@ -147,9 +151,12 @@ public class SystemFileExportsTest {
                         .serviceEndpoint(endpointsFor(i))
                         .grpcCertificateHash(grpcCertHashes[i])
                         .gossipCaCertificate(derEncoded(gossipCertificates.get().get((long) i)))))),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
-                cryptoCreate("secondUser").via("addressBookExport"));
+                cryptoCreate("secondUser").via("addressBookExport"),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -170,9 +177,12 @@ public class SystemFileExportsTest {
                         .serviceEndpoint(endpointsFor(i))
                         .grpcCertificateHash(grpcCertHashes[i])
                         .gossipCaCertificate(derEncoded(gossipCertificates.get().get((long) i)))))),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
-                cryptoCreate("secondUser").via("addressBookExport"));
+                cryptoCreate("secondUser").via("addressBookExport"),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -228,6 +238,7 @@ public class SystemFileExportsTest {
                         "networkAdmin.upgradeFeeSchedulesFile",
                         feeSchedulesFile ->
                                 writeToNodeWorkingDirs(feeSchedulesJson, "data", "config", feeSchedulesFile)),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
                 // Verify the new fee schedules (which include a subtype for scheduled contract fees) are in effect
@@ -243,7 +254,9 @@ public class SystemFileExportsTest {
                                         .fee(ONE_HBAR))
                         .payingWith("civilian")
                         .via("contractCall"),
-                validateChargedUsdWithin("contractCall", 0.1, 3.0));
+                validateChargedUsdWithin("contractCall", 0.1, 3.0),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -265,6 +278,7 @@ public class SystemFileExportsTest {
                 doWithStartupConfig(
                         "networkAdmin.upgradeThrottlesFile",
                         throttleDefsFile -> writeToNodeWorkingDirs(throttlesJson, "data", "config", throttleDefsFile)),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
                 // Then verify the new throttles are in effect
@@ -275,7 +289,9 @@ public class SystemFileExportsTest {
                         .deferStatusResolution(),
                 mintToken("nft", List.of(ByteString.copyFromUtf8("NO")))
                         .payingWith("civilian")
-                        .hasPrecheck(BUSY));
+                        .hasPrecheck(BUSY),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -299,6 +315,7 @@ public class SystemFileExportsTest {
                         "networkAdmin.upgradePropertyOverridesFile",
                         propOverridesFile ->
                                 writeToNodeWorkingDirs(overrideProperties, "data", "config", propOverridesFile)),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
                 // Then verify the new properties are in effect
@@ -309,7 +326,9 @@ public class SystemFileExportsTest {
                                         ByteString.copyFromUtf8("ONE"),
                                         ByteString.copyFromUtf8("TOO"),
                                         ByteString.copyFromUtf8("MANY")))
-                        .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED));
+                        .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -328,6 +347,7 @@ public class SystemFileExportsTest {
                 doWithStartupConfig(
                         "networkAdmin.upgradePropertyOverridesFile",
                         propOverridesFile -> writeToNodeWorkingDirs("", "data", "config", propOverridesFile)),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
                 // Then verify the previous override properties are cleared
@@ -338,7 +358,9 @@ public class SystemFileExportsTest {
                                 ByteString.copyFromUtf8("ONCE"),
                                 ByteString.copyFromUtf8("AGAIN"),
                                 ByteString.copyFromUtf8("OK"))),
-                getFileContents(APP_PROPERTIES).hasContents(ignore -> new byte[0]));
+                getFileContents(APP_PROPERTIES).hasContents(ignore -> new byte[0]),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -362,6 +384,7 @@ public class SystemFileExportsTest {
                         "networkAdmin.upgradePermissionOverridesFile",
                         permissionOverridesFile ->
                                 writeToNodeWorkingDirs(overridePermissions, "data", "config", permissionOverridesFile)),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
                 // Then verify the new permissions are in effect
@@ -374,7 +397,9 @@ public class SystemFileExportsTest {
                                         ByteString.copyFromUtf8("TO"),
                                         ByteString.copyFromUtf8("BE")))
                         .payingWith("civilian")
-                        .hasKnownStatus(UNAUTHORIZED));
+                        .hasKnownStatus(UNAUTHORIZED),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -404,6 +429,7 @@ public class SystemFileExportsTest {
                                 "data",
                                 "config",
                                 nodeAdminKeysFile))),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
                 // Then verify the new admin keys are in effect
@@ -421,7 +447,9 @@ public class SystemFileExportsTest {
                 nodeUpdate("3")
                         .payingWith(GENESIS)
                         .signedBy(GENESIS, "node3AdminKey")
-                        .description("C"));
+                        .description("C"),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -475,8 +503,8 @@ public class SystemFileExportsTest {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade txn found");
-            final var targetId =
-                    new FileID(0, 0, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+            final var targetId = new FileID(
+                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
                     .filter(item -> item.function() == FileUpdate)
                     .filter(item ->
@@ -507,8 +535,8 @@ public class SystemFileExportsTest {
                     .findFirst()
                     .orElseThrow();
             final var synthOp = updateItem.body().getFileUpdate();
-            final var nodeDetailsId =
-                    new FileID(0, 0, Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
+            final var nodeDetailsId = new FileID(
+                    shard, realm, Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
             assertEquals(nodeDetailsId, toPbj(synthOp.getFileID()));
             try {
                 final var updatedAddressBook = NodeAddressBook.PROTOBUF.parse(
@@ -550,8 +578,8 @@ public class SystemFileExportsTest {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade txn found");
-            final var targetId =
-                    new FileID(0, 0, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+            final var targetId = new FileID(
+                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
                     .filter(item -> item.function() == FileUpdate)
                     .filter(item ->
@@ -560,8 +588,8 @@ public class SystemFileExportsTest {
                     .orElse(null);
             assertNotNull(updateItem, "No update for " + fileNumProperty + " found in post-upgrade txn");
             final var synthOp = updateItem.body().getFileUpdate();
-            final var addressBookId =
-                    new FileID(0, 0, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+            final var addressBookId = new FileID(
+                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             assertEquals(addressBookId, toPbj(synthOp.getFileID()));
             try {
                 final var updatedAddressBook = NodeAddressBook.PROTOBUF.parse(
@@ -642,7 +670,7 @@ public class SystemFileExportsTest {
         assertEquals(Map.of(SUCCESS, 1), histogram.get(NodeStakeUpdate));
         final var fileItem = items.entries().stream()
                 .filter(item -> item.function() == FileCreate)
-                .filter(item -> item.createdFileId().equals(new FileID(0, 0, fileNumb)))
+                .filter(item -> item.createdFileId().equals(new FileID(shard, realm, fileNumb)))
                 .findFirst()
                 .orElse(null);
 

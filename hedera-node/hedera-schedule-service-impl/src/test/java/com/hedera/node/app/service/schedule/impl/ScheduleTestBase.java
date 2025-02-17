@@ -86,6 +86,8 @@ import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
+import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -125,6 +127,8 @@ public class ScheduleTestBase {
     // These two *should* be constants in token service, but are not, so we have constants here.
     private static final String ACCOUNT_STATE_KEY = "ACCOUNTS";
     private static final String ACCOUNT_ALIAS_STATE_KEY = "ALIASES";
+    protected static final int SHARD = 5;
+    protected static final long REALM = 10L;
     // spotless mangles this section randomly, due to incorrect wrapping rules
     protected static final ScheduleID.Builder ALL_SCHEDULES_ID =
             ScheduleID.newBuilder().shardNum(12).realmNum(6);
@@ -174,6 +178,7 @@ public class ScheduleTestBase {
     protected final Timestamp calculatedExpirationTime = Timestamp.newBuilder().seconds(2281580449L).nanos(0).build();
     protected final Timestamp modifiedResolutionTime = new Timestamp(18601220L, 18030109);
     protected final Timestamp modifiedStartTime = new Timestamp(18601220L, 18030109);
+    protected final EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
     // spotless:on
 
     @Mock(strictness = Mock.Strictness.LENIENT)
@@ -224,7 +229,7 @@ public class ScheduleTestBase {
     protected List<Schedule> listOfScheduledOptions;
 
     protected void setUpBase() throws PreCheckException, InvalidKeyException {
-        testConfig = HederaTestConfigBuilder.create().getOrCreateConfig();
+        testConfig = HederaTestConfigBuilder.createConfig();
         scheduleConfig = testConfig.getConfigData(SchedulingConfig.class);
         scheduled = createSampleScheduled();
         originalCreateTransaction = originalCreateTransaction(scheduled, scheduler, adminKey);

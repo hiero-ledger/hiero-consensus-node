@@ -22,15 +22,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +53,7 @@ public class LatestCompleteStateNotifierTests {
         final CountDownLatch listenerLatch = new CountDownLatch(1);
         final AtomicInteger numInvocations = new AtomicInteger();
 
+        AtomicReference<Throwable> notificationProcessingErrorRef = new AtomicReference<>();
         notificationEngine.register(NewSignedStateListener.class, n -> {
             numInvocations.incrementAndGet();
             try {
@@ -57,9 +62,11 @@ public class LatestCompleteStateNotifierTests {
                         n.getStateRoot().isDestroyed(),
                         "State should not be destroyed until the callback has completed");
                 assertEquals(signedState.getState(), n.getStateRoot(), "Unexpected State");
-                listenerLatch.countDown();
-            } catch (InterruptedException e) {
+            } catch (Throwable e) {
+                notificationProcessingErrorRef.set(e);
                 throw new RuntimeException(e);
+            } finally {
+                listenerLatch.countDown();
             }
         });
 
@@ -78,7 +85,13 @@ public class LatestCompleteStateNotifierTests {
         senderLatch.countDown();
 
         // Wait for the notification callback to complete
-        assertThat(listenerLatch.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(listenerLatch.await(5, TimeUnit.SECONDS)).isTrue();
+        assertNull(notificationProcessingErrorRef.get(), () -> {
+            StringWriter out = new StringWriter();
+            PrintWriter writer = new PrintWriter(out);
+            notificationProcessingErrorRef.get().printStackTrace(writer);
+            return "Unexpected error: " + out;
+        });
 
         // The notification listener has completed, but the post-listener callback may not have yet
         assertEventuallyEquals(

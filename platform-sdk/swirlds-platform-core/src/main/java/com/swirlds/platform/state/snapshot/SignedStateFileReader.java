@@ -26,6 +26,7 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -62,7 +63,10 @@ public final class SignedStateFileReader {
      * @throws IOException if there is any problems with reading from a file
      */
     public static @NonNull DeserializedSignedState readStateFile(
-            @NonNull final Configuration configuration, @NonNull final Path stateFile) throws IOException {
+            @NonNull final Configuration configuration,
+            @NonNull final Path stateFile,
+            @NonNull final PlatformStateFacade stateFacade)
+            throws IOException {
 
         Objects.requireNonNull(configuration);
         Objects.requireNonNull(stateFile);
@@ -86,7 +90,8 @@ public final class SignedStateFileReader {
                 "SignedStateFileReader.readStateFile()",
                 false,
                 false,
-                false);
+                false,
+                stateFacade);
 
         registerServiceStates(newSignedState);
 
@@ -147,7 +152,7 @@ public final class SignedStateFileReader {
      * @param signedState a signed state to register schemas in
      */
     public static void registerServiceStates(@NonNull final SignedState signedState) {
-        registerServiceStates((MerkleStateRoot) signedState.getState());
+        registerServiceStates(signedState.getState());
     }
 
     /**

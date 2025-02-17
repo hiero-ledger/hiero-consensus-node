@@ -849,31 +849,7 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
     }
 
     /**
-     * Gets the value associated with the given key such that any changes to the
-     * value will be used in calculating hashes and eventually saved to disk. If the
-     * value is actually never modified, some work will be wasted computing hashes
-     * and saving data that has not actually changed.
-     *
-     * @param key
-     * 		The key. This must not be null.
-     * @return The value. The value may be null.
-     */
-    public V getForModify(final K key) {
-        throwIfImmutable();
-        requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-        assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
-        try {
-            final VirtualLeafRecord<K, V> rec = records.findLeafRecord(key, true);
-            statistics.countUpdatedEntities();
-            return rec == null ? null : rec.getValue();
-        } finally {
-            assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
-        }
-    }
-
-    /**
-     * Gets the value associated with the given key. The returned value *WILL BE* immutable.
-     * To modify the value, use call {@link #getForModify(VirtualKey)}.
+     * Gets the value associated with the given key.
      *
      * @param key
      * 		The key. This must not be null.
@@ -917,39 +893,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
             final VirtualLeafRecord<K, V> leaf = new VirtualLeafRecord<>(path, key, value);
             cache.putLeaf(leaf);
             statistics.countUpdatedEntities();
-        } finally {
-            assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
-        }
-    }
-
-    /**
-     * Replace the given key with the given value. Only has an effect if the key already exists
-     * in the map. Returns the value on success. Throws an IllegalStateException if the key doesn't
-     * exist in the map.
-     *
-     * @param key
-     * 		The key. Cannot be null.
-     * @param value
-     * 		The value. May be null.
-     * @return the previous value associated with {@code key}, or {@code null} if there was no mapping for {@code key}.
-     * 		(A {@code null} return can also indicate that the map previously associated {@code null} with {@code key}.)
-     * @throws IllegalStateException
-     * 		if an attempt is made to replace a value that didn't already exist
-     */
-    public V replace(final K key, final V value) {
-        throwIfImmutable();
-        requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-        assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
-        try {
-            // Attempt to replace the existing leaf
-            final boolean success = replaceImpl(key, value);
-            statistics.countUpdatedEntities();
-            if (success) {
-                return value;
-            }
-
-            // We failed to find an existing leaf (dirty or clean). So throw an ISE.
-            throw new IllegalStateException("Can not replace value that is not in the map");
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
         }
@@ -1814,29 +1757,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
 
         final VirtualLeafRecord<K, V> newLeaf = new VirtualLeafRecord<>(leafPath, key, value);
         cache.putLeaf(newLeaf);
-    }
-
-    /**
-     * An internal helper method that replaces the value for the given key and returns true,
-     * or returns false if the key was not found in the map.
-     *
-     * @param key
-     * 		The key
-     * @param value
-     * 		The value
-     * @return true if the key was found in the map, false otherwise.
-     */
-    private boolean replaceImpl(K key, V value) {
-        throwIfImmutable();
-        assert !isHashed() : "Cannot modify already hashed node";
-
-        final VirtualLeafRecord<K, V> rec = records.findLeafRecord(key, true);
-        if (rec != null) {
-            rec.setValue(value);
-            return true;
-        }
-
-        return false;
     }
 
     @Override

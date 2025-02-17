@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -214,7 +214,7 @@ public class VirtualMerkleTransactionHandler {
             smartContractVirtualMap.put(smartContractMapKey, new SmartContractMapValue(pttRandom));
         }
 
-        smartContractVirtualMap.replace(
+        smartContractVirtualMap.put(
                 contractKey, new SmartContractMapValue(totalKeyValuePairs + methodExecution.getAdds()));
     }
 
@@ -261,7 +261,7 @@ public class VirtualMerkleTransactionHandler {
                     updateAccount.getRequireSignature(),
                     currentValue.getUid());
 
-            accountVirtualMap.replace(accountVirtualMapKey, newValue);
+            accountVirtualMap.put(accountVirtualMapKey, newValue);
 
             value = new MapValueData(
                     newValue.getBalance(),

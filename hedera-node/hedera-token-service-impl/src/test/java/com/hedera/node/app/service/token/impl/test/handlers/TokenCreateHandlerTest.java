@@ -128,7 +128,7 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     private PureChecksContext pureChecksContext;
 
     private static final TokenID newTokenId =
-            TokenID.newBuilder().tokenNum(3000L).build();
+            TokenID.newBuilder().shardNum(SHARD).realmNum(REALM).tokenNum(3000L).build();
     private final AccountID autoRenewAccountId = ownerId;
 
     @BeforeEach
@@ -139,7 +139,7 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         tokenFieldsValidator = new TokenAttributesValidator();
         customFeesValidator = new CustomFeesValidator();
         tokenCreateValidator = new TokenCreateValidator(tokenFieldsValidator);
-        subject = new TokenCreateHandler(customFeesValidator, tokenCreateValidator);
+        subject = new TokenCreateHandler(idFactory, customFeesValidator, tokenCreateValidator);
         givenStoresAndConfig(handleContext);
     }
 

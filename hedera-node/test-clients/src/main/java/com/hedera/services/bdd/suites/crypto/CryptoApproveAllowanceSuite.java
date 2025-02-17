@@ -227,8 +227,14 @@ public class CryptoApproveAllowanceSuite {
                                             .logs(inOrder(logWith()
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getContractNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getContractNum())))
                                                     .longValue(5)))))
                             .andAllChildRecords();
 
@@ -239,8 +245,14 @@ public class CryptoApproveAllowanceSuite {
                                             .logs(inOrder(logWith()
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getContractNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getContractNum())))
                                                     .longValue(5)))))
                             .andAllChildRecords();
 

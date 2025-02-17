@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -254,7 +254,11 @@ public class UtilStateChange {
                 assertEquals(evmAddresses.get(txnKind), evmAddress);
                 allRunFor(
                         spec,
-                        getAccountInfo("0.0." + creationEntry.createdAccountId().accountNumOrThrow())
+                        getAccountInfo(String.format(
+                                        "%d.%d.%d",
+                                        creationEntry.createdAccountId().shardNum(),
+                                        creationEntry.createdAccountId().realmNum(),
+                                        creationEntry.createdAccountId().accountNum()))
                                 .has(accountWith().evmAddress(ByteString.copyFrom(explicitFromHeadlong(evmAddress)))));
             }
         };

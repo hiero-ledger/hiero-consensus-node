@@ -85,17 +85,6 @@ public class WritableFileStore extends ReadableFileStoreImpl {
     }
 
     /**
-     * Returns the {@link File} with the given number using {@link WritableKVState}. If no such file
-     * exists, returns {@code Optional.empty()}
-     *
-     * @param fileId - the id of the file to be retrieved.
-     */
-    public @NonNull Optional<File> getForModify(final FileID fileId) {
-        final var file = filesState.getForModify(fileId);
-        return Optional.ofNullable(file);
-    }
-
-    /**
      * Returns the set of files modified in existing state.
      *
      * @return the set of files modified in existing state

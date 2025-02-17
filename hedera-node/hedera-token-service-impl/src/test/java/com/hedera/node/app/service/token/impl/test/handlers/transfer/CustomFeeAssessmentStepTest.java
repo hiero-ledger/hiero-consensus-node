@@ -44,7 +44,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.ReplaceAliasesWi
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +63,7 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         refreshWritableStores();
 
         givenStoresAndConfig(handleContext);
-        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         givenTxn();
         given(handleContext.body()).willReturn(txn);
         given(stack.getBaseBuilder(CryptoTransferStreamBuilder.class)).willReturn(xferRecordBuilder);

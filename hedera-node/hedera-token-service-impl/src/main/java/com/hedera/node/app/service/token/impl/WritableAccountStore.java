@@ -155,21 +155,6 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     }
 
     /**
-     * Returns the {@link Account} with the given {@link AccountID}.It uses the getForModify method
-     * to get the account. If no such account exists, returns {@code null}
-     *
-     * @param id - the number of the account to be retrieved.
-     * @return the account with the given account number, or null if no such account exists
-     */
-    @Nullable
-    public Account getForModify(@NonNull final AccountID id) {
-        requireNonNull(id);
-        // Get the account number based on the account identifier. It may be null.
-        final var accountId = id.account().kind() == ACCOUNT_NUM ? id : null;
-        return accountId == null ? null : accountState().getForModify(accountId);
-    }
-
-    /**
      * Gets the original value associated with the given accountId before any modifications were made to
      * it. The returned value will be {@code null} if the accountId does not exist.
      *

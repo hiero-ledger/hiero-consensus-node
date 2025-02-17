@@ -232,6 +232,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         final long realm = 10;
         txn = new CryptoCreateBuilder().withStakedAccountId(3).build();
         given(handleContext.body()).willReturn(txn);
+        given(pureChecksContext.body()).willReturn(txn);
 
         given(handleContext.consensusNow()).willReturn(consensusInstant);
         given(entityNumGenerator.newEntityNum()).willReturn(1000L);

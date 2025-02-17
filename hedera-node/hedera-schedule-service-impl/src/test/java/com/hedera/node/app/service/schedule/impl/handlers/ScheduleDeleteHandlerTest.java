@@ -19,6 +19,7 @@ package com.hedera.node.app.service.schedule.impl.handlers;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.BDDAssertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -51,7 +52,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     @BeforeEach
     void setUp() throws PreCheckException, InvalidKeyException {
         setUpBase();
-        subject = new ScheduleDeleteHandler();
+        subject = new ScheduleDeleteHandler(mock(ScheduleFeeCharging.class));
         reset(accountById);
         accountsMapById.put(scheduleDeleter, payerAccount);
     }

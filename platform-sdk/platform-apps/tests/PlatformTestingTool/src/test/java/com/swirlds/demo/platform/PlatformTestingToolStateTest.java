@@ -134,7 +134,7 @@ class PlatformTestingToolStateTest {
         final Randotron randotron = Randotron.create();
 
         final KeysAndCerts keysAndCerts =
-                KeysAndCerts.generate("a-name", EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+                KeysAndCerts.generate(NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();

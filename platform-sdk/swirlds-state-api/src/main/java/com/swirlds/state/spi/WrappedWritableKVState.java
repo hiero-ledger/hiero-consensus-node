@@ -50,12 +50,6 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
 
     /** {@inheritDoc} */
     @Override
-    protected V getForModifyFromDataSource(@NonNull K key) {
-        return delegate.getForModify(key);
-    }
-
-    /** {@inheritDoc} */
-    @Override
     protected void putIntoDataSource(@NonNull K key, @NonNull V value) {
         delegate.put(key, value);
     }

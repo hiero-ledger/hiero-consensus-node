@@ -61,19 +61,6 @@ class WritableTokenStoreTest extends TokenHandlerTestBase {
     }
 
     @Test
-    void getForModifyReturnsImmutableToken() {
-        token = createToken();
-
-        writableTokenStore.put(token);
-
-        final var maybeReadToken = writableTokenStore.getForModify(tokenId);
-
-        assertTrue(maybeReadToken.isPresent());
-        final var readToken = maybeReadToken.get();
-        assertEquals(token, readToken);
-    }
-
-    @Test
     void putsTokenChangesToStateInModifications() {
         token = createToken();
         assertFalse(writableTokenState.contains(tokenId));

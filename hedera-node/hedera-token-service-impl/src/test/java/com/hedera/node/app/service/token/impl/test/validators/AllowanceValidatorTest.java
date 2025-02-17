@@ -117,7 +117,8 @@ class AllowanceValidatorTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsIfEffectiveOwnerDoesntExist() {
-        final var missingOwner = AccountID.newBuilder().accountNum(1000).build();
+        final var missingOwner =
+                AccountID.newBuilder().shardNum(1).realmNum(2).accountNum(1000).build();
         assertThatThrownBy(() -> getEffectiveOwner(missingOwner, account, readableAccountStore, expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));

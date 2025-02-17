@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -219,26 +219,6 @@ public class StateLogger {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug(
                     "      GET on map {} key {} value {}",
-                    label,
-                    formatKey(key),
-                    value == null ? "null" : value.toString());
-        }
-    }
-
-    /**
-     * Log the get of an entry from a map for modification.
-     *
-     * @param label The label of the map
-     * @param key The key fetched to the map
-     * @param value The value fetched to the map
-     * @param <K> The type of the key
-     * @param <V> The type of the value
-     */
-    public static <K, V> void logMapGetForModify(
-            @NonNull final String label, @NonNull final K key, @Nullable final V value) {
-        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
-            logger.debug(
-                    "      GET_FOR_MODIFY on map {} key {} value {}",
                     label,
                     formatKey(key),
                     value == null ? "null" : value.toString());

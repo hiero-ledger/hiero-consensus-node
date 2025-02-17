@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.takeBalanceSnapshots;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTransactionFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE;
@@ -102,7 +103,7 @@ public class CryptoRecordsSanityCheckSuite {
                 cryptoCreate("test").via("txn"),
                 validateTransferListForBalances(
                         "txn", List.of("test", FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)),
-                validateRecordTransactionFees("txn")));
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -115,7 +116,7 @@ public class CryptoRecordsSanityCheckSuite {
                         "txn",
                         List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test"),
                         Set.of("test")),
-                validateRecordTransactionFees("txn")));
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -126,7 +127,7 @@ public class CryptoRecordsSanityCheckSuite {
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "a", 1_234L)).via("txn"),
                 validateTransferListForBalances(
                         "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a")),
-                validateRecordTransactionFees("txn")));
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -138,7 +139,7 @@ public class CryptoRecordsSanityCheckSuite {
                 cryptoUpdate("test").key(NEW_KEY).via("txn").fee(500_000L).payingWith("test"),
                 validateTransferListForBalances(
                         "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test")),
-                validateRecordTransactionFees("txn")));
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)

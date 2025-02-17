@@ -1,4 +1,19 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2025 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
@@ -90,6 +105,10 @@ import org.junit.jupiter.api.TestMethodOrder;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class DabEnabledUpgradeTest implements LifecycleTest {
+    // To test BirthRoundStateMigration, use,
+    //    Map.of("event.useBirthRoundAncientThreshold", "true")
+    private static final Map<String, String> ENV_OVERRIDES = Map.of();
+
     @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 0)
     static SpecAccount NODE0_STAKER;
 
@@ -131,7 +150,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L, 3L)),
-                upgradeToNextConfigVersion(FakeNmt.removeNode(byNodeId(1))),
+                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(1))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER, NODE3_STAKER).andAssertStakingRewardCount(3),
                 touchBalanceOf(NODE1_STAKER).andAssertStakingRewardCount(0));
@@ -156,7 +175,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L)),
-                upgradeToNextConfigVersion(FakeNmt.removeNode(byNodeId(3))),
+                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(3))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER).andAssertStakingRewardCount(2),
                 touchBalanceOf(NODE3_STAKER).andAssertStakingRewardCount(0));
@@ -178,7 +197,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 // node4 was not active before this the upgrade, so it could not have written a config.txt
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
-                upgradeToNextConfigVersion(FakeNmt.addNode(4L)));
+                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(4L)));
     }
 
     @Nested
@@ -243,7 +262,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeDelete("2"),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
-                    upgradeToNextConfigVersion(FakeNmt.removeNode(NodeSelector.byNodeId(4L)), FakeNmt.addNode(5L)),
+                    upgradeToNextConfigVersion(
+                            ENV_OVERRIDES, FakeNmt.removeNode(NodeSelector.byNodeId(4L)), FakeNmt.addNode(5L)),
                     // Validate that nodeId2 and nodeId5 have their new fee collector account IDs,
                     // since those were updated before the prepare upgrade
                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L))

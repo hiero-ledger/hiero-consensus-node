@@ -26,7 +26,6 @@ import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * Provides write methods for modifying underlying data storage mechanisms for
@@ -88,20 +87,6 @@ public class WritableAirdropStore extends ReadableAirdropStoreImpl {
     public void remove(@NonNull final PendingAirdropId airdropId) {
         airdropState.remove(requireNonNull(airdropId));
         entityCounters.decrementEntityTypeCounter(EntityType.AIRDROP);
-    }
-
-    /**
-     * Returns the {@link AccountPendingAirdrop} with the given airdrop id. If the airdrop contains only NFT return {@code null}.
-     * If no such airdrop exists, returns {@code null}
-     *
-     * @param airdropId - the id of the airdrop, which value should be retrieved
-     * @return the fungible airdrop value, or {@code null} if no such
-     * airdrop exists
-     */
-    @Nullable
-    public AccountPendingAirdrop getForModify(@NonNull final PendingAirdropId airdropId) {
-        requireNonNull(airdropId);
-        return airdropState.getForModify(airdropId);
     }
 
     public boolean contains(final PendingAirdropId pendingId) {

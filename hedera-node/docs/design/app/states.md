@@ -77,7 +77,7 @@ or care about it at all. The merkle tree is an implementation detail of the appl
 service had to know about all these different states and which state it should use for which code path, the code would
 become quite complex and prone to mistakes! Instead, we hold the Hedera application responsible for understanding this
 complexity. Each service needs only a simple key-value store for storing data. So we created the `ReadableKVState` and
-`WritableKVState` classes as simple key-value store APIs which services can work with, and let the Hedera application 
+`WritableKVState` classes as simple key-value store APIs which services can work with, and let the Hedera application
 implement these interfaces over the right version of the merkle tree for the right calls. From the service's
 perspective, it doesn't know anything about any of these `Round`s or `Event`s or `PlatformTransaction`s or fast copies
 or mutable and immutable states. It is simply given, by the application, the `ReadableKVStates` to use for reading or the
@@ -96,9 +96,9 @@ In fact, the state of a service **MUST NOT** be exposed as public API by any ser
 is strictly an implementation detail of the service.
 
 From the `ReadableKVState` a service implementation can:
- - `get` values from the k/v store
- - check whether a given key is contained by the state
- - get an iterator over all keys in the state
+- `get` values from the k/v store
+- check whether a given key is contained by the state
+- get an iterator over all keys in the state
 
 This last capability, iterating over all keys in the state, is only supported for in-memory `ReadableKVState`s, and
 should generally be avoided. It should be removed in a future release. As the number of items in the map increases,
@@ -106,11 +106,9 @@ the time it takes to iterate also increases. While we require this functionality
 in a future revision we will eliminate this requirement since it does not scale well to billions of records.
 
 From the `WritableKVState` a service implementation can perform all tasks on a `ReadableKVState`, plus:
- - `getForModify` to read the value for the purpose of subsequently modifying it (there is an optimized code
-   path for this case)
- - `put` a new value
- - `remove` a value
- - get keys of all modified values with `modifiedKeys`
+- `put` a new value
+- `remove` a value
+- get keys of all modified values with `modifiedKeys`
 
 The `hedera-app-spi` module also defines a set of useful base classes for implementations of `ReadableKVState`
 and `WritableKVState`, and several useful concrete implementations. The `ReadableKVStateBase` keeps track of all keys
@@ -120,7 +118,7 @@ not most) values are stored on disk with a `VirtualMap`, performance is positive
 locally in the state.
 
 Each service implementation has one or more states associated with it. For example, the token service may have several
-k/v maps, such as "ACCOUNTS" and "TOKENS" and "NFTS". The `ReadableStates` and `WritableKVStates` objects act as a 
+k/v maps, such as "ACCOUNTS" and "TOKENS" and "NFTS". The `ReadableStates` and `WritableKVStates` objects act as a
 map from _state key_ to `ReadableKVState` or `WritableKVState`. The state key is simply a string, namespaced to the
 service module (so two service implementations could use the same state key and not conflict).
 
@@ -236,7 +234,7 @@ public class SchemaV1 extends Schema {
     public abstract void migrate(
             @NonNull ReadableStates previousStates,
             @NonNull WritableStates newStates) {
-        
+
        final var accounts = newStates.get("ACCOUNTS");
        accounts.put(new AccountID("0.0.1"), new Account(...));
        accounts.put(new AccountID("0.0.2"), new Account(...));
@@ -272,9 +270,9 @@ public class SchemaV2 extends Schema {
         final var oldAccounts = previousStates.get("ACCOUNTS");
         final var accounts = newStates.get("ACCOUNTS");
         for (final var accountID : oldAccounts.keys().toIterable()) {
-           accounts.put(accountID, oldAccounts.get(accountID)); 
+           accounts.put(accountID, oldAccounts.get(accountID));
         }
-        
+
         accounts.put(new AccountID("0.0.800"), new Account(...));
         accounts.put(new AccountID("0.0.801"), new Account(...));
         accounts.put(new AccountID("0.0.802"), new Account(...));
@@ -289,7 +287,7 @@ public class MyService implements Service {
    public MyService(@NonNull final SchemaRegistry registry) {
        register.register(new SchemaV1());
        register.register(new SchemaV2());
-   } 
+   }
 }
 ```
 

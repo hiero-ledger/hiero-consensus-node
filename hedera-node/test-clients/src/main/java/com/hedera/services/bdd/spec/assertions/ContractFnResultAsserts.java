@@ -16,6 +16,7 @@
 
 package com.hedera.services.bdd.spec.assertions;
 
+import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_NONE;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -208,15 +209,23 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
         return this;
     }
 
+    public ContractFnResultAsserts resultViaFunctionName(
+            final String functionName,
+            final String contractName,
+            final Function<HapiSpec, Function<Object[], Optional<Throwable>>> provider) {
+        return resultViaFunctionName(Optional.empty(), functionName, contractName, provider);
+    }
+
     /*  Note:
      This method utilizes algorithmic extraction of a function ABI by the name of the function and the contract
      and should replace the "resultThruAbi" method, which depends on function ABI, passed as String literal.
     */
     public ContractFnResultAsserts resultViaFunctionName(
+            final Optional<String> variant,
             final String functionName,
             final String contractName,
             final Function<HapiSpec, Function<Object[], Optional<Throwable>>> provider) {
-        final var abi = Utils.getABIFor(FUNCTION, functionName, contractName);
+        final var abi = Utils.getABIFor(variant.orElse(VARIANT_NONE), FUNCTION, functionName, contractName);
         registerProvider((spec, o) -> {
             Object[] actualObjs = viaAbi(
                     abi, ((ContractFunctionResult) o).getContractCallResult().toByteArray());

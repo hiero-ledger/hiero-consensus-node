@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -204,8 +204,14 @@ public class ApproveAllowanceSuite {
                                                     .contract(idOfToken)
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(APPROVE_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getContractNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getContractNum())))
                                                     .longValue(10)))))
                             .andAllChildRecords()
                             .logged();
@@ -353,8 +359,14 @@ public class ApproveAllowanceSuite {
                                                     .contract(idOfToken)
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(APPROVE_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getAccountNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .longValue(10)))))
                             .andAllChildRecords();
                     allRunFor(spec, txnRecord);
@@ -559,8 +571,14 @@ public class ApproveAllowanceSuite {
                                                     .contract(idOfToken)
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(APPROVE_FOR_ALL_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getAccountNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .booleanValue(true)))))
                             .andAllChildRecords()
                             .logged();

@@ -18,14 +18,13 @@ package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.adjustHbarFees;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.adjustHtsFees;
-import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.asFixedFee;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFeeExemptions.isPayerExempt;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -89,48 +88,30 @@ public class CustomFixedFeeAssessor {
     }
 
     /**
-     * Converts the transfer body to a fixed fee.
+     * Set Transactions custom fees as assessed.
+     * <p>
+     * Note: Transaction custom fees can be only fixed fees. Any transaction that dispatch
+     * crypto transfer to assess custom fees should provide the toplevel fees in the handle metadata
      *
-     * @param body simple transfer body representing the custom fixed fee
+     * @param fixedCustomFee simple transfer body representing the custom fixed fee
      * @param result assessment result
      */
-    public void convertTransferToFixedFee(final CryptoTransferTransactionBody body, final AssessmentResult result) {
-        // check for hbar transfers
-        if (body.hasTransfers() && !body.transfers().accountAmounts().isEmpty()) {
-            // validate if the transfer body is convertable to a fixed fee
-            if (body.transfers().accountAmounts().size() != 2) {
-                throw new IllegalArgumentException("FixedFee can have only one sender and one receiver");
-            }
-            AccountID sender = AccountID.DEFAULT;
-            CustomFee fixedFee = CustomFee.DEFAULT;
-            for (final var amount : body.transfers().accountAmounts()) {
-                if (amount.amount() < 0) {
-                    sender = amount.accountID();
-                }
-                if (amount.amount() > 0) {
-                    fixedFee = asFixedFee(amount.amount(), null, amount.accountID(), true);
-                }
-            }
-            assessHbarFees(sender, fixedFee, result, false);
-        } else {
-            // validate if the transfer body is convertable to a fixed fee
-            if (body.tokenTransfers().size() != 1) {
-                throw new IllegalArgumentException("FixedFee can have only one sender and one receiver");
-            }
-            // check for token transfers
-            for (final var tokenTransferList : body.tokenTransfers()) {
-                final var tokenId = tokenTransferList.tokenOrThrow();
-                var senderId = AccountID.DEFAULT;
-                var fixedFee = CustomFee.DEFAULT;
-                for (final var transfer : tokenTransferList.transfers()) {
-                    if (transfer.amount() < 0) {
-                        senderId = transfer.accountIDOrThrow();
-                    }
-                    if (transfer.amount() > 0) {
-                        fixedFee = asFixedFee(transfer.amount(), tokenId, transfer.accountID(), false);
-                    }
-                }
-                assessHTSFees(senderId, Token.newBuilder().tokenId(tokenId).build(), fixedFee, result, false);
+    public void setTransactionFeesAsAssessed(
+            final AccountID payer, final FixedCustomFee fixedCustomFee, final AssessmentResult result) {
+        if (fixedCustomFee.hasFixedFee() && fixedCustomFee.hasFeeCollectorAccountId()) {
+            final var fixedFee = fixedCustomFee.fixedFee();
+            final var customFee = CustomFee.newBuilder()
+                    .feeCollectorAccountId(fixedCustomFee.feeCollectorAccountId())
+                    .fixedFee(fixedFee)
+                    .build();
+
+            if (fixedFee.hasDenominatingTokenId()) {
+                final var token = Token.newBuilder()
+                        .tokenId(fixedFee.denominatingTokenId())
+                        .build();
+                assessHTSFees(payer, token, customFee, result, false);
+            } else {
+                assessHbarFees(payer, customFee, result, false);
             }
         }
     }

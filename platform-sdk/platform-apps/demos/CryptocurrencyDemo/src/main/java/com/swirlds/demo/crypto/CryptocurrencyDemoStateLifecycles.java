@@ -17,6 +17,7 @@
 package com.swirlds.demo.crypto;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
@@ -33,11 +34,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This class handles the lifecycle events for the {@link CryptocurrencyDemoState}.
  */
 public class CryptocurrencyDemoStateLifecycles implements StateLifecycles<CryptocurrencyDemoState> {
+
+    private static final Logger logger = LogManager.getLogger(CryptocurrencyDemoStateLifecycles.class);
 
     @Override
     public void onStateInitialized(
@@ -52,12 +57,21 @@ public class CryptocurrencyDemoStateLifecycles implements StateLifecycles<Crypto
 
     @Override
     public void onHandleConsensusRound(
-            @NonNull Round round,
-            @NonNull CryptocurrencyDemoState state,
-            @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
+            @NonNull final Round round,
+            @NonNull final CryptocurrencyDemoState state,
+            @NonNull
+                    final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
+                            stateSignatureTransactionCallback) {
         state.throwIfImmutable();
-        round.forEachEventTransaction(
-                (event, transaction) -> handleTransaction(event.getCreatorId(), transaction, state));
+        round.forEachEventTransaction((event, transaction) -> {
+            if (transaction.isSystem()) {
+                return;
+            } else if (areTransactionBytesSystemOnes(transaction)) {
+                consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
+            }
+
+            handleTransaction(event.getCreatorId(), transaction, state);
+        });
     }
 
     /**
@@ -86,9 +100,7 @@ public class CryptocurrencyDemoStateLifecycles implements StateLifecycles<Crypto
             @NonNull final CryptocurrencyDemoState state) {
         Objects.requireNonNull(id, "id must not be null");
         Objects.requireNonNull(transaction, "transaction must not be null");
-        if (transaction.isSystem()) {
-            return;
-        }
+
         final Bytes contents = transaction.getApplicationTransaction();
         if (contents.length() < 3) {
             return;
@@ -113,7 +125,12 @@ public class CryptocurrencyDemoStateLifecycles implements StateLifecycles<Crypto
             @NonNull Event event,
             @NonNull CryptocurrencyDemoState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-        // no-op
+
+        event.forEachTransaction(t -> {
+            if (areTransactionBytesSystemOnes(t)) {
+                consumeSystemTransaction(t, event, stateSignatureTransactionCallback);
+            }
+        });
     }
 
     @Override
@@ -133,5 +150,30 @@ public class CryptocurrencyDemoStateLifecycles implements StateLifecycles<Crypto
     @Override
     public void onNewRecoveredState(@NonNull CryptocurrencyDemoState recoveredState) {
         // no-op
+    }
+
+    private void consumeSystemTransaction(
+            final Transaction transaction,
+            final Event event,
+            final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
+        try {
+            final var stateSignatureTransaction =
+                    StateSignatureTransaction.PROTOBUF.parse(transaction.getApplicationTransaction());
+            stateSignatureTransactionCallback.accept(new ScopedSystemTransaction<>(
+                    event.getCreatorId(), event.getSoftwareVersion(), stateSignatureTransaction));
+        } catch (final ParseException e) {
+            logger.error("Failed to parse StateSignatureTransaction", e);
+        }
+    }
+
+    /**
+     * Checks if the transaction bytes are system ones. The test creates application transactions
+     * with a byte[] with no more than 3 single bytes inside. System transactions will be bigger than that.
+     *
+     * @param transaction the consensus transaction to check
+     * @return true if the transaction bytes are system ones, false otherwise
+     */
+    private boolean areTransactionBytesSystemOnes(final Transaction transaction) {
+        return transaction.getApplicationTransaction().length() > 3;
     }
 }

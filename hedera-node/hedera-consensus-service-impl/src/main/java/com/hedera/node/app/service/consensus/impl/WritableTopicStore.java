@@ -76,14 +76,15 @@ public class WritableTopicStore extends ReadableTopicStoreImpl {
     }
 
     /**
-     * Returns the {@link Topic} with the given number using {@link WritableKVState#getForModify}.
-     * If no such topic exists, returns {@code Optional.empty()}
+     * Returns the {@link Topic} with the given number using {@link WritableKVState#get}.
+     * If no such topic exists, returns {@code null}
+     *
      * @param topicID - the id of the topic to be retrieved.
      * @return the retrieved topic
      */
-    public Topic getForModify(@NonNull final TopicID topicID) {
+    public Topic get(@NonNull final TopicID topicID) {
         requireNonNull(topicID);
-        return topicState().getForModify(topicID);
+        return topicState().get(topicID);
     }
 
     /**

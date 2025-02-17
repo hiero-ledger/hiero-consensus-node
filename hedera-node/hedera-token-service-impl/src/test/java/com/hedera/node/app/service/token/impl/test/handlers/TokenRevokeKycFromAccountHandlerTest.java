@@ -171,8 +171,8 @@ class TokenRevokeKycFromAccountHandlerTest {
         }
 
         @Test
-        @DisplayName("When getForModify returns empty, should not put or commit")
-        void emptyGetForModifyShouldNotPersist() {
+        @DisplayName("When get returns empty, should not put or commit")
+        void emptyGetShouldNotPersist() {
             given(readableAccountStore.getAccountById(ACCOUNT_100))
                     .willReturn(Account.newBuilder().accountId(ACCOUNT_100).build());
             given(readableTokenStore.get(TOKEN_10)).willReturn(newToken10);

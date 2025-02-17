@@ -17,7 +17,6 @@
 package com.hedera.node.app.service.token.impl.test;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -77,23 +76,6 @@ class WritableNftStoreTest extends CryptoTokenHandlerTestBase {
         assertEquals(nft, readToken);
 
         final var readToken2 = writableNftStore.get(fungibleTokenId, 1);
-        assertEquals(nft, readToken2);
-    }
-
-    @Test
-    void getForModifyReturnsImmutableToken() {
-        final var id =
-                NftID.newBuilder().tokenId(fungibleTokenId).serialNumber(1).build();
-        final var nft = givenNft(id);
-
-        writableNftStore.put(nft);
-
-        final var readToken = writableNftStore.getForModify(id);
-        assertThat(readToken).isNotNull();
-        assertEquals(nft, readToken);
-
-        final var readToken2 = writableNftStore.getForModify(fungibleTokenId, 1);
-        assertThat(readToken2).isNotNull();
         assertEquals(nft, readToken2);
     }
 

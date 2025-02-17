@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -71,6 +72,8 @@ public class ReconnectTeacher {
     private final Time time;
     private final PlatformContext platformContext;
 
+    private final PlatformStateFacade platformStateFacade;
+
     /**
      * @param platformContext        the platform context
      * @param threadManager          responsible for managing thread lifecycles
@@ -81,6 +84,7 @@ public class ReconnectTeacher {
      * @param lastRoundReceived      the round of the state
      * @param statistics             reconnect metrics
      * @param configuration          the configuration
+     * @param platformStateFacade    the facade to access the platform state
      */
     public ReconnectTeacher(
             @NonNull final PlatformContext platformContext,
@@ -92,7 +96,8 @@ public class ReconnectTeacher {
             @NonNull final NodeId otherId,
             final long lastRoundReceived,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.time = Objects.requireNonNull(time);
@@ -105,6 +110,7 @@ public class ReconnectTeacher {
         this.lastRoundReceived = lastRoundReceived;
         this.statistics = Objects.requireNonNull(statistics);
         this.configuration = Objects.requireNonNull(configuration);
+        this.platformStateFacade = platformStateFacade;
     }
 
     /**
@@ -194,7 +200,7 @@ public class ReconnectTeacher {
                 """
                         The following state will be sent to the learner:
                         {}""",
-                () -> signedState.getState().getInfoString(stateConfig.debugHashDepth()));
+                () -> platformStateFacade.getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
     }
 
     private void logReconnectFinish() {

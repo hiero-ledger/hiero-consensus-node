@@ -30,6 +30,8 @@ import static com.swirlds.platform.gui.SwirldsGui.createConsole;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
@@ -170,5 +172,10 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
     @Override
     public BasicSoftwareVersion getSoftwareVersion() {
         return softwareVersion;
+    }
+
+    @Override
+    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
+        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

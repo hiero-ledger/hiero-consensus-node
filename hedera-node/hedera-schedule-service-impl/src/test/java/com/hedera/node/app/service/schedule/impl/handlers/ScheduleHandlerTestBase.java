@@ -34,7 +34,6 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
@@ -101,8 +100,7 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
                 .hasFieldOrPropertyWithValue("status", expectedError);
     }
 
-    protected void verifyHandleSucceededAndExecuted(
-            final Schedule next, final TransactionID parentId, final int startCount) {
+    protected void verifyHandleSucceededAndExecuted(final Schedule next, final int startCount) {
         commit(writableById); // commit changes so we can inspect the underlying map
         // should be a new schedule in the map
         assertThat(scheduleMapById).hasSize(startCount + 1);
@@ -110,7 +108,7 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
         final Schedule wrongSchedule = writableSchedules.get(next.scheduleId());
         assertThat(wrongSchedule).isNull(); // shard and realm *should not* match here
         // get a corrected schedule ID.
-        final ScheduleID correctedId = adjustRealmShardForPayer(next, parentId);
+        final ScheduleID correctedId = adjustRealmShard(next);
         final Schedule resultSchedule = writableSchedules.get(correctedId);
         // verify the schedule was created ready for sign transactions
         assertThat(resultSchedule).isNotNull(); // shard and realm *should* match here
@@ -149,12 +147,8 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
         assertThat(signedSchedule.resolutionTime()).isNull();
     }
 
-    protected static ScheduleID adjustRealmShardForPayer(final Schedule next, final TransactionID parentId) {
-        long correctRealm = parentId.accountID().realmNum();
-        long correctShard = parentId.accountID().shardNum();
-        final ScheduleID.Builder correctedBuilder = next.scheduleId().copyBuilder();
-        correctedBuilder.realmNum(correctRealm).shardNum(correctShard);
-        return correctedBuilder.build();
+    protected static ScheduleID adjustRealmShard(final Schedule next) {
+        return next.scheduleId().copyBuilder().shardNum(SHARD).realmNum(REALM).build();
     }
 
     protected Timestamp timestampFrom(final Instant valueToConvert) {

@@ -84,13 +84,13 @@ public class WritableStakingInfoStoreImplTest {
     }
 
     @Test
-    void getForModifyNodeIdNotFound() {
+    void getNodeIdNotFound() {
         Assertions.assertThat(subject.get(-1)).isNull();
         Assertions.assertThat(subject.get(NODE_ID_1.number() + 1)).isNull();
     }
 
     @Test
-    void getForModifyInfoFound() {
+    void getInfoFound() {
         Assertions.assertThat(subject.get(NODE_ID_1.number())).isNotNull().isInstanceOf(StakingNodeInfo.class);
     }
 

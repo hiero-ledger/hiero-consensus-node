@@ -17,7 +17,6 @@
 package com.swirlds.platform.crypto;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.common.utility.CommonUtils.nameToAlias;
 import static com.swirlds.logging.legacy.LogMarker.CERTIFICATES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
@@ -36,6 +35,7 @@ import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.network.PeerInfo;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.address.Address;
@@ -321,16 +321,16 @@ public final class CryptoStatic {
     }
 
     /**
-     * @param memberName the name of the key owner
+     * @param nodeId the node identifier
      * @return the file name that is supposed to store the private key for the supplied member
      */
-    private static String getPrivateKeysFileName(final String memberName) {
-        return "private-" + memberName + ".pfx";
+    private static String getPrivateKeysFileName(final NodeId nodeId) {
+        return "private-" + RosterUtils.formatNodeName(nodeId) + ".pfx";
     }
 
     /**
      * Try to load the public.pfx and private-*.pfx key stores from disk. If successful, it will return an array
-     * containing the public.pfx followed by each private-*.pfx in the order that the names are given in the input. If
+     * containing the public.pfx followed by each private-*.pfx in the order that the ids are given in the input. If
      * public.pfx is missing, or even one of the private-*.pfx files is missing, or one of those files fails to load
      * properly, then it returns null. It does NOT return a partial list with the ones that worked.
      *
@@ -359,18 +359,16 @@ public final class CryptoStatic {
         Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
         final int n = addressBook.getSize();
 
-        final List<String> names = new ArrayList<>();
+        final List<NodeId> ids = new ArrayList<>();
 
         for (int i = 0; i < addressBook.getSize(); i++) {
             final NodeId nodeId = addressBook.getNodeId(i);
-            final Address add = addressBook.getAddress(nodeId);
-            final String name = nameToAlias(add.getSelfName());
-            names.add(name);
+            ids.add(nodeId);
         }
 
         final KeyStore allPublic = loadKeys(keysDirPath.resolve(PUBLIC_KEYS_FILE), password);
 
-        final PublicStores publicStores = PublicStores.fromAllPublic(allPublic, names);
+        final PublicStores publicStores = PublicStores.fromAllPublic(allPublic, ids);
 
         final Map<NodeId, KeysAndCerts> keysAndCerts = new HashMap<>();
         for (int i = 0; i < n; i++) {
@@ -381,11 +379,11 @@ public final class CryptoStatic {
                 // a KeysAndCerts object for every node, just the ones that are started.
                 continue;
             }
-            final String name = nameToAlias(addressBook.getAddress(nodeId).getSelfName());
-            final KeyStore privateKS = loadKeys(keysDirPath.resolve(getPrivateKeysFileName(name)), password);
+            final KeyStore privateKS = loadKeys(keysDirPath.resolve(getPrivateKeysFileName(nodeId)), password);
 
             keysAndCerts.put(
-                    nodeId, KeysAndCerts.loadExistingAndCreateAgrKeyIfMissing(name, password, privateKS, publicStores));
+                    nodeId,
+                    KeysAndCerts.loadExistingAndCreateAgrKeyIfMissing(nodeId, password, privateKS, publicStores));
         }
         copyPublicKeys(publicStores, addressBook);
 
@@ -408,7 +406,7 @@ public final class CryptoStatic {
      * know).
      *
      * @param addressBook the address book of the network
-     * @throws ExecutionException   if {@link KeysAndCerts#generate(String, byte[], byte[], byte[], PublicStores)}
+     * @throws ExecutionException   if {@link KeysAndCerts#generate(NodeId, byte[], byte[], byte[], PublicStores)}
      *                              throws an exception, it will be wrapped in an ExecutionException
      * @throws InterruptedException if this thread is interrupted
      * @throws KeyStoreException    if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
@@ -433,8 +431,6 @@ public final class CryptoStatic {
                         .buildFactory())) {
             for (int i = 0; i < n; i++) {
                 final NodeId nodeId = addressBook.getNodeId(i);
-                final Address address = addressBook.getAddress(nodeId);
-                final String name = nameToAlias(address.getSelfName());
                 for (int j = 0; j < masterKey.length; j++) {
                     masterKey[j] = (byte) (j * MASTER_KEY_MULTIPLIER);
                 }
@@ -453,7 +449,7 @@ public final class CryptoStatic {
                 futures.put(
                         nodeId,
                         threadPool.submit(() -> KeysAndCerts.generate(
-                                name, masterKeyClone, swirldIdClone, CommonUtils.intToBytes(memId), publicStores)));
+                                nodeId, masterKeyClone, swirldIdClone, CommonUtils.intToBytes(memId), publicStores)));
             }
             final Map<NodeId, KeysAndCerts> keysAndCerts = futuresToMap(futures);
             threadPool.shutdown();
@@ -473,15 +469,13 @@ public final class CryptoStatic {
      *
      * @param publicStores the stores to read the keys from
      * @param addressBook  the address book to modify
-     * @throws KeyLoadingException if {@link PublicStores#getPublicKey(KeyCertPurpose, String)} throws
+     * @throws KeyLoadingException if {@link PublicStores#getCertificate(KeyCertPurpose, NodeId)} throws
      */
     static void copyPublicKeys(final PublicStores publicStores, final AddressBook addressBook)
             throws KeyLoadingException {
         for (int i = 0; i < addressBook.getSize(); i++) {
             final NodeId nodeId = addressBook.getNodeId(i);
-            final Address add = addressBook.getAddress(nodeId);
-            final String name = nameToAlias(add.getSelfName());
-            final X509Certificate sigCert = publicStores.getCertificate(SIGNING, name);
+            final X509Certificate sigCert = publicStores.getCertificate(SIGNING, nodeId);
             // the agreement key is never used from the address book anymore and is left null.
             addressBook.add(addressBook.getAddress(nodeId).copySetSigCert(sigCert));
         }
@@ -630,9 +624,8 @@ public final class CryptoStatic {
         Objects.requireNonNull(peers);
         final KeyStore store = CryptoStatic.createEmptyTrustStore();
         for (final PeerInfo peer : peers) {
-            final String name = nameToAlias(peer.nodeName());
             final Certificate sigCert = peer.signingCertificate();
-            store.setCertificateEntry(SIGNING.storeName(name), sigCert);
+            store.setCertificateEntry(SIGNING.storeName(peer.nodeId()), sigCert);
         }
         return store;
     }

@@ -55,6 +55,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -345,7 +346,7 @@ public class UserTxnFactory {
                 dispatchProcessor,
                 throttleAdvisor,
                 feeAccumulator,
-                HandleContext.DispatchMetadata.EMPTY_METADATA,
+                DispatchMetadata.EMPTY_METADATA,
                 transactionChecker);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {
@@ -375,7 +376,8 @@ public class UserTxnFactory {
                 preHandleResult,
                 transactionCategory == SCHEDULED
                         ? HandleContext.ConsensusThrottling.OFF
-                        : HandleContext.ConsensusThrottling.ON);
+                        : HandleContext.ConsensusThrottling.ON,
+                null);
     }
 
     /**

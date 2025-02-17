@@ -68,15 +68,4 @@ class WritableNodeStoreTest extends AddressBookTestBase {
         assertNotNull(maybeReadNode);
         assertEquals(node, maybeReadNode);
     }
-
-    @Test
-    void getForModifyReturnsNode() {
-        node = createNode();
-        writableStore.put(node);
-
-        final var maybeReadNode = writableStore.getForModify(nodeId.number());
-
-        assertNotNull(maybeReadNode);
-        assertEquals(node, maybeReadNode);
-    }
 }

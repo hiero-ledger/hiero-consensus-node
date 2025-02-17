@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,9 @@ import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -63,20 +66,21 @@ import org.apache.logging.log4j.Logger;
 public class FinalizeRecordHandler extends RecordFinalizerBase {
     private static final Logger logger = LogManager.getLogger(FinalizeRecordHandler.class);
     public static final long LEDGER_TOTAL_TINY_BAR_FLOAT = 5000000000000000000L;
-    private static final List<AccountAmount> GENESIS_TREASURY_CREDIT = List.of(AccountAmount.newBuilder()
-            .amount(LEDGER_TOTAL_TINY_BAR_FLOAT)
-            .accountID(asAccount(2))
-            .build());
 
     private final StakingRewardsHandler stakingRewardsHandler;
+    private final HederaConfig hederaConfig;
+    private final AccountsConfig accountsConfig;
 
     /**
      * Constructs a {@link FinalizeRecordHandler} instance.
      * @param stakingRewardsHandler the {@link StakingRewardsHandler} instance
      */
     @Inject
-    public FinalizeRecordHandler(@NonNull final StakingRewardsHandler stakingRewardsHandler) {
+    public FinalizeRecordHandler(
+            @NonNull final StakingRewardsHandler stakingRewardsHandler, @NonNull final ConfigProvider configProvider) {
         this.stakingRewardsHandler = stakingRewardsHandler;
+        this.hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+        this.accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
     }
 
     public void finalizeStakingRecord(
@@ -197,7 +201,12 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
                     ? emptyList()
                     : childRecord.transferList().accountAmounts();
             if (childHbarChangesFromRecord.size() == 1) {
-                if (!childHbarChangesFromRecord.equals(GENESIS_TREASURY_CREDIT)) {
+                var genesisTreasuryCredit = List.of(AccountAmount.newBuilder()
+                        .amount(LEDGER_TOTAL_TINY_BAR_FLOAT)
+                        .accountID(asAccount(hederaConfig.shard(), hederaConfig.realm(), accountsConfig.treasury()))
+                        .build());
+
+                if (!childHbarChangesFromRecord.equals(genesisTreasuryCredit)) {
                     throw new IllegalStateException("Invalid hbar changes from child record");
                 }
                 return;

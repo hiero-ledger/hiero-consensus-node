@@ -17,6 +17,7 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
+import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
@@ -61,6 +62,7 @@ import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -75,6 +77,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.MerkleStateRoot;
@@ -88,6 +91,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -126,6 +130,8 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
     private final Map<String, Set<Object>> entityChanges = new LinkedHashMap<>();
 
+    private Instant lastStateChangesTime;
+    private StateChanges lastStateChanges;
     private PlatformMerkleStateRoot state;
 
     public static void main(String[] args) {
@@ -215,7 +221,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var servicesVersion = versionConfig.servicesVersion();
         final var addressBook = loadLegacyBookWithGeneratedCerts(pathToAddressBook);
         final var metrics = new NoOpMetrics();
-        final var hedera = ServicesMain.newHedera(metrics);
+        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(ServicesSoftwareVersion::new));
         this.state = hedera.newMerkleStateRoot();
         final var platformConfig = ServicesMain.buildPlatformConfig();
         hedera.initializeStatesApi(
@@ -263,6 +269,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                     hashInputOutputTree(item, inputTreeHasher, outputTreeHasher);
                 }
                 if (item.hasStateChanges()) {
+                    final var changes = item.stateChangesOrThrow();
+                    final var at = asInstant(changes.consensusTimestampOrThrow());
+                    if (lastStateChanges != null && at.isBefore(requireNonNull(lastStateChangesTime))) {
+                        Assertions.fail("State changes are not in chronological order - last changes were \n "
+                                + lastStateChanges + "\ncurrent changes are \n  " + changes);
+                    }
+                    lastStateChanges = changes;
+                    lastStateChangesTime = at;
                     applyStateChanges(item.stateChangesOrThrow());
                 }
                 servicesWritten.forEach(name -> ((CommittableWritableStates) state.getWritableStates(name)).commit());
@@ -684,6 +698,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             case HINTS_CONSTRUCTION_VALUE -> singletonUpdateChange.hintsConstructionValueOrThrow();
             case ENTITY_COUNTS_VALUE -> singletonUpdateChange.entityCountsValueOrThrow();
             case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
+            case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
         };
     }
 
@@ -750,6 +765,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             case TSS_VOTE_VALUE -> mapChangeValue.tssVoteValueOrThrow();
             case HINTS_KEY_SET_VALUE -> mapChangeValue.hintsKeySetValueOrThrow();
             case PREPROCESSING_VOTE_VALUE -> mapChangeValue.preprocessingVoteValueOrThrow();
+            case CRS_PUBLICATION_VALUE -> mapChangeValue.crsPublicationValueOrThrow();
         };
     }
 

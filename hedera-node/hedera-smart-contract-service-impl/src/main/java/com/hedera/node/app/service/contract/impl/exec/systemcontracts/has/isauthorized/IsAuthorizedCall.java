@@ -122,13 +122,15 @@ public class IsAuthorizedCall extends AbstractCall {
     }
 
     /**
-     * The Ethereum world uses 65 byte EC signatures, our cryptography library uses 64 byte EC signatures.  The
-     * difference is the addition of an extra "parity" byte at the end of the 64 byte signature (used so that
-     * `ECRECOVER` can recover the public key (== Ethereum address) from the signature.
+     * The Ethereum world uses 65+ byte EC signatures, our cryptography library uses 64 byte EC signatures.  The
+     * difference is the addition of an extra "parity" field at the end of the 64 byte signature (used so that
+     * `ECRECOVER` can recover the public key (== Ethereum address) from the signature.  And, the chain id can
+     * be encoded in that field (per EIP-155) and if the chain id is large enough (like Hedera mainnet/testnet
+     * chain ids) that last field can be more than one byte.
      *
-     * This method is a shim for that mismatch. It strips the extra byte off any 65 byte EC signatures it finds.
+     * This method is a shim for that mismatch. It strips the extra bytes off any 65+ byte EC signatures it finds.
      *
-     * @param sigMap Signature map from user - possibly contains 65 byte EC signatures
+     * @param sigMap Signature map from user - possibly contains 65+ byte EC signatures
      * @return Signature map with only 64 byte EC signatures (and all else unchanged)
      */
     public @NonNull SignatureMap fixEcSignaturesInMap(@NonNull final SignatureMap sigMap) {
@@ -136,7 +138,7 @@ public class IsAuthorizedCall extends AbstractCall {
         for (var spair : sigMap.sigPair()) {
             if (spair.hasEcdsaSecp256k1()) {
                 final var ecSig = requireNonNull(spair.ecdsaSecp256k1());
-                if (ecSig.length() == 65) {
+                if (ecSig.length() > 64) {
                     spair = new SignaturePair(
                             spair.pubKeyPrefix(), new OneOf<>(SignatureOneOfType.ECDSA_SECP256K1, ecSig.slice(0, 64)));
                 }

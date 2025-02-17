@@ -16,7 +16,6 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanceof;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -44,8 +43,7 @@ public class BalanceOfTranslator extends AbstractCallTranslator<HtsCallAttempt> 
     public static final SystemContractMethod BALANCE_OF = SystemContractMethod.declare(
                     "balanceOf(address)", ReturnTypes.INT)
             .withModifier(Modifier.VIEW)
-            .withCategory(Category.TOKEN_QUERY)
-            .withSupportedAddress(HTS_167_CONTRACT_ID);
+            .withCategory(Category.TOKEN_QUERY);
 
     /**
      * Default constructor for injection.

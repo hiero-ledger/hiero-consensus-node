@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -35,7 +36,7 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
         implements SpecOperation {
     private static final long DEFAULT_GAS = 100_000;
 
-    private final SpecContract target;
+    private SpecContract target;
     private final String function;
     private final Object[] parameters;
     private long gas = DEFAULT_GAS;
@@ -55,7 +56,10 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
     @Override
     protected SpecOperation computeDelegate(@NonNull final HapiSpec spec) {
         final var op = contractCall(
-                        target.name(), function, withSubstitutedTypes(spec.targetNetworkOrThrow(), parameters))
+                        Optional.of(target.variant()),
+                        target.name(),
+                        function,
+                        withSubstitutedTypes(spec.targetNetworkOrThrow(), parameters))
                 .sending(sendValue)
                 .via(txnName)
                 .exposingResultTo(resultObserver)

@@ -75,16 +75,6 @@ public class WritableNodeStore extends ReadableNodeStoreImpl {
     }
 
     /**
-     * Returns the {@link Node} with the given number using {@link WritableKVState#getForModify}.
-     * If no such node exists, returns {@code Optional.empty()}
-     * @param nodeId - the id of the node to be retrieved.
-     */
-    public Node getForModify(final long nodeId) {
-        return nodesState()
-                .getForModify(EntityNumber.newBuilder().number(nodeId).build());
-    }
-
-    /**
      * Returns the set of nodes modified in existing state.
      * @return the set of nodes modified in existing state
      */

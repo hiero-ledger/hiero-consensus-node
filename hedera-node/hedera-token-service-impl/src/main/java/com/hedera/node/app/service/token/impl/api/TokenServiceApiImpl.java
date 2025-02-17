@@ -502,7 +502,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
         // get the account from account store that has all balance changes
         // commit the account with deleted flag set to true
-        final var updatedDeleteAccount = requireNonNull(accountStore.getForModify(deletedId));
+        final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
         final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
         if (freeAliasOnDeletion == YES) {
             accountStore.removeAlias(updatedDeleteAccount.alias());

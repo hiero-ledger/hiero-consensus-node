@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,11 @@ import org.junit.jupiter.api.Assertions;
 public class VerifyGetLiveHashNotSupported extends UtilOp {
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        CryptoGetLiveHashQuery.Builder op = CryptoGetLiveHashQuery.newBuilder().setAccountID(asAccount("0.0.2"));
+        var shard = spec.startupProperties().getLong("hedera.shard");
+        var realm = spec.startupProperties().getLong("hedera.realm");
+
+        CryptoGetLiveHashQuery.Builder op =
+                CryptoGetLiveHashQuery.newBuilder().setAccountID(asAccount(String.format("%d.%d.2", shard, realm)));
         Query query = Query.newBuilder().setCryptoGetLiveHash(op).build();
         final var response = spec.targetNetworkOrThrow().send(query, CryptoGetLiveHash, targetNodeFor(spec));
         Assertions.assertEquals(

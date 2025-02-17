@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static com.swirlds.common.utility.CommonUtils.nameToAlias;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -287,19 +286,16 @@ public class RandomRosterBuilder {
         if (realKeys) {
             try {
                 final PublicStores publicStores = new PublicStores();
-                final String name = nodeId.toString();
 
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
                 final KeysAndCerts keysAndCerts =
-                        KeysAndCerts.generate(name, new byte[] {}, masterKey, new byte[] {}, publicStores);
+                        KeysAndCerts.generate(nodeId, new byte[] {}, masterKey, new byte[] {}, publicStores);
                 privateKeys.put(nodeId, keysAndCerts);
 
-                final String alias = nameToAlias(name);
-
                 final SerializableX509Certificate sigCert =
-                        new SerializableX509Certificate(publicStores.getCertificate(SIGNING, alias));
+                        new SerializableX509Certificate(publicStores.getCertificate(SIGNING, nodeId));
 
                 addressBuilder.withSigCert(sigCert);
 

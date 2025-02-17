@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package com.swirlds.state.merkle.memory;
 
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapGetForModify;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapPut;
@@ -91,24 +90,9 @@ public final class InMemoryWritableKVState<K, V> extends WritableKVStateBase<K, 
     }
 
     @Override
-    protected V getForModifyFromDataSource(@NonNull K key) {
-        final var k = new InMemoryKey<>(key);
-        final var leaf = merkle.getForModify(k);
-        final var value = leaf == null ? null : leaf.getValue();
-        // Log to transaction state log, what was read
-        logMapGetForModify(getStateKey(), key, value);
-        return value;
-    }
-
-    @Override
     protected void putIntoDataSource(@NonNull K key, @NonNull V value) {
         final var k = new InMemoryKey<>(key);
-        final var existing = merkle.getForModify(k);
-        if (existing != null) {
-            existing.setValue(value);
-        } else {
-            merkle.put(k, new InMemoryValue<>(inMemoryValueClassId, keyCodec, valueCodec, k, value));
-        }
+        merkle.put(k, new InMemoryValue<>(inMemoryValueClassId, keyCodec, valueCodec, k, value));
         // Log to transaction state log, what was put
         logMapPut(getStateKey(), key, value);
     }

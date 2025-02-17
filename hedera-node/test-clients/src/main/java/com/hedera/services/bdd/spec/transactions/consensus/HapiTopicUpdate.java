@@ -250,7 +250,8 @@ public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
             }
         });
         newAutoRenewAccount.ifPresent(id -> {
-            if (!id.equalsIgnoreCase("0.0.0")) {
+            var accountNum = id.split("\\.").length == 3 ? id.split("\\.")[2] : null;
+            if (!"0".equals(accountNum)) {
                 signers.add(spec -> spec.registry().getKey(id));
             }
         });
