@@ -21,6 +21,8 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  * This class sole purpose is to extend the {@link MerkleStateRoot} class and implement the {@link MerkleNodeState}.
@@ -53,5 +55,10 @@ public class HederaStateRoot extends MerkleStateRoot<HederaStateRoot> implements
     @Override
     public long getClassId() {
         return CLASS_ID;
+    }
+
+    @Override
+    public HederaStateRoot loadSnapshot(@NonNull Path targetPath) throws IOException {
+        return super.loadSnapshot(targetPath);
     }
 }
