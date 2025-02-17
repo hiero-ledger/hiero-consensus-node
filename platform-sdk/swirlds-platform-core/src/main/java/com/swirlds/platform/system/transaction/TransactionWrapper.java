@@ -109,12 +109,6 @@ public non-sealed class TransactionWrapper implements ConsensusTransaction {
         return TransactionUtils.getLegacyTransactionSize(transaction);
     }
 
-    // TODO: Remove this method after app references are removed
-    @Override
-    public boolean isSystem() {
-        return false;
-    }
-
     /**
      * {@inheritDoc}
      */
