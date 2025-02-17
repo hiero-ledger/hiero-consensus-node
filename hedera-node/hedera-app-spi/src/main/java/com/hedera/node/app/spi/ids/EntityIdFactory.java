@@ -45,11 +45,32 @@ public interface EntityIdFactory {
      */
     ScheduleID newScheduleId(long number);
 
+    /**
+     * Returns a contract id for the given number.
+     * @param number the number
+     * @return a new ContractID instance
+     */
     ContractID newContractId(long number);
 
+    /**
+     * Returns an account id for the given number.
+     * @param number the number
+     * @return a new AccountID instance
+     */
     AccountID newAccountId(long number);
 
+    /**
+     * Returns an account id for the given alias.
+     * @param alias the alias
+     * @return a new AccountID instance
+     */
     AccountID newAccountId(Bytes alias);
 
+    /**
+     * Returns a hexadecimal string representation of the given number,
+     * including current shard and realm, zero-padded to 20 bytes.
+     * @param number the number
+     * @return a hexadecimal string representation of the number
+     */
     String hexLongZero(long number);
 }
