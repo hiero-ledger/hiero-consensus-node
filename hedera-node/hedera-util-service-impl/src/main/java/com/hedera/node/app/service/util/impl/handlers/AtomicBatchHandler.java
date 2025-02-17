@@ -17,6 +17,7 @@
 package com.hedera.node.app.service.util.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -70,15 +71,12 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var op = context.body().atomicBatchOrThrow();
         validateFalsePreCheck(context.body().hasBatchKey(), MISSING_BATCH_KEY);
         for (final var transaction : op.transactions()) {
-            final TransactionBody txBody;
-            try {
-                txBody = bodyParser.apply(transaction);
-            } catch (HandleException e) {
-                throw new PreCheckException(e.getStatus());
+            if (!transaction.hasBody()) {
+                throw new PreCheckException(INVALID_TRANSACTION);
             }
 
             // validate batch key exists on each inner transaction
-            if (!txBody.hasBatchKey()) {
+            if (!transaction.bodyOrThrow().hasBatchKey()) {
                 throw new PreCheckException(MISSING_BATCH_KEY);
             }
         }
