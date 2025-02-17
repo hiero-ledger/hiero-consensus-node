@@ -24,11 +24,8 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.event.PlatformEvent;
@@ -285,7 +282,7 @@ class ISSTestingToolStateTest {
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         when(eventCore.creatorNodeId()).thenReturn(1L);
         when(eventCore.parents()).thenReturn(Collections.emptyList());
-        final var eventTransaction = mock(EventTransaction.class);
+        final var consensusTransaction = mock(TransactionWrapper.class);
         when(gossipEvent.eventCore()).thenReturn(eventCore);
 
         final var stateSignatureTransactionBytes =
@@ -294,9 +291,7 @@ class ISSTestingToolStateTest {
                 .bodyBytes(stateSignatureTransactionBytes)
                 .build();
         final var transactionBytes = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transactionProto);
-        final var systemTransactionWithType =
-                new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, transactionBytes);
-        when(eventTransaction.transaction()).thenReturn(systemTransactionWithType);
+        when(consensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         event = new PlatformEvent(gossipEvent);
         when(round.iterator()).thenReturn(Collections.singletonList(event).iterator());
