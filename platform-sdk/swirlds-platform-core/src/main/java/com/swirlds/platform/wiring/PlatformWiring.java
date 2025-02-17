@@ -949,23 +949,23 @@ public class PlatformWiring {
     }
 
     /**
-     * Get the wiring for the consensus engine
+     * Get the output wire for consensus engine
      *
      * @return the wiring for the consensus engine
      */
     @NonNull
-    public ComponentWiring<ConsensusEngine, List<ConsensusRound>> getConsensusEngineWiring() {
-        return consensusEngineWiring;
+    public OutputWire<List<ConsensusRound>> getConsensusEngineOutputWire() {
+        return consensusEngineWiring.getOutputWire();
     }
 
     /**
-     * Get the wiring for the state signature collector
+     * Get the output wiring for the state signature collector
      *
      * @return the wiring for the state signature collector
      */
     @NonNull
-    public ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> getStateSignatureCollectorWiring() {
-        return stateSignatureCollectorWiring;
+    public OutputWire<List<ReservedSignedState>> getStateSignatureCollectorWiring() {
+        return stateSignatureCollectorWiring.getOutputWire();
     }
 
     /**

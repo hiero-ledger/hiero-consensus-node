@@ -210,8 +210,6 @@ public class SwirldsPlatform implements Platform {
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
         currentRoster = blocks.rosterHistory().getCurrentRoster();
 
-        platformWiring = blocks.platformWiring();
-
         registerRosterMetrics(platformContext.getMetrics(), currentRoster, selfId);
 
         RuntimeMetrics.setup(platformContext.getMetrics());
@@ -227,6 +225,8 @@ public class SwirldsPlatform implements Platform {
         final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(platformContext.getMetrics());
         final StateSignatureCollector stateSignatureCollector =
                 new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
+
+        this.platformWiring = blocks.platformWiring();
 
         blocks.statusActionSubmitterReference()
                 .set(x -> platformWiring.getStatusActionSubmitter().submitStatusAction(x));
