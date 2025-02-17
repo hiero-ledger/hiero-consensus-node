@@ -80,9 +80,9 @@ public class BlockNodeConnection {
 
     private void handleAcknowledgement(PublishStreamResponse.Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
-            logger.info("PublishStreamResponse: a full block received: {}", acknowledgement.getBlockAck());
+            logger.info("Block acknowledgment received for a full block: {}", acknowledgement.getBlockAck());
         } else if (acknowledgement.hasItemAck()) {
-            logger.info("PublishStreamResponse: a single block item is received: {}", acknowledgement.getItemAck());
+            logger.info("Item acknowledgement received for a batch of block items: {}", acknowledgement.getItemAck());
         }
     }
 
