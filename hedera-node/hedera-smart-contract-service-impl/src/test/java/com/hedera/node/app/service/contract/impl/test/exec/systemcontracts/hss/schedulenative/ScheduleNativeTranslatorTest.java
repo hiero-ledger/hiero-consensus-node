@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.schedulenative;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulenative.ScheduleNativeTranslator.SCHEDULED_NATIVE_CALL;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.signschedule.SignScheduleTranslator.SIGN_SCHEDULE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -189,6 +190,7 @@ class ScheduleNativeTranslatorTest extends CallTestBase {
         given(attempt.inputBytes()).willReturn(inputBytes.toArray());
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.keySetFor()).willReturn(Set.of());
+        given(attempt.systemContractID()).willReturn(HTS_167_CONTRACT_ID);
         given(addressIdConverter.convert(any())).willReturn(SENDER_ID);
 
         // when

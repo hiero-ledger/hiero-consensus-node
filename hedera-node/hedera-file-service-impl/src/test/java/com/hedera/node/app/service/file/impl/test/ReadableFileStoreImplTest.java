@@ -21,8 +21,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import org.junit.jupiter.api.BeforeEach;

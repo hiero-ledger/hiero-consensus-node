@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
@@ -86,9 +87,9 @@ public class ClassicGrantApprovalCall extends AbstractGrantApprovalCall {
                 frame.addLog(getLogForNftAdjustAllowance(tokenAddress));
             }
             final var encodedOutput = tokenType.equals(TokenType.FUNGIBLE_COMMON)
-                    ? GrantApprovalTranslator.GRANT_APPROVAL.getOutputs().encodeElements(status.protoOrdinal(), true)
-                    : GrantApprovalTranslator.GRANT_APPROVAL_NFT.getOutputs().encodeElements((long)
-                            status.protoOrdinal());
+                    ? GrantApprovalTranslator.GRANT_APPROVAL.getOutputs().encode(Tuple.of(status.protoOrdinal(), true))
+                    : GrantApprovalTranslator.GRANT_APPROVAL_NFT.getOutputs().encode(Tuple.singleton((long)
+                            status.protoOrdinal()));
 
             return gasOnly(successResult(encodedOutput, gasRequirement, recordBuilder), status, false);
         }

@@ -18,6 +18,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.processors;
 
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REMAINING_GAS;
@@ -42,6 +43,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayDeque;
@@ -138,7 +140,7 @@ class CustomMessageCallProcessorTest {
 
         subject.start(frame, operationTracer);
 
-        verify(prngPrecompile).computeFully(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
+        verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
         verify(result).isRefundGas();
         verify(frame).decrementRemainingGas(ZERO_GAS_REQUIREMENT);
         verify(frame).setOutputData(OUTPUT_DATA);
@@ -154,7 +156,7 @@ class CustomMessageCallProcessorTest {
 
         subject.start(frame, operationTracer);
 
-        verify(prngPrecompile).computeFully(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
+        verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
     }
@@ -283,6 +285,17 @@ class CustomMessageCallProcessorTest {
         verify(operationTracer).traceAccountCreationResult(frame, Optional.of(INSUFFICIENT_GAS));
     }
 
+    @Test
+    void callsToDisabledPrecompile() {
+        givenDisabledEvmPrecompileCall();
+
+        subject.start(frame, operationTracer);
+
+        verify(frame).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame).setExceptionalHaltReason(Optional.empty());
+    }
+
     private void givenHaltableFrame(@NonNull final AtomicBoolean isHalted) {
         doAnswer(invocation -> {
                     isHalted.set(true);
@@ -323,10 +336,24 @@ class CustomMessageCallProcessorTest {
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
     }
 
+    private void givenDisabledEvmPrecompileCall() {
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        Configuration DISABLED_PRECOMPILE_CONFIG = HederaTestConfigBuilder.create()
+                .withValue("contracts.precompile.disabled", "6")
+                .getOrCreateConfig();
+        given(registry.get(ADDRESS_6)).willReturn(nativePrecompile);
+        given(frame.getContractAddress()).willReturn(ADDRESS_6);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DISABLED_PRECOMPILE_CONFIG);
+        when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(addressChecks.isSystemAccount(ADDRESS_6)).willReturn(true);
+    }
+
     private void givenPrngCall(long gasRequirement) {
         givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
         given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
-        given(prngPrecompile.computeFully(any(), any())).willReturn(new FullResult(result, gasRequirement, null));
+        given(prngPrecompile.computeFully(any(), any(), any()))
+                .willReturn(new FullResult(result, gasRequirement, null));
     }
 
     private void verifyHalt(@NonNull final ExceptionalHaltReason reason) {

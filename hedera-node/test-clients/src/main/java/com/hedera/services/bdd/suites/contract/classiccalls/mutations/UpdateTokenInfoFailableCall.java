@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ public class UpdateTokenInfoFailableCall extends AbstractFailableNonStaticCall {
             return SIGNATURE
                     .encodeCallWithArgs(
                             INVALID_TOKEN_ADDRESS,
-                            Tuple.of(
+                            Tuple.from(
                                     "Name",
                                     "SYM",
                                     validAccountAddress,
@@ -70,7 +70,7 @@ public class UpdateTokenInfoFailableCall extends AbstractFailableNonStaticCall {
             return SIGNATURE
                     .encodeCallWithArgs(
                             idAsHeadlongAddress(spec.registry().getTokenID(VALID_FUNGIBLE_TOKEN_IDS[0])),
-                            Tuple.of(
+                            Tuple.from(
                                     "Name",
                                     "SYM",
                                     INVALID_ACCOUNT_ADDRESS,

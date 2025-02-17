@@ -47,7 +47,7 @@ public class HasSystemContract extends AbstractNativeSystemContract implements H
             @NonNull final GasCalculator gasCalculator,
             @NonNull final HasCallFactory callFactory,
             @NonNull final ContractMetrics contractMetrics) {
-        super(HAS_SYSTEM_CONTRACT_NAME, callFactory, HAS_CONTRACT_ID, gasCalculator, contractMetrics);
+        super(HAS_SYSTEM_CONTRACT_NAME, callFactory, gasCalculator, contractMetrics);
     }
 
     @Override
@@ -56,7 +56,8 @@ public class HasSystemContract extends AbstractNativeSystemContract implements H
     }
 
     @Override
-    public FullResult computeFully(@NonNull final Bytes input, @NonNull final MessageFrame frame) {
+    public FullResult computeFully(
+            @NonNull ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
         requireNonNull(input);
         requireNonNull(frame);
 
@@ -65,6 +66,6 @@ public class HasSystemContract extends AbstractNativeSystemContract implements H
             return haltResult(NOT_SUPPORTED, frame.getRemainingGas());
         }
 
-        return super.computeFully(input, frame);
+        return super.computeFully(contractID, input, frame);
     }
 }

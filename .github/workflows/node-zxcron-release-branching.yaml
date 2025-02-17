@@ -17,7 +17,7 @@
 name: "ZXCron: Automatic Release Branching"
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 defaults:
@@ -25,7 +25,7 @@ defaults:
     shell: bash
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   GITHUB_CLI_VERSION: 2.21.2
@@ -36,13 +36,13 @@ env:
 jobs:
   check-trigger:
     name: Check Trigger Conditions
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-small-scheduler
     if: ${{ !github.event.workflow_dispatch.repository.fork }}
     outputs:
       triggered: ${{ steps.evaluate.outputs.triggered }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -81,7 +81,7 @@ jobs:
 
   check-branch:
     name: Check Branching Conditions
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-small-scheduler
     needs:
       - check-trigger
     outputs:
@@ -97,7 +97,7 @@ jobs:
     if: ${{ needs.check-trigger.outputs.triggered == 'true' && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -110,7 +110,7 @@ jobs:
 
   create-branch:
     name: Create Release Branch
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-small-scheduler
     needs:
       - check-branch
 
@@ -120,7 +120,7 @@ jobs:
     if: ${{ needs.check-branch.outputs.branch-create == 'true' && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -207,7 +207,7 @@ jobs:
 
   create-tag:
     name: Create Release Tag
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-medium
     needs:
       - check-branch
       - create-branch
@@ -215,7 +215,7 @@ jobs:
     if: ${{ needs.check-branch.outputs.tag-create == 'true' && needs.create-branch.result == 'success' && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -223,24 +223,136 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ needs.check-branch.outputs.branch-name }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
           fetch-depth: 0
 
-      - name: Prepare Dispatch
-        id: prepare-dispatch
-        run: |
-          REQ_JSON="$(jq --compact-output --null-input \
-                      --arg ref "${{ needs.check-branch.outputs.branch-name }}" \
-                      --arg tagname "${{ needs.check-branch.outputs.tag-name }}" \
-                      --arg strigger "${{ needs.check-branch.outputs.schedule-trigger }}" \
-                      '{"ref": $ref, "tag": { "name": $tagname }, "schedule": { "trigger": $strigger }}')"
-
-          echo "payload=${REQ_JSON}" >>"${GITHUB_OUTPUT}"
-          printf "## Dispatch Payload\n\`\`\`json\n%s\n\`\`\`\n" "$(jq '.' <<<"${REQ_JSON}")" >>"${GITHUB_STEP_SUMMARY}"
-
-      - name: Repository Dispatch
-        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
+      - name: Setup Java
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          repository: hashgraph/hedera-internal-workflows
-          event-type: hedera-svcs-release-tag
-          client-payload: ${{ steps.prepare-dispatch.outputs.payload }}
+          distribution: temurin
+          java-version: 21.0.4
+
+      - name: Install Semantic Version Tools
+        run: |
+          echo "::group::Download SemVer Binary"
+          sudo curl -L -o /usr/local/bin/semver https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver
+          echo "::endgroup::"
+          echo "::group::Change SemVer Binary Permissions"
+          sudo chmod -v +x /usr/local/bin/semver
+          echo "::endgroup::"
+          echo "::group::Show SemVer Binary Version Info"
+          semver --version
+          echo "::endgroup::"
+
+      - name: Import GPG key for commit signoff
+        id: gpg_import
+        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        with:
+          gpg_private_key: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_config_global: true
+
+      - name: Calculate Version
+        id: version
+        run: |
+          VALID_VERSION="$(semver validate "${{ needs.check-branch.outputs.tag-name }}" | tr -d '[:space:]')"
+
+          if [[ "${VALID_VERSION}" != "valid" ]]; then
+            echo "::error title=Invalid Version::The supplied tag name (${{ needs.check-branch.outputs.tag-name }}) is not a valid semantic version number."
+            exit 1
+          fi
+
+          REL_PART="$(semver get release "${{ needs.check-branch.outputs.tag-name }}")"
+          PRE_PART="$(semver get prerel "${{ needs.check-branch.outputs.tag-name }}")"
+
+          VERSION="${REL_PART}"
+          [[ -n "${PRE_PART}" ]] && VERSION="${VERSION}-${PRE_PART}"
+
+          echo "number=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Update Software Version
+        run: ./gradlew versionAsSpecified -PnewVersion=${{ steps.version.outputs.number }}
+
+      - name: Commit Version Changes
+        id: git-commit
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
+        with:
+          author_name: ${{ secrets.PLATFORM_GIT_USER_NAME }}
+          author_email: ${{ secrets.PLATFORM_GIT_USER_EMAIL }}
+          commit: --signoff --gpg-sign
+          tag: "v${{ steps.version.outputs.number }} -f -m '[Automated Release] Hedera Node v${{ steps.version.outputs.number }}'"
+          message: "[Automated Release] Hedera Node v${{ steps.version.outputs.number }}"
+
+      - name: Compute Commit Identifier
+        id: commit
+        run: |
+          echo "id=$(echo -n "${{ steps.git-commit.outputs.commit_long_sha }}" | tr -d '[:space:]')" >> "${GITHUB_OUTPUT}"
+          echo "short-id=$(echo -n "${{ steps.git-commit.outputs.commit_long_sha }}" | tr -d '[:space:]' | cut -c1-8)" >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack Notification
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: "true"
+          payload: |
+            {
+              "attachments": [
+                  {
+                    "color": "#16bec7",
+                    "blocks": [
+                      {
+                        "type": "header",
+                        "text": {
+                          "type": "plain_text",
+                          "text": ":ideograph_advantage: Hedera Services - Automatic Release Tagging",
+                          "emoji": true
+                        }
+                      },
+                      {
+                        "type": "section",
+                        "fields": [
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Tag Name:*"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Source Branch:*"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "<${{ github.server_url }}/hiero-ledger/hiero-consensus-node/tree/v${{ steps.version.outputs.number }}|v${{ steps.version.outputs.number }}>"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "<${{ github.server_url }}/hiero-ledger/hiero-consensus-node/tree/${{ needs.check-branch.outputs.branch-name }}|${{ needs.check-branch.outputs.branch-name }}>"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "section",
+                        "text": {
+                          "type": "mrkdwn",
+                          "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.commit.outputs.id  }}|${{ steps.commit.outputs.short-id }}>"
+                        }
+                      },
+                      {
+                        "type": "divider"
+                      },
+                      {
+                        "type": "context",
+                        "elements": [
+                          {
+                            "type": "mrkdwn",
+                            "text": ":watch: Initiated by scheduled repository event at date & time: `${{ needs.check-branch.outputs.schedule-trigger }} UTC`"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }

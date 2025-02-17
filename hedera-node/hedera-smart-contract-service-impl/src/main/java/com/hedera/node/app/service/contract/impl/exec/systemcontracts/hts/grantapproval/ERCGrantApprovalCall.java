@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
@@ -84,10 +85,10 @@ public class ERCGrantApprovalCall extends AbstractGrantApprovalCall {
                         tokenId, senderId, spenderId, amount, readableAccountStore(), frame);
             }
             final var encodedOutput = tokenType.equals(TokenType.FUNGIBLE_COMMON)
-                    ? GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encodeElements(true)
+                    ? GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encode(Tuple.singleton(true))
                     : GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                             .getOutputs()
-                            .encodeElements();
+                            .encode(Tuple.EMPTY);
             return gasOnly(successResult(encodedOutput, gasRequirement, recordBuilder), status, false);
         }
     }

@@ -20,7 +20,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
-import com.hedera.node.app.spi.validation.EntityType;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
@@ -53,6 +53,12 @@ public interface ContractStateStore {
     void removeSlot(@NonNull SlotKey key);
 
     /**
+     * Adjusts the slot count by the given delta in the {@link WritableEntityCounters}.
+     * @param delta the delta to adjust the slot count by
+     */
+    void adjustSlotCount(final long delta);
+
+    /**
      * Puts the given {@link SlotValue} for the given {@link SlotKey}.
      *
      * <p><b>Note: </b>Putting a {@link SlotValue#value()} of binary zeros is <b>not</b>
@@ -65,15 +71,6 @@ public interface ContractStateStore {
      * @param value the {@link SlotValue} to put
      */
     void putSlot(@NonNull SlotKey key, @NonNull SlotValue value);
-
-    /**
-     * Puts new {@link SlotValue} for the given {@link SlotKey}. This method is used to put new
-     * {@link SlotValue} for the given {@link SlotKey} that is not present in the store.
-     * It also increments the entity counts for {@link EntityType#CONTRACT_STORAGE}.
-     * @param key the {@link SlotKey} to put the {@link SlotValue} for
-     * @param value the {@link SlotValue} to put
-     */
-    void putSlotAndIncrementCount(@NonNull SlotKey key, @NonNull SlotValue value);
 
     /**
      * Returns the {@link Set} of {@link SlotKey}s that have been modified.
@@ -90,16 +87,6 @@ public interface ContractStateStore {
      */
     @Nullable
     SlotValue getSlotValue(@NonNull SlotKey key);
-
-    /**
-     * Returns the {@link SlotValue} for the given {@link SlotKey}, or null if not found.
-     * The SlotValue returned will be for modify.
-     *
-     * @param key the {@link SlotKey} to get the {@link SlotValue} for
-     * @return the {@link SlotValue} for the given {@link SlotKey}, or null if not found
-     */
-    @Nullable
-    SlotValue getSlotValueForModify(@NonNull SlotKey key);
 
     /**
      * Returns the original {@link SlotValue} for the given {@link SlotKey}, or null if not found.

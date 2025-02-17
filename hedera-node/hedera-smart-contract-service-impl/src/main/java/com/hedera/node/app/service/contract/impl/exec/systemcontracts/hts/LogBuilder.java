@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ public class LogBuilder {
         if (tupleTypes.length() > 1) {
             tupleTypes.deleteCharAt(tupleTypes.length() - 1);
             tupleTypes.append(")");
-            final var tuple = Tuple.of(data.toArray());
+            final var tuple = Tuple.from(data.toArray());
             final var tupleType = TupleType.parse(tupleTypes.toString());
             return new Log(logger, Bytes.wrap(tupleType.encode(tuple).array()), topics);
         } else {

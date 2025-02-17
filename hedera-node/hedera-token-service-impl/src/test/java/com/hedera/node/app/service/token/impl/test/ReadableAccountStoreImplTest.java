@@ -29,10 +29,10 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import org.assertj.core.api.Assertions;
@@ -81,10 +81,18 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         given(account.stakePeriodStart()).willReturn(37L);
         given(account.stakeAtStartOfLastRewardedPeriod()).willReturn(37L);
         given(account.stakedAccountId())
-                .willReturn(AccountID.newBuilder().accountNum(41L).build());
+                .willReturn(AccountID.newBuilder()
+                        .shardNum(1)
+                        .realmNum(2)
+                        .accountNum(41L)
+                        .build());
         given(account.declineReward()).willReturn(true);
         given(account.autoRenewAccountId())
-                .willReturn(AccountID.newBuilder().accountNum(53L).build());
+                .willReturn(AccountID.newBuilder()
+                        .shardNum(1)
+                        .realmNum(2)
+                        .accountNum(53L)
+                        .build());
         given(account.autoRenewSeconds()).willReturn(59L);
         given(account.alias()).willReturn(Bytes.wrap(new byte[] {1, 2, 3}));
         given(account.smartContract()).willReturn(true);
@@ -109,7 +117,11 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         assertThat(mappedAccount.stakedToMe()).isEqualTo(31L);
         assertThat(mappedAccount.stakePeriodStart()).isEqualTo(37L);
         assertThat(mappedAccount.stakedAccountId())
-                .isEqualTo(AccountID.newBuilder().accountNum(41L).build());
+                .isEqualTo(AccountID.newBuilder()
+                        .shardNum(1)
+                        .realmNum(2)
+                        .accountNum(41L)
+                        .build());
         assertThat(mappedAccount.declineReward()).isTrue();
         assertThat(mappedAccount.stakeAtStartOfLastRewardedPeriod()).isEqualTo(37L);
         assertThat(mappedAccount.autoRenewAccountId().accountNum()).isEqualTo(53L);
@@ -271,8 +283,11 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         assertThat(subject.contains(id)).isTrue();
 
         // Pass any account ID that isn't in the store
-        assertThat(subject.contains(
-                        AccountID.newBuilder().accountNum(Long.MAX_VALUE).build()))
+        assertThat(subject.contains(AccountID.newBuilder()
+                        .shardNum(1)
+                        .realmNum(2)
+                        .accountNum(Long.MAX_VALUE)
+                        .build()))
                 .isFalse();
 
         //noinspection DataFlowIssue

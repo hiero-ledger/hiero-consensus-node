@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,23 +58,16 @@ class WinTab2Consensus extends PrePaintableJPanel {
             }
             String s = "";
             s += "Node" + firstNodeId.id();
-            long r1 = consensus.getDeleteRound();
-            long r2 = consensus.getFameDecidedBelow();
-            long r3 = consensus.getMaxRound();
+            final long rd = consensus.getFameDecidedBelow();
+            final long rc = consensus.getMaxRound();
 
-            if (r1 == -1) {
-                s += "\n           = latest deleted round-created";
-            } else {
-                s += String.format("\n%,10d = latest deleted round-created", r1);
-            }
-
-            s += String.format("\n%,10d = latest round-decided (delete round +%,d)", r2, r2 - r1);
-            s += String.format("\n%,10d = latest round-created (deleted round +%,d)", r3, r3 - r1);
+            s += String.format("\n%,10d = latest round-decided", rd);
+            s += String.format("\n%,10d = latest round-created", rc);
 
             text.setFont(new Font("monospaced", Font.PLAIN, 14));
 
             text.setText(s);
-        } catch (java.util.ConcurrentModificationException err) {
+        } catch (final java.util.ConcurrentModificationException err) {
             // We started displaying before all the platforms were added. That's ok.
         }
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.metrics.FunctionGauge.Config;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.metrics.StoreMetrics;
@@ -28,7 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * Helper class that maintains utilization metrics for a store.
  */
 public class StoreMetricsImpl implements StoreMetrics {
-
     private final AtomicLong count = new AtomicLong();
     private final AtomicLong capacity = new AtomicLong(1L);
 
@@ -74,5 +74,10 @@ public class StoreMetricsImpl implements StoreMetrics {
 
     void updateCapacity(final long newValue) {
         capacity.set(newValue);
+    }
+
+    @VisibleForTesting
+    public AtomicLong getCount() {
+        return count;
     }
 }

@@ -30,6 +30,7 @@ import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Round;
@@ -37,6 +38,8 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
+import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.state.State;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,6 +53,8 @@ public class TransactionHandlerTester {
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
     private final StateLifecycles<PlatformMerkleStateRoot> stateLifecycles;
+    private final TestPlatformStateFacade platformStateFacade;
+    private final PlatformMerkleStateRoot consensusState;
 
     /**
      * Constructs a new {@link TransactionHandlerTester} with the given {@link AddressBook}.
@@ -61,12 +66,15 @@ public class TransactionHandlerTester {
                 TestPlatformContextBuilder.create().build();
         platformState = new PlatformStateValueAccumulator();
 
-        final PlatformMerkleStateRoot consensusState = mock(PlatformMerkleStateRoot.class);
+        consensusState = mock(PlatformMerkleStateRoot.class);
+        platformStateFacade = mock(TestPlatformStateFacade.class);
+
         stateLifecycles = mock(StateLifecycles.class);
-        ;
         when(consensusState.copy()).thenReturn(consensusState);
-        when(consensusState.getReadablePlatformState()).thenReturn(platformState);
-        when(consensusState.getWritablePlatformState()).thenReturn(platformState);
+        when(consensusState.cast()).thenReturn(consensusState);
+        when(platformStateFacade.getWritablePlatformStateOf(consensusState)).thenReturn(platformState);
+
+        when(stateLifecycles.onSealConsensusRound(any(), any())).thenReturn(true);
         doAnswer(i -> {
                     handledRounds.add(i.getArgument(0));
                     return null;
@@ -80,10 +88,15 @@ public class TransactionHandlerTester {
                 NodeId.FIRST_NODE_ID,
                 statusActionSubmitter,
                 new BasicSoftwareVersion(1),
-                stateLifecycles);
+                stateLifecycles,
+                platformStateFacade);
         swirldStateManager.setInitialState(consensusState);
         defaultTransactionHandler = new DefaultTransactionHandler(
-                platformContext, swirldStateManager, statusActionSubmitter, mock(SoftwareVersion.class));
+                platformContext,
+                swirldStateManager,
+                statusActionSubmitter,
+                mock(SoftwareVersion.class),
+                platformStateFacade);
     }
 
     /**
@@ -126,5 +139,13 @@ public class TransactionHandlerTester {
      */
     public StateLifecycles<PlatformMerkleStateRoot> getStateLifecycles() {
         return stateLifecycles;
+    }
+
+    public PlatformStateFacade getPlatformStateFacade() {
+        return platformStateFacade;
+    }
+
+    public State getConsensusState() {
+        return consensusState;
     }
 }

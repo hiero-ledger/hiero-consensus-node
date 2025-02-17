@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
@@ -218,7 +218,7 @@ class CommonUtilsTest {
 
     @Test
     void getsExpectedTxnFunctionality() {
-        final Map<HederaFunctionality, BodySetter<? extends GeneratedMessageV3, Builder>> setters = new HashMap<>() {
+        final Map<HederaFunctionality, BodySetter<? extends GeneratedMessage, Builder>> setters = new HashMap<>() {
             {
                 put(SystemDelete, new BodySetter<>(SystemDeleteTransactionBody.class));
                 put(SystemUndelete, new BodySetter<>(SystemUndeleteTransactionBody.class));
@@ -323,7 +323,7 @@ class CommonUtilsTest {
     @Test
     void getExpectEvmAddress() {
         final var address = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123};
-        final var evmAddress = asEvmAddress(123L);
+        final var evmAddress = asEvmAddress(0, 0, 123L);
         assertArrayEquals(address, evmAddress);
     }
 }

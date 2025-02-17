@@ -22,6 +22,7 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_STATES_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -64,7 +65,6 @@ import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.gossip.shadowgraph.Generations;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -88,7 +88,6 @@ import java.util.Random;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -98,8 +97,8 @@ class PlatformTestingToolStateTest {
     private static final String DEFAULT_CONFIG = "configs/FCM1KForTest.json";
     private static final String CONFIG_WITHOUT_APPEND_SIG = "configs/FCM1KForTestWithoutAppendSig.json";
     private static final byte[] EMPTY_ARRAY = new byte[] {};
-    private static PlatformTestingToolState state;
-    private static MockedStatic<ParameterProvider> parameterProvider;
+    private PlatformTestingToolState state;
+    private MockedStatic<ParameterProvider> parameterProvider;
     private Consumer<ScopedSystemTransaction<StateSignatureTransaction>> consumer;
     private List<ScopedSystemTransaction<StateSignatureTransaction>> consumedSystemTransactions;
     private StateSignatureTransaction stateSignatureTransaction;
@@ -111,19 +110,13 @@ class PlatformTestingToolStateTest {
     private Roster roster;
     private EventWindow eventWindow;
 
-    @BeforeAll
-    static void createState() {
-        final PayloadCfgSimple payloadConfig = mock(PayloadCfgSimple.class);
-        when(payloadConfig.isAppendSig()).thenReturn(true);
-
-        state = mock(PlatformTestingToolState.class);
-
-        final ExpectedFCMFamily expectedFCMFamily = mock(ExpectedFCMFamily.class);
-        when(state.getStateExpectedMap()).thenReturn(expectedFCMFamily);
-    }
-
     @BeforeEach
     void setUp() throws KeyStoreException, KeyGeneratingException, NoSuchAlgorithmException, NoSuchProviderException {
+        final PayloadCfgSimple payloadConfig = mock(PayloadCfgSimple.class);
+        when(payloadConfig.isAppendSig()).thenReturn(true);
+        state = mock(PlatformTestingToolState.class);
+        final ExpectedFCMFamily expectedFCMFamily = mock(ExpectedFCMFamily.class);
+        when(state.getStateExpectedMap()).thenReturn(expectedFCMFamily);
         main = new PlatformTestingToolMain();
         random = new Random();
         roster = new Roster(Collections.EMPTY_LIST);
@@ -141,7 +134,7 @@ class PlatformTestingToolStateTest {
         final Randotron randotron = Randotron.create();
 
         final KeysAndCerts keysAndCerts =
-                KeysAndCerts.generate("a-name", EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+                KeysAndCerts.generate(NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();
@@ -234,7 +227,6 @@ class PlatformTestingToolStateTest {
                 roster,
                 List.of(platformEvent),
                 platformEvent,
-                new Generations(),
                 eventWindow,
                 new ConsensusSnapshot(),
                 false,
@@ -346,6 +338,7 @@ class PlatformTestingToolStateTest {
         givenInitState(DEFAULT_CONFIG);
         givenRoundAndEvent();
         when(transaction.isSystem()).thenReturn(true);
+        doReturn(true).when(transaction).isSystem();
 
         final byte[] transactionBytes = new byte[300];
         random.nextBytes(transactionBytes);
@@ -389,7 +382,6 @@ class PlatformTestingToolStateTest {
                 roster,
                 List.of(platformEvent),
                 platformEvent,
-                new Generations(),
                 eventWindow,
                 new ConsensusSnapshot(),
                 false,

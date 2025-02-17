@@ -22,8 +22,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;

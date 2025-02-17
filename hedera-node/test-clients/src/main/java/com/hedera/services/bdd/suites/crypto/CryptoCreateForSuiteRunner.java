@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ public class CryptoCreateForSuiteRunner extends HapiSuite {
     final Stream<DynamicTest> createAccount() {
         int maxRetries = 5;
         return customHapiSpec("CreatePayerAccountForEachClient")
-                .withProperties(Map.of("nodes", nodes, "default.node", "0.0." + defaultNode))
+                .withProperties(Map.of("nodes", nodes, "default.node", defaultNode))
                 .given()
                 .when()
                 .then(withOpContext((spec, log) -> {
@@ -133,12 +133,10 @@ public class CryptoCreateForSuiteRunner extends HapiSuite {
                     // TODO Should be modified in a different way to avoid setting a
                     // static variable of
                     // other class
-                    SuiteRunner.setPayerId(String.format(
-                            "0.0.%s",
-                            spec.registry()
-                                    .getAccountInfo("payerAccountInfo")
-                                    .getAccountID()
-                                    .getAccountNum()));
+                    SuiteRunner.setPayerId(String.valueOf(spec.registry()
+                            .getAccountInfo("payerAccountInfo")
+                            .getAccountID()
+                            .getAccountNum()));
                 }));
     }
 

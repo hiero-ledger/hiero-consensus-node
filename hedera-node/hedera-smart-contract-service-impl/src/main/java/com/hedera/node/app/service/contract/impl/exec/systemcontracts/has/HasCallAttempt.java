@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
@@ -61,6 +62,7 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
     // too many parameters
     @SuppressWarnings("java:S107")
     public HasCallAttempt(
+            @NonNull final ContractID contractID,
             @NonNull final Bytes input,
             @NonNull final Address senderAddress,
             final boolean onlyDelegatableContractKeysActive,
@@ -74,6 +76,7 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             final boolean isStaticCall) {
         super(
+                contractID,
                 input,
                 senderAddress,
                 senderAddress,

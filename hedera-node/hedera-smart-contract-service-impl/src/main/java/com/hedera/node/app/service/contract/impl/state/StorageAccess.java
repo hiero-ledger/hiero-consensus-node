@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,6 +71,13 @@ public record StorageAccess(@NonNull UInt256 key, @NonNull UInt256 value, @Nulla
     }
 
     /**
+     * Returns true if this access put a zero storage value into an empty slot.
+     */
+    public boolean isZeroIntoEmptySlot() {
+        return writtenValue != null && writtenValue.isZero() && value.isZero();
+    }
+
+    /**
      * Returns true if this access replaced a zero storage value with a non-zero value.
      *
      * @return true if this access replaced a zero storage value with a non-zero value
@@ -102,15 +109,19 @@ public record StorageAccess(@NonNull UInt256 key, @NonNull UInt256 value, @Nulla
         READ_ONLY,
         REMOVAL,
         INSERTION,
-        UPDATE;
+        UPDATE,
+        ZERO_INTO_EMPTY_SLOT;
 
-        public static StorageAccessType getAccessType(StorageAccess storageAccess) {
+        public static StorageAccessType getAccessType(@NonNull final StorageAccess storageAccess) {
+            requireNonNull(storageAccess);
             if (storageAccess.isReadOnly()) {
                 return READ_ONLY;
             } else if (storageAccess.isRemoval()) {
                 return REMOVAL;
             } else if (storageAccess.isInsertion()) {
                 return INSERTION;
+            } else if (storageAccess.isZeroIntoEmptySlot()) {
+                return ZERO_INTO_EMPTY_SLOT;
             } else if (storageAccess.isUpdate()) {
                 return UPDATE;
             }

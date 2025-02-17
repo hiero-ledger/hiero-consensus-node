@@ -17,7 +17,6 @@
 package com.hedera.node.app.spi.api;
 
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,15 +37,13 @@ public interface ServiceApiProvider<T> {
     /**
      * Creates a new instance of the service API.
      *
-     * @param configuration       the node configuration
-     * @param storeMetricsService Service that provides utilization metrics.
-     * @param writableStates      the writable state of the service
+     * @param configuration  the node configuration
+     * @param writableStates the writable state of the service
      * @param entityCounters
      * @return the new API instance
      */
     T newInstance(
             @NonNull Configuration configuration,
-            @NonNull StoreMetricsService storeMetricsService,
             @NonNull WritableStates writableStates,
             @NonNull final WritableEntityCounters entityCounters);
 }

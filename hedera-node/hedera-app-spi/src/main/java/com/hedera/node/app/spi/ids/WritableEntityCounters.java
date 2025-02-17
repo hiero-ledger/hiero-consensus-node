@@ -16,7 +16,7 @@
 
 package com.hedera.node.app.spi.ids;
 
-import com.hedera.node.app.spi.validation.EntityType;
+import com.hedera.node.app.hapi.utils.EntityType;
 
 /**
  * Provides a way to update entity number counts.
@@ -39,4 +39,11 @@ public interface WritableEntityCounters extends ReadableEntityCounters {
      * @param entityType the type of entity for which to increment the number
      */
     void incrementEntityTypeCount(final EntityType entityType);
+
+    /**
+     * Adjusts the entity count for the given entity type by the given delta.
+     * @param entityType the type of entity for which to adjust the count
+     * @param delta the delta to adjust the count by
+     */
+    void adjustEntityCount(final EntityType entityType, final long delta);
 }

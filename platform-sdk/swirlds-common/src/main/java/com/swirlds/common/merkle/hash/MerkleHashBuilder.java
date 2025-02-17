@@ -153,32 +153,34 @@ public class MerkleHashBuilder {
         }
 
         @Override
-        protected boolean exec() {
-            try {
-                if (node == null || node.getHash() != null) {
-                    out.send();
-                } else if (node.isLeaf()) {
-                    merkleCryptography.digestSync(node.asLeaf(), MERKLE_DIGEST_TYPE);
+        protected boolean onExecute() {
+            if (node == null || node.getHash() != null) {
+                out.send();
+            } else if (node.isLeaf()) {
+                merkleCryptography.digestSync(node.asLeaf(), MERKLE_DIGEST_TYPE);
+                out.send();
+            } else {
+                MerkleInternal internal = node.asInternal();
+                int nChildren = internal.getNumberOfChildren();
+                if (nChildren == 0) {
+                    merkleCryptography.digestSync(internal, MERKLE_DIGEST_TYPE);
                     out.send();
                 } else {
-                    MerkleInternal internal = node.asInternal();
-                    int nChildren = internal.getNumberOfChildren();
-                    if (nChildren == 0) {
-                        merkleCryptography.digestSync(internal, MERKLE_DIGEST_TYPE);
-                        out.send();
-                    } else {
-                        ComputeTask compute = new ComputeTask(internal, nChildren, out);
-                        for (int childIndex = 0; childIndex < nChildren; childIndex++) {
-                            MerkleNode child = internal.getChild(childIndex);
-                            new TraverseTask(child, compute).send();
-                        }
+                    ComputeTask compute = new ComputeTask(internal, nChildren, out);
+                    for (int childIndex = 0; childIndex < nChildren; childIndex++) {
+                        MerkleNode child = internal.getChild(childIndex);
+                        new TraverseTask(child, compute).send();
                     }
                 }
-            } catch (Exception ex) {
-                out.completeExceptionally(ex);
-                return false;
             }
             return true;
+        }
+
+        @Override
+        protected void onException(Throwable t) {
+            if (!out.isCompletedAbnormally()) {
+                out.completeExceptionally(t);
+            }
         }
     }
 
@@ -196,15 +198,14 @@ public class MerkleHashBuilder {
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             merkleCryptography.digestSync(internal, MERKLE_DIGEST_TYPE);
             out.send();
             return true;
         }
 
         @Override
-        public void completeExceptionally(Throwable ex) {
-            super.completeExceptionally(ex);
+        public void onException(Throwable ex) {
             // Try to reduce exception propagation; OK if multiple exceptions reported to out
             if (!out.isCompletedAbnormally()) {
                 out.completeExceptionally(ex);
@@ -226,14 +227,13 @@ public class MerkleHashBuilder {
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             future.set(root.getHash());
             return true;
         }
 
         @Override
-        public void completeExceptionally(Throwable ex) {
-            super.completeExceptionally(ex);
+        public void onException(Throwable ex) {
             if (!future.isCancelled()) {
                 future.cancelWithException(ex);
             }

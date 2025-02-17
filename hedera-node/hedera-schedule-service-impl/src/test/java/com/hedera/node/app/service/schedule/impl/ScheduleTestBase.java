@@ -22,7 +22,6 @@ import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSch
 import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_USAGES_KEY;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_KEY;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -80,15 +79,16 @@ import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
+import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -127,6 +127,8 @@ public class ScheduleTestBase {
     // These two *should* be constants in token service, but are not, so we have constants here.
     private static final String ACCOUNT_STATE_KEY = "ACCOUNTS";
     private static final String ACCOUNT_ALIAS_STATE_KEY = "ALIASES";
+    protected static final int SHARD = 5;
+    protected static final long REALM = 10L;
     // spotless mangles this section randomly, due to incorrect wrapping rules
     protected static final ScheduleID.Builder ALL_SCHEDULES_ID =
             ScheduleID.newBuilder().shardNum(12).realmNum(6);
@@ -176,6 +178,7 @@ public class ScheduleTestBase {
     protected final Timestamp calculatedExpirationTime = Timestamp.newBuilder().seconds(2281580449L).nanos(0).build();
     protected final Timestamp modifiedResolutionTime = new Timestamp(18601220L, 18030109);
     protected final Timestamp modifiedStartTime = new Timestamp(18601220L, 18030109);
+    protected final EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
     // spotless:on
 
     @Mock(strictness = Mock.Strictness.LENIENT)
@@ -226,7 +229,7 @@ public class ScheduleTestBase {
     protected List<Schedule> listOfScheduledOptions;
 
     protected void setUpBase() throws PreCheckException, InvalidKeyException {
-        testConfig = HederaTestConfigBuilder.create().getOrCreateConfig();
+        testConfig = HederaTestConfigBuilder.createConfig();
         scheduleConfig = testConfig.getConfigData(SchedulingConfig.class);
         scheduled = createSampleScheduled();
         originalCreateTransaction = originalCreateTransaction(scheduled, scheduler, adminKey);
@@ -495,8 +498,7 @@ public class ScheduleTestBase {
         accountStore = new ReadableAccountStoreImpl(states, readableEntityCounters);
         scheduleStore = new ReadableScheduleStoreImpl(states, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableSchedules = new WritableScheduleStoreImpl(
-                scheduleStates, configuration, mock(StoreMetricsService.class), writableEntityCounters);
+        writableSchedules = new WritableScheduleStoreImpl(scheduleStates, writableEntityCounters);
         accountsMapById.put(scheduler, schedulerAccount);
         accountsMapById.put(payer, payerAccount);
         accountsMapById.put(admin, adminAccount);

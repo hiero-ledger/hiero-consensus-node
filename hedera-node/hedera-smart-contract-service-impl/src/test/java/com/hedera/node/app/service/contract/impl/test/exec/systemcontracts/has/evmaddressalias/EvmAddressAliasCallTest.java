@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.nu
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.getevmaddressalias.EvmAddressAliasCall;
@@ -57,9 +58,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
-                                ZERO_ADDRESS)
+                                ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }
@@ -76,9 +77,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
-                                ZERO_ADDRESS)
+                                ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }
@@ -97,9 +98,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
-                                ZERO_ADDRESS)
+                                ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }
@@ -119,9 +120,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) ResponseCodeEnum.SUCCESS.protoOrdinal(),
-                                asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()))
+                                asHeadlongAddress(RECEIVER_ADDRESS.toByteArray())))
                         .array()),
                 result.getOutput());
     }

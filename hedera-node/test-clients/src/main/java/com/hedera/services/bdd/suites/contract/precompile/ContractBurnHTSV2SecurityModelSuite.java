@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -854,7 +854,7 @@ public class ContractBurnHTSV2SecurityModelSuite {
                                 .contractCallResult(resultWith()
                                         .logs(inOrder(logWith()
                                                 .noData()
-                                                .withTopicsInOrder(List.of(parsedToByteString(49))))))),
+                                                .withTopicsInOrder(List.of(parsedToByteString(0, 0, 49))))))),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 49),
                 childRecordsCheck(
                         "burn",

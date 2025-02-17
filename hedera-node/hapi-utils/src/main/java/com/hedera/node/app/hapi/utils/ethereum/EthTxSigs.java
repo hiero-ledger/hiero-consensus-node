@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     public static byte[] calculateSignableMessage(EthTxData ethTx) {
         return switch (ethTx.type()) {
             case LEGACY_ETHEREUM -> (ethTx.chainId() != null && ethTx.chainId().length > 0)
-                    ? RLPEncoder.encodeAsList(
+                    ? RLPEncoder.list(
                             Integers.toBytes(ethTx.nonce()),
                             ethTx.gasPrice(),
                             Integers.toBytes(ethTx.gasLimit()),
@@ -56,14 +56,14 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
                             ethTx.chainId(),
                             Integers.toBytes(0),
                             Integers.toBytes(0))
-                    : RLPEncoder.encodeAsList(
+                    : RLPEncoder.list(
                             Integers.toBytes(ethTx.nonce()),
                             ethTx.gasPrice(),
                             Integers.toBytes(ethTx.gasLimit()),
                             ethTx.to(),
                             Integers.toBytesUnsigned(ethTx.value()),
                             ethTx.callData());
-            case EIP1559 -> RLPEncoder.encodeSequentially(Integers.toBytes(2), new Object[] {
+            case EIP1559 -> RLPEncoder.sequence(Integers.toBytes(2), new Object[] {
                 ethTx.chainId(),
                 Integers.toBytes(ethTx.nonce()),
                 ethTx.maxPriorityGas(),
@@ -74,7 +74,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
                 ethTx.callData(),
                 new Object[0]
             });
-            case EIP2930 -> RLPEncoder.encodeSequentially(Integers.toBytes(1), new Object[] {
+            case EIP2930 -> RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
                 ethTx.chainId(),
                 Integers.toBytes(ethTx.nonce()),
                 ethTx.gasPrice(),

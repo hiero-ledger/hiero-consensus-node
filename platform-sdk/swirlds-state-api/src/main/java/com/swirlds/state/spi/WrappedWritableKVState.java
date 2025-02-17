@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package com.swirlds.state.spi;
 
-import com.swirlds.state.spi.metrics.StoreMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.Objects;
@@ -51,12 +50,6 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
 
     /** {@inheritDoc} */
     @Override
-    protected V getForModifyFromDataSource(@NonNull K key) {
-        return delegate.getForModify(key);
-    }
-
-    /** {@inheritDoc} */
-    @Override
     protected void putIntoDataSource(@NonNull K key, @NonNull V value) {
         delegate.put(key, value);
     }
@@ -84,11 +77,5 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
     @Override
     public long sizeOfDataSource() {
         return delegate.size();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public void setMetrics(@NonNull StoreMetrics storeMetrics) {
-        delegate.setMetrics(storeMetrics);
     }
 }

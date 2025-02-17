@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadl
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hederaaccountnumalias.HederaAccountNumAliasCall;
@@ -63,9 +64,9 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) ResponseCodeEnum.SUCCESS.protoOrdinal(),
-                                asHeadlongAddress(RECEIVER_ID.accountNumOrThrow()))
+                                asHeadlongAddress(RECEIVER_ID.accountNumOrThrow())))
                         .array()),
                 result.getOutput());
     }
@@ -86,7 +87,7 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
-                        .encodeElements((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS)
+                        .encode(Tuple.of((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }
@@ -105,7 +106,7 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
-                        .encodeElements((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS)
+                        .encode(Tuple.of((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }

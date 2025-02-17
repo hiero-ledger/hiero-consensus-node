@@ -137,7 +137,7 @@ public class HbarAllowanceTranslatorTest {
     @Test
     void callFromHbarAllowanceProxyTest() {
         final Bytes inputBytes = Bytes.wrapByteBuffer(
-                HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY.encodeCall(Tuple.of(APPROVED_HEADLONG_ADDRESS)));
+                HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY.encodeCall(Tuple.singleton(APPROVED_HEADLONG_ADDRESS)));
         givenCommonForCall(inputBytes);
         given(attempt.isSelector(HBAR_ALLOWANCE_PROXY)).willReturn(true);
         given(attempt.isSelector(HBAR_ALLOWANCE)).willReturn(false);

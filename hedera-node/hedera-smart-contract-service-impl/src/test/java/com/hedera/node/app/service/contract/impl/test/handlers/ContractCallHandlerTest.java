@@ -47,6 +47,7 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
@@ -68,6 +69,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock
     private TransactionComponent.Factory factory;
@@ -163,17 +167,20 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     void validatePureChecks() {
         // check null contact id
         final var txn1 = contractCallTransactionWithNoContractId();
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(txn1));
+        given(pureChecksContext.body()).willReturn(txn1);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check at least intrinsic gas
         final var txn2 = contractCallTransactionWithInsufficientGas();
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(txn2));
+        given(pureChecksContext.body()).willReturn(txn2);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check that invalid contract id is rejected
         final var txn3 = contractCallTransactionWithInvalidContractId();
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(txn3));
+        given(pureChecksContext.body()).willReturn(txn3);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
     @Test

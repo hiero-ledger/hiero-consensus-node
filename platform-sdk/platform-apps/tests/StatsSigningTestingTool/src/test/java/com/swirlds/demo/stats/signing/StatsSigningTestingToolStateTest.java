@@ -38,7 +38,6 @@ import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.gossip.shadowgraph.Generations;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -87,14 +86,7 @@ class StatsSigningTestingToolStateTest {
         final var roster = new Roster(Collections.EMPTY_LIST);
         when(event.transactionIterator()).thenReturn(Collections.emptyIterator());
         round = new ConsensusRound(
-                roster,
-                List.of(event),
-                event,
-                new Generations(),
-                eventWindow,
-                new ConsensusSnapshot(),
-                false,
-                Instant.now());
+                roster, List.of(event), event, eventWindow, new ConsensusSnapshot(), false, Instant.now());
 
         consumedSystemTransactions = new ArrayList<>();
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);

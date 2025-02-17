@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,6 +58,6 @@ public final class RoundCalculationUtils {
         // which is -1. in this case we will return FIRST_GENERATION, which is 0
         return Math.max(
                 roundGenerationProvider.applyAsLong(getOldestNonAncientRound(roundsNonAncient, lastRoundDecided)),
-                GraphGenerations.FIRST_GENERATION);
+                EventConstants.FIRST_GENERATION);
     }
 }

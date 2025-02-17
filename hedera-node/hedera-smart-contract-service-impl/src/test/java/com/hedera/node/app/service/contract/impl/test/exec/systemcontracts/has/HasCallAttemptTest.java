@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -79,6 +80,7 @@ class HasCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirectAccount(
                 HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HasCallAttempt(
+                HAS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 false,
@@ -98,6 +100,7 @@ class HasCallAttemptTest extends CallTestBase {
     void invalidSelectorLeadsToMissingCall() {
         final var input = TestHelpers.bytesForRedirectAccount(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HasCallAttempt(
+                HAS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 false,
@@ -123,6 +126,7 @@ class HasCallAttemptTest extends CallTestBase {
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HasCallAttempt(
+                HAS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 false,
@@ -150,6 +154,7 @@ class HasCallAttemptTest extends CallTestBase {
                         asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS))
                 .array());
         final var subject = new HasCallAttempt(
+                HAS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 false,
@@ -177,6 +182,7 @@ class HasCallAttemptTest extends CallTestBase {
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HasCallAttempt(
+                HAS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 false,
@@ -205,6 +211,7 @@ class HasCallAttemptTest extends CallTestBase {
                         BigInteger.valueOf(10))
                 .array());
         final var subject = new HasCallAttempt(
+                HAS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 false,

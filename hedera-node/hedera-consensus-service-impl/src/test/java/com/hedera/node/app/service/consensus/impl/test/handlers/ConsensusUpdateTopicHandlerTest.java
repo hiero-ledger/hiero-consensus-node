@@ -56,6 +56,7 @@ import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,6 +70,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
             ConsensusUpdateTopicTransactionBody.newBuilder();
 
     private final ExpiryMeta currentExpiryMeta = new ExpiryMeta(expirationTime, autoRenewSecs, autoRenewId);
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock
     private ReadableAccountStore accountStore;
@@ -100,7 +104,8 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     void rejectsMissingTopic() {
         final var txBody =
                 TransactionBody.newBuilder().consensusUpdateTopic(OP_BUILDER).build();
-        assertThrowsPreCheck(() -> subject.pureChecks(txBody), INVALID_TOPIC_ID);
+        given(pureChecksContext.body()).willReturn(txBody);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_TOPIC_ID);
     }
 
     @Test

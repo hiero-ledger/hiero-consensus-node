@@ -33,9 +33,9 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTestBase;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import org.junit.jupiter.api.BeforeEach;
@@ -104,11 +104,7 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
                                 .build())
                         .fallbackFee(FixedFee.newBuilder().amount(1).build())
                         .build())
-                .feeCollectorAccountId(AccountID.newBuilder()
-                        .shardNum(1)
-                        .realmNum(2)
-                        .accountNum(3)
-                        .build())
+                .feeCollectorAccountId(AccountID.newBuilder().accountNum(3).build())
                 .build());
 
         given(tokens.get(tokenId)).willReturn(copy.build());
@@ -130,11 +126,7 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
                                 .denominator(2)
                                 .build())
                         .build())
-                .feeCollectorAccountId(AccountID.newBuilder()
-                        .shardNum(1)
-                        .realmNum(2)
-                        .accountNum(5)
-                        .build())
+                .feeCollectorAccountId(AccountID.newBuilder().accountNum(5).build())
                 .build());
 
         given(tokens.get(tokenId)).willReturn(copy.build());

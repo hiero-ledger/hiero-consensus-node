@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbstractRevertibleTokenViewCall;
@@ -47,7 +48,7 @@ public class NameCall extends AbstractRevertibleTokenViewCall {
      */
     @Override
     protected @NonNull PricedResult resultOfViewingToken(@NonNull Token token) {
-        final var output = NameTranslator.NAME.getOutputs().encodeElements(token.name());
+        final var output = NameTranslator.NAME.getOutputs().encode(Tuple.singleton(token.name()));
         return gasOnly(successResult(output, gasCalculator.viewGasRequirement()), SUCCESS, true);
     }
 

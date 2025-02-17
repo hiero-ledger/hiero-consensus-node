@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,13 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.BigIntegerType;
 import com.esaulpaugh.headlong.abi.TypeFactory;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -31,6 +33,7 @@ import java.util.Optional;
 import javax.inject.Inject;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -45,6 +48,9 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
     public static final int TO_TINYCENTS_SELECTOR = 0x43a88229;
 
     public static final String EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS = "0x168";
+    public static final ContractID EXCHANGE_RATE_CONTRACT_ID =
+            asNumberedContractId(Address.fromHexString(EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS));
+
     private long gasRequirement;
 
     @Inject
@@ -54,7 +60,8 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
 
     @Override
     @NonNull
-    public FullResult computeFully(@NonNull Bytes input, @NonNull MessageFrame messageFrame) {
+    public FullResult computeFully(
+            @NonNull ContractID contractID, @NonNull Bytes input, @NonNull MessageFrame messageFrame) {
         requireNonNull(input);
         requireNonNull(messageFrame);
         try {

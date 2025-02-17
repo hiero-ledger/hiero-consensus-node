@@ -42,7 +42,6 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -165,9 +164,6 @@ public class ConsensusTestBase {
     private ReadableTokenRelationStore tokenRelStore;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
-
-    @Mock
     protected WritableEntityCounters entityCounters;
 
     @Mock
@@ -192,7 +188,7 @@ public class ConsensusTestBase {
         given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
         readableStore = new ReadableTopicStoreImpl(readableStates, entityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableTopicStore(writableStates, configuration, storeMetricsService, entityCounters);
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
     }
@@ -204,7 +200,7 @@ public class ConsensusTestBase {
         given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
         readableStore = new ReadableTopicStoreImpl(readableStates, entityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableTopicStore(writableStates, configuration, storeMetricsService, entityCounters);
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
         given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
     }
 

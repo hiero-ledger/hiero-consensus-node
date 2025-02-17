@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,15 @@ package com.hedera.node.app.fixtures.state;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.node.app.config.ConfigProviderImpl;
+import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.services.ServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -54,7 +56,10 @@ public class FakeServiceMigrator implements ServiceMigrator {
             @NonNull final Configuration platformConfig,
             @Nullable final NetworkInfo genesisNetworkInfo,
             @NonNull final Metrics metrics,
-            @NonNull final StartupNetworks startupNetworks) {
+            @NonNull final StartupNetworks startupNetworks,
+            @NonNull final StoreMetricsServiceImpl storeMetricsService,
+            @NonNull final ConfigProviderImpl configProvider,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(state);
         requireNonNull(servicesRegistry);
         requireNonNull(currentVersion);
@@ -118,14 +123,5 @@ public class FakeServiceMigrator implements ServiceMigrator {
         mapWritableStates.getSingleton(NAME_OF_ENTITY_ID_SINGLETON).put(new EntityNumber(prevEntityNum.get()));
         mapWritableStates.commit();
         return List.of();
-    }
-
-    @Override
-    public SemanticVersion creationVersionOf(@NonNull final State state) {
-        if (!(state instanceof FakeState)) {
-            throw new IllegalArgumentException("Can only be used with FakeState instances");
-        }
-        // Fake states are always from genesis and have no creation version
-        return null;
     }
 }

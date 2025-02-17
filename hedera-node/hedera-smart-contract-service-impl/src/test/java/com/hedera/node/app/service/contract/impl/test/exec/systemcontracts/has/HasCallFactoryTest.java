@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_EOA_ID;
@@ -123,7 +124,8 @@ class HasCallFactoryTest extends CallTestBase {
                 HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY.encodeCallWithArgs(
                         asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)),
                 CALLED_EOA_ID);
-        final var attempt = subject.createCallAttemptFrom(input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
+        final var attempt = subject.createCallAttemptFrom(
+                HAS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
 
         assertInstanceOf(HbarAllowanceCall.class, call);
@@ -154,7 +156,8 @@ class HasCallFactoryTest extends CallTestBase {
                         asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS),
                         asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS))
                 .array());
-        final var attempt = subject.createCallAttemptFrom(input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
+        final var attempt = subject.createCallAttemptFrom(
+                HAS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
 
         assertInstanceOf(HbarAllowanceCall.class, call);

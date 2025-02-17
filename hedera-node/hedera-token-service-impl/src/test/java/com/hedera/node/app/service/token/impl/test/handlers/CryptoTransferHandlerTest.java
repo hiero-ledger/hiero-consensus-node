@@ -507,7 +507,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         givenTxn();
-        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         given(handleContext.dispatch(
                         argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
                                 && payerId.equals(options.payerId()))))
@@ -542,7 +542,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         writableTokenStore.put(fungibleToken.copyBuilder().kycKey((Key) null).build());
         givenStoresAndConfig(handleContext);
         givenTxn();
-        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         given(handleContext.dispatch(
                         argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
                                 && payerId.equals(options.payerId()))))
@@ -627,6 +627,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
         givenTxn(txnBody, payerId);
 
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         given(handleContext.dispatch(
                         argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
                                 && payerId.equals(options.payerId()))))
@@ -676,6 +677,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
         givenTxn(txnBody, payerId);
 
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         given(handleContext.dispatch(
                         argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
                                 && payerId.equals(options.payerId()))))

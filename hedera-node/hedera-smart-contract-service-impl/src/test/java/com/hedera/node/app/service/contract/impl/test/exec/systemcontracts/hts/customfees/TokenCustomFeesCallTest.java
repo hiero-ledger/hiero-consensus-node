@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,12 +47,12 @@ class TokenCustomFeesCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
                                 EXPECTED_FIXED_CUSTOM_FEES.toArray(new Tuple[EXPECTED_FIXED_CUSTOM_FEES.size()]),
                                 EXPECTED_FRACTIONAL_CUSTOM_FEES.toArray(
                                         new Tuple[EXPECTED_FRACTIONAL_CUSTOM_FEES.size()]),
-                                EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[EXPECTED_ROYALTY_CUSTOM_FEES.size()]))
+                                EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[EXPECTED_ROYALTY_CUSTOM_FEES.size()])))
                         .array()),
                 result.getOutput());
     }
@@ -67,11 +67,11 @@ class TokenCustomFeesCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 INVALID_TOKEN_ID.protoOrdinal(),
                                 Collections.emptyList().toArray(new Tuple[0]),
                                 Collections.emptyList().toArray(new Tuple[0]),
-                                Collections.emptyList().toArray(new Tuple[0]))
+                                Collections.emptyList().toArray(new Tuple[0])))
                         .array()),
                 result.getOutput());
     }
@@ -86,11 +86,11 @@ class TokenCustomFeesCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
                                 Collections.emptyList().toArray(new Tuple[0]),
                                 Collections.emptyList().toArray(new Tuple[0]),
-                                Collections.emptyList().toArray(new Tuple[0]))
+                                Collections.emptyList().toArray(new Tuple[0])))
                         .array()),
                 result.getOutput());
     }

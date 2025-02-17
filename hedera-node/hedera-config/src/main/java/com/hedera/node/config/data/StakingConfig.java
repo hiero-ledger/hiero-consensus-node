@@ -41,4 +41,6 @@ public record StakingConfig(
         @ConfigProperty(defaultValue = "6849") @NetworkProperty long perHbarRewardRate,
         @ConfigProperty(defaultValue = "25000000000000000") @NetworkProperty long startThreshold,
         @ConfigProperty(defaultValue = "8500000000000000") @NetworkProperty long rewardBalanceThreshold,
-        @ConfigProperty(defaultValue = "650000000000000000") @NetworkProperty long maxStakeRewarded) {}
+        @ConfigProperty(defaultValue = "650000000000000000") @NetworkProperty long maxStakeRewarded,
+        @ConfigProperty(defaultValue = "0") @NetworkProperty long minStake,
+        @ConfigProperty(defaultValue = "45000000000000000") @NetworkProperty long maxStake) {}

@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_SCHEDULE_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -135,7 +136,8 @@ class HssCallFactoryTest extends CallTestBase {
         final var input = bytesForRedirectScheduleTxn(
                 SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(),
                 asLongZeroAddress(CALLED_SCHEDULE_ID.scheduleNum()));
-        final var attempt = subject.createCallAttemptFrom(input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
+        final var attempt = subject.createCallAttemptFrom(
+                HSS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
 
         assertInstanceOf(DispatchForResponseCodeHssCall.class, call);
@@ -166,7 +168,8 @@ class HssCallFactoryTest extends CallTestBase {
         final var input = bytesForRedirectScheduleTxn(
                 SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(),
                 asLongZeroAddress(CALLED_SCHEDULE_ID.scheduleNum()));
-        final var attempt = subject.createCallAttemptFrom(input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
+        final var attempt = subject.createCallAttemptFrom(
+                HSS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
 
         assertInstanceOf(DispatchForResponseCodeHssCall.class, call);

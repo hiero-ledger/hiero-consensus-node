@@ -21,12 +21,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.app.spi.validation.EntityType;
-import com.hedera.node.config.data.FilesConfig;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -49,21 +45,12 @@ public class WritableFileStore extends ReadableFileStoreImpl {
      * Create a new {@link WritableFileStore} instance.
      *
      * @param states The state to use.
-     * @param configuration The configuration used to read the maximum capacity.
-     * @param storeMetricsService Service that provides utilization metrics.
      */
     public WritableFileStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService,
-            @NonNull final WritableEntityCounters entityCounters) {
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
         this.filesState = requireNonNull(states.get(BLOBS_KEY));
         this.entityCounters = entityCounters;
-
-        final long maxCapacity = configuration.getConfigData(FilesConfig.class).maxNumber();
-        final var storeMetrics = storeMetricsService.get(StoreType.FILE, maxCapacity);
-        filesState.setMetrics(storeMetrics);
     }
 
     /**
@@ -94,17 +81,6 @@ public class WritableFileStore extends ReadableFileStoreImpl {
      */
     public @NonNull Optional<File> get(final FileID fileId) {
         final var file = filesState.get(fileId);
-        return Optional.ofNullable(file);
-    }
-
-    /**
-     * Returns the {@link File} with the given number using {@link WritableKVState}. If no such file
-     * exists, returns {@code Optional.empty()}
-     *
-     * @param fileId - the id of the file to be retrieved.
-     */
-    public @NonNull Optional<File> getForModify(final FileID fileId) {
-        final var file = filesState.getForModify(fileId);
         return Optional.ofNullable(file);
     }
 

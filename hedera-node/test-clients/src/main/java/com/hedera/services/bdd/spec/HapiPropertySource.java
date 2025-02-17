@@ -1,4 +1,19 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2025 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.services.bdd.spec;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
@@ -43,6 +58,9 @@ import java.util.stream.Stream;
 public interface HapiPropertySource {
 
     String ENTITY_STRING = "%d.%d.%d";
+    // Default shard and realm for static ID building and comparisons
+    int shard = 0;
+    long realm = 0;
 
     static byte[] explicitBytesOf(@NonNull final Address address) {
         var asBytes = address.value().toByteArray();
@@ -84,7 +102,7 @@ public interface HapiPropertySource {
 
     default FileID getFile(String property) {
         try {
-            return asFile(get(property));
+            return asFile(get("default.shard"), get("default.realm"), get(property));
         } catch (Exception ignore) {
         }
         return FileID.getDefaultInstance();
@@ -92,7 +110,7 @@ public interface HapiPropertySource {
 
     default AccountID getAccount(String property) {
         try {
-            return asAccount(get(property));
+            return asAccount(get("default.shard"), get("default.realm"), get(property));
         } catch (Exception ignore) {
         }
         return AccountID.getDefaultInstance();
@@ -229,6 +247,54 @@ public interface HapiPropertySource {
                 .build();
     }
 
+    static AccountID asAccount(String shard, String realm, String num) {
+        return AccountID.newBuilder()
+                .setShardNum(Long.parseLong(shard))
+                .setRealmNum(Long.parseLong(realm))
+                .setAccountNum(Long.parseLong(num))
+                .build();
+    }
+
+    static ContractID asContract(String shard, String realm, String num) {
+        return ContractID.newBuilder()
+                .setShardNum(Long.parseLong(shard))
+                .setRealmNum(Long.parseLong(realm))
+                .setContractNum(Long.parseLong(num))
+                .build();
+    }
+
+    static FileID asFile(String shard, String realm, String num) {
+        return FileID.newBuilder()
+                .setShardNum(Long.parseLong(shard))
+                .setRealmNum(Long.parseLong(realm))
+                .setFileNum(Long.parseLong(num))
+                .build();
+    }
+
+    static ScheduleID asSchedule(String shard, String realm, String num) {
+        return ScheduleID.newBuilder()
+                .setShardNum(Long.parseLong(shard))
+                .setRealmNum(Long.parseLong(realm))
+                .setScheduleNum(Long.parseLong(num))
+                .build();
+    }
+
+    static TokenID asToken(String shard, String realm, String num) {
+        return TokenID.newBuilder()
+                .setShardNum(Long.parseLong(shard))
+                .setRealmNum(Long.parseLong(realm))
+                .setTokenNum(Long.parseLong(num))
+                .build();
+    }
+
+    static TopicID asTopic(String shard, String realm, String num) {
+        return TopicID.newBuilder()
+                .setShardNum(Long.parseLong(shard))
+                .setRealmNum(Long.parseLong(realm))
+                .setTopicNum(Long.parseLong(num))
+                .build();
+    }
+
     static AccountID asAccount(ByteString v) {
         return AccountID.newBuilder().setAlias(v).build();
     }
@@ -332,8 +398,8 @@ public interface HapiPropertySource {
 
     static ContractID asContractIdWithEvmAddress(ByteString address) {
         return ContractID.newBuilder()
-                .setShardNum(0)
-                .setRealmNum(0)
+                .setShardNum(shard)
+                .setRealmNum(realm)
                 .setEvmAddress(address)
                 .build();
     }
@@ -435,20 +501,33 @@ public interface HapiPropertySource {
     }
 
     static ContractID contractIdFromHexedMirrorAddress(final String hexedEvm) {
+        byte[] unhex = CommonUtils.unhex(hexedEvm);
         return ContractID.newBuilder()
-                .setContractNum(Longs.fromByteArray(Arrays.copyOfRange(CommonUtils.unhex(hexedEvm), 12, 20)))
+                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
+                .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
+                .setContractNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build();
     }
 
     static AccountID accountIdFromHexedMirrorAddress(final String hexedEvm) {
+        byte[] unhex = CommonUtils.unhex(hexedEvm);
         return AccountID.newBuilder()
-                .setAccountNum(Longs.fromByteArray(Arrays.copyOfRange(CommonUtils.unhex(hexedEvm), 12, 20)))
+                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
+                .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
+                .setAccountNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build();
     }
 
     static String literalIdFromHexedMirrorAddress(final String hexedEvm) {
+        byte[] unhex = CommonUtils.unhex(hexedEvm);
         return HapiPropertySource.asContractString(ContractID.newBuilder()
-                .setContractNum(Longs.fromByteArray(Arrays.copyOfRange(CommonUtils.unhex(hexedEvm), 12, 20)))
+                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
+                .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
+                .setContractNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build());
+    }
+
+    static String asEntityString(final long num) {
+        return String.format(ENTITY_STRING, shard, realm, num);
     }
 }

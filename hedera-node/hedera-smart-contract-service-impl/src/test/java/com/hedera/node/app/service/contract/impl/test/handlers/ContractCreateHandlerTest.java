@@ -51,6 +51,7 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
@@ -89,6 +90,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private HandleContext.SavepointStack stack;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock
     private GasCalculator gasCalculator;
@@ -222,7 +226,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         final var txn1 = contractCreateTransactionWithInsufficientGas();
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(txn1));
+        given(pureChecksContext.body()).willReturn(txn1);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
     private TransactionBody contractCreateTransaction(final Key adminKey, final AccountID autoRenewId) {

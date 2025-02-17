@@ -46,7 +46,6 @@ import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import java.util.ArrayList;
@@ -61,9 +60,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     private final CustomFeesValidator subject = new CustomFeesValidator();
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ExpiryValidator expiryValidator;
@@ -159,8 +155,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void royaltyFeeFailsWithMissingTokenOnFeeScheduleUpdate() {
         writableTokenState = emptyWritableTokenState();
         given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
-        writableTokenStore =
-                new WritableTokenStore(writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
 
         final List<CustomFee> feeWithRoyalty = new ArrayList<>();
         feeWithRoyalty.add(
@@ -583,8 +578,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void royaltyFeeFailsWithMissingTokenOnTokenCreate() {
         writableTokenState = emptyWritableTokenState();
         given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
-        writableTokenStore =
-                new WritableTokenStore(writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
 
         final List<CustomFee> feeWithRoyalty = new ArrayList<>();
         feeWithRoyalty.add(

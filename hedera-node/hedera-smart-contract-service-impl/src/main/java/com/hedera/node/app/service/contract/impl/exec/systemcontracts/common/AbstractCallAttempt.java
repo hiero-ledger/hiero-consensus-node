@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
@@ -46,6 +47,7 @@ import org.hyperledger.besu.datatypes.Address;
  */
 public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
     private final byte[] selector;
+    protected final ContractID contractID;
     protected Bytes input;
     private final Address authorizingAddress;
     // The id of the sender in the EVM frame
@@ -67,6 +69,7 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
     protected @Nullable final Address redirectAddress;
 
     /**
+     * @param contractID the target system contract ID
      * @param input the input in bytes
      * @param senderAddress the address of the sender of this call
      * @param authorizingAddress the contract whose keys are to be activated
@@ -83,6 +86,7 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
     // too many parameters
     @SuppressWarnings("java:S107")
     public AbstractCallAttempt(
+            @NonNull final ContractID contractID,
             @NonNull final Bytes input,
             @NonNull final Address senderAddress,
             @NonNull final Address authorizingAddress,
@@ -96,6 +100,7 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
             final boolean isStaticCall,
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final com.esaulpaugh.headlong.abi.Function redirectFunction) {
+        this.contractID = requireNonNull(contractID);
         requireNonNull(input);
         requireNonNull(redirectFunction);
         this.callTranslators = requireNonNull(callTranslators);
@@ -297,7 +302,7 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
 
     public @NonNull Optional<SystemContractMethod> isMethod(@NonNull final SystemContractMethod... methods) {
         for (final var method : methods) {
-            if (Arrays.equals(method.selector(), this.selector())) {
+            if (Arrays.equals(method.selector(), this.selector()) && method.hasSupportedAddress(contractID)) {
                 return Optional.of(method);
             }
         }
@@ -334,7 +339,21 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
         return onlyDelegatableContractKeysActive;
     }
 
+    /**
+     * Returns the system contract method registry for this call.
+     *
+     * @return the system contract method registry for this call
+     */
     public SystemContractMethodRegistry getSystemContractMethodRegistry() {
         return systemContractMethodRegistry;
+    }
+
+    /**
+     * Returns the target system contract ID of this call.
+     *
+     * @return the target system contract ID of this call
+     */
+    public ContractID systemContractID() {
+        return contractID;
     }
 }

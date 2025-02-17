@@ -21,6 +21,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.UNQUALIFIED_DELEGATE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
@@ -38,7 +39,9 @@ import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalH
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.AbstractFullContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -52,8 +55,8 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
  * Abstract class for native system contracts.
- * Descendents are {@link com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract} and
- * {@link com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract}.
+ * Descendants are {@link HtsSystemContract} and
+ * {@link HasSystemContract}.
  */
 @Singleton
 public abstract class AbstractNativeSystemContract extends AbstractFullContract implements HederaSystemContract {
@@ -64,23 +67,21 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
     public static final int FUNCTION_SELECTOR_LENGTH = 4;
 
     private final CallFactory callFactory;
-    private final ContractID contractID;
     private final ContractMetrics contractMetrics;
 
     protected AbstractNativeSystemContract(
             @NonNull String name,
             @NonNull CallFactory callFactory,
-            @NonNull ContractID contractID,
             @NonNull GasCalculator gasCalculator,
             @NonNull ContractMetrics contractMetrics) {
         super(name, gasCalculator);
         this.callFactory = requireNonNull(callFactory);
-        this.contractID = requireNonNull(contractID);
         this.contractMetrics = requireNonNull(contractMetrics);
     }
 
     @Override
-    public FullResult computeFully(@NonNull final Bytes input, @NonNull final MessageFrame frame) {
+    public FullResult computeFully(
+            @NonNull ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
         requireNonNull(input);
         requireNonNull(frame);
         final var callType = callTypeOf(frame);
@@ -88,22 +89,37 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             return haltResult(PRECOMPILE_ERROR, frame.getRemainingGas());
         }
         final Call call;
-        final AbstractCallAttempt<?> attempt;
+        AbstractCallAttempt<?> attempt = null;
         try {
             validateTrue(input.size() >= FUNCTION_SELECTOR_LENGTH, INVALID_TRANSACTION_BODY);
-            attempt = callFactory.createCallAttemptFrom(input, callType, frame);
+            attempt = callFactory.createCallAttemptFrom(contractID, input, callType, frame);
             call = requireNonNull(attempt.asExecutableCall());
             if (frame.isStatic() && !call.allowsStaticFrame()) {
                 // FUTURE - we should really set an explicit halt reason here; instead we just halt the frame
                 // without setting a halt reason to simulate mono-service for differential testing
                 return haltResult(contractsConfigOf(frame).precompileHtsDefaultGasCost());
             }
+        } catch (final HandleException exception) {
+            if (exception.getStatus().equals(INVALID_TRANSACTION_BODY)) {
+                return haltResult(INVALID_OPERATION, frame.getRemainingGas());
+            } else {
+                final var enhancement = proxyUpdaterFor(frame).enhancement();
+                externalizeFailure(
+                        frame.getRemainingGas(),
+                        input,
+                        Bytes.EMPTY,
+                        requireNonNull(attempt),
+                        exception.getStatus(),
+                        enhancement,
+                        contractID);
+                return revertResult(exception.getStatus(), frame.getRemainingGas());
+            }
         } catch (final Exception ignore) {
             // Input that cannot be translated to an executable call, for any
             // reason, halts the frame and consumes all remaining gas
             return haltResult(INVALID_OPERATION, frame.getRemainingGas());
         }
-        return resultOfExecuting(attempt, call, input, frame, this.contractID);
+        return resultOfExecuting(attempt, call, input, frame, contractID);
     }
 
     @SuppressWarnings({"java:S2637", "java:S2259"}) // this function is going to be refactored soon.

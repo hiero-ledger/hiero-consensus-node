@@ -102,13 +102,15 @@ public interface PreHandleWorkflow {
      * @param creator the node that created the transaction
      * @param platformTxn the transaction to be verified
      * @param storeFactory the store factory
+     * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
      * @return the verification data for the transaction
      */
     @NonNull
     default PreHandleResult getCurrentPreHandleResult(
             @NonNull final NodeInfo creator,
             @NonNull final ConsensusTransaction platformTxn,
-            @NonNull final ReadableStoreFactory storeFactory) {
+            @NonNull final ReadableStoreFactory storeFactory,
+            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
         final var metadata = platformTxn.getMetadata();
         final PreHandleResult previousResult;
         if (metadata instanceof PreHandleResult result) {
@@ -131,6 +133,6 @@ public interface PreHandleWorkflow {
                 storeFactory.getStore(ReadableAccountStore.class),
                 platformTxn,
                 previousResult,
-                txns -> {});
+                stateSignatureTxnCallback);
     }
 }

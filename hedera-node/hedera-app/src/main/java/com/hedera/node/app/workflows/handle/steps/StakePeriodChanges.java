@@ -30,7 +30,6 @@ import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
@@ -40,7 +39,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -60,16 +58,13 @@ public class StakePeriodChanges {
 
     private final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater;
     private final ExchangeRateManager exchangeRateManager;
-    private final StoreMetricsService storeMetricsService;
 
     @Inject
     public StakePeriodChanges(
             @NonNull final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater,
-            @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull final StoreMetricsService storeMetricsService) {
+            @NonNull final ExchangeRateManager exchangeRateManager) {
         this.endOfStakingPeriodUpdater = requireNonNull(endOfStakingPeriodUpdater);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
-        this.storeMetricsService = requireNonNull(storeMetricsService);
     }
 
     /**
@@ -112,14 +107,7 @@ public class StakePeriodChanges {
                 logger.error("CATASTROPHIC failure updating midnight rates", e);
                 stack.rollbackFullStack();
             }
-            final var config = tokenContext.configuration();
             try {
-                final var nodeStore = newWritableNodeStore(stack, config);
-                final BiConsumer<Long, Integer> weightUpdates = (nodeId, weight) -> nodeStore.put(nodeStore
-                        .getForModify(nodeId)
-                        .copyBuilder()
-                        .weight(weight)
-                        .build());
                 final var streamBuilder =
                         endOfStakingPeriodUpdater.updateNodes(tokenContext, exchangeRateManager.exchangeRates());
                 if (streamBuilder != null) {
@@ -177,8 +165,7 @@ public class StakePeriodChanges {
     private WritableNodeStore newWritableNodeStore(
             @NonNull final SavepointStackImpl stack, @NonNull final Configuration config) {
         final var entityCounters = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
-        final var writableFactory =
-                new WritableStoreFactory(stack, AddressBookService.NAME, config, storeMetricsService, entityCounters);
+        final var writableFactory = new WritableStoreFactory(stack, AddressBookService.NAME, entityCounters);
         return writableFactory.getStore(WritableNodeStore.class);
     }
 

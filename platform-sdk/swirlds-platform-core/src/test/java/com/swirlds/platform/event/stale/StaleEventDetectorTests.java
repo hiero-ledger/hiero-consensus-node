@@ -34,7 +34,6 @@ import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig_;
-import com.swirlds.platform.gossip.shadowgraph.Generations;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -174,7 +173,6 @@ class StaleEventDetectorTests {
                 mock(Roster.class),
                 events,
                 mock(PlatformEvent.class),
-                mock(Generations.class),
                 eventWindow,
                 mock(ConsensusSnapshot.class),
                 false,

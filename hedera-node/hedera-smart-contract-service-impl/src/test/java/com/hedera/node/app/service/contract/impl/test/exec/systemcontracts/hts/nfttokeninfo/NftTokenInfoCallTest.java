@@ -88,11 +88,11 @@ class NftTokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
                                 Tuple.of(
-                                        Tuple.of(
-                                                Tuple.of(
+                                        Tuple.from(
+                                                Tuple.from(
                                                         "Fungible Everything Token",
                                                         "FET",
                                                         headlongAddressOf(SENDER_ID),
@@ -116,7 +116,7 @@ class NftTokenInfoCallTest extends CallTestBase {
                                         1000000L,
                                         com.hedera.pbj.runtime.io.buffer.Bytes.wrap("SOLD")
                                                 .toByteArray(),
-                                        headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId())))
+                                        headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId()))))
                         .array()),
                 result.getOutput());
     }
@@ -147,11 +147,11 @@ class NftTokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(NON_FUNGIBLE_TOKEN_INFO_V2
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
                                 Tuple.of(
-                                        Tuple.of(
-                                                Tuple.of(
+                                        Tuple.from(
+                                                Tuple.from(
                                                         "Fungible Everything Token",
                                                         "FET",
                                                         headlongAddressOf(SENDER_ID),
@@ -177,7 +177,7 @@ class NftTokenInfoCallTest extends CallTestBase {
                                         1000000L,
                                         com.hedera.pbj.runtime.io.buffer.Bytes.wrap("SOLD")
                                                 .toByteArray(),
-                                        headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId())))
+                                        headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId()))))
                         .array()),
                 result.getOutput());
     }
@@ -197,11 +197,11 @@ class NftTokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 INVALID_TOKEN_ID.protoOrdinal(),
                                 Tuple.of(
-                                        Tuple.of(
-                                                Tuple.of(
+                                        Tuple.from(
+                                                Tuple.from(
                                                         "",
                                                         "",
                                                         headlongAddressOf(ZERO_ACCOUNT_ID),
@@ -224,7 +224,7 @@ class NftTokenInfoCallTest extends CallTestBase {
                                         headlongAddressOf(ZERO_ACCOUNT_ID),
                                         new Timestamp(0, 0).seconds(),
                                         com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY.toByteArray(),
-                                        headlongAddressOf(ZERO_ACCOUNT_ID)))
+                                        headlongAddressOf(ZERO_ACCOUNT_ID))))
                         .array()),
                 result.getOutput());
     }

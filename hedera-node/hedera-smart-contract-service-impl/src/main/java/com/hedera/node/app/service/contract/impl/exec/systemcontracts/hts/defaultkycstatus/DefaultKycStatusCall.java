@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.com
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.defaultkycstatus.DefaultKycStatusTranslator.DEFAULT_KYC_STATUS;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -76,6 +77,6 @@ public class DefaultKycStatusCall extends AbstractNonRevertibleTokenViewCall {
             return revertResult(status, 0);
         }
         return successResult(
-                DEFAULT_KYC_STATUS.getOutputs().encodeElements(status.protoOrdinal(), kycStatus), gasRequirement);
+                DEFAULT_KYC_STATUS.getOutputs().encode(Tuple.of(status.protoOrdinal(), kycStatus)), gasRequirement);
     }
 }

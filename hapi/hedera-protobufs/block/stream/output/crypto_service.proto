@@ -39,6 +39,7 @@ option java_package = "com.hedera.hapi.block.stream.output.protoc";
 option java_multiple_files = true;
 
 import "custom_fees.proto";
+import "basic_types.proto";
 
 /**
  * Block Stream data for a `approveAllowances` transaction.
@@ -62,7 +63,20 @@ message DeleteAllowanceOutput {}
  * This message SHALL NOT duplicate information already contained in
  * the original transaction.
  */
-message CreateAccountOutput {}
+message CreateAccountOutput {
+    /**
+     * A newly created account identifier.<br/>
+     * This is the account identifier for the account created as part of
+     * any transaction that creates a new account.<br/>
+     * This value is necessary due to the difficulty of otherwise identifying
+     * created accounts versus the other account updates necessary for every
+     * transaction (e.g. fee payment).
+     * <p>
+     * This value SHALL be set for every account creation.
+     * This value SHALL NOT be set if no account is created.
+     */
+    proto.AccountID created_account_id = 1;
+}
 
 /**
  * Block Stream data for a `cryptoDelete` transaction.

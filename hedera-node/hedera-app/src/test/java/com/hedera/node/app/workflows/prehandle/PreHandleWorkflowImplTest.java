@@ -60,6 +60,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -156,7 +157,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                         new AtomicReference<>(EntityNumber.newBuilder().build()),
                         ENTITY_COUNTS_KEY,
                         new AtomicReference<>(EntityCounts.DEFAULT)));
-        storeFactory = new ReadableStoreFactory(fakeMerkleState);
+        storeFactory = new ReadableStoreFactory(fakeMerkleState, ServicesSoftwareVersion::new);
 
         final var config = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), DEFAULT_CONFIG_VERSION);
         when(configProvider.getConfiguration()).thenReturn(config);

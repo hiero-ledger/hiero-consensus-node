@@ -104,6 +104,11 @@ import "node_delete.proto";
 import "custom_fees.proto";
 import "event/state_signature_transaction.proto";
 
+import "auxiliary/hints/hints_key_publication.proto";
+import "auxiliary/hints/hints_preprocessing_vote.proto";
+import "auxiliary/hints/hints_partial_signature.proto";
+import "auxiliary/hints/crs_publication.proto";
+
 import "auxiliary/history/history_proof_signature.proto";
 import "auxiliary/history/history_proof_key_publication.proto";
 import "auxiliary/history/history_proof_vote.proto";
@@ -172,7 +177,7 @@ message Transaction {
  */
 message TransactionBody {
     // <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
-    reserved 30, 61, 62, 63, 64, 66, 67, 68;
+    reserved 30, 61, 62, 63, 64;
 
     reserved "tssMessage", "tssVote", "tssShareSignature", "tssEncryptionKey";
 
@@ -615,6 +620,21 @@ message TransactionBody {
         com.hedera.hapi.platform.event.StateSignatureTransaction state_signature_transaction = 65;
 
         /**
+         * A transaction body for voting on hinTS aggregation keys.
+         */
+        com.hedera.hapi.services.auxiliary.hints.HintsPreprocessingVoteTransactionBody hints_preprocessing_vote = 66;
+
+        /**
+         * A transaction body for publishing a node's hintTS key.
+         */
+        com.hedera.hapi.services.auxiliary.hints.HintsKeyPublicationTransactionBody hints_key_publication = 67;
+
+        /**
+         * A transaction body for broadcasting a node's hintTS partial signature on a message.
+         */
+        com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody hints_partial_signature = 68;
+
+        /**
          * A transaction body for contributed a signature with a node's proof key to a history proof.
          */
         com.hedera.hapi.services.auxiliary.history.HistoryProofSignatureTransactionBody history_proof_signature = 69;
@@ -628,6 +648,11 @@ message TransactionBody {
          * A transaction body for voting on a metadata proof descending from the ledger id.
          */
         com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody history_proof_vote = 71;
+
+        /**
+         * A transaction body for broadcasting a node's crs publication
+         */
+        com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication = 72;
     }
 
     /**

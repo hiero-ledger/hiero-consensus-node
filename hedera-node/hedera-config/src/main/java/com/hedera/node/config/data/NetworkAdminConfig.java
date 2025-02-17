@@ -46,7 +46,11 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "application-override.properties") String upgradePropertyOverridesFile,
         @ConfigProperty(defaultValue = "api-permission-override.properties") String upgradePermissionOverridesFile,
         @ConfigProperty(defaultValue = "node-admin-keys.json") String upgradeNodeAdminKeysFile,
-        @ConfigProperty(defaultValue = "NONE") @NetworkProperty HederaFunctionalitySet nodeTransactionsAllowList,
+        @ConfigProperty(
+                        defaultValue =
+                                "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote")
+                @NetworkProperty
+                HederaFunctionalitySet nodeTransactionsAllowList,
         @ConfigProperty(defaultValue = "network.json") @NodeProperty String diskNetworkExportFile,
         @ConfigProperty(defaultValue = "NEVER") DiskNetworkExport diskNetworkExport,
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean exportCandidateRoster,

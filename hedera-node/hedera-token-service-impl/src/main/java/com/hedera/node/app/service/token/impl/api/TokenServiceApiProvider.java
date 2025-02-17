@@ -25,7 +25,6 @@ import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -45,12 +44,10 @@ public enum TokenServiceApiProvider implements ServiceApiProvider<TokenServiceAp
     @Override
     public TokenServiceApi newInstance(
             @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService,
             @NonNull final WritableStates writableStates,
             @NonNull final WritableEntityCounters entityCounters) {
         return new TokenServiceApiImpl(
                 configuration,
-                storeMetricsService,
                 writableStates,
                 op -> {
                     final var assessor = new CustomFeeAssessmentStep(op);
@@ -60,8 +57,7 @@ public enum TokenServiceApiProvider implements ServiceApiProvider<TokenServiceAp
                                 new ReadableTokenRelationStoreImpl(writableStates, entityCounters),
                                 configuration,
                                 new ReadableAccountStoreImpl(writableStates, entityCounters),
-                                AccountID::hasAlias,
-                                false);
+                                AccountID::hasAlias);
                         return !result.assessedCustomFees().isEmpty();
                     } catch (Exception ignore) {
                         return false;

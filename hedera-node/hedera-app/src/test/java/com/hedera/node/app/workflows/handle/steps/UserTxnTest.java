@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,14 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.workflows.handle.TransactionType.GENESIS_TRANSACTION;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,13 +33,14 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -51,10 +53,10 @@ import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
@@ -66,15 +68,15 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.events.ConsensusEvent;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.TransactionWrapper;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
-import com.swirlds.state.spi.WritableKVState;
-import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,9 +101,6 @@ class UserTxnTest {
     private State state;
 
     @Mock
-    private ConsensusEvent event;
-
-    @Mock
     private NodeInfo creatorInfo;
 
     @Mock
@@ -112,12 +111,6 @@ class UserTxnTest {
 
     @Mock
     private TransactionInfo txnInfo;
-
-    @Mock
-    private ConfigProvider configProvider;
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
 
     @Mock
     private KVStateChangeListener kvStateChangeListener;
@@ -136,9 +129,6 @@ class UserTxnTest {
 
     @Mock
     private DispatchProcessor dispatchProcessor;
-
-    @Mock
-    private BlockRecordInfo blockRecordInfo;
 
     @Mock
     private ServiceScopeLookup serviceScopeLookup;
@@ -162,15 +152,23 @@ class UserTxnTest {
     private BlockStreamManager blockStreamManager;
 
     @Mock
-    private WritableStates writableStates;
+    private ConfigProvider configProvider;
 
     @Mock
-    private WritableKVState<AccountID, Account> accountState;
+    private TransactionChecker transactionChecker;
+
+    @Mock
+    private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
+
+    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = ServicesSoftwareVersion::new;
 
     @BeforeEach
     void setUp() {
         given(preHandleWorkflow.getCurrentPreHandleResult(
-                        eq(creatorInfo), eq(PLATFORM_TXN), any(ReadableStoreFactory.class)))
+                        eq(creatorInfo),
+                        eq(PLATFORM_TXN),
+                        any(ReadableStoreFactory.class),
+                        eq(stateSignatureTxnCallback)))
                 .willReturn(preHandleResult);
         given(preHandleResult.txInfo()).willReturn(txnInfo);
         given(txnInfo.functionality()).willReturn(CONSENSUS_CREATE_TOPIC);
@@ -181,7 +179,8 @@ class UserTxnTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         assertSame(GENESIS_TRANSACTION, subject.type());
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
@@ -199,6 +198,16 @@ class UserTxnTest {
     }
 
     @Test
+    void returnsNullForStateSignatureTxn() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
+
+        final var factory = createUserTxnFactory();
+        assertNull(factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback));
+    }
+
+    @Test
     void constructsDispatchAsExpectedWithCongestionMultiplierGreaterThanOne() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(txnInfo.payerID()).willReturn(PAYER_ID);
@@ -213,13 +222,11 @@ class UserTxnTest {
         given(feeManager.congestionMultiplierFor(any(), eq(CONSENSUS_CREATE_TOPIC), any(ReadableStoreFactory.class)))
                 .willReturn(CONGESTION_MULTIPLIER);
         given(serviceScopeLookup.getServiceName(any())).willReturn(ConsensusServiceImpl.NAME);
-        given(state.getWritableStates(any())).willReturn(writableStates);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(accountState);
-        given(accountState.getStateKey()).willReturn(ACCOUNTS_KEY);
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -247,13 +254,11 @@ class UserTxnTest {
         given(feeManager.congestionMultiplierFor(any(), eq(CONSENSUS_CREATE_TOPIC), any(ReadableStoreFactory.class)))
                 .willReturn(1L);
         given(serviceScopeLookup.getServiceName(any())).willReturn(ConsensusServiceImpl.NAME);
-        given(state.getWritableStates(any())).willReturn(writableStates);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(accountState);
-        given(accountState.getStateKey()).willReturn(ACCOUNTS_KEY);
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -270,7 +275,6 @@ class UserTxnTest {
     private UserTxnFactory createUserTxnFactory() {
         return new UserTxnFactory(
                 configProvider,
-                storeMetricsService,
                 kvStateChangeListener,
                 boundaryStateChangeListener,
                 preHandleWorkflow,
@@ -284,6 +288,8 @@ class UserTxnTest {
                 networkUtilizationManager,
                 blockRecordManager,
                 blockStreamManager,
-                childDispatchFactory);
+                childDispatchFactory,
+                softwareVersionFactory,
+                transactionChecker);
     }
 }

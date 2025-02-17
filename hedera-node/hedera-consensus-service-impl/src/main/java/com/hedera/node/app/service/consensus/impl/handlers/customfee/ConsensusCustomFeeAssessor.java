@@ -32,7 +32,9 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -48,36 +50,37 @@ public class ConsensusCustomFeeAssessor {
     }
 
     /**
-     * Build and return a list of synthetic crypto transfer transaction bodies, that represents custom fees payments.
-     * It will return one body per topic custom fee.
+     * Constructs a map of synthetic crypto transfer transaction bodies.
+     * Each entry in the map represents a custom fee payment, with one transaction body per custom fee.
      *
      * @param customFees List of custom fees to be charged
      * @param payer The payer Account ID
-     * @return List of synthetic crypto transfer transaction bodies
+     * @return A map where each key is a FixedCustomFee and each value is a corresponding CryptoTransferTransactionBody.
      */
-    public List<CryptoTransferTransactionBody> assessCustomFee(
+    public Map<FixedCustomFee, CryptoTransferTransactionBody> assessCustomFee(
             @NonNull final List<FixedCustomFee> customFees, @NonNull final AccountID payer) {
-        final List<CryptoTransferTransactionBody> transactionBodies = new ArrayList<>();
+        final Map<FixedCustomFee, CryptoTransferTransactionBody> transactionBodies = new HashMap<>();
 
         // build crypto transfer bodies for the first layer of custom fees,
         // if there is a second or third layer it will be assessed in crypto transfer handler
         for (FixedCustomFee fee : customFees) {
             final var tokenTransfers = new ArrayList<TokenTransferList>();
-            List<AccountAmount> hbarTransfers = new ArrayList<>();
+            TransferList.Builder hbarTransfers = TransferList.newBuilder();
 
             final var fixedFee = fee.fixedFeeOrThrow();
             if (fixedFee.hasDenominatingTokenId()) {
                 tokenTransfers.add(buildCustomFeeTokenTransferList(payer, fee.feeCollectorAccountId(), fixedFee));
             } else {
-                hbarTransfers = buildCustomFeeHbarTransferList(payer, fee.feeCollectorAccountId(), fixedFee);
+                final var accountAmounts = buildCustomFeeHbarTransferList(payer, fee.feeCollectorAccountId(), fixedFee);
+                hbarTransfers.accountAmounts(accountAmounts.toArray(AccountAmount[]::new));
             }
 
             // build the synthetic body
-            final var syntheticBodyBuilder =
-                    CryptoTransferTransactionBody.newBuilder().tokenTransfers(tokenTransfers);
-            transactionBodies.add(syntheticBodyBuilder
-                    .transfers(TransferList.newBuilder().accountAmounts(hbarTransfers.toArray(AccountAmount[]::new)))
-                    .build());
+            final var syntheticBodyBuilder = CryptoTransferTransactionBody.newBuilder()
+                    .transfers(hbarTransfers.build())
+                    .tokenTransfers(tokenTransfers);
+
+            transactionBodies.put(fee, syntheticBodyBuilder.build());
         }
 
         return transactionBodies;

@@ -43,7 +43,6 @@ import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.data.StakingConfig;
@@ -87,9 +86,6 @@ public class NodeStakeUpdatesTest {
     private WritableStates writableStates;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
-
-    @Mock
     private WritableKVState<EntityNumber, Node> nodesState;
 
     @Mock
@@ -104,7 +100,7 @@ public class NodeStakeUpdatesTest {
     void setUp() {
         given(context.readableStore(ReadableBlockRecordStore.class)).willReturn(blockStore);
 
-        subject = new StakePeriodChanges(stakingPeriodCalculator, exchangeRateManager, storeMetricsService);
+        subject = new StakePeriodChanges(stakingPeriodCalculator, exchangeRateManager);
 
         given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY)).willReturn(entityCountsState);

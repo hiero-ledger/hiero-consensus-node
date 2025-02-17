@@ -92,7 +92,6 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -315,6 +314,7 @@ public class SystemSetup {
 
         entityCountsState.put(entityCountsUpdated);
         log.info("Initialized entity counts for post-upgrade state to {}", entityCountsUpdated);
+        dispatch.stack().commitFullStack();
     }
 
     /**

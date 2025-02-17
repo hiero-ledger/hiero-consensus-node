@@ -34,6 +34,7 @@ import com.hedera.node.app.history.impl.ProofControllers;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -74,6 +75,9 @@ class HistoryProofSignatureHandlerTest {
     @Mock
     private StoreFactory factory;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private HistoryProofSignatureHandler subject;
 
     @BeforeEach
@@ -83,7 +87,7 @@ class HistoryProofSignatureHandlerTest {
 
     @Test
     void pureChecksAndPreHandleDoNothing() {
-        assertDoesNotThrow(() -> subject.pureChecks(TransactionBody.DEFAULT));
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
     }
 

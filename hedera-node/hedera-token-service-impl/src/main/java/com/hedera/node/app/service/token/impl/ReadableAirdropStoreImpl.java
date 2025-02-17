@@ -21,9 +21,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;

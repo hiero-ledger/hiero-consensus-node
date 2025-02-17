@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,10 +97,10 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIForContract;
+import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.NESTED_LAZY_CREATE_VIA_CONSTRUCTOR;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.SALT;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.ECDSA_KEY;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
-import static com.hedera.services.bdd.suites.leaky.LeakyContractTestsSuite.NESTED_LAZY_CREATE_VIA_CONSTRUCTOR;
 import static com.hedera.services.bdd.suites.regression.factories.HollowAccountCompletedFuzzingFactory.CONTRACT;
 import static com.hedera.services.bdd.suites.utils.ECDSAKeysUtils.randomHeadlongAddress;
 import static com.hedera.services.bdd.suites.utils.contracts.SimpleBytesResult.bigIntResult;
@@ -739,7 +739,7 @@ public class ContractCallSuite {
                         .exposingFilteredCallResultVia(
                                 getABIForContract(jurisdictions),
                                 "JurisdictionAdded",
-                                data -> nyJurisCode.set((byte[]) data.get(0))),
+                                data -> nyJurisCode.set((byte[]) data[0])),
                 sourcing(() -> logIt("NY juris code is " + CommonUtils.hex(nyJurisCode.get()))),
                 sourcing(() -> contractCallLocal(jurisdictions, "isValid", nyJurisCode.get())
                         .has(resultWith()

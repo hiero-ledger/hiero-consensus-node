@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,20 +43,17 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenRevokeKycTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
-import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenRevokeKycFromAccountHandler;
-import com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils;
-import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -74,12 +71,13 @@ class TokenRevokeKycFromAccountHandlerTest {
     private static final AccountID ACCOUNT_100 =
             AccountID.newBuilder().accountNum(100).build();
 
-    private ReadableAccountStore accountStore;
     private TokenRevokeKycFromAccountHandler subject;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @BeforeEach
     void setUp() {
-        accountStore = SigReqAdapterUtils.wellKnownAccountStoreAt();
         subject = new TokenRevokeKycFromAccountHandler();
     }
 
@@ -87,7 +85,7 @@ class TokenRevokeKycFromAccountHandlerTest {
     class PreHandleTests {
         @Test
         @DisplayName("When op token ID is null, tokenOrThrow throws an exception")
-        void nullTokenIdThrowsException() throws PreCheckException {
+        void nullTokenIdThrowsException() {
             final var txn = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder().accountID(PBJ_PAYER_ID))
                     .tokenRevokeKyc(TokenRevokeKycTransactionBody.newBuilder()
@@ -95,14 +93,14 @@ class TokenRevokeKycFromAccountHandlerTest {
                             .account(AccountID.newBuilder().accountNum(MISC_ACCOUNT.getAccountNum()))
                             .build())
                     .build();
+            given(pureChecksContext.body()).willReturn(txn);
 
-            final var context = new FakePreHandleContext(accountStore, txn);
-            assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_TOKEN_ID);
+            assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_TOKEN_ID);
         }
 
         @Test
         @DisplayName("When op account ID is null, accountOrThrow throws an exception")
-        void nullAccountIdThrowsException() throws PreCheckException {
+        void nullAccountIdThrowsException() {
             final var txn = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder().accountID(PBJ_PAYER_ID))
                     .tokenRevokeKyc(TokenRevokeKycTransactionBody.newBuilder()
@@ -110,9 +108,9 @@ class TokenRevokeKycFromAccountHandlerTest {
                             .account((AccountID) null)
                             .build())
                     .build();
+            given(pureChecksContext.body()).willReturn(txn);
 
-            final var context = new FakePreHandleContext(accountStore, txn);
-            assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ACCOUNT_ID);
+            assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_ACCOUNT_ID);
         }
     }
 
@@ -138,7 +136,6 @@ class TokenRevokeKycFromAccountHandlerTest {
         private StoreFactory storeFactory;
 
         private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(9876);
-        private static final TokenID TOKEN_531 = BaseTokenHandler.asToken(531);
 
         private static final Token newToken10 = Token.newBuilder()
                 .tokenId(TOKEN_10)
@@ -174,8 +171,8 @@ class TokenRevokeKycFromAccountHandlerTest {
         }
 
         @Test
-        @DisplayName("When getForModify returns empty, should not put or commit")
-        void emptyGetForModifyShouldNotPersist() {
+        @DisplayName("When get returns empty, should not put or commit")
+        void emptyGetShouldNotPersist() {
             given(readableAccountStore.getAccountById(ACCOUNT_100))
                     .willReturn(Account.newBuilder().accountId(ACCOUNT_100).build());
             given(readableTokenStore.get(TOKEN_10)).willReturn(newToken10);

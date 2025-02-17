@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ package com.hedera.node.app.service.schedule.impl.handlers;
 
 import static org.assertj.core.api.BDDAssertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
-import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -52,14 +52,15 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
 
     @BeforeEach
     void setUp() throws PreCheckException, InvalidKeyException {
-        subject = new ScheduleSignHandler();
+        subject = new ScheduleSignHandler(mock(ScheduleFeeCharging.class));
         setUpBase();
     }
 
     @Test
-    void vanillaNoExplicitPayer() throws PreCheckException {
+    void vanilla() throws PreCheckException {
         final TransactionBody testTransaction = scheduleSignTransaction(null);
-        realPreContext = new PreHandleContextImpl(mockStoreFactory, testTransaction, testConfig, mockDispatcher);
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker);
 
         subject.preHandle(realPreContext);
         assertThat(realPreContext.payer()).isEqualTo(scheduler);
@@ -71,18 +72,9 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
     void failsIfScheduleMissing() throws PreCheckException {
         final ScheduleID badScheduleID = ScheduleID.newBuilder().scheduleNum(1L).build();
         final TransactionBody testTransaction = scheduleSignTransaction(badScheduleID);
-        realPreContext = new PreHandleContextImpl(mockStoreFactory, testTransaction, testConfig, mockDispatcher);
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker);
         Assertions.assertThrowsPreCheck(() -> subject.preHandle(realPreContext), ResponseCodeEnum.INVALID_SCHEDULE_ID);
-    }
-
-    @Test
-    void vanillaWithOptionalPayerSet() throws PreCheckException {
-        final TransactionBody testTransaction = scheduleSignTransaction(null);
-        realPreContext = new PreHandleContextImpl(mockStoreFactory, testTransaction, testConfig, mockDispatcher);
-        subject.preHandle(realPreContext);
-        assertThat(realPreContext.payer()).isEqualTo(scheduler);
-        assertThat(realPreContext.payerKey()).isEqualTo(schedulerKey);
-        assertThat(realPreContext.optionalNonPayerKeys()).isNotEqualTo(Collections.emptySet());
     }
 
     @Test
@@ -92,11 +84,10 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
             final int startCount = scheduleMapById.size();
             writableSchedules.put(next);
             final TransactionBody signTransaction = scheduleSignTransaction(next.scheduleId());
-            final TransactionID parentId = signTransaction.transactionID();
             // only some keys are "valid" on the transaction with this mock setup
             final Set<Key> expectedSignatories = prepareContext(signTransaction);
             subject.handle(mockContext);
-            verifySignHandleSucceededNoExecution(next, parentId, startCount);
+            verifySignHandleSucceededNoExecution(next, startCount);
             verifySignatorySet(next, expectedSignatories);
             successCount++;
         }
@@ -128,12 +119,11 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
             final int startCount = scheduleMapById.size();
             writableSchedules.put(next);
             final TransactionBody signTransaction = scheduleSignTransaction(next.scheduleId());
-            final TransactionID parentId = signTransaction.transactionID();
             // all keys are "valid" on the transaction with this mock setup
             prepareContextAllPass(signTransaction);
             subject.handle(mockContext);
             verifyAllSignatories(next, testChildKeys);
-            verifySignHandleSucceededAndExecuted(next, parentId, startCount);
+            verifySignHandleSucceededAndExecuted(next, startCount);
             successCount++;
         }
         // verify that all the transactions succeeded.

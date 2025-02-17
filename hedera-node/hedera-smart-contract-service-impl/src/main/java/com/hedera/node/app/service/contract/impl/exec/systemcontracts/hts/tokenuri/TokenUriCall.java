@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.hapi.utils.HederaExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -78,7 +79,7 @@ public class TokenUriCall extends AbstractCall {
         }
         return gasOnly(
                 successResult(
-                        TokenUriTranslator.TOKEN_URI.getOutputs().encodeElements(metadata),
+                        TokenUriTranslator.TOKEN_URI.getOutputs().encode(Tuple.singleton(metadata)),
                         gasCalculator.viewGasRequirement()),
                 SUCCESS,
                 true);

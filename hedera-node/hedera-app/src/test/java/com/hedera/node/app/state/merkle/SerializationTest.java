@@ -17,6 +17,7 @@
 package com.hedera.node.app.state.merkle;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -313,8 +314,9 @@ class SerializationTest extends MerkleTestBase {
                 mock(WritableEntityIdStore.class),
                 new HashMap<>(),
                 migrationStateChanges,
-                startupNetworks);
-        loadedTree.migrate(MerkleStateRoot.CURRENT_VERSION);
+                startupNetworks,
+                TEST_PLATFORM_STATE_FACADE);
+        (loadedTree).migrate(MerkleStateRoot.CURRENT_VERSION);
     }
 
     private PlatformMerkleStateRoot createMerkleHederaState(Schema schemaV1) {
@@ -336,20 +338,21 @@ class SerializationTest extends MerkleTestBase {
                 mock(WritableEntityIdStore.class),
                 new HashMap<>(),
                 migrationStateChanges,
-                startupNetworks);
+                startupNetworks,
+                TEST_PLATFORM_STATE_FACADE);
         return originalTree;
     }
 
     private static void populateVmCache(MerkleStateRoot<?> loadedTree) {
         final var states = loadedTree.getWritableStates(FIRST_SERVICE);
         final WritableKVState<String, String> animalState = states.get(ANIMAL_STATE_KEY);
-        assertThat(animalState.getForModify(A_KEY)).isEqualTo(AARDVARK);
-        assertThat(animalState.getForModify(B_KEY)).isEqualTo(BEAR);
-        assertThat(animalState.getForModify(C_KEY)).isEqualTo(CUTTLEFISH);
-        assertThat(animalState.getForModify(D_KEY)).isEqualTo(DOG);
-        assertThat(animalState.getForModify(E_KEY)).isEqualTo(EMU);
-        assertThat(animalState.getForModify(F_KEY)).isEqualTo(FOX);
-        assertThat(animalState.getForModify(G_KEY)).isEqualTo(GOOSE);
+        assertThat(animalState.get(A_KEY)).isEqualTo(AARDVARK);
+        assertThat(animalState.get(B_KEY)).isEqualTo(BEAR);
+        assertThat(animalState.get(C_KEY)).isEqualTo(CUTTLEFISH);
+        assertThat(animalState.get(D_KEY)).isEqualTo(DOG);
+        assertThat(animalState.get(E_KEY)).isEqualTo(EMU);
+        assertThat(animalState.get(F_KEY)).isEqualTo(FOX);
+        assertThat(animalState.get(G_KEY)).isEqualTo(GOOSE);
     }
 
     private static void assertTree(MerkleStateRoot<?> loadedTree) {

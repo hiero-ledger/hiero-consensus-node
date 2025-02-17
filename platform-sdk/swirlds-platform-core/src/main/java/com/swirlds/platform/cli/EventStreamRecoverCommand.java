@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.swirlds.platform.cli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.platform.recovery.EventRecoveryWorkflow.recoverState;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.commands.EventStreamCommand;
 import com.swirlds.cli.utility.AbstractCommand;
@@ -136,7 +137,8 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
                 finalRound,
                 outputPath,
                 selfId,
-                loadSigningKeys);
+                loadSigningKeys,
+                DEFAULT_PLATFORM_STATE_FACADE);
         return 0;
     }
 }

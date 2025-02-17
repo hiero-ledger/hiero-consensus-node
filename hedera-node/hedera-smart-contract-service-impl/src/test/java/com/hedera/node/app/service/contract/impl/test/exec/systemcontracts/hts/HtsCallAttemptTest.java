@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanceof.BalanceOfTranslator.BALANCE_OF;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -135,6 +136,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input =
                 TestHelpers.bytesForRedirect(Erc20TransfersTranslator.ERC_20_TRANSFER.selector(), EIP_1014_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -157,6 +159,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 .willReturn(FUNGIBLE_TOKEN);
         final var input = TestHelpers.bytesForRedirect(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -177,6 +180,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 DecimalsTranslator.DECIMALS.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -197,6 +201,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 TokenUriTranslator.TOKEN_URI.encodeCallWithArgs(BigInteger.ONE).array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -217,6 +222,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 OwnerOfTranslator.OWNER_OF.encodeCallWithArgs(BigInteger.ONE).array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -240,6 +246,7 @@ class HtsCallAttemptTest extends CallTestBase {
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -264,6 +271,7 @@ class HtsCallAttemptTest extends CallTestBase {
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -286,6 +294,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 .encodeCallWithArgs(address, address, address)
                 .array());
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -306,6 +315,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 TotalSupplyTranslator.TOTAL_SUPPLY.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -326,6 +336,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 NameTranslator.NAME.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -346,6 +357,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 SymbolTranslator.SYMBOL.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -377,6 +389,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -408,6 +421,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -436,6 +450,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -490,6 +505,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -554,6 +570,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -626,6 +643,7 @@ class HtsCallAttemptTest extends CallTestBase {
         }
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,

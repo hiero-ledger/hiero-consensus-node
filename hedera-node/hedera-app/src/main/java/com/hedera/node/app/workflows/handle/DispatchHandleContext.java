@@ -60,6 +60,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
@@ -67,6 +68,7 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -106,6 +108,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final FeeAccumulator feeAccumulator;
     private Map<AccountID, Long> dispatchPaidRewards;
     private final DispatchMetadata dispatchMetaData;
+    private final TransactionChecker transactionChecker;
 
     public DispatchHandleContext(
             @NonNull final Instant consensusNow,
@@ -130,7 +133,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ThrottleAdviser throttleAdviser,
             @NonNull final FeeAccumulator feeAccumulator,
-            @NonNull final DispatchMetadata handleMetaData) {
+            @NonNull final DispatchMetadata handleMetaData,
+            @NonNull final TransactionChecker transactionChecker) {
         this.consensusNow = requireNonNull(consensusNow);
         this.creatorInfo = requireNonNull(creatorInfo);
         this.txnInfo = requireNonNull(transactionInfo);
@@ -156,6 +160,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.dispatcher = requireNonNull(dispatcher);
         this.networkInfo = requireNonNull(networkInfo);
         this.dispatchMetaData = requireNonNull(handleMetaData);
+        this.transactionChecker = requireNonNull(transactionChecker);
     }
 
     @NonNull
@@ -266,9 +271,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     public TransactionKeys allKeysForTransaction(
             @NonNull final TransactionBody nestedTxn, @NonNull final AccountID payerForNested)
             throws PreCheckException {
-        dispatcher.dispatchPureChecks(nestedTxn);
+        final var nestedPureChecksContext =
+                new PureChecksContextImpl(nestedTxn, configuration(), dispatcher, transactionChecker);
+        dispatcher.dispatchPureChecks(nestedPureChecksContext);
         final var nestedContext = new PreHandleContextImpl(
-                storeFactory.asReadOnly(), nestedTxn, payerForNested, configuration(), dispatcher);
+                storeFactory.asReadOnly(), nestedTxn, payerForNested, configuration(), dispatcher, transactionChecker);
         try {
             dispatcher.dispatchPreHandle(nestedContext);
         } catch (final PreCheckException ignored) {

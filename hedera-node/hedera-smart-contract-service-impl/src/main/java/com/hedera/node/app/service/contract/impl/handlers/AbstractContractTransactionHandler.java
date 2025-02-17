@@ -22,7 +22,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -31,9 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent.Facto
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,12 +56,6 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
         this.component = requireNonNull(component);
     }
 
-    @Override
-    public abstract void preHandle(@NonNull PreHandleContext context) throws PreCheckException;
-
-    @Override
-    public abstract void pureChecks(@NonNull TransactionBody txn) throws PreCheckException;
-
     /**
      * Handle common metrics for transactions that fail `pureChecks`.
      *
@@ -77,9 +68,6 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
             contractMetrics.incrementRejectedForGasTx(functionality);
         }
     }
-
-    @Override
-    public abstract void handle(@NonNull HandleContext context) throws HandleException;
 
     @Override
     public @NonNull Fees calculateFees(@NonNull FeeContext feeContext) {

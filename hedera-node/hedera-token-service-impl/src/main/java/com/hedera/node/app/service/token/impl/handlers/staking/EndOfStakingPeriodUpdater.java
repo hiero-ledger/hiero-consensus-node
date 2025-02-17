@@ -41,6 +41,7 @@ import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.StakingConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -68,6 +69,7 @@ public class EndOfStakingPeriodUpdater {
 
     private final AccountsConfig accountsConfig;
     private final StakingRewardsHelper stakeRewardsHelper;
+    private final HederaConfig hederaConfig;
 
     /**
      * Constructs an {@link EndOfStakingPeriodUpdater} instance.
@@ -80,6 +82,7 @@ public class EndOfStakingPeriodUpdater {
         this.stakeRewardsHelper = stakeRewardsHelper;
         final var config = configProvider.getConfiguration();
         this.accountsConfig = config.getConfigData(AccountsConfig.class);
+        this.hederaConfig = config.getConfigData(HederaConfig.class);
     }
 
     /**
@@ -128,7 +131,7 @@ public class EndOfStakingPeriodUpdater {
         for (final var nodeId : context.knownNodeIds().stream().sorted().toList()) {
             // The node's staking info at the end of the period, non-final because
             // we iteratively update its reward sum history
-            var nodeInfo = requireNonNull(stakingInfoStore.getForModify(nodeId));
+            var nodeInfo = requireNonNull(stakingInfoStore.get(nodeId));
             // The return value here includes both the new reward sum history, and the reward rate
             // (tinybars-per-hbar) that will be paid to all accounts who had staked to reward for
             // this node long enough to be eligible in the just-finished period
@@ -151,7 +154,7 @@ public class EndOfStakingPeriodUpdater {
             final var pendingRewards = (nodeInfo.stakeRewardStart() - nodeInfo.unclaimedStakeRewardStart())
                     / HBARS_TO_TINYBARS
                     * nodeRewardRate;
-            final var newStakes = computeNewStakes(nodeInfo);
+            final var newStakes = computeNewStakes(nodeInfo, stakingConfig);
             log.info(
                     "For node{}, the tb/hbar reward rate was {} for {} pending, with stake reward start {} -> {}",
                     nodeId,
@@ -276,7 +279,8 @@ public class EndOfStakingPeriodUpdater {
     }
 
     private long getRewardsBalance(@NonNull final ReadableAccountStore accountStore) {
-        return requireNonNull(accountStore.getAccountById(asAccount(accountsConfig.stakingRewardAccount())))
+        return requireNonNull(accountStore.getAccountById(
+                        asAccount(hederaConfig.shard(), hederaConfig.realm(), accountsConfig.stakingRewardAccount())))
                 .tinybarBalance();
     }
 }

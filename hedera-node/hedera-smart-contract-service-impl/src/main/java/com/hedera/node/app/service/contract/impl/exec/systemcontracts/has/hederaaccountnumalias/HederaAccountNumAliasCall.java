@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
@@ -73,7 +74,7 @@ public class HederaAccountNumAliasCall extends AbstractCall {
 
     private @NonNull FullResult fullResultsFor(final ResponseCodeEnum responseCode, final Address address) {
         return successResult(
-                HEDERA_ACCOUNT_NUM_ALIAS.getOutputs().encodeElements((long) responseCode.protoOrdinal(), address),
+                HEDERA_ACCOUNT_NUM_ALIAS.getOutputs().encode(Tuple.of((long) responseCode.protoOrdinal(), address)),
                 gasCalculator.viewGasRequirement());
     }
 }

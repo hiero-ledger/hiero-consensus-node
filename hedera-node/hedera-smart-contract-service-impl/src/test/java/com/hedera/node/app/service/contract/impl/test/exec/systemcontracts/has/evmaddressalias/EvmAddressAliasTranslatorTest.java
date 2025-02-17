@@ -112,7 +112,7 @@ class EvmAddressAliasTranslatorTest {
     @Test
     void callFromEvmAddressAliasTest() {
         final Bytes inputBytes =
-                Bytes.wrapByteBuffer(EVM_ADDRESS_ALIAS.encodeCall(Tuple.of(APPROVED_HEADLONG_ADDRESS)));
+                Bytes.wrapByteBuffer(EVM_ADDRESS_ALIAS.encodeCall(Tuple.singleton(APPROVED_HEADLONG_ADDRESS)));
         givenCommonForCall(inputBytes);
 
         final var call = subject.callFrom(attempt);

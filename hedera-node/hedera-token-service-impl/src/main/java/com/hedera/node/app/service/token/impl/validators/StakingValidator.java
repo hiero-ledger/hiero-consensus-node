@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -150,9 +150,9 @@ public class StakingValidator {
             @NonNull String stakedIdKind, @Nullable AccountID stakedAccountId, @Nullable Long stakedNodeId) {
         if (stakedIdKind.equals("STAKED_ACCOUNT_ID")) {
             // current checking only account num since shard and realm are 0.0
-            return requireNonNull(stakedAccountId).accountNum() == 0;
+            return requireNonNull(stakedAccountId).accountNumOrThrow() == 0;
         } else if (stakedIdKind.equals("STAKED_NODE_ID")) {
-            return requireNonNull(stakedNodeId).longValue() == -1;
+            return requireNonNull(stakedNodeId) == -1;
         } else {
             return false;
         }
@@ -162,9 +162,9 @@ public class StakingValidator {
             final String stakedIdKind, final AccountID stakedAccountId, final Long stakedNodeId) {
         if (stakedIdKind.equals("STAKED_ACCOUNT_ID")) {
             // current checking only account num since shard and realm are 0.0
-            return requireNonNull(stakedAccountId).accountNum() > 0;
+            return requireNonNull(stakedAccountId).accountNumOrThrow() > 0;
         } else if (stakedIdKind.equals("STAKED_NODE_ID")) {
-            return requireNonNull(stakedNodeId).longValue() >= 0;
+            return requireNonNull(stakedNodeId) >= 0;
         } else {
             return false;
         }

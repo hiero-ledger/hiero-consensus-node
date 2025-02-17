@@ -24,48 +24,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTestBase;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.validation.EntityType;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
 import java.util.Collections;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableTokenStoreTest extends TokenHandlerTestBase {
-
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
-
     private Token token;
 
     @Test
     void throwsIfNullValuesAsArgs() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableTokenStore(null, CONFIGURATION, storeMetricsService, writableEntityCounters));
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableTokenStore(writableStates, null, storeMetricsService, writableEntityCounters));
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableTokenStore(writableStates, CONFIGURATION, null, writableEntityCounters));
-        assertThrows(NullPointerException.class, () -> writableTokenStore.put(null));
+        assertThrows(NullPointerException.class, () -> new WritableTokenStore(null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableTokenStore(writableStates, null));
         assertThrows(NullPointerException.class, () -> writableTokenStore.put(null));
     }
 
     @Test
     void constructorCreatesTokenState() {
-        final var store =
-                new WritableTokenStore(writableStates, CONFIGURATION, storeMetricsService, writableEntityCounters);
+        final var store = new WritableTokenStore(writableStates, writableEntityCounters);
         assertNotNull(store);
     }
 
@@ -76,19 +57,6 @@ class WritableTokenStoreTest extends TokenHandlerTestBase {
 
         final var readToken = writableTokenStore.get(tokenId);
 
-        assertEquals(token, readToken);
-    }
-
-    @Test
-    void getForModifyReturnsImmutableToken() {
-        token = createToken();
-
-        writableTokenStore.put(token);
-
-        final var maybeReadToken = writableTokenStore.getForModify(tokenId);
-
-        assertTrue(maybeReadToken.isPresent());
-        final var readToken = maybeReadToken.get();
         assertEquals(token, readToken);
     }
 

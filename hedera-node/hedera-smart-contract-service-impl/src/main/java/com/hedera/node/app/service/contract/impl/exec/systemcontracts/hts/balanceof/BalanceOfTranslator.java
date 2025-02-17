@@ -63,9 +63,8 @@ public class BalanceOfTranslator extends AbstractCallTranslator<HtsCallAttempt> 
      */
     @Override
     public BalanceOfCall callFrom(@NonNull final HtsCallAttempt attempt) {
-        final Address owner = BalanceOfTranslator.BALANCE_OF
-                .decodeCall(attempt.input().toArrayUnsafe())
-                .get(0);
+        final Address owner =
+                BALANCE_OF.decodeCall(attempt.input().toArrayUnsafe()).get(0);
         return new BalanceOfCall(
                 attempt.enhancement(), attempt.systemContractGasCalculator(), attempt.redirectToken(), owner);
     }

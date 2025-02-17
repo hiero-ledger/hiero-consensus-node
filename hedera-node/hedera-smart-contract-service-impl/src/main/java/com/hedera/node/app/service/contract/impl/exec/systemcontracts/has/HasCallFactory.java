@@ -21,6 +21,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallFactory;
@@ -75,6 +76,7 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
      */
     @Override
     public @NonNull HasCallAttempt createCallAttemptFrom(
+            @NonNull ContractID contractID,
             @NonNull final Bytes input,
             @NonNull final FrameUtils.CallType callType,
             @NonNull final MessageFrame frame) {
@@ -82,6 +84,7 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
         requireNonNull(frame);
         final var enhancement = proxyUpdaterFor(frame).enhancement();
         return new HasCallAttempt(
+                contractID,
                 input,
                 frame.getSenderAddress(),
                 addressChecks.hasParentDelegateCall(frame),

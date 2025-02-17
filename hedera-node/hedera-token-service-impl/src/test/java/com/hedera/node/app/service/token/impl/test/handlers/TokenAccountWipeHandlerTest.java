@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,6 +72,7 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import org.assertj.core.api.Assertions;
@@ -95,7 +96,11 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
     @Mock
     private TokenAccountWipeStreamBuilder recordBuilder;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     @BeforeEach
+    @Override
     public void setUp() {
         super.setUp();
         configuration = HederaTestConfigBuilder.create()
@@ -120,13 +125,17 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
                             TransactionID.newBuilder().accountID(ACCOUNT_4680).build())
                     .tokenBurn(nonWipeTxnBody)
                     .build();
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn)).isInstanceOf(NullPointerException.class);
+            given(pureChecksContext.body()).willReturn(txn);
+
+            assertThatThrownBy(() -> subject.pureChecks(pureChecksContext)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
         void noAccountIdPresent() {
             final var txn = newWipeTxn(null, TOKEN_531, 1);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
         }
@@ -134,7 +143,9 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
         @Test
         void noTokenPresent() {
             final var txn = newWipeTxn(ACCOUNT_4680, null, 1);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TOKEN_ID));
         }
@@ -142,7 +153,9 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
         @Test
         void fungibleAndNonFungibleGiven() {
             final var txn = newWipeTxn(ACCOUNT_4680, TOKEN_531, 1, 1L);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
         }
@@ -150,7 +163,9 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
         @Test
         void nonPositiveFungibleAmountGiven() {
             final var txn = newWipeTxn(ACCOUNT_4680, TOKEN_531, -1);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_WIPING_AMOUNT));
         }
@@ -159,13 +174,17 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
         void emptyNftSerialNumbers() {
             // This is a success case
             final var txn = newWipeTxn(ACCOUNT_4680, TOKEN_531, 0);
-            assertThatNoException().isThrownBy(() -> subject.pureChecks(txn));
+            given(pureChecksContext.body()).willReturn(txn);
+
+            assertThatNoException().isThrownBy(() -> subject.pureChecks(pureChecksContext));
         }
 
         @Test
         void invalidNftSerialNumber() {
             final var txn = newWipeTxn(ACCOUNT_4680, TOKEN_531, 0, 1L, 2L, 0L);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_NFT_ID));
         }
@@ -209,25 +228,6 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
         }
-
-        // @Test removed this test as nfts.maxBatchSizeWipe is not for fungible tokens
-        //        void fungibleAmountExceedsBatchSize() {
-        //            configuration = HederaTestConfigBuilder.create()
-        //                    .withValue("tokens.nfts.areEnabled", true)
-        //                    .withValue("tokens.nfts.maxBatchSizeWipe", 5)
-        //                    .getOrCreateConfig();
-        //            mockOkExpiryValidator();
-        //            writableAccountStore = newWritableStoreWithAccounts(
-        //                    Account.newBuilder().accountId(ACCOUNT_4680).build(),
-        //                    Account.newBuilder().accountId(TREASURY_ACCOUNT_9876).build());
-        //            writableTokenStore = newWritableStoreWithTokens();
-        //            final var txn = newWipeTxn(ACCOUNT_4680, TOKEN_531, 6);
-        //            final var context = mockContext(txn);
-        //
-        //            assertThatThrownBy(() -> subject.handle(context))
-        //                    .isInstanceOf(HandleException.class)
-        //                    .has(responseCode(BATCH_SIZE_LIMIT_EXCEEDED));
-        //        }
 
         @Test
         void nftAmountExceedsBatchSize() {

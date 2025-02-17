@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class UpdateDecoderTest {
     private static final long EXPIRY_TIMESTAMP = Instant.now().plusSeconds(3600).toEpochMilli() / 1000;
     private static final long AUTO_RENEW_PERIOD = 8_000_000L;
     private final Tuple expiry = Tuple.of(EXPIRY_TIMESTAMP, OWNER_HEADLONG_ADDRESS, AUTO_RENEW_PERIOD);
-    private final Tuple hederaToken = Tuple.of(
+    private final Tuple hederaToken = Tuple.from(
             newName,
             "symbol",
             OWNER_HEADLONG_ADDRESS,
@@ -68,7 +68,7 @@ class UpdateDecoderTest {
             // Expiry
             expiry);
 
-    private final Tuple hederaTokenWithMetadata = Tuple.of(
+    private final Tuple hederaTokenWithMetadata = Tuple.from(
             newName,
             "symbol",
             OWNER_HEADLONG_ADDRESS,

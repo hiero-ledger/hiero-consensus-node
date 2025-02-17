@@ -17,6 +17,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
@@ -29,6 +30,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
+import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.CreateScheduleOutput;
 import com.hedera.hapi.block.stream.output.CryptoTransferOutput;
@@ -1134,6 +1136,13 @@ public class BlockStreamBuilder
         } else if (functionality == CONSENSUS_SUBMIT_MESSAGE && hasAssessedCustomFees) {
             items.add(itemWith(
                     TransactionOutput.newBuilder().submitMessage(new SubmitMessageOutput(assessedCustomFees))));
+        }
+
+        if (functionality == CRYPTO_CREATE && accountId != null) {
+            items.add(itemWith(TransactionOutput.newBuilder()
+                    .accountCreate(CreateAccountOutput.newBuilder()
+                            .createdAccountId(accountId)
+                            .build())));
         }
     }
 

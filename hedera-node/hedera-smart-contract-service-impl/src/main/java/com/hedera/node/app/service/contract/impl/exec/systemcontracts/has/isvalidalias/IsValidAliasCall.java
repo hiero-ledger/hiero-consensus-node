@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.is
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
@@ -97,6 +98,7 @@ public class IsValidAliasCall extends AbstractCall {
     }
 
     private @NonNull FullResult fullResultsFor(final boolean result) {
-        return successResult(IS_VALID_ALIAS.getOutputs().encodeElements(result), gasCalculator.viewGasRequirement());
+        return successResult(
+                IS_VALID_ALIAS.getOutputs().encode(Tuple.singleton(result)), gasCalculator.viewGasRequirement());
     }
 }

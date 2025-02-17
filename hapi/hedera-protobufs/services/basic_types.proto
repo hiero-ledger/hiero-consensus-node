@@ -1660,6 +1660,21 @@ enum HederaFunctionality {
     StateSignatureTransaction = 100;
 
     /**
+     * Publish a hinTS key to the network.
+     */
+    HintsKeyPublication = 101;
+
+    /**
+     * Vote for a particular preprocessing output of a hinTS construction.
+     */
+    HintsPreprocessingVote = 102;
+
+    /**
+     * Sign a partial signature for the active hinTS construction.
+     */
+    HintsPartialSignature = 103;
+
+    /**
      * Sign a particular history assembly.
      */
     HistoryAssemblySignature = 104;
@@ -1673,6 +1688,11 @@ enum HederaFunctionality {
      * Vote for a particular history proof.
      */
     HistoryProofVote = 106;
+
+    /**
+     * Publish a random CRS to the network.
+     */
+    CrsPublication = 107;
 }
 
 /**

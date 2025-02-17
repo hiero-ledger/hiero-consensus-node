@@ -25,6 +25,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.com
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getscheduledinfo.GetScheduledInfoTranslator.GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.fungibleTokenInfoTupleFor;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -79,8 +80,8 @@ public class GetScheduledFungibleTokenCreateCall extends AbstractCall {
                 successResult(
                         GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO
                                 .getOutputs()
-                                .encodeElements(
-                                        SUCCESS.protoOrdinal(), fungibleTokenInfoTupleFor(tokenCreation, ledgerId, 1)),
+                                .encode(Tuple.of(
+                                        SUCCESS.protoOrdinal(), fungibleTokenInfoTupleFor(tokenCreation, ledgerId, 1))),
                         gasCalculator.viewGasRequirement()),
                 SUCCESS,
                 true);

@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.verify;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
@@ -31,9 +30,6 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.state.spi.WritableStates;
 import java.util.Set;
@@ -53,16 +49,11 @@ class WritableTokenRelationStoreTest extends CryptoTokenHandlerTestBase {
     private static final AccountID ACCOUNT_20_ID =
             AccountID.newBuilder().accountNum(ACCOUNT_20).build();
 
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
-
     @Mock
     private WritableStates states;
 
     @Mock
     private WritableKVStateBase<EntityIDPair, TokenRelation> tokenRelState;
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
 
     private WritableTokenRelationStore subject;
 
@@ -71,21 +62,14 @@ class WritableTokenRelationStoreTest extends CryptoTokenHandlerTestBase {
         given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_KEY))
                 .willReturn(tokenRelState);
 
-        subject = new WritableTokenRelationStore(states, CONFIGURATION, storeMetricsService, writableEntityCounters);
+        subject = new WritableTokenRelationStore(states, writableEntityCounters);
     }
 
     @SuppressWarnings("DataFlowIssue")
     @Test
     void testNullConstructorArgs() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableTokenRelationStore(null, CONFIGURATION, storeMetricsService, writableEntityCounters));
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableTokenRelationStore(states, null, storeMetricsService, writableEntityCounters));
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableTokenRelationStore(states, CONFIGURATION, null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableTokenRelationStore(null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableTokenRelationStore(states, null));
     }
 
     @Test
@@ -133,32 +117,6 @@ class WritableTokenRelationStoreTest extends CryptoTokenHandlerTestBase {
 
         final var result =
                 subject.get(ACCOUNT_20_ID, TokenID.newBuilder().tokenNum(-1L).build());
-        Assertions.assertThat(result).isNull();
-    }
-
-    @Test
-    void testGetForModify() {
-        TokenRelation tokenRelation = mock(TokenRelation.class);
-        given(tokenRelState.getForModify(EntityIDPair.newBuilder()
-                        .accountId(ACCOUNT_20_ID)
-                        .tokenId(TOKEN_10_ID)
-                        .build()))
-                .willReturn(tokenRelation);
-
-        final var result = subject.getForModify(ACCOUNT_20_ID, TOKEN_10_ID);
-        Assertions.assertThat(result).isEqualTo(tokenRelation);
-    }
-
-    @Test
-    void testGetForModifyEmpty() {
-        given(tokenRelState.getForModify(EntityIDPair.newBuilder()
-                        .accountId(asAccount(-2L))
-                        .tokenId(TOKEN_10_ID)
-                        .build()))
-                .willReturn(null);
-
-        final var result =
-                subject.getForModify(AccountID.newBuilder().accountNum(-2L).build(), TOKEN_10_ID);
         Assertions.assertThat(result).isNull();
     }
 

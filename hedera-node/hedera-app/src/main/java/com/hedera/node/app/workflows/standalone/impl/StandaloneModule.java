@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -38,10 +39,6 @@ public interface StandaloneModule {
     @Binds
     @Singleton
     NetworkInfo bindNetworkInfo(@NonNull StandaloneNetworkInfo simulatedNetworkInfo);
-
-    @Binds
-    @Singleton
-    StoreMetricsService bindStoreMetricsService(@NonNull StoreMetricsServiceImpl storeMetricsServiceImpl);
 
     @Provides
     @Singleton
@@ -73,5 +70,11 @@ public interface StandaloneModule {
     @Singleton
     static Cryptography provideCryptography() {
         return CryptographyHolder.get();
+    }
+
+    @Provides
+    @Singleton
+    static StoreMetricsService provideStoreMetricsService(Metrics metrics) {
+        return new StoreMetricsServiceImpl(metrics);
     }
 }

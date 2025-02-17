@@ -25,14 +25,10 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.app.spi.validation.EntityType;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,22 +51,12 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     /**
      * Create a new {@link WritableAccountStore} instance.
      *
-     * @param states              The state to use.
-     * @param configuration       The configuration used to read the maximum capacity.
-     * @param storeMetricsService Service that provides utilization metrics.
+     * @param states The state to use.
      */
     public WritableAccountStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService,
-            @NonNull final WritableEntityCounters entityCounters) {
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
         this.entityCounters = entityCounters;
-
-        final long maxCapacity =
-                configuration.getConfigData(AccountsConfig.class).maxNumber();
-        final var storeMetrics = storeMetricsService.get(StoreType.ACCOUNT, maxCapacity);
-        accountState().setMetrics(storeMetrics);
     }
 
     @Override
@@ -166,21 +152,6 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     @Nullable
     public Account get(@NonNull final AccountID accountID) {
         return getAccountLeaf(requireNonNull(accountID));
-    }
-
-    /**
-     * Returns the {@link Account} with the given {@link AccountID}.It uses the getForModify method
-     * to get the account. If no such account exists, returns {@code null}
-     *
-     * @param id - the number of the account to be retrieved.
-     * @return the account with the given account number, or null if no such account exists
-     */
-    @Nullable
-    public Account getForModify(@NonNull final AccountID id) {
-        requireNonNull(id);
-        // Get the account number based on the account identifier. It may be null.
-        final var accountId = id.account().kind() == ACCOUNT_NUM ? id : null;
-        return accountId == null ? null : accountState().getForModify(accountId);
     }
 
     /**

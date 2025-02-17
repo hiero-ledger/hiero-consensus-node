@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -70,6 +71,9 @@ class UtilPrngHandlerTest {
     @Mock
     private BlockRecordInfo blockRecordInfo;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private UtilPrngHandler subject;
     private UtilPrngTransactionBody txn;
     private static final Random random = new Random(92399921);
@@ -94,15 +98,17 @@ class UtilPrngHandlerTest {
         final var body = TransactionBody.newBuilder()
                 .utilPrng(UtilPrngTransactionBody.newBuilder())
                 .build();
-        assertThatCode(() -> subject.pureChecks(body)).doesNotThrowAnyException();
+        given(pureChecksContext.body()).willReturn(body);
+        assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
     void rejectsInvalidRange() {
         givenTxnWithRange(-10000);
         final var body = TransactionBody.newBuilder().utilPrng(txn).build();
+        given(pureChecksContext.body()).willReturn(body);
 
-        assertThatThrownBy(() -> subject.pureChecks(body))
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_PRNG_RANGE));
     }
@@ -111,18 +117,21 @@ class UtilPrngHandlerTest {
     void acceptsPositiveAndZeroRange() {
         givenTxnWithRange(10000);
         final var body = TransactionBody.newBuilder().utilPrng(txn).build();
-        assertThatCode(() -> subject.pureChecks(body)).doesNotThrowAnyException();
+        given(pureChecksContext.body()).willReturn(body);
+
+        assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
 
         givenTxnWithRange(0);
-        assertThatCode(() -> subject.pureChecks(body)).doesNotThrowAnyException();
+        assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
     void acceptsNoRange() {
         givenTxnWithoutRange();
         final var body = TransactionBody.newBuilder().utilPrng(txn).build();
+        given(pureChecksContext.body()).willReturn(body);
 
-        assertThatCode(() -> subject.pureChecks(body)).doesNotThrowAnyException();
+        assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
@@ -258,8 +267,9 @@ class UtilPrngHandlerTest {
     void anyNegativeValueThrowsInPrecheck() {
         givenTxnWithRange(Integer.MIN_VALUE);
         final var body = TransactionBody.newBuilder().utilPrng(txn).build();
+        given(pureChecksContext.body()).willReturn(body);
 
-        assertThatThrownBy(() -> subject.pureChecks(body))
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_PRNG_RANGE));
     }

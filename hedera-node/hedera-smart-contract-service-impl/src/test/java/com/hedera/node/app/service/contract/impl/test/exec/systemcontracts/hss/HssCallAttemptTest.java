@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
@@ -67,6 +68,7 @@ class HssCallAttemptTest extends CallTestBase {
                 .willReturn(null);
         final var input = TestHelpers.bytesForRedirectScheduleTxn(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HssCallAttempt(
+                HSS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 false,
@@ -86,6 +88,7 @@ class HssCallAttemptTest extends CallTestBase {
     void invalidSelectorLeadsToMissingCall() {
         final var input = TestHelpers.bytesForRedirectAccount(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HssCallAttempt(
+                HSS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 false,
@@ -105,6 +108,7 @@ class HssCallAttemptTest extends CallTestBase {
     void isOnlyDelegatableContractKeysActiveTest() {
         final var input = TestHelpers.bytesForRedirectAccount(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HssCallAttempt(
+                HSS_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 true,

@@ -22,6 +22,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallFactory;
@@ -72,11 +73,15 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
      */
     @Override
     public @NonNull HtsCallAttempt createCallAttemptFrom(
-            @NonNull final Bytes input, @NonNull final CallType callType, @NonNull final MessageFrame frame) {
+            @NonNull ContractID contractID,
+            @NonNull final Bytes input,
+            @NonNull final CallType callType,
+            @NonNull final MessageFrame frame) {
         requireNonNull(input);
         requireNonNull(frame);
         final var enhancement = proxyUpdaterFor(frame).enhancement();
         return new HtsCallAttempt(
+                contractID,
                 input,
                 frame.getSenderAddress(),
                 // We only need to distinguish between the EVM sender id and the

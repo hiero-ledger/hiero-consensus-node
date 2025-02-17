@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -66,6 +67,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,7 +106,9 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
     }
 
     @Override
-    public void pureChecks(@NonNull TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn);
 
         final var op = txn.tokenClaimAirdrop();
@@ -135,7 +139,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         final var validatedAirdropIds = validateSemantics(context, op, accountStore);
 
         final Map<TokenID, TokenTransferList> transfers = new HashMap<>();
-        final var tokensToAssociate = new LinkedHashMap<AccountID, List<Token>>();
+        final var tokensToAssociate = new LinkedHashMap<AccountID, Set<Token>>();
 
         // 1. validate pending airdrops and create transfer lists
         for (var airdropId : validatedAirdropIds) {
@@ -151,12 +155,12 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
             // check if we need new association
             if (tokenRelStore.get(receiverId, tokenId) == null) {
                 tokensToAssociate
-                        .computeIfAbsent(receiverId, k -> new ArrayList<>())
+                        .computeIfAbsent(receiverId, k -> new LinkedHashSet<>())
                         .add(getIfUsable(tokenId, tokenStore));
             }
         }
         for (var entry : tokensToAssociate.entrySet()) {
-            associateForFree(entry.getValue(), entry.getKey(), accountStore, tokenRelStore);
+            associateForFree(entry.getValue().stream().toList(), entry.getKey(), accountStore, tokenRelStore);
         }
         // do the crypto transfer
         transferForFree(new ArrayList<>(transfers.values()), context, recordBuilder);
@@ -172,7 +176,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
      * @return a list of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
      * @throws HandleException if the transaction is invalid
      */
-    private List<PendingAirdropId> validateSemantics(
+    private Set<PendingAirdropId> validateSemantics(
             @NonNull HandleContext context,
             @NonNull TokenClaimAirdropTransactionBody op,
             @NonNull final ReadableAccountStore accountStore)

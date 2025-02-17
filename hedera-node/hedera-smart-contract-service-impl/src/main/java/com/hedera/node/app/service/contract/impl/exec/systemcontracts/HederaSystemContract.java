@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
+import com.hedera.hapi.node.base.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -35,11 +36,13 @@ public interface HederaSystemContract extends PrecompiledContract {
     /**
      * Computes the result of this contract, and also returns the gas requirement.
      *
+     * @param contractID the contractID of the called system contract
      * @param input the input to the contract
      * @param messageFrame the message frame
      * @return the result of the computation, and its gas requirement
      */
-    default FullResult computeFully(@NonNull Bytes input, @NonNull MessageFrame messageFrame) {
+    default FullResult computeFully(
+            @NonNull ContractID contractID, @NonNull Bytes input, @NonNull MessageFrame messageFrame) {
         return new FullResult(computePrecompile(input, messageFrame), gasRequirement(input), null);
     }
 }

@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanceof.BalanceOfTranslator.BALANCE_OF;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -113,7 +114,8 @@ class HtsCallFactoryTest extends CallTestBase {
 
         final var input = bytesForRedirect(
                 BALANCE_OF.encodeCallWithArgs(asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)), FUNGIBLE_TOKEN_ID);
-        final var attempt = subject.createCallAttemptFrom(input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
+        final var attempt = subject.createCallAttemptFrom(
+                HTS_167_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
 
         assertInstanceOf(BalanceOfCall.class, call);
@@ -139,7 +141,8 @@ class HtsCallFactoryTest extends CallTestBase {
 
         final var input = bytesForRedirect(
                 BALANCE_OF.encodeCallWithArgs(asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)), FUNGIBLE_TOKEN_ID);
-        final var attempt = subject.createCallAttemptFrom(input, FrameUtils.CallType.QUALIFIED_DELEGATE, frame);
+        final var attempt = subject.createCallAttemptFrom(
+                HTS_167_CONTRACT_ID, input, FrameUtils.CallType.QUALIFIED_DELEGATE, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
 
         assertInstanceOf(BalanceOfCall.class, call);

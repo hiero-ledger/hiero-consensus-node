@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -578,7 +578,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     }
 
     protected byte[] gasLongToBytes(final Long gas) {
-        return Bytes.wrap(LONG_TUPLE.encode(Tuple.of(gas)).array()).toArray();
+        return Bytes.wrap(LONG_TUPLE.encode(Tuple.singleton(gas)).array()).toArray();
     }
 
     /* Fluent builder methods to chain. */

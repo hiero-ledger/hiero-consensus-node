@@ -65,6 +65,7 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
     // too many parameters
     @SuppressWarnings("java:S107")
     public HssCallAttempt(
+            @NonNull final ContractID contractID,
             @NonNull final Bytes input,
             @NonNull final Address senderAddress,
             final boolean onlyDelegatableContractKeysActive,
@@ -78,6 +79,7 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             final boolean isStaticCall) {
         super(
+                contractID,
                 input,
                 senderAddress,
                 senderAddress,

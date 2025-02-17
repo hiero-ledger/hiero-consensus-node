@@ -26,6 +26,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -87,12 +88,12 @@ public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
                 ? successResult(
                         TOKEN_INFO
                                 .getOutputs()
-                                .encodeElements(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId, 1)),
+                                .encode(Tuple.of(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId, 1))),
                         gasRequirement)
                 : successResult(
                         TOKEN_INFO_V2
                                 .getOutputs()
-                                .encodeElements(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId, 2)),
+                                .encode(Tuple.of(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId, 2))),
                         gasRequirement);
     }
 }

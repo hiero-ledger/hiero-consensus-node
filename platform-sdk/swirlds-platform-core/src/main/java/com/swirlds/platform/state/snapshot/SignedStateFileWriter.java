@@ -36,8 +36,11 @@ import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.state.State;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -68,10 +71,13 @@ public final class SignedStateFileWriter {
      * @param directory       the directory where the state is being written
      */
     public static void writeHashInfoFile(
-            @NonNull final PlatformContext platformContext, final Path directory, final PlatformMerkleStateRoot state)
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Path directory,
+            @NonNull final PlatformMerkleStateRoot state,
+            @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-        final String platformInfo = state.getInfoString(stateConfig.debugHashDepth());
+        final String platformInfo = platformStateFacade.getInfoString(state, stateConfig.debugHashDepth());
 
         logger.info(
                 STATE_TO_DISK.getMarker(),
@@ -82,7 +88,7 @@ public final class SignedStateFileWriter {
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
-        final String hashInfo = new MerkleTreeVisualizer(state)
+        final String hashInfo = new MerkleTreeVisualizer(state.cast())
                 .setDepth(stateConfig.debugHashDepth())
                 .render();
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(hashInfoFile.toFile()))) {
@@ -98,14 +104,18 @@ public final class SignedStateFileWriter {
      * @param signedState the signed state being written
      */
     public static void writeMetadataFile(
-            @Nullable final NodeId selfId, @NonNull final Path directory, @NonNull final SignedState signedState)
+            @Nullable final NodeId selfId,
+            @NonNull final Path directory,
+            @NonNull final SignedState signedState,
+            @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
         Objects.requireNonNull(directory, "directory must not be null");
         Objects.requireNonNull(signedState, "signedState must not be null");
 
         final Path metadataFile = directory.resolve(SavedStateMetadata.FILE_NAME);
 
-        SavedStateMetadata.create(signedState, selfId, Instant.now()).write(metadataFile);
+        SavedStateMetadata.create(signedState, selfId, Instant.now(), platformStateFacade)
+                .write(metadataFile);
     }
 
     /**
@@ -143,18 +153,22 @@ public final class SignedStateFileWriter {
             @Nullable final PlatformContext platformContext,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
-            @NonNull final SignedState signedState)
+            @NonNull final SignedState signedState,
+            @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(directory);
         Objects.requireNonNull(signedState);
 
-        final PlatformMerkleStateRoot state = signedState.getState();
-        state.setTime(platformContext.getTime());
+        final State state = signedState.getState();
+        if (state instanceof MerkleStateRoot merkleStateRoot) {
+            merkleStateRoot.setTime(platformContext.getTime());
+        }
+
         state.createSnapshot(directory);
         writeSignatureSetFile(directory, signedState);
-        writeHashInfoFile(platformContext, directory, signedState.getState());
-        writeMetadataFile(selfId, directory, signedState);
+        writeHashInfoFile(platformContext, directory, signedState.getState(), platformStateFacade);
+        writeMetadataFile(selfId, directory, signedState, platformStateFacade);
         writeEmergencyRecoveryFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         if (currentRoster != null) {
@@ -167,7 +181,7 @@ public final class SignedStateFileWriter {
                     platformContext,
                     selfId,
                     directory,
-                    signedState.getState().getReadablePlatformState().getAncientThreshold(),
+                    platformStateFacade.ancientThresholdOf(signedState.getState()),
                     signedState.getRound());
         }
     }
@@ -202,7 +216,8 @@ public final class SignedStateFileWriter {
             @Nullable final NodeId selfId,
             @NonNull final Path savedStateDirectory,
             @NonNull final SignedState signedState,
-            @Nullable final StateToDiskReason stateToDiskReason)
+            @Nullable final StateToDiskReason stateToDiskReason,
+            @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
 
         Objects.requireNonNull(platformContext);
@@ -219,7 +234,8 @@ public final class SignedStateFileWriter {
 
             executeAndRename(
                     savedStateDirectory,
-                    directory -> writeSignedStateFilesToDirectory(platformContext, selfId, directory, signedState),
+                    directory -> writeSignedStateFilesToDirectory(
+                            platformContext, selfId, directory, signedState, platformStateFacade),
                     platformContext.getConfiguration());
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(

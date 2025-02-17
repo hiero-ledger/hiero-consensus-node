@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
@@ -66,6 +67,7 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     // too many parameters
     @SuppressWarnings("java:S107")
     public HtsCallAttempt(
+            @NonNull final ContractID contractID,
             @NonNull final Bytes input,
             @NonNull final Address senderAddress,
             @NonNull final Address authorizingAddress,
@@ -79,6 +81,7 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             final boolean isStaticCall) {
         super(
+                contractID,
                 input,
                 senderAddress,
                 authorizingAddress,

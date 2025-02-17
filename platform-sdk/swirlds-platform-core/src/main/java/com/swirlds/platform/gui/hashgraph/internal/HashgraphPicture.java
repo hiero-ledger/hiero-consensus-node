@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@ package com.swirlds.platform.gui.hashgraph.internal;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants.HASHGRAPH_PICTURE_FONT;
 
-import com.swirlds.platform.consensus.GraphGenerations;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.system.events.EventConstants;
 import java.awt.AWTException;
 import java.awt.Color;
 import java.awt.Font;
@@ -97,7 +97,7 @@ public class HashgraphPicture extends JPanel {
             if (options.displayLatestEvents()) {
                 final long startGen = Math.max(
                         hashgraphSource.getMaxGeneration() - options.getNumGenerationsDisplay() + 1,
-                        GraphGenerations.FIRST_GENERATION);
+                        EventConstants.FIRST_GENERATION);
                 options.setStartGeneration(startGen);
                 events = hashgraphSource.getEvents(startGen, options.getNumGenerationsDisplay());
             } else {

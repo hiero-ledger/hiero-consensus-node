@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.com
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isassociated.IsAssociatedTranslator.IS_ASSOCIATED;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -49,7 +50,8 @@ public class IsAssociatedCall extends AbstractRevertibleTokenViewCall {
                 .getTokenRelation(sender.accountNum(), token.tokenIdOrThrow().tokenNum());
         var result = tokenRel != null;
         return gasOnly(
-                successResult(IS_ASSOCIATED.getOutputs().encodeElements(result), gasCalculator.viewGasRequirement()),
+                successResult(
+                        IS_ASSOCIATED.getOutputs().encode(Tuple.singleton(result)), gasCalculator.viewGasRequirement()),
                 SUCCESS,
                 true);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.HederaExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ownerof.OwnerOfCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ownerof.OwnerOfTranslator;
@@ -107,7 +108,7 @@ class OwnerOfCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(OwnerOfTranslator.OWNER_OF
                         .getOutputs()
-                        .encodeElements(asHeadlongAddress(asLongZeroAddress(ownerNum)))
+                        .encode(Tuple.singleton(asHeadlongAddress(asLongZeroAddress(ownerNum))))
                         .array()),
                 result.getOutput());
     }
@@ -126,8 +127,8 @@ class OwnerOfCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(OwnerOfTranslator.OWNER_OF
                         .getOutputs()
-                        .encodeElements(
-                                asHeadlongAddress(ALIASED_SOMEBODY.alias().toByteArray()))
+                        .encode(Tuple.singleton(
+                                asHeadlongAddress(ALIASED_SOMEBODY.alias().toByteArray())))
                         .array()),
                 result.getOutput());
     }

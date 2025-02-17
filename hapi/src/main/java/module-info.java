@@ -87,6 +87,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.block.stream.protoc;
     exports com.hedera.hapi.block;
     exports com.hedera.hapi.services.auxiliary.tss.legacy;
+    exports com.hedera.hapi.services.auxiliary.hints;
     exports com.hedera.hapi.services.auxiliary.history;
     exports com.hedera.hapi.platform.event.legacy;
     exports com.hedera.hapi.node.state.entity;

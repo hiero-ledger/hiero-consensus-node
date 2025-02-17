@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.iskyc.IsKycTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.istoken.IsTokenCall;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -41,7 +42,7 @@ class IsTokenCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(IsKycTranslator.IS_KYC
                         .getOutputs()
-                        .encodeElements(SUCCESS.protoOrdinal(), true)
+                        .encode(Tuple.of(SUCCESS.protoOrdinal(), true))
                         .array()),
                 result.getOutput());
     }
@@ -56,7 +57,7 @@ class IsTokenCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(IsKycTranslator.IS_KYC
                         .getOutputs()
-                        .encodeElements(SUCCESS.protoOrdinal(), false)
+                        .encode(Tuple.of(SUCCESS.protoOrdinal(), false))
                         .array()),
                 result.getOutput());
     }

@@ -20,6 +20,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.blocks.BlockHashSigner;
+import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
@@ -72,23 +74,37 @@ public interface HintsService extends Service, BlockHashSigner {
     int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
 
     /**
+     * Returns the active verification key, or throws if none is active.
+     */
+    @NonNull
+    Bytes activeVerificationKeyOrThrow();
+
+    /**
+     * Initializes hinTS signing from the next construction in the given {@link ReadableHintsStore}.
+     */
+    void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore);
+
+    /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward
      * having completed the most up-to-date hinTS construction for the given {@link ActiveRosters}.
      * <p>
      * Given active rosters with a source/target transition, this method will,
      * <ol>
      *     <Li>Do nothing if a completed construction for the transition already exists in {@link HintsService}.</Li>
-     *     <Li>If there is no active controller for the transition, create one based on the given consensus time and
-     *     {@link HintsService} states; and save the created construction in network state if this is the first time
-     *     the network ever began reconciling a hinTS construction for the transition.</Li>
-     *     <Li>Use the resolved controller do advance progress toward the transition's completion.</Li>
+     *     <Li>If there is no active {@link HintsController} for the transition, create one based
+     *     on the given consensus time and {@link HintsService} states; and save the created construction in
+     *     network state if this is the first time the network ever began reconciling a hinTS construction for
+     *     the transition.</Li>
+     *     <Li>For the resolved {@link HintsController} for the transition, invoke its
+     *     {@link HintsController#advanceConstruction(Instant, WritableHintsStore)} method.</li>
      * </ol>
      * <p>
-     * <b>IMPORTANT:</b> Note that whether a new controller, or an appropriate one already exists, its subsequent
-     * behavior will be a deterministic function of the given consensus time and {@link HintsService} states. That is,
-     * controllers are persistent objects <i>only</i>due to performance considerations, but are <i>logically</i>
-     * functions of just the network state and consensus time.
-     *  @param activeRosters the active rosters
+     * <b>Important:</b> Note that whether a new {@link HintsController} is created, or an appropriate
+     * one already exists, its subsequent behavior will be a deterministic function of the given consensus time and
+     * {@link HintsService} states. That is, controllers are persistent objects <i>only</i> due to performance
+     * considerations, but are <i>logically</i> functions of just the network state and consensus time.
+     *
+     * @param activeRosters the active rosters
      * @param hintsStore the hints store, for recording progress if needed
      * @param now the current consensus time
      * @param tssConfig the TSS configuration
@@ -100,11 +116,14 @@ public interface HintsService extends Service, BlockHashSigner {
             @NonNull TssConfig tssConfig);
 
     /**
-     * Returns the verification key for the active hinTS construction, or throws if it is incomplete.
-     * @throws IllegalStateException if the active hinTS construction is incomplete
+     * Stops the hinTS service, causing it to abandon any in-progress work.
      */
-    @NonNull
-    Bytes activeVerificationKeyOrThrow();
+    void stop();
+
+    /**
+     * Returns the handlers for the {@link HintsService}.
+     */
+    HintsHandlers handlers();
 
     @Override
     default int migrationOrder() {
@@ -129,8 +148,8 @@ public interface HintsService extends Service, BlockHashSigner {
     }
 
     /**
-     * Returns the party size {@code M=2^k} such that the given roster node count
-     * will fall inside the range {@code [2*(k-1), 2^k]}.
+     * Returns the unique party size {@code M=2^k} such that the given roster node count
+     * falls in the range {@code (2*(k-1), 2^k]}.
      *
      * @param n the roster node count
      * @return the party size

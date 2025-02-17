@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ public class BoolResult implements ContractCallResult {
     @Override
     public Bytes getBytes() {
         final var boolType = TupleType.parse("(bool)");
-        final var result = Tuple.of(expected);
+        final var result = Tuple.singleton(expected);
         return Bytes.wrap(boolType.encode(result).array());
     }
 }

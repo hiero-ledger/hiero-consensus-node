@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import java.util.ArrayList;
 import java.util.List;
 import org.assertj.core.api.Assertions;
@@ -48,6 +49,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
 class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     private final PendingAirdropId firstPendingAirdropId = PendingAirdropId.newBuilder()
             .senderId(spenderId)
@@ -113,7 +117,9 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     void pureChecksEmptyAirDropIDListThrows() {
         final var txn = newTokenClaimAirdrop(
                 TokenClaimAirdropTransactionBody.newBuilder().build());
-        final var msg = assertThrows(PreCheckException.class, () -> tokenClaimAirdropHandler.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg =
+                assertThrows(PreCheckException.class, () -> tokenClaimAirdropHandler.pureChecks(pureChecksContext));
         assertEquals(ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST, msg.responseCode());
     }
 
@@ -122,7 +128,10 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var txn = newTokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder()
                 .pendingAirdrops((List<PendingAirdropId>) null)
                 .build());
-        final var msg = assertThrows(PreCheckException.class, () -> tokenClaimAirdropHandler.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg =
+                assertThrows(PreCheckException.class, () -> tokenClaimAirdropHandler.pureChecks(pureChecksContext));
         assertEquals(ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST, msg.responseCode());
     }
 
@@ -139,7 +148,10 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var txn = newTokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder()
                 .pendingAirdrops(pendingAirdropIds)
                 .build());
-        final var msg = assertThrows(PreCheckException.class, () -> tokenClaimAirdropHandler.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg =
+                assertThrows(PreCheckException.class, () -> tokenClaimAirdropHandler.pureChecks(pureChecksContext));
         assertEquals(ResponseCodeEnum.PENDING_AIRDROP_ID_REPEATED, msg.responseCode());
     }
 
@@ -165,7 +177,8 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var txn = newTokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder()
                 .pendingAirdrops(pendingAirdropIds)
                 .build());
-        Assertions.assertThatCode(() -> tokenClaimAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+        Assertions.assertThatCode(() -> tokenClaimAirdropHandler.pureChecks(pureChecksContext))
                 .doesNotThrowAnyException();
     }
 
@@ -179,7 +192,8 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var txn = newTokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder()
                 .pendingAirdrops(pendingAirdropIds)
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenClaimAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+        Assertions.assertThatThrownBy(() -> tokenClaimAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class);
     }
 
@@ -193,7 +207,8 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var txn = newTokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder()
                 .pendingAirdrops(pendingAirdropIds)
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenClaimAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+        Assertions.assertThatThrownBy(() -> tokenClaimAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class);
     }
 

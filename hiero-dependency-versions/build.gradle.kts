@@ -22,7 +22,7 @@ plugins {
 }
 
 dependencies {
-    api(enforcedPlatform("io.netty:netty-bom:4.1.110.Final"))
+    api(platform("io.netty:netty-bom:4.1.118.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -32,17 +32,17 @@ dependencies {
 
 val autoService = "1.1.1"
 val besu = "24.3.3"
-val bouncycastle = "1.79"
-val dagger = "2.42"
+val bouncycastle = "1.80"
+val dagger = "2.55"
 val eclipseCollections = "11.1.0"
-val grpc = "1.69.0"
+val grpc = "1.70.0"
 val hederaCryptography = "0.1.1-SNAPSHOT"
 val helidon = "4.1.6"
-val jackson = "2.16.0"
-val junit5 = "5.10.2"
-val log4j = "2.21.1"
-val mockito = "5.8.0"
-val protobuf = "4.28.2"
+val jackson = "2.18.2"
+val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
+val log4j = "2.24.3"
+val mockito = "5.15.2"
+val protobuf = "4.29.3"
 val testContainers = "1.20.4"
 val tuweni = "2.4.2"
 val webcompare = "2.1.7"
@@ -64,8 +64,8 @@ dependencies.constraints {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
     api("com.github.ben-manes.caffeine:caffeine:3.1.8") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.2.13") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.8.6") {
+    api("com.github.docker-java:docker-java-api:3.4.1") { because("com.github.dockerjava.api") }
+    api("com.github.spotbugs:spotbugs-annotations:4.9.0") {
         because("com.github.spotbugs.annotations")
     }
     api("com.google.auto.service:auto-service-annotations:$autoService") {
@@ -87,10 +87,10 @@ dependencies.constraints {
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
-    api("com.esaulpaugh:headlong:6.1.1") { because("com.esaulpaugh.headlong") }
-    api("info.picocli:picocli:4.6.3") { because("info.picocli") }
+    api("com.esaulpaugh:headlong:12.3.3") { because("com.esaulpaugh.headlong") }
+    api("info.picocli:picocli:4.7.6") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
-    api("io.perfmark:perfmark-api:0.25.0") { because("io.perfmark") }
+    api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
     api("io.prometheus:simpleclient:0.16.0") { because("io.prometheus.simpleclient") }
     api("io.prometheus:simpleclient_httpserver:0.16.0") {
         because("io.prometheus.simpleclient.httpserver")
@@ -104,7 +104,7 @@ dependencies.constraints {
     api("org.apache.commons:commons-collections4:4.4") {
         because("org.apache.commons.collections4")
     }
-    api("commons-io:commons-io:2.15.1") { because("org.apache.commons.io") }
+    api("commons-io:commons-io:2.18.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.17.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.26.0") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
@@ -112,7 +112,7 @@ dependencies.constraints {
     api("org.apache.logging.log4j:log4j-slf4j2-impl:$log4j") {
         because("org.apache.logging.log4j.slf4j2.impl")
     }
-    api("org.assertj:assertj-core:3.23.1") { because("org.assertj.core") }
+    api("org.assertj:assertj-core:3.27.3") { because("org.assertj.core") }
     api("org.bouncycastle:bcpkix-jdk18on:$bouncycastle") { because("org.bouncycastle.pkix") }
     api("org.bouncycastle:bcprov-jdk18on:$bouncycastle") { because("org.bouncycastle.provider") }
     api("org.eclipse.collections:eclipse-collections-api:$eclipseCollections") {
@@ -121,7 +121,6 @@ dependencies.constraints {
     api("org.eclipse.collections:eclipse-collections:$eclipseCollections") {
         because("org.eclipse.collections.impl")
     }
-    api("org.hamcrest:hamcrest:2.2") { because("org.hamcrest") }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:evm:$besu") { because("org.hyperledger.besu.evm") }
     api("org.hyperledger.besu:secp256k1:0.8.2") {
@@ -134,12 +133,12 @@ dependencies.constraints {
     api("org.junit-pioneer:junit-pioneer:2.3.0") { because("org.junitpioneer") }
     api("org.mockito:mockito-core:$mockito") { because("org.mockito") }
     api("org.mockito:mockito-junit-jupiter:$mockito") { because("org.mockito.junit.jupiter") }
-    api("org.opentest4j:opentest4j:1.2.0") { because("org.opentest4j") }
+    api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
     api("org.testcontainers:testcontainers:$testContainers") { because("org.testcontainers") }
     api("org.testcontainers:junit-jupiter:$testContainers") {
         because("org.testcontainers.junit.jupiter")
     }
-    api("org.yaml:snakeyaml:2.2") { because("org.yaml.snakeyaml") }
+    api("org.yaml:snakeyaml:2.3") { because("org.yaml.snakeyaml") }
     api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
     api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {
@@ -148,8 +147,8 @@ dependencies.constraints {
     api("uk.org.webcompere:system-stubs-jupiter:$webcompare") {
         because("uk.org.webcompere.systemstubs.jupiter")
     }
-    api("com.google.protobuf:protoc:3.25.4")
-    api("io.grpc:protoc-gen-grpc-java:1.69.0")
+    api("com.google.protobuf:protoc:$protobuf")
+    api("io.grpc:protoc-gen-grpc-java:$grpc")
 
     api("com.hedera.cryptography:hedera-cryptography-pairings-api:$hederaCryptography") {
         because("com.hedera.cryptography.pairings.api")

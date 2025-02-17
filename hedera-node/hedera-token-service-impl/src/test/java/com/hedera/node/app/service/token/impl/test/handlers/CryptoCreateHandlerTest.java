@@ -60,7 +60,9 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.RealmID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
@@ -70,7 +72,6 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
-import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -79,13 +80,13 @@ import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
@@ -129,9 +130,6 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     private ExpiryValidator expiryValidator;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
-
-    @Mock
     private AttributeValidator attributeValidator;
 
     @Mock
@@ -140,10 +138,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private WritableEntityCounters entityCounters;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private CryptoCreateHandler subject;
 
-    private CryptoCreateValidator cryptoCreateValidator;
-    private StakingValidator stakingValidator;
     private TransactionBody txn;
 
     private Configuration configuration;
@@ -165,10 +164,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.attributeValidator()).willReturn(attributeValidator);
         lenient().when(handleContext.entityNumGenerator()).thenReturn(entityNumGenerator);
 
-        cryptoCreateValidator = new CryptoCreateValidator();
-        stakingValidator = new StakingValidator();
         given(handleContext.networkInfo()).willReturn(networkInfo);
-        subject = new CryptoCreateHandler(cryptoCreateValidator);
+        subject = new CryptoCreateHandler(new CryptoCreateValidator());
     }
 
     @Test
@@ -192,7 +189,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @DisplayName("preHandle works when there is a receiverSigRequired")
     void preHandleCryptoCreateVanilla() throws PreCheckException {
         final var context = new FakePreHandleContext(readableStore, txn);
-        subject.pureChecks(txn);
+        given(pureChecksContext.body()).willReturn(txn);
+        subject.pureChecks(pureChecksContext);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
         basicMetaAssertions(context, 1);
@@ -203,7 +201,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @DisplayName("pureChecks fail when initial balance is not greater than zero")
     void whenInitialBalanceIsNegative() {
         txn = new CryptoCreateBuilder().withInitialBalance(-1L).build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(INVALID_INITIAL_BALANCE).isEqualTo(msg.responseCode());
     }
 
@@ -211,7 +210,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @DisplayName("pureChecks fail without auto-renew period specified")
     void whenNoAutoRenewPeriodSpecified() {
         txn = new CryptoCreateBuilder().withNoAutoRenewPeriod().build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(INVALID_RENEWAL_PERIOD).isEqualTo(msg.responseCode());
     }
 
@@ -219,14 +220,65 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @DisplayName("pureChecks succeeds when expected shardId is specified")
     void validateWhenZeroShardId() {
         txn = new CryptoCreateBuilder().withShardId(0).build();
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    @DisplayName("pureChecks succeeds when expected shardId is specified")
+    void validateNonZeroShardAndRealm() {
+        final long shard = 5;
+        final long realm = 10;
+        txn = new CryptoCreateBuilder().withStakedAccountId(3).build();
+        given(handleContext.body()).willReturn(txn);
+        given(pureChecksContext.body()).willReturn(txn);
+
+        given(handleContext.consensusNow()).willReturn(consensusInstant);
+        given(entityNumGenerator.newEntityNum()).willReturn(1000L);
+        given(handleContext.payer()).willReturn(id);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("cryptoCreateWithAlias.enabled", true)
+                .withValue("ledger.maxAutoAssociations", 5000)
+                .withValue("entities.limitTokenAssociations", false)
+                .withValue("tokens.maxPerAccount", 1000)
+                .withValue("hedera.shard", shard)
+                .withValue("hedera.realm", realm)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        given(pureChecksContext.body()).willReturn(txn);
+        setupExpiryValidator();
+
+        // newly created account is not modified.
+        assertFalse(writableStore.modifiedAccountsInState().contains(accountIDWithShardAndRealm(1000L, shard, realm)));
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+        subject.handle(handleContext);
+
+        // newly created account and payer account are modified
+        assertTrue(writableStore.modifiedAccountsInState().contains(accountIDWithShardAndRealm(1000L, shard, realm)));
+
+        // Validate created account exists and check record builder has created account recorded
+        final var createdAccount = writableStore.get(AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(1000L)
+                .build());
+        assertThat(createdAccount).isNotNull();
+        final var accountID = AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(1000L)
+                .build();
+        verify(recordBuilder).accountID(accountID);
     }
 
     @Test
     @DisplayName("pureChecks fail when invalid maxAutoAssociations is specified")
     void failsWhenInvalidMaxAutoAssociations() {
         txn = new CryptoCreateBuilder().withMaxAutoAssociations(-5).build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_MAX_AUTO_ASSOCIATIONS);
     }
 
@@ -234,7 +286,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @DisplayName("pureChecks fail when negative send record threshold is specified")
     void sendRecordThresholdIsNegative() throws PreCheckException {
         txn = new CryptoCreateBuilder().withSendRecordThreshold(-1).build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_SEND_RECORD_THRESHOLD);
     }
 
@@ -242,7 +296,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @DisplayName("pureChecks fail when negative receive record threshold is specified")
     void receiveRecordThresholdIsNegative() throws PreCheckException {
         txn = new CryptoCreateBuilder().withReceiveRecordThreshold(-1).build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_RECEIVE_RECORD_THRESHOLD);
     }
 
@@ -250,7 +306,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @DisplayName("pureChecks fail when proxy accounts id is specified")
     void whenProxyAccountIdIsSpecified() throws PreCheckException {
         txn = new CryptoCreateBuilder().withProxyAccountNum(1).build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
     }
 
@@ -258,8 +316,10 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @DisplayName("preHandle succeeds when initial balance is zero")
     void preHandleWorksWhenInitialBalanceIsZero() throws PreCheckException {
         txn = new CryptoCreateBuilder().withInitialBalance(0L).build();
+        given(pureChecksContext.body()).willReturn(txn);
+
         final var context = new FakePreHandleContext(readableStore, txn);
-        subject.pureChecks(txn);
+        subject.pureChecks(pureChecksContext);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
         basicMetaAssertions(context, 1);
@@ -585,8 +645,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         txn = new CryptoCreateBuilder().withStakedAccountId(3).withKey(null).build();
         setupConfig();
         setupExpiryValidator();
+        given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(KEY_REQUIRED, msg.responseCode());
     }
 
@@ -599,8 +660,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
                 .build();
         setupConfig();
         setupExpiryValidator();
+        given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(INVALID_ALIAS_KEY, msg.responseCode());
     }
 
@@ -706,7 +768,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
                 .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(accountNum))
                 .build();
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
-        writableStore = new WritableAccountStore(writableStates, configuration, storeMetricsService, entityCounters);
+        writableStore = new WritableAccountStore(writableStates, entityCounters);
         when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableStore);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -744,7 +806,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         final var copy = account.copyBuilder().deleted(true).build();
         writableAccounts.put(id, copy);
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
-        writableStore = new WritableAccountStore(writableStates, configuration, storeMetricsService, entityCounters);
+        writableStore = new WritableAccountStore(writableStates, entityCounters);
     }
 
     private void setupConfig() {
@@ -777,6 +839,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         private AccountID proxyAccountId = null;
         private long stakedAccountId = 0;
         private long shardId = 0;
+        private long realmId = 0;
         private int maxAutoAssociations = -1;
 
         private Key key = otherKey;
@@ -790,6 +853,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
                     TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);
             final var createTxnBody = CryptoCreateTransactionBody.newBuilder()
                     .key(key)
+                    .shardID(ShardID.newBuilder().shardNum(shardId))
+                    .realmID(RealmID.newBuilder().shardNum(shardId).realmNum(realmId))
                     .receiverSigRequired(receiverSigReq)
                     .initialBalance(initialBalance)
                     .memo("Create Account")
@@ -883,6 +948,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
         public CryptoCreateBuilder withShardId(final long id) {
             this.shardId = id;
+            return this;
+        }
+
+        public CryptoCreateBuilder withRealmId(final long id) {
+            this.realmId = id;
             return this;
         }
 

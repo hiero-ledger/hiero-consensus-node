@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -204,7 +204,7 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
             final var function = com.esaulpaugh.headlong.abi.Function.fromJson(abi);
             if (rawResult.size() > 0) {
                 final var typedResult = function.decodeReturn(rawResult.toByteArray());
-                typedResultsObs.get().accept(typedResult.toList().toArray());
+                typedResultsObs.get().accept(typedResult.toArray());
             } else {
                 typedResultsObs.get().accept(new Object[1]);
             }

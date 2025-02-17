@@ -156,6 +156,7 @@ import com.hedera.services.bdd.spec.utilops.mod.SubmitModificationsOp;
 import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
+import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
@@ -695,6 +696,14 @@ public class UtilVerbs {
      */
     public static HapiSpecWaitUntil waitUntilStartOfNextAdhocPeriod(final long periodMs) {
         return untilStartOfNextAdhocPeriod(periodMs);
+    }
+
+    /**
+     * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next block stream block.
+     * @return the operation that sleeps until the beginning of the next block stream block
+     */
+    public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
+        return new HapiSpecWaitUntilNextBlock();
     }
 
     public static HapiSpecWaitUntil waitUntilJustBeforeNextStakingPeriod(
@@ -1437,7 +1446,10 @@ public class UtilVerbs {
             long tinyBarMaxNetworkFee,
             long tinyBarMaxServiceFee) {
         return withOpContext((spec, opLog) -> {
-            if (!spec.setup().defaultNode().equals(asAccount("0.0.3"))) {
+            var shard = spec.startupProperties().getLong("hedera.shard");
+            var realm = spec.startupProperties().getLong("hedera.realm");
+
+            if (!spec.setup().defaultNode().equals(asAccount(String.format("%d.%d.3", shard, realm)))) {
                 opLog.info("Sleeping to wait for fee reduction...");
                 Thread.sleep(20000);
                 return;
@@ -1604,8 +1616,8 @@ public class UtilVerbs {
                 final var updateSubOp = fileUpdate(fileName)
                         .fee(ONE_HUNDRED_HBARS)
                         .contents(contents.substring(0, position))
-                        .alertingPre(fid -> System.out.println(
-                                ".i. Submitting initial update for file" + " 0.0." + fid.getFileNum()))
+                        .alertingPre(fid -> System.out.println(".i. Submitting initial update for file"
+                                + String.format(" %s.%s.%s, ", fid.getShardNum(), fid.getRealmNum(), fid.getFileNum())))
                         .alertingPost(code -> System.out.println(".i. Finished initial update with " + code))
                         .noLogging()
                         .payingWith(payer)
@@ -1822,9 +1834,9 @@ public class UtilVerbs {
             final var createdIds = creationResult.getCreatedContractIDsList().stream()
                     .sorted(Comparator.comparing(ContractID::getContractNum))
                     .toList();
+            final var createdId = createdIds.get(creationNum);
             final var accDetails = getContractInfo(CommonUtils.hex(
-                            asEvmAddress(createdIds.get(creationNum).getContractNum())))
-                    .has(contractWith().maxAutoAssociations(maxAutoAssociations))
+                            asEvmAddress(createdId.getShardNum(), createdId.getRealmNum(), createdId.getContractNum())))
                     .logged();
             allRunFor(spec, accDetails);
         });
@@ -1903,6 +1915,50 @@ public class UtilVerbs {
     }
 
     /**
+     * Validates that fee charged for a transaction is within the allowedPercentDiff of expected fee (taken
+     * from pricing calculator) without the charge for gas.
+     * @param txn txn to be validated
+     * @param expectedUsd expected fee in usd
+     * @param allowedPercentDiff allowed percentage difference
+     * @return
+     */
+    public static CustomSpecAssert validateChargedUsdWithoutGas(
+            String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualUsdCharged = getChargedUsed(spec, txn);
+            final var gasCharged = getChargedGas(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged - gasCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s fee without gas (%s) more than %.2f percent different than expected!",
+                            sdec(actualUsdCharged - gasCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    /**
+     * Validates that the gas charge for a transaction is within the allowedPercentDiff of expected gas in USD.
+     * @param txn txn to be validated
+     * @param expectedUsdForGas expected gas charge in usd
+     * @param allowedPercentDiff allowed percentage difference
+     * @return
+     */
+    public static CustomSpecAssert validateChargedUsdForGasOnly(
+            String txn, double expectedUsdForGas, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var gasCharged = getChargedGas(spec, txn);
+            assertEquals(
+                    expectedUsdForGas,
+                    gasCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsdForGas,
+                    String.format(
+                            "%s gas charge (%s) more than %.2f percent different than expected!",
+                            sdec(expectedUsdForGas, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    /**
      * Validates that an amount is within a certain percentage of an expected value.
      * @param expected expected value
      * @param actual actual value
@@ -1968,9 +2024,20 @@ public class UtilVerbs {
                         .toArray(n -> new SpecOperation[n]));
     }
 
-    public static HapiSpecOperation validateRecordTransactionFees(String txn) {
+    public static HapiSpecOperation validateRecordTransactionFees(HapiSpec spec, String txn) {
+        var shard = spec.startupProperties().getLong("hedera.shard");
+        var realm = spec.startupProperties().getLong("hedera.realm");
+        var fundingAccount = spec.startupProperties().getLong("ledger.fundingAccount");
+        var stakingRewardAccount = spec.startupProperties().getLong("accounts.stakingRewardAccount");
+        var nodeRewardAccount = spec.startupProperties().getLong("accounts.nodeRewardAccount");
+
         return validateRecordTransactionFees(
-                txn, Set.of(asAccount("0.0.3"), asAccount("0.0.98"), asAccount("0.0.800"), asAccount("0.0.801")));
+                txn,
+                Set.of(
+                        asAccount(String.format("%s.%s.3", shard, realm)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, fundingAccount)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, stakingRewardAccount)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, nodeRewardAccount))));
     }
 
     /**
@@ -2445,6 +2512,30 @@ public class UtilVerbs {
         allRunFor(spec, subOp);
         final var rcd = subOp.getResponseRecord();
         return (1.0 * rcd.getTransactionFee())
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    /**
+     * Returns the charged gas for a transaction in USD.
+     * The multiplier 71 is used to convert gas to tinybars. This multiplier comes from the feeScheduls.json file.
+     * See
+     * {@link com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues#topLevelTinybarGasPrice() topLevelTinybarGasPrice}
+     * for more information.
+     * @param spec the spec
+     * @param txn the transaction
+     * @return
+     */
+    private static double getChargedGas(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        final var gasUsed = rcd.getContractCallResult().getGasUsed();
+        return (gasUsed * 71.0)
                 / ONE_HBAR
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()

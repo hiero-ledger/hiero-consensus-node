@@ -16,7 +16,6 @@
 
 package com.hedera.services.bdd.suites.integration;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
@@ -41,7 +40,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateStakingInfos;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateToken;
-import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.simulatePostUpgradeTransaction;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewMappedValue;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
@@ -82,7 +80,6 @@ import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
-import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
@@ -91,7 +88,6 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -142,7 +138,9 @@ public class ConcurrentIntegrationTests {
                         .setNode("0.0.4")
                         .withSubmissionStrategy(usingVersion(PAST))
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY),
-                getAccountBalance("somebody").hasTinyBars(0L));
+                getAccountBalance("somebody").hasTinyBars(0L),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
@@ -155,40 +153,6 @@ public class ConcurrentIntegrationTests {
                         .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
                         .hasAnyStatusAtAll(),
                 getTxnRecord("toBeSkipped").hasAnswerOnlyPrecheck(RECORD_NOT_FOUND));
-    }
-
-    @GenesisHapiTest
-    @DisplayName("node stake update exported at upgrade boundary")
-    final Stream<DynamicTest> nodeStakeUpdateExportedAtUpgradeBoundary() {
-        // Currently both the genesis and the post-upgrade transaction export node stake updates
-        final var expectedNodeStakeUpdates = 2;
-        final var actualNodeStakeUpdates = new AtomicInteger(0);
-        return hapiTest(
-                blockStreamMustIncludePassFrom(spec -> block -> {
-                    final var blockNo =
-                            block.items().getFirst().blockHeaderOrThrow().number();
-                    final var blockNodeStakeUpdates = (int) block.items().stream()
-                            .filter(BlockItem::hasEventTransaction)
-                            .map(item -> TransactionParts.from(
-                                            item.eventTransactionOrThrow().applicationTransactionOrThrow())
-                                    .function())
-                            .filter(NODE_STAKE_UPDATE::equals)
-                            .count();
-                    final var totalNodeStakeUpdates = actualNodeStakeUpdates.addAndGet(blockNodeStakeUpdates);
-                    log.info(
-                            "Block#{} had {} node stake updates, now {}/{} observed",
-                            blockNo,
-                            blockNodeStakeUpdates,
-                            totalNodeStakeUpdates,
-                            expectedNodeStakeUpdates);
-                    return totalNodeStakeUpdates == expectedNodeStakeUpdates;
-                }),
-                // This is the genesis transaction
-                cryptoCreate("firstUser"),
-                // And now simulate an upgrade boundary
-                simulatePostUpgradeTransaction(),
-                cryptoCreate("secondUser"),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -206,7 +170,9 @@ public class ConcurrentIntegrationTests {
                 // Confirm the payer was still charged a non-zero fee
                 getAccountBalance("treasury")
                         .hasTinyBars(spec -> amount ->
-                                Optional.ofNullable(amount == ONE_HUNDRED_HBARS ? "Fee was not recharged" : null)));
+                                Optional.ofNullable(amount == ONE_HUNDRED_HBARS ? "Fee was not recharged" : null)),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest

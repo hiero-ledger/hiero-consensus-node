@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract.EXCHANGE_RATE_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract.TO_TINYBARS_SELECTOR;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract.TO_TINYCENTS_SELECTOR;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
@@ -83,7 +84,7 @@ class ExchangeRateSystemContractTest {
         givenRate(someRate);
 
         final var someInput = tinycentsInput(someTinycentAmount);
-        final var result = subject.computeFully(someInput, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, someInput, frame);
 
         assertThat(result.output()).isEqualTo(unpackedBytesFor(someTinybarAmount));
     }
@@ -93,7 +94,7 @@ class ExchangeRateSystemContractTest {
         givenRate(someRate);
 
         final var positiveInput = tinybarsInput(someTinybarAmount);
-        final var result = subject.computeFully(positiveInput, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, positiveInput, frame);
 
         assertThat(result.output()).isEqualTo(unpackedBytesFor(someTinycentAmount));
     }
@@ -103,7 +104,7 @@ class ExchangeRateSystemContractTest {
         givenRate(someRate);
 
         final var zeroInput = tinycentsInput(0);
-        final var result = subject.computeFully(zeroInput, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, zeroInput, frame);
 
         assertThat(result.output()).isEqualTo(unpackedBytesFor(0));
     }
@@ -113,7 +114,7 @@ class ExchangeRateSystemContractTest {
         final var underflowInput = tinycentsInput(Bytes.wrap(
                 BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TEN).toByteArray()));
 
-        final var result = subject.computeFully(underflowInput, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, underflowInput, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
         assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }
@@ -121,7 +122,7 @@ class ExchangeRateSystemContractTest {
     @Test
     void selectorMustBeFullyPresent() {
         final var fragmentSelector = Bytes.of(0xab);
-        final var result = subject.computeFully(fragmentSelector, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, fragmentSelector, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
         assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }
@@ -130,7 +131,7 @@ class ExchangeRateSystemContractTest {
     void selectorMustBeRecognized() {
         final var fragmentSelector = Bytes.of((byte) 0xab, (byte) 0xab, (byte) 0xab, (byte) 0xab);
         final var input = Bytes.concatenate(fragmentSelector, Bytes32.ZERO);
-        final var result = subject.computeFully(input, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, input, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
         assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }

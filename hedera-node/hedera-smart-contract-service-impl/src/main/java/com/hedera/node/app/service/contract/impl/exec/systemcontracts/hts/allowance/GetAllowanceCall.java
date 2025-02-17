@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.com
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountFungibleTokenAllowance;
@@ -126,11 +127,11 @@ public class GetAllowanceCall extends AbstractCall {
     @NonNull
     private ByteBuffer encodedAllowanceOutput(@NonNull final BigInteger allowance) {
         if (isERCCall) {
-            return GetAllowanceTranslator.ERC_GET_ALLOWANCE.getOutputs().encodeElements(allowance);
+            return GetAllowanceTranslator.ERC_GET_ALLOWANCE.getOutputs().encode(Tuple.singleton(allowance));
         } else {
             return GetAllowanceTranslator.GET_ALLOWANCE
                     .getOutputs()
-                    .encodeElements((long) SUCCESS.protoOrdinal(), allowance);
+                    .encode(Tuple.of((long) SUCCESS.protoOrdinal(), allowance));
         }
     }
 }

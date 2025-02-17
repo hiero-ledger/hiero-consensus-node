@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ import java.math.BigInteger;
 
 public class CreateTestHelper {
 
-    public static final Tuple CREATE_FUNGIBLE_V1_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_FUNGIBLE_V1_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -38,8 +38,8 @@ public class CreateTestHelper {
             BigInteger.valueOf(10L),
             BigInteger.valueOf(5L));
 
-    public static final Tuple CREATE_FUNGIBLE_V2_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_FUNGIBLE_V2_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -52,8 +52,8 @@ public class CreateTestHelper {
             BigInteger.valueOf(10L),
             5L);
 
-    public static final Tuple CREATE_FUNGIBLE_V3_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_FUNGIBLE_V3_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -66,8 +66,8 @@ public class CreateTestHelper {
             10L,
             5);
 
-    public static final Tuple CREATE_FUNGIBLE_WITH_META_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_FUNGIBLE_WITH_META_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -81,8 +81,8 @@ public class CreateTestHelper {
             10L,
             5);
 
-    public static final Tuple CREATE_FUNGIBLE_WITH_FEES_V1_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_FUNGIBLE_WITH_FEES_V1_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -97,8 +97,8 @@ public class CreateTestHelper {
             EXPECTED_FIXED_CUSTOM_FEES.toArray(Tuple[]::new),
             new Tuple[] {});
 
-    public static final Tuple CREATE_FUNGIBLE_WITH_FEES_V2_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_FUNGIBLE_WITH_FEES_V2_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -113,8 +113,8 @@ public class CreateTestHelper {
             EXPECTED_FIXED_CUSTOM_FEES.toArray(Tuple[]::new),
             new Tuple[] {});
 
-    public static final Tuple CREATE_FUNGIBLE_WITH_FEES_V3_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_FUNGIBLE_WITH_FEES_V3_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -129,8 +129,8 @@ public class CreateTestHelper {
             EXPECTED_FIXED_CUSTOM_FEES.toArray(Tuple[]::new),
             new Tuple[] {});
 
-    public static final Tuple CREATE_FUNGIBLE_WITH_META_AND_FEES_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_FUNGIBLE_WITH_META_AND_FEES_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -146,7 +146,7 @@ public class CreateTestHelper {
             EXPECTED_FIXED_CUSTOM_FEES.toArray(Tuple[]::new),
             new Tuple[] {});
 
-    public static final Tuple CREATE_NON_FUNGIBLE_V1_TUPLE = new Tuple(Tuple.of(
+    public static final Tuple CREATE_NON_FUNGIBLE_V1_TUPLE = Tuple.singleton(Tuple.from(
             "name",
             "symbol",
             NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -157,7 +157,7 @@ public class CreateTestHelper {
             new Tuple[] {},
             Tuple.of(0L, NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, 0L)));
 
-    public static final Tuple CREATE_NON_FUNGIBLE_V2_TUPLE = new Tuple(Tuple.of(
+    public static final Tuple CREATE_NON_FUNGIBLE_V2_TUPLE = Tuple.singleton(Tuple.from(
             "name",
             "symbol",
             NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -168,7 +168,7 @@ public class CreateTestHelper {
             new Tuple[] {},
             Tuple.of(0L, NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, 0L)));
 
-    public static final Tuple CREATE_NON_FUNGIBLE_V3_TUPLE = new Tuple(Tuple.of(
+    public static final Tuple CREATE_NON_FUNGIBLE_V3_TUPLE = Tuple.singleton(Tuple.from(
             "name",
             "symbol",
             NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -179,7 +179,7 @@ public class CreateTestHelper {
             new Tuple[] {},
             Tuple.of(0L, NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, 0L)));
 
-    public static final Tuple CREATE_NON_FUNGIBLE_WITH_META_TUPLE = new Tuple(Tuple.of(
+    public static final Tuple CREATE_NON_FUNGIBLE_WITH_META_TUPLE = Tuple.singleton(Tuple.from(
             "name",
             "symbol",
             NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -191,8 +191,8 @@ public class CreateTestHelper {
             Tuple.of(0L, NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, 0L),
             "metadata".getBytes()));
 
-    public static final Tuple CREATE_NON_FUNGIBLE_WITH_FEES_V1_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_NON_FUNGIBLE_WITH_FEES_V1_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -205,8 +205,8 @@ public class CreateTestHelper {
             EXPECTED_FIXED_CUSTOM_FEES.toArray(Tuple[]::new),
             new Tuple[] {});
 
-    public static final Tuple CREATE_NON_FUNGIBLE_WITH_FEES_V2_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_NON_FUNGIBLE_WITH_FEES_V2_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -219,8 +219,8 @@ public class CreateTestHelper {
             EXPECTED_FIXED_CUSTOM_FEES.toArray(Tuple[]::new),
             new Tuple[] {});
 
-    public static final Tuple CREATE_NON_FUNGIBLE_WITH_FEES_V3_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_NON_FUNGIBLE_WITH_FEES_V3_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -233,8 +233,8 @@ public class CreateTestHelper {
             EXPECTED_FIXED_CUSTOM_FEES.toArray(Tuple[]::new),
             new Tuple[] {});
 
-    public static final Tuple CREATE_NON_FUNGIBLE_WITH_META_AND_FEES_TUPLE = new Tuple(
-            Tuple.of(
+    public static final Tuple CREATE_NON_FUNGIBLE_WITH_META_AND_FEES_TUPLE = Tuple.of(
+            Tuple.from(
                     "name",
                     "symbol",
                     NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,

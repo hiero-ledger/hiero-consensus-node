@@ -49,6 +49,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -59,6 +60,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,6 +76,9 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
     private Configuration config;
 
     private TokenRejectHandler subject;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Override
     @BeforeEach
@@ -200,8 +205,9 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
     @Test
     void handleRepeatedTokenReferences() {
         final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefFungible, tokenRefFungible);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(TOKEN_REFERENCE_REPEATED));
     }
@@ -215,8 +221,9 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
                         .build())
                 .build();
         final var txn = newTokenReject(ACCOUNT_ID_3333, invalidNftRef);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
@@ -229,8 +236,9 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
                         .owner(ACCOUNT_ID_3333)
                         .build())
                 .build();
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_TOKEN_REFERENCE_LIST));
     }

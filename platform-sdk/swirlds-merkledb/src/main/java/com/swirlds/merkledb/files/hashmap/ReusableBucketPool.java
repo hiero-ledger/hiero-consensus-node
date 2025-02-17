@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import java.util.function.Function;
  * <p>Bucket pool is accessed from multiple threads:
  * <ul>
  *     <li>Transaction thread, when a key path is loaded from HDHM as a part of
- *     get or getForModify call</li>
+ *     get call</li>
  *     <li>Lifecycle thread, when updated bucket is written to disk in the end
  *     of HDHM flushing</li>
  *     <li>HDHM background bucket reading threads</li>

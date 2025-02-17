@@ -128,7 +128,7 @@ public class GetApprovedTranslatorTest {
 
     @Test
     void callFromErcGetApprovedTest() {
-        Tuple tuple = new Tuple(BigInteger.valueOf(123L));
+        Tuple tuple = Tuple.singleton(BigInteger.valueOf(123L));
         Bytes inputBytes = Bytes.wrapByteBuffer(GetApprovedTranslator.ERC_GET_APPROVED.encodeCall(tuple));
         given(attempt.isSelector(ERC_GET_APPROVED)).willReturn(true);
         given(attempt.input()).willReturn(inputBytes);
@@ -141,7 +141,7 @@ public class GetApprovedTranslatorTest {
 
     @Test
     void callFromHapiGetApprovedTest() {
-        Tuple tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
+        Tuple tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
         Bytes inputBytes = Bytes.wrapByteBuffer(HAPI_GET_APPROVED.encodeCall(tuple));
         given(attempt.isSelector(ERC_GET_APPROVED)).willReturn(false);
         given(attempt.input()).willReturn(inputBytes);

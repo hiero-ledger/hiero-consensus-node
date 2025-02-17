@@ -113,7 +113,7 @@ public class HederaAccountNumAliasTranslatorTest {
     @Test
     void callFromHederaAccountNumAliasTest() {
         final Bytes inputBytes =
-                Bytes.wrapByteBuffer(HEDERA_ACCOUNT_NUM_ALIAS.encodeCall(Tuple.of(OWNER_ACCOUNT_AS_ADDRESS)));
+                Bytes.wrapByteBuffer(HEDERA_ACCOUNT_NUM_ALIAS.encodeCall(Tuple.singleton(OWNER_ACCOUNT_AS_ADDRESS)));
         givenCommonForCall(inputBytes);
 
         final var call = subject.callFrom(attempt);

@@ -74,12 +74,12 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.ParityTestBase;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenBurnStreamBuilder;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
@@ -91,6 +91,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -101,6 +102,10 @@ class TokenBurnHandlerTest extends ParityTestBase {
     private final TokenBurnHandler subject = new TokenBurnHandler(validator);
     private Configuration configuration;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
+    @Override
     @BeforeEach
     public void setUp() {
         super.setUp();
@@ -126,13 +131,17 @@ class TokenBurnHandlerTest extends ParityTestBase {
                             TransactionID.newBuilder().accountID(ACCOUNT_1339).build())
                     .tokenAssociate(nonBurnTxnBody)
                     .build();
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn)).isInstanceOf(NullPointerException.class);
+            given(pureChecksContext.body()).willReturn(txn);
+
+            assertThatThrownBy(() -> subject.pureChecks(pureChecksContext)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
         void noTokenPresent() {
             final var txn = newBurnTxn(null, 1);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TOKEN_ID));
         }
@@ -140,7 +149,9 @@ class TokenBurnHandlerTest extends ParityTestBase {
         @Test
         void fungibleAndNonFungibleGiven() {
             final var txn = newBurnTxn(TOKEN_123, 1, 1L);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
         }
@@ -148,7 +159,9 @@ class TokenBurnHandlerTest extends ParityTestBase {
         @Test
         void nonPositiveFungibleAmountGiven() {
             final var txn = newBurnTxn(TOKEN_123, -1);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TOKEN_BURN_AMOUNT));
         }
@@ -157,13 +170,17 @@ class TokenBurnHandlerTest extends ParityTestBase {
         void emptyNftSerialNumbers() {
             // This is a success case
             final var txn = newBurnTxn(TOKEN_123, 0);
-            assertThatNoException().isThrownBy(() -> subject.pureChecks(txn));
+            given(pureChecksContext.body()).willReturn(txn);
+
+            assertThatNoException().isThrownBy(() -> subject.pureChecks(pureChecksContext));
         }
 
         @Test
         void invalidNftSerialNumber() {
             final var txn = newBurnTxn(TOKEN_123, 0, 1L, 2L, 0L);
-            Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+            given(pureChecksContext.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_NFT_ID));
         }
@@ -282,22 +299,6 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
         }
-
-        // @Test removed this test as nfts.maxBatchSizeBurn is not for fungible tokens
-        //        void fungibleAmountExceedsBatchSize() {
-        //            configuration = HederaTestConfigBuilder.create()
-        //                    .withValue("tokens.nfts.areEnabled", true)
-        //                    .withValue("tokens.nfts.maxBatchSizeBurn", 1)
-        //                    .getOrCreateConfig();
-        //            validator = new TokenSupplyChangeOpsValidator();
-        //
-        //            final var txn = newBurnTxn(TOKEN_123, 2);
-        //            final var context = mockContext(txn);
-        //
-        //            Assertions.assertThatThrownBy(() -> subject.handle(context))
-        //                    .isInstanceOf(HandleException.class)
-        //                    .has(responseCode(BATCH_SIZE_LIMIT_EXCEEDED));
-        //        }
 
         @Test
         void fungibleTokenTreasuryAccountDoesntExist() {
@@ -528,8 +529,6 @@ class TokenBurnHandlerTest extends ParityTestBase {
             writableNftStore = new WritableNftStore(
                     new MapWritableStates(
                             Map.of("NFTS", MapWritableKVState.builder("NFTS").build())),
-                    configuration,
-                    mock(StoreMetricsService.class),
                     mock(WritableEntityCounters.class));
 
             final var txn = newBurnTxn(TOKEN_123, 0, 1L);

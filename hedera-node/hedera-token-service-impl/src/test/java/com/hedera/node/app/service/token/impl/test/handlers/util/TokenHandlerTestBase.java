@@ -22,7 +22,6 @@ import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHa
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.C_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils.UNSET_STAKED_ID;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Fraction;
@@ -43,7 +42,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableStates;
@@ -146,8 +144,7 @@ public class TokenHandlerTestBase {
         given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableTokenStore = new WritableTokenStore(
-                writableStates, configuration, mock(StoreMetricsService.class), writableEntityCounters);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
     }
 
     protected void refreshStoresWithCurrentTokenInWritable() {
@@ -157,8 +154,7 @@ public class TokenHandlerTestBase {
         given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableTokenStore = new WritableTokenStore(
-                writableStates, configuration, mock(StoreMetricsService.class), writableEntityCounters);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
     }
 
     @NonNull

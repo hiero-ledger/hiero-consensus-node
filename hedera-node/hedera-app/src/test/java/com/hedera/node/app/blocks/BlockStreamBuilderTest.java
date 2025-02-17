@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package com.hedera.node.app.blocks;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
@@ -27,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -78,6 +80,7 @@ public class BlockStreamBuilderTest {
     private @Mock ResponseCodeEnum status;
     private @Mock ExchangeRateSet exchangeRate;
     private @Mock ContractStateChanges contractStateChanges;
+    private @Mock AccountID accountID;
 
     @Test
     void testBlockItemsWithCryptoTransferOutput() {
@@ -144,6 +147,21 @@ public class BlockStreamBuilderTest {
         assertTrue(outputBlockItem.hasTransactionOutput());
         final var output = outputBlockItem.transactionOutput();
         assertTrue(output.hasContractCall());
+    }
+
+    @Test
+    void testBlockItemsWithCreateAccountOutput() {
+        final var itemsBuilder =
+                createBaseBuilder().functionality(CRYPTO_CREATE).accountID(accountID);
+
+        List<BlockItem> blockItems = itemsBuilder.build().blockItems();
+        validateTransactionBlockItems(blockItems);
+        validateTransactionResult(blockItems);
+
+        final var outputBlockItem = blockItems.get(2);
+        assertTrue(outputBlockItem.hasTransactionOutput());
+        final var output = outputBlockItem.transactionOutput();
+        assertTrue(output.hasAccountCreate());
     }
 
     private void validateTransactionResult(final List<BlockItem> blockItems) {

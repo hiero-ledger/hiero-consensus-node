@@ -61,8 +61,11 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoGetAccountBalanceHa
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -94,13 +97,22 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private ReadableStates readableStates1, readableStates2, readableStates3;
 
+    @Mock
+    private ConfigProvider configProvider;
+
+    @Mock
+    private Configuration configuration;
+
     private CryptoGetAccountBalanceHandler subject;
 
     @BeforeEach
     public void setUp() {
         super.setUp();
+        final var config = HederaTestConfigBuilder.createConfig();
+        final var versionedConfig = new VersionedConfigImpl(config, 1);
+        when(configProvider.getConfiguration()).thenReturn(versionedConfig);
         given(metrics.getOrCreate(any())).willReturn(balanceSpeedometer);
-        subject = new CryptoGetAccountBalanceHandler(metrics);
+        subject = new CryptoGetAccountBalanceHandler(metrics, configProvider);
     }
 
     @Test
@@ -202,7 +214,6 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
                 MapReadableKVState.<AccountID, Account>builder(ACCOUNTS).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(state);
         final var store = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        ;
         final AccountID invalidRealmAccountId =
                 AccountID.newBuilder().accountNum(5).realmNum(-1L).build();
 
@@ -242,8 +253,6 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        ;
-
         final var query = createGetAccountBalanceQuery(deleteAccountNum);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableAccountStore.class)).thenReturn(readableStore);

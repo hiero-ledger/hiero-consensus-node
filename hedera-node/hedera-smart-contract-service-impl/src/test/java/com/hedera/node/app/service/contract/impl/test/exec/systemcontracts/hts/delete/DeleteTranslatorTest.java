@@ -103,7 +103,7 @@ class DeleteTranslatorTest {
 
     @Test
     void callFromDeleteTest() {
-        Tuple tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
+        Tuple tuple = Tuple.singleton(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
         byte[] inputBytes = Bytes.wrapByteBuffer(DELETE_TOKEN.encodeCall(tuple)).toArray();
         given(attempt.inputBytes()).willReturn(inputBytes);
         given(attempt.enhancement()).willReturn(enhancement);

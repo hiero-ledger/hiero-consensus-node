@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -97,13 +98,13 @@ public class GetApprovedCall extends AbstractRevertibleTokenViewCall {
         return isErcCall
                 ? gasOnly(
                         successResult(
-                                ERC_GET_APPROVED.getOutputs().encodeElements(spenderAddress),
+                                ERC_GET_APPROVED.getOutputs().encode(Tuple.singleton(spenderAddress)),
                                 gasCalculator.viewGasRequirement()),
                         SUCCESS,
                         true)
                 : gasOnly(
                         successResult(
-                                HAPI_GET_APPROVED.getOutputs().encodeElements(SUCCESS.protoOrdinal(), spenderAddress),
+                                HAPI_GET_APPROVED.getOutputs().encode(Tuple.of(SUCCESS.protoOrdinal(), spenderAddress)),
                                 gasCalculator.viewGasRequirement()),
                         SUCCESS,
                         true);

@@ -20,12 +20,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.app.spi.validation.EntityType;
-import com.hedera.node.config.data.TopicsConfig;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -44,20 +40,11 @@ public class WritableTopicStore extends ReadableTopicStoreImpl {
      * Create a new {@link WritableTopicStore} instance.
      *
      * @param states The state to use.
-     * @param configuration The configuration used to read the maximum capacity.
-     * @param storeMetricsService Service that provides utilization metrics.
      */
     public WritableTopicStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService,
-            @NonNull final WritableEntityCounters entityCounters) {
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
         this.entityCounters = entityCounters;
-
-        final long maxCapacity = configuration.getConfigData(TopicsConfig.class).maxNumber();
-        final var storeMetrics = storeMetricsService.get(StoreType.TOPIC, maxCapacity);
-        topicState().setMetrics(storeMetrics);
     }
 
     @Override
@@ -89,14 +76,15 @@ public class WritableTopicStore extends ReadableTopicStoreImpl {
     }
 
     /**
-     * Returns the {@link Topic} with the given number using {@link WritableKVState#getForModify}.
-     * If no such topic exists, returns {@code Optional.empty()}
+     * Returns the {@link Topic} with the given number using {@link WritableKVState#get}.
+     * If no such topic exists, returns {@code null}
+     *
      * @param topicID - the id of the topic to be retrieved.
      * @return the retrieved topic
      */
-    public Topic getForModify(@NonNull final TopicID topicID) {
+    public Topic get(@NonNull final TopicID topicID) {
         requireNonNull(topicID);
-        return topicState().getForModify(topicID);
+        return topicState().get(topicID);
     }
 
     /**

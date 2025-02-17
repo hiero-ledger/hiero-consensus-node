@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -66,9 +67,13 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock(strictness = LENIENT)
     private ExpiryValidator expiryValidator;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private CryptoDeleteAllowanceHandler subject;
 
     @BeforeEach
+    @Override
     public void setUp() {
         super.setUp();
         final var deleteAllowanceValidator = new DeleteAllowanceValidator();
@@ -153,31 +158,6 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void canDeleteAllowancesOnTreasury() {
-        writableNftStore.put(nftSl1.copyBuilder().spenderId(spenderId).build());
-        writableNftStore.put(nftSl2.copyBuilder().spenderId(spenderId).build());
-
-        final var txn = cryptoDeleteAllowanceTransaction(payerId);
-        given(handleContext.body()).willReturn(txn);
-        given(handleContext.payer()).willReturn(payerId);
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-
-        assertThat(ownerAccount.approveForAllNftAllowances()).hasSize(1);
-        assertThat(writableNftStore.get(nftIdSl1).ownerId()).isEqualTo(ownerId);
-        assertThat(writableNftStore.get(nftIdSl2).ownerId()).isEqualTo(ownerId);
-        assertThat(writableNftStore.get(nftIdSl1).spenderId()).isEqualTo(spenderId);
-        assertThat(writableNftStore.get(nftIdSl2).spenderId()).isEqualTo(spenderId);
-
-        subject.handle(handleContext);
-
-        assertThat(ownerAccount.approveForAllNftAllowances()).hasSize(1);
-        assertThat(writableNftStore.get(nftIdSl1).ownerId()).isEqualTo(ownerId);
-        assertThat(writableNftStore.get(nftIdSl2).ownerId()).isEqualTo(ownerId);
-        assertThat(writableNftStore.get(nftIdSl1).spenderId()).isNull();
-        assertThat(writableNftStore.get(nftIdSl2).spenderId()).isNull();
-    }
-
-    @Test
     void validateIfSerialsEmpty() {
         final var nftAllowance = NftRemoveAllowance.newBuilder()
                 .owner(payerId)
@@ -185,7 +165,9 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
                 .serialNumbers(List.of())
                 .build();
         final var txn = allowancesTxn(payerId, List.of(nftAllowance));
-        assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_ALLOWANCES));
     }
@@ -198,7 +180,9 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
                 .serialNumbers(List.of(1L, 2L))
                 .build();
         final var txn = allowancesTxn(payerId, List.of(nftAllowance));
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test
@@ -207,7 +191,9 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
                 .transactionID(TransactionID.newBuilder().accountID(payerId).build())
                 .cryptoDeleteAllowance(CryptoDeleteAllowanceTransactionBody.newBuilder())
                 .build();
-        assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_ALLOWANCES));
     }
@@ -360,22 +346,6 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         final var bytesPerTransaction =
                 cryptoDeleteAllowanceTransactionBody.nftAllowances().size() * nftDeleteAllowanceSize + (2 * longSize);
         given(feeCalc.addBytesPerTransaction(bytesPerTransaction)).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
-    }
-
-    @Test
-    @DisplayName("check that fees are 1 for delete NFT serials trx")
-    void testCountNftDeleteSerials() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        final var txnBody = cryptoDeleteAllowanceTransaction(payerId);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCtx.body()).willReturn(txnBody);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
         given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
 
         assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));

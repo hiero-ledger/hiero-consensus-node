@@ -73,13 +73,13 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -129,6 +129,9 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private CryptoUpdateStreamBuilder streamBuilder;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private final long updateAccountNum = 32132L;
     private final AccountID updateAccountId =
             AccountID.newBuilder().accountNum(updateAccountNum).build();
@@ -174,9 +177,9 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         given(waivers.isNewKeySignatureWaived(txn, id)).willReturn(false);
         given(waivers.isTargetAccountSignatureWaived(txn, id)).willReturn(false);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        final var context = new FakePreHandleContext(readableStore, txn);
-        assertThrowsPreCheck(() -> subject.preHandle(context), ACCOUNT_ID_DOES_NOT_EXIST);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), ACCOUNT_ID_DOES_NOT_EXIST);
     }
 
     @Test
@@ -228,9 +231,9 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn =
                 new CryptoUpdateBuilder().withProxyAccountNum(id.accountNum()).build();
         givenTxnWith(txn);
-        final var context = new FakePreHandleContext(readableStore, txn);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        assertThatThrownBy(() -> subject.preHandle(context))
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED));
     }
@@ -973,8 +976,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         }
         writableAccounts = emptyStateBuilder.build();
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
-        writableStore = new WritableAccountStore(
-                writableStates, configuration, mock(StoreMetricsService.class), writableEntityCounters);
+        writableStore = new WritableAccountStore(writableStates, writableEntityCounters);
     }
 
     private void givenTxnWith(TransactionBody txn) {

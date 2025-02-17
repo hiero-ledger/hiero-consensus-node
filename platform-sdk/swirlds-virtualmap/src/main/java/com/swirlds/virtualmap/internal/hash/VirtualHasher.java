@@ -147,7 +147,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             return true;
         }
 
@@ -191,53 +191,47 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         }
 
         @Override
-        public void completeExceptionally(Throwable ex) {
+        public void onException(Throwable ex) {
             if (out != null) {
                 out.completeExceptionally(ex);
             }
-            super.completeExceptionally(ex);
         }
 
         @Override
-        protected boolean exec() {
-            try {
-                final Hash hash;
-                if (leaf != null) {
-                    hash = cryptography.digestSync(leaf);
-                    listener.onLeafHashed(leaf);
-                    listener.onNodeHashed(path, hash);
-                } else {
-                    int len = 1 << height;
-                    long rankPath = Path.getLeftGrandChildPath(path, height);
-                    while (len > 1) {
-                        for (int i = 0; i < len / 2; i++) {
-                            final long hashedPath = Path.getParentPath(rankPath + i * 2);
-                            Hash left = ins[i * 2];
-                            Hash right = ins[i * 2 + 1];
-                            if ((left == null) && (right == null)) {
-                                ins[i] = null;
-                            } else {
-                                if (left == null) {
-                                    left = hashReader.apply(rankPath + i * 2);
-                                }
-                                if (right == null) {
-                                    right = hashReader.apply(rankPath + i * 2 + 1);
-                                }
-                                ins[i] = hash(hashedPath, left, right);
-                                listener.onNodeHashed(hashedPath, ins[i]);
+        protected boolean onExecute() {
+            final Hash hash;
+            if (leaf != null) {
+                hash = cryptography.digestSync(leaf);
+                listener.onLeafHashed(leaf);
+                listener.onNodeHashed(path, hash);
+            } else {
+                int len = 1 << height;
+                long rankPath = Path.getLeftGrandChildPath(path, height);
+                while (len > 1) {
+                    for (int i = 0; i < len / 2; i++) {
+                        final long hashedPath = Path.getParentPath(rankPath + i * 2);
+                        Hash left = ins[i * 2];
+                        Hash right = ins[i * 2 + 1];
+                        if ((left == null) && (right == null)) {
+                            ins[i] = null;
+                        } else {
+                            if (left == null) {
+                                left = hashReader.apply(rankPath + i * 2);
                             }
+                            if (right == null) {
+                                right = hashReader.apply(rankPath + i * 2 + 1);
+                            }
+                            ins[i] = hash(hashedPath, left, right);
+                            listener.onNodeHashed(hashedPath, ins[i]);
                         }
-                        rankPath = Path.getParentPath(rankPath);
-                        len = len >> 1;
                     }
-                    hash = ins[0];
+                    rankPath = Path.getParentPath(rankPath);
+                    len = len >> 1;
                 }
-                out.setHash(getIndexInOut(), hash);
-                return true;
-            } catch (final Throwable e) {
-                completeExceptionally(e);
-                throw e;
+                hash = ins[0];
             }
+            out.setHash(getIndexInOut(), hash);
+            return true;
         }
 
         static Hash hash(final long path, final Hash left, final Hash right) {

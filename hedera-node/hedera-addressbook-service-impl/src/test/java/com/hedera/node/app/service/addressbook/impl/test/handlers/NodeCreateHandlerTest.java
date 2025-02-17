@@ -60,6 +60,7 @@ import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.cert.CertificateEncodingException;
@@ -78,6 +79,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @Mock(strictness = LENIENT)
     private HandleContext handleContext;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock
     private NodeCreateStreamBuilder recordBuilder;
@@ -111,7 +115,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     @DisplayName("pureChecks fail when accountId is null")
     void accountIdCannotNull() {
         txn = new NodeCreateBuilder().build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ACCOUNT_ID);
     }
 
@@ -119,7 +124,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     @DisplayName("pureChecks fail when accountId not set")
     void accountIdNeedSet() {
         txn = new NodeCreateBuilder().withAccountId(AccountID.DEFAULT).build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ACCOUNT_ID);
     }
 
@@ -127,7 +133,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     @DisplayName("pureChecks fail when accountId is alias")
     void accountIdCannotAlias() {
         txn = new NodeCreateBuilder().withAccountId(alias).build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ACCOUNT_ID);
     }
 
@@ -138,7 +145,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of())
                 .build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_GOSSIP_ENDPOINT);
     }
 
@@ -150,7 +158,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of())
                 .build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_SERVICE_ENDPOINT);
     }
 
@@ -162,7 +171,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
                 .build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_GOSSIP_CA_CERTIFICATE);
     }
 
@@ -175,7 +185,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withServiceEndpoint(List.of(endpoint2))
                 .withGossipCaCertificate(Bytes.wrap(certList.get(1).getEncoded()))
                 .build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(KEY_REQUIRED);
     }
 
@@ -189,7 +200,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withAdminKey(IMMUTABILITY_SENTINEL_KEY)
                 .build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(KEY_REQUIRED);
     }
 
@@ -203,7 +215,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withAdminKey(invalidKey)
                 .build(payerId);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_ADMIN_KEY);
     }
 
@@ -217,7 +230,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withGossipCaCertificate(Bytes.wrap(certList.get(2).getEncoded()))
                 .withAdminKey(key)
                 .build(payerId);
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test

@@ -16,7 +16,6 @@
 
 package com.hedera.node.app.store;
 
-import static com.swirlds.platform.state.service.ReadablePlatformStateStore.UNKNOWN_VERSION_FACTORY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -62,7 +61,6 @@ import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.ReadableRosterStore;
@@ -153,13 +151,10 @@ public class ReadableStoreFactory {
      *
      * @param state the {@link State} to use
      */
-    public ReadableStoreFactory(@NonNull final State state) {
+    public ReadableStoreFactory(
+            @NonNull final State state, @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
         this.state = requireNonNull(state, "The supplied argument 'state' cannot be null!");
-        if (state instanceof PlatformMerkleStateRoot merkleStateRoot) {
-            this.versionFactory = merkleStateRoot.getVersionFactory();
-        } else {
-            this.versionFactory = UNKNOWN_VERSION_FACTORY;
-        }
+        this.versionFactory = requireNonNull(versionFactory, "The supplied argument 'versionFactory' cannot be null!");
     }
 
     /**

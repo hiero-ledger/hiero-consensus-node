@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
@@ -39,6 +40,9 @@ class HederaSystemContractTest {
     @Mock
     private MessageFrame messageFrame;
 
+    @Mock
+    private ContractID contractID;
+
     @Test
     void defaultFullComputationDelegates() {
         final var input = pbjToTuweniBytes(CALL_DATA);
@@ -47,9 +51,9 @@ class HederaSystemContractTest {
         final var subject = mock(HederaSystemContract.class);
         given(subject.computePrecompile(input, messageFrame)).willReturn(expectedResult);
         given(subject.gasRequirement(input)).willReturn(REQUIRED_GAS);
-        doCallRealMethod().when(subject).computeFully(input, messageFrame);
+        doCallRealMethod().when(subject).computeFully(contractID, input, messageFrame);
 
-        final var fullResult = subject.computeFully(input, messageFrame);
+        final var fullResult = subject.computeFully(contractID, input, messageFrame);
         Assertions.assertEquals(expectedResult, fullResult.result());
         Assertions.assertEquals(REQUIRED_GAS, fullResult.gasRequirement());
     }

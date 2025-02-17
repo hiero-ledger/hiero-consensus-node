@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package com.swirlds.platform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -26,7 +25,6 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.consensus.GraphGenerations;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
@@ -41,7 +39,6 @@ class ConsensusRoundTests {
     @Test
     void testConstructor() {
         final Randotron r = Randotron.create();
-        final GraphGenerations g = mock(GraphGenerations.class);
         final ConsensusSnapshot snapshot = mock(ConsensusSnapshot.class);
 
         when(snapshot.round()).thenReturn(1L);
@@ -55,7 +52,6 @@ class ConsensusRoundTests {
                 mock(Roster.class),
                 events,
                 mock(PlatformEvent.class),
-                g,
                 mock(EventWindow.class),
                 snapshot,
                 false,
@@ -64,7 +60,6 @@ class ConsensusRoundTests {
         assertEquals(events, round.getConsensusEvents(), "consensus event list does not match the provided list.");
         assertEquals(events.size(), round.getNumEvents(), "numEvents does not match the events provided.");
         assertEquals(1, round.getRoundNum(), "roundNum does not match the events provided.");
-        assertSame(g, round.getGenerations(), "getGenerations should match the supplied generations");
     }
 
     @Test
@@ -87,7 +82,6 @@ class ConsensusRoundTests {
                 mock(Roster.class),
                 events,
                 mock(PlatformEvent.class),
-                mock(GraphGenerations.class),
                 mock(EventWindow.class),
                 mock(ConsensusSnapshot.class),
                 false,

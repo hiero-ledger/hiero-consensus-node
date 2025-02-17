@@ -37,10 +37,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
@@ -52,11 +50,13 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -70,20 +70,25 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ConsensusCreateTopicHandler implements TransactionHandler {
+    private final EntityIdFactory idFactory;
     private final ConsensusCustomFeesValidator customFeesValidator;
 
     /**
      * Default constructor for injection.
+     * @param idFactory entity id factory
      * @param customFeesValidator custom fees validator
      */
     @Inject
-    public ConsensusCreateTopicHandler(@NonNull final ConsensusCustomFeesValidator customFeesValidator) {
-        requireNonNull(customFeesValidator);
-        this.customFeesValidator = customFeesValidator;
+    public ConsensusCreateTopicHandler(
+            @NonNull final EntityIdFactory idFactory, @NonNull final ConsensusCustomFeesValidator customFeesValidator) {
+        this.idFactory = requireNonNull(idFactory);
+        this.customFeesValidator = requireNonNull(customFeesValidator);
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         final var op = txn.consensusCreateTopicOrThrow();
         final var uniqueKeysCount = op.feeExemptKeyList().stream().distinct().count();
         validateTruePreCheck(
@@ -160,9 +165,8 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
             builder.autoRenewAccountId(effectiveExpiryMeta.autoRenewAccountId());
 
             /* --- Add topic id to topic builder --- */
-            builder.topicId(TopicID.newBuilder()
-                    .topicNum(handleContext.entityNumGenerator().newEntityNum())
-                    .build());
+            builder.topicId(
+                    idFactory.newTopicId(handleContext.entityNumGenerator().newEntityNum()));
 
             builder.runningHash(Bytes.wrap(new byte[RUNNING_HASH_BYTE_ARRAY_SIZE]));
 

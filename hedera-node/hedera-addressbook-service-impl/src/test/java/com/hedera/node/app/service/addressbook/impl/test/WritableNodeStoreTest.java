@@ -25,42 +25,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableNodeStoreTest extends AddressBookTestBase {
-
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
-
     private Node node;
 
     @Test
     void throwsIfNullValuesAsArgs() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableNodeStore(null, CONFIGURATION, storeMetricsService, writableEntityCounters));
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableNodeStore(writableStates, null, storeMetricsService, writableEntityCounters));
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableNodeStore(writableStates, CONFIGURATION, null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableNodeStore(null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableNodeStore(writableStates, null));
         assertThrows(NullPointerException.class, () -> writableStore.put(null));
     }
 
     @Test
     void constructorCreatesNodeState() {
-        final var store =
-                new WritableNodeStore(writableStates, CONFIGURATION, storeMetricsService, writableEntityCounters);
+        final var store = new WritableNodeStore(writableStates, writableEntityCounters);
         assertNotNull(store);
     }
 
@@ -82,17 +64,6 @@ class WritableNodeStoreTest extends AddressBookTestBase {
         writableStore.put(node);
 
         final var maybeReadNode = writableStore.get(nodeId.number());
-
-        assertNotNull(maybeReadNode);
-        assertEquals(node, maybeReadNode);
-    }
-
-    @Test
-    void getForModifyReturnsNode() {
-        node = createNode();
-        writableStore.put(node);
-
-        final var maybeReadNode = writableStore.getForModify(nodeId.number());
 
         assertNotNull(maybeReadNode);
         assertEquals(node, maybeReadNode);

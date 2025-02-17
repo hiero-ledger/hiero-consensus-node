@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,28 +16,30 @@
 
 package com.swirlds.platform.network.communication;
 
-import com.swirlds.platform.network.protocol.Protocol;
+import com.swirlds.platform.network.protocol.PeerProtocol;
 import java.util.List;
 
 /**
  * Manages protocols during a protocol negotiation
  */
 public class NegotiationProtocols {
-    private final Protocol[] allProtocols;
+    private final PeerProtocol[] allPeerProtocols;
     /** the protocol initiated, if any */
-    private Protocol initiatedProtocol = null;
+    private PeerProtocol initiatedPeerProtocol = null;
 
     /**
-     * @param protocols
+     * @param peerProtocols
      * 		a list of protocols to negotiate in order of priority
      */
-    public NegotiationProtocols(final List<Protocol> protocols) {
-        if (protocols == null || protocols.isEmpty() || protocols.size() > NegotiatorBytes.MAX_NUMBER_OF_PROTOCOLS) {
+    public NegotiationProtocols(final List<PeerProtocol> peerProtocols) {
+        if (peerProtocols == null
+                || peerProtocols.isEmpty()
+                || peerProtocols.size() > NegotiatorBytes.MAX_NUMBER_OF_PROTOCOLS) {
             throw new IllegalArgumentException(
                     "the list of protocols supplied should be: non-null, non-empty and have a size lower than "
                             + NegotiatorBytes.MAX_NUMBER_OF_PROTOCOLS);
         }
-        this.allProtocols = protocols.toArray(new Protocol[0]);
+        this.allPeerProtocols = peerProtocols.toArray(new PeerProtocol[0]);
     }
 
     /**
@@ -49,11 +51,11 @@ public class NegotiationProtocols {
      * @throws NegotiationException
      * 		if an invalid ID is supplied
      */
-    public Protocol getProtocol(final int id) throws NegotiationException {
-        if (id < 0 || id >= allProtocols.length) {
+    public PeerProtocol getProtocol(final int id) throws NegotiationException {
+        if (id < 0 || id >= allPeerProtocols.length) {
             throw new NegotiationException("not a valid protocol ID: " + id);
         }
-        return allProtocols[id];
+        return allPeerProtocols[id];
     }
 
     /**
@@ -63,10 +65,10 @@ public class NegotiationProtocols {
      * @throws IllegalStateException
      * 		if no protocol was previously initiated
      */
-    public Protocol initiateAccepted() {
+    public PeerProtocol initiateAccepted() {
         throwIfNoneInitiated();
-        final Protocol ret = initiatedProtocol;
-        initiatedProtocol = null;
+        final PeerProtocol ret = initiatedPeerProtocol;
+        initiatedPeerProtocol = null;
         return ret;
     }
 
@@ -78,16 +80,16 @@ public class NegotiationProtocols {
      */
     public void initiateFailed() {
         throwIfNoneInitiated();
-        initiatedProtocol.initiateFailed();
-        initiatedProtocol = null;
+        initiatedPeerProtocol.initiateFailed();
+        initiatedPeerProtocol = null;
     }
 
     /**
      * If a negotiation exception occurred, we must notify any initiated protocol that the initiate failed
      */
     public void negotiationExceptionOccurred() {
-        if (initiatedProtocol != null) {
-            initiatedProtocol.initiateFailed();
+        if (initiatedPeerProtocol != null) {
+            initiatedPeerProtocol.initiateFailed();
         }
     }
 
@@ -96,9 +98,9 @@ public class NegotiationProtocols {
      * @throws IllegalStateException
      * 		if no protocol was previously initiated
      */
-    public Protocol getInitiatedProtocol() {
+    public PeerProtocol getInitiatedProtocol() {
         throwIfNoneInitiated();
-        return initiatedProtocol;
+        return initiatedPeerProtocol;
     }
 
     /**
@@ -106,9 +108,9 @@ public class NegotiationProtocols {
      */
     public byte initiateProtocol() {
         // check each protocol in order of priority until we find one we should initiate
-        for (byte i = 0; i < allProtocols.length; i++) {
-            if (allProtocols[i].shouldInitiate()) {
-                initiatedProtocol = allProtocols[i];
+        for (byte i = 0; i < allPeerProtocols.length; i++) {
+            if (allPeerProtocols[i].shouldInitiate()) {
+                initiatedPeerProtocol = allPeerProtocols[i];
                 return i;
             }
         }
@@ -116,7 +118,7 @@ public class NegotiationProtocols {
     }
 
     private void throwIfNoneInitiated() {
-        if (initiatedProtocol == null) {
+        if (initiatedPeerProtocol == null) {
             throw new IllegalStateException("no protocol initiated");
         }
     }

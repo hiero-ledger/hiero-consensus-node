@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -82,6 +83,9 @@ class FreezeHandlerTest {
 
     @Mock(strictness = LENIENT)
     private PreHandleContext preHandleContext;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock(strictness = LENIENT)
     private HandleContext handleContext;
@@ -144,7 +148,8 @@ class FreezeHandlerTest {
                         .freezeType(UNKNOWN_FREEZE_TYPE)
                         .build())
                 .build();
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_FREEZE_TRANSACTION_BODY);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_FREEZE_TRANSACTION_BODY);
 
         given(handleContext.body()).willReturn(txn);
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -166,7 +171,8 @@ class FreezeHandlerTest {
                             .freezeType(freezeType)
                             .build())
                     .build();
-            assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_FREEZE_TRANSACTION_BODY);
+            given(pureChecksContext.body()).willReturn(txn);
+            assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_FREEZE_TRANSACTION_BODY);
         }
     }
 
@@ -186,7 +192,8 @@ class FreezeHandlerTest {
                             .freezeType(freezeType)
                             .startTime(Timestamp.newBuilder().seconds(1000).build()))
                     .build();
-            assertThrowsPreCheck(() -> subject.pureChecks(txn), FREEZE_START_TIME_MUST_BE_FUTURE);
+            given(pureChecksContext.body()).willReturn(txn);
+            assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), FREEZE_START_TIME_MUST_BE_FUTURE);
         }
     }
 
@@ -274,7 +281,8 @@ class FreezeHandlerTest {
                             .updateFile(FileID.newBuilder().fileNum(150L))
                             .build())
                     .build();
-            assertThrowsPreCheck(() -> subject.pureChecks(txn), FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH);
+            given(pureChecksContext.body()).willReturn(txn);
+            assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH);
         }
     }
 
@@ -482,7 +490,8 @@ class FreezeHandlerTest {
                 .freeze(FreezeTransactionBody.newBuilder().build())
                 // do not set freeze start time
                 .build();
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_FREEZE_TRANSACTION_BODY);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_FREEZE_TRANSACTION_BODY);
     }
 
     @Test
@@ -495,7 +504,8 @@ class FreezeHandlerTest {
                                 Timestamp.newBuilder().seconds(1000).build()))
                 .freeze(FreezeTransactionBody.newBuilder().startHour(3).build())
                 .build();
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_FREEZE_TRANSACTION_BODY);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_FREEZE_TRANSACTION_BODY);
     }
 
     @Test
@@ -508,7 +518,8 @@ class FreezeHandlerTest {
                                 Timestamp.newBuilder().seconds(1000).build()))
                 .freeze(FreezeTransactionBody.newBuilder().startMin(31).build())
                 .build();
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_FREEZE_TRANSACTION_BODY);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_FREEZE_TRANSACTION_BODY);
     }
 
     @Test
@@ -521,7 +532,8 @@ class FreezeHandlerTest {
                                 Timestamp.newBuilder().seconds(1000).build()))
                 .freeze(FreezeTransactionBody.newBuilder().endHour(3).build())
                 .build();
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_FREEZE_TRANSACTION_BODY);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_FREEZE_TRANSACTION_BODY);
     }
 
     @Test
@@ -534,6 +546,7 @@ class FreezeHandlerTest {
                                 Timestamp.newBuilder().seconds(1000).build()))
                 .freeze(FreezeTransactionBody.newBuilder().endMin(16).build())
                 .build();
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_FREEZE_TRANSACTION_BODY);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_FREEZE_TRANSACTION_BODY);
     }
 }

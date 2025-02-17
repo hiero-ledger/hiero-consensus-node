@@ -22,9 +22,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 
 /**
- * The cryptographic operations required by the {@link HintsService}. The relationship between the hinTS algorithms
- * and these operations are as follows:
+ * The cryptographic operations required by the {@link HintsService}.
+ * <p>
+ * The relationship between the hinTS algorithms and these operations are as follows:
  * <ul>
+ *   <li><b>CRS creation</b> ({@code Setup}) - Implemented by using {@link HintsLibrary#newCrs(int)},
+ *   {@link HintsLibrary#updateCrs(Bytes, Bytes)}, and {@link HintsLibrary#verifyCrsUpdate(Bytes, Bytes, Bytes)}.</li>
  *   <li><b>Key generation</b> ({@code KGen}) - Implemented by {@link HintsLibrary#newBlsKeyPair()}.</li>
  *   <li><b>Hint generation</b> ({@code HintGen}) - Implemented by {@link HintsLibrary#computeHints(Bytes, int, int)}.</li>
  *   <li><b>Preprocessing</b> ({@code Preprocess}) - Implemented by using {@link HintsLibrary#preprocess(Map, Map, int)}
@@ -41,6 +44,31 @@ import java.util.Map;
  * </ul>
  */
 public interface HintsLibrary {
+    /**
+     * Returns an initial CRS for the given number of parties.
+     * @param n the number of parties
+     * @return the CRS
+     */
+    Bytes newCrs(int n);
+
+    /**
+     * Updates the given CRS with the given 128 bits of entropy and returns the concatenation of the
+     * updated CRS and a proof of the contribution.
+     * @param crs the CRS
+     * @param entropy the 128-bit entropy
+     * @return the updated CRS and proof
+     */
+    Bytes updateCrs(@NonNull Bytes crs, @NonNull Bytes entropy);
+
+    /**
+     * Verifies the given proof of a CRS update.
+     * @param oldCrs the old CRS
+     * @param newCrs the new CRS
+     * @param proof the proof
+     * @return true if the proof is valid; false otherwise
+     */
+    boolean verifyCrsUpdate(@NonNull Bytes oldCrs, @NonNull Bytes newCrs, @NonNull Bytes proof);
+
     /**
      * Generates a new BLS key pair.
      * @return the key pair

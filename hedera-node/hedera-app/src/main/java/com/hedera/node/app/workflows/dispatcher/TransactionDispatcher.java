@@ -26,6 +26,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -62,14 +63,14 @@ public class TransactionDispatcher {
      * Dispatch a {@code pureChecks()} request. It is forwarded to the correct handler, which takes care of the specific
      * functionality
      *
-     * @param txBody the {@link TransactionBody} to be validated
-     * @throws NullPointerException if {@code txBody} is {@code null}
+     * @param context the {@link PureChecksContext} to be validated
+     * @throws NullPointerException if {@code context} is {@code null}
      */
-    public void dispatchPureChecks(@NonNull final TransactionBody txBody) throws PreCheckException {
-        requireNonNull(txBody, "The supplied argument 'txBody' cannot be null!");
+    public void dispatchPureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context, "The supplied argument 'context' cannot be null!");
         try {
-            final var handler = getHandler(txBody);
-            handler.pureChecks(txBody);
+            final var handler = getHandler(context.body());
+            handler.pureChecks(context);
         } catch (UnsupportedOperationException ex) {
             throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }

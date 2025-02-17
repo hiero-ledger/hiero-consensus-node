@@ -18,6 +18,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.NOT_SUPPORTED;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
 import static org.mockito.Mockito.when;
@@ -81,7 +82,7 @@ class HssSystemContractTest {
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(contractsConfig);
         when(contractsConfig.systemContractScheduleServiceEnabled()).thenReturn(false);
         final var expected = haltResult(NOT_SUPPORTED, frame.getRemainingGas());
-        final var result = subject.computeFully(validInput, frame);
+        final var result = subject.computeFully(HSS_CONTRACT_ID, validInput, frame);
         assertSamePrecompileResult(expected, result);
     }
 }

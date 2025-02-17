@@ -42,6 +42,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
@@ -55,7 +56,7 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
-import com.hedera.node.app.spi.validation.EntityType;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -166,6 +167,9 @@ class ReadableFreezeUpgradeActionsTest {
     @Mock
     private ReadableEntityCounters readableEntityCounters;
 
+    @Mock
+    private HederaConfig hederaConfig;
+
     private ReadableNodeStore nodeStore;
 
     private Executor freezeExecutor;
@@ -177,6 +181,9 @@ class ReadableFreezeUpgradeActionsTest {
         given(configuration.getConfigData(NetworkAdminConfig.class)).willReturn(adminServiceConfig);
         given(configuration.getConfigData(NodesConfig.class)).willReturn(nodesConfig);
         given(configuration.getConfigData(AddressBookConfig.class)).willReturn(addressBookConfig);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(hederaConfig.shard()).willReturn(1L);
+        given(hederaConfig.realm()).willReturn(2L);
 
         noiseFileLoc = zipOutputDir.toPath().resolve("forgotten.cfg");
         noiseSubFileLoc = zipOutputDir.toPath().resolve("edargpu");

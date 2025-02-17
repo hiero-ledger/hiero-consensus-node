@@ -29,6 +29,7 @@ import com.hedera.node.app.blocks.impl.KVStateChangeListener;
 import com.hedera.node.app.components.IngestInjectionComponent;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.grpc.GrpcInjectionModule;
@@ -39,6 +40,7 @@ import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.info.InfoInjectionModule;
 import com.hedera.node.app.metrics.MetricsInjectionModule;
 import com.hedera.node.app.platform.PlatformModule;
+import com.hedera.node.app.platform.PlatformStateModule;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -46,7 +48,7 @@ import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.services.ServicesRegistry;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
@@ -100,7 +102,8 @@ import javax.inject.Singleton;
             BlockStreamModule.class,
             PlatformModule.class,
             ThrottleServiceModule.class,
-            FacilityInitModule.class
+            FacilityInitModule.class,
+            PlatformStateModule.class
         })
 public interface HederaInjectionComponent {
     InitTrigger initTrigger();
@@ -118,6 +121,8 @@ public interface HederaInjectionComponent {
     Supplier<Charset> nativeCharset();
 
     NetworkInfo networkInfo();
+
+    AppFeeCharging appFeeCharging();
 
     PreHandleWorkflow preHandleWorkflow();
 
@@ -144,8 +149,6 @@ public interface HederaInjectionComponent {
     ReconnectCompleteListener reconnectListener();
 
     StateWriteToDiskCompleteListener stateWriteToDiskListener();
-
-    StoreMetricsService storeMetricsService();
 
     SubmissionManager submissionManager();
 
@@ -227,6 +230,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder startupNetworks(StartupNetworks startupNetworks);
+
+        @BindsInstance
+        Builder appContext(AppContext appContext);
 
         HederaInjectionComponent build();
     }

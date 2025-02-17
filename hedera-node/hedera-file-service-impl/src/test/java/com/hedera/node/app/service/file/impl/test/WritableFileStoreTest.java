@@ -24,43 +24,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableFileStoreTest extends FileTestBase {
-
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
-
     private File file;
 
     @Test
     void throwsIfNullValuesAsArgs() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableFileStore(null, CONFIGURATION, storeMetricsService, writableEntityCounters));
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableFileStore(writableStates, null, storeMetricsService, writableEntityCounters));
-        assertThrows(
-                NullPointerException.class,
-                () -> new WritableFileStore(writableStates, CONFIGURATION, null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableFileStore(null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableFileStore(writableStates, null));
         assertThrows(NullPointerException.class, () -> writableStore.put(null));
     }
 
     @Test
     void constructorCreatesFileState() {
-        final var store =
-                new WritableFileStore(writableStates, CONFIGURATION, storeMetricsService, writableEntityCounters);
+        final var store = new WritableFileStore(writableStates, writableEntityCounters);
         assertNotNull(store);
     }
 

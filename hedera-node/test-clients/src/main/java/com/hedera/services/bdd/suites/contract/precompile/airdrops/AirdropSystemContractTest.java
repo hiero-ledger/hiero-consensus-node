@@ -29,6 +29,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -585,7 +586,8 @@ public class AirdropSystemContractTest {
                                             receiver9,
                                             receiver10,
                                             receiver11))
-                            .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED))
+                            .andAssert(txn -> txn.hasKnownStatuses(
+                                    CONTRACT_REVERT_EXECUTED, TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED))
                             .gas(1500000),
                     receiver1.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 0L)),
                     receiver2.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 0L)),

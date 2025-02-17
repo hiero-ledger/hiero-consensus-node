@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.cert.CertificateEncodingException;
@@ -77,6 +78,9 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
     @Mock(strictness = LENIENT)
     private HandleContext handleContext;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock
     private StoreFactory storeFactory;
@@ -106,7 +110,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     @DisplayName("pureChecks fail when nodeId is negative")
     void nodeIdCannotNegative() {
         txn = new NodeUpdateBuilder().build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ID);
     }
 
@@ -118,7 +123,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipCaCertificate(Bytes.EMPTY)
                 .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_GOSSIP_CA_CERTIFICATE);
     }
 
@@ -130,7 +136,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGrpcCertificateHash(Bytes.EMPTY)
                 .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_GRPC_CERTIFICATE_HASH);
     }
 
@@ -142,7 +149,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withAdminKey(invalidKey)
                 .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_ADMIN_KEY);
     }
 
@@ -155,7 +163,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withGossipCaCertificate(Bytes.wrap(certList.get(1).getEncoded()))
                 .withAdminKey(key)
                 .build();
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test

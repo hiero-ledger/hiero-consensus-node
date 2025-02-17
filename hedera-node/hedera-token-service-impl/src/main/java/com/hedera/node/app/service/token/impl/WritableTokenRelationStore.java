@@ -24,13 +24,9 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.app.spi.validation.EntityType;
-import com.hedera.node.config.data.TokensConfig;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,21 +51,12 @@ public class WritableTokenRelationStore extends ReadableTokenRelationStoreImpl {
      * Create a new {@link WritableTokenRelationStore} instance.
      *
      * @param states The state to use.
-     * @param configuration The configuration used to read the maximum capacity.
-     * @param storeMetricsService Service that provides utilization metrics.
      */
     public WritableTokenRelationStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService,
-            @NonNull final WritableEntityCounters entityCounters) {
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
         this.tokenRelState = requireNonNull(states).get(V0490TokenSchema.TOKEN_RELS_KEY);
         this.entityCounters = entityCounters;
-
-        final long maxCapacity = configuration.getConfigData(TokensConfig.class).maxAggregateRels();
-        final var storeMetrics = storeMetricsService.get(StoreType.TOKEN_RELATION, maxCapacity);
-        tokenRelState.setMetrics(storeMetrics);
     }
 
     /**
@@ -108,26 +95,6 @@ public class WritableTokenRelationStore extends ReadableTokenRelationStoreImpl {
                 .tokenId(tokenRelation.tokenId())
                 .build());
         entityCounters.decrementEntityTypeCounter(EntityType.TOKEN_ASSOCIATION);
-    }
-
-    /**
-     * Returns the {@link TokenRelation} with the given token number and account number.
-     * If no such token relation exists, returns {@code Optional.empty()}
-     *
-     * @param accountId - the number of the account to be retrieved
-     * @param tokenId   - the number of the token to be retrieved
-     * @return the token relation with the given token number and account number, or {@code Optional.empty()} if no such
-     * token relation exists
-     */
-    @Nullable
-    public TokenRelation getForModify(@NonNull final AccountID accountId, @NonNull final TokenID tokenId) {
-        requireNonNull(accountId);
-        requireNonNull(tokenId);
-
-        if (AccountID.DEFAULT.equals(accountId) || TokenID.DEFAULT.equals(tokenId)) return null;
-
-        return tokenRelState.getForModify(
-                EntityIDPair.newBuilder().accountId(accountId).tokenId(tokenId).build());
     }
 
     /**

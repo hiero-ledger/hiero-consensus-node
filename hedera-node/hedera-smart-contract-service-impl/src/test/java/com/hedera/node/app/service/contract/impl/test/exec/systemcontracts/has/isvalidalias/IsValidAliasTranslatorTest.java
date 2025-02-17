@@ -112,7 +112,8 @@ public class IsValidAliasTranslatorTest {
 
     @Test
     void callFromIsValidAliasTest() {
-        final Bytes inputBytes = Bytes.wrapByteBuffer(IS_VALID_ALIAS.encodeCall(Tuple.of(OWNER_ACCOUNT_AS_ADDRESS)));
+        final Bytes inputBytes =
+                Bytes.wrapByteBuffer(IS_VALID_ALIAS.encodeCall(Tuple.singleton(OWNER_ACCOUNT_AS_ADDRESS)));
         givenCommonForCall(inputBytes);
 
         final var call = subject.callFrom(attempt);

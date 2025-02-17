@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.swirlds.platform.consensus;
 
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -31,7 +32,7 @@ public final class SyntheticSnapshot {
     public static final ConsensusSnapshot GENESIS_SNAPSHOT = new ConsensusSnapshot(
             ConsensusConstants.ROUND_FIRST,
             List.of(),
-            List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, GraphGenerations.FIRST_GENERATION)),
+            List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, EventConstants.FIRST_GENERATION)),
             ConsensusConstants.FIRST_CONSENSUS_NUMBER,
             Instant.EPOCH);
 

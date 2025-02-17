@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
@@ -76,7 +77,7 @@ class HbarApproveCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HbarApproveTranslator.HBAR_APPROVE
                         .getOutputs()
-                        .encodeElements((long) SUCCESS.getNumber())
+                        .encode(Tuple.singleton((long) SUCCESS.getNumber()))
                         .array()),
                 result.getOutput());
     }
@@ -95,7 +96,7 @@ class HbarApproveCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HbarApproveTranslator.HBAR_APPROVE
                         .getOutputs()
-                        .encodeElements((long) REVERTED_SUCCESS.getNumber())
+                        .encode(Tuple.singleton((long) REVERTED_SUCCESS.getNumber()))
                         .array()),
                 result.getOutput());
     }

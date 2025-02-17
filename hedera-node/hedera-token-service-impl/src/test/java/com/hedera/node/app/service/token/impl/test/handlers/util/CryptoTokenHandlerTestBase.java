@@ -94,8 +94,9 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -134,6 +135,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
+    protected static final int SHARD = 1;
+    protected static final long REALM = 2;
     protected static final Instant originalInstant = Instant.ofEpochSecond(12345678910L);
     protected static final long stakePeriodStart =
             LocalDate.ofInstant(originalInstant, ZONE_UTC).toEpochDay() - 1;
@@ -405,6 +408,9 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     protected Account hbarReceiverAccount;
     protected Account zeroAccount;
 
+    /* ---------- Ids ---------- */
+    protected EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+
     /* ---------- Maps for updating both readable and writable stores ---------- */
     private Map<AccountID, Account> accountsMap;
     private Map<ProtoBytes, AccountID> aliasesMap;
@@ -418,9 +424,6 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
 
     @Mock
     protected WritableStates writableStates;
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
 
     @Mock(strictness = Strictness.LENIENT)
     protected StoreFactory storeFactory;
@@ -626,8 +629,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        writableAccountStore =
-                new WritableAccountStore(writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableAccountStore = new WritableAccountStore(writableStates, writableEntityCounters);
     }
 
     private void givenAccountsInWritableStore() {
@@ -641,8 +643,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        writableAccountStore =
-                new WritableAccountStore(writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableAccountStore = new WritableAccountStore(writableStates, writableEntityCounters);
     }
 
     private void givenTokensInReadableStore() {
@@ -651,8 +652,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
         given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
         given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
-        writableTokenStore =
-                new WritableTokenStore(writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
     }
 
     private void givenTokensInWritableStore() {
@@ -661,8 +661,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
         given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
         given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
-        writableTokenStore =
-                new WritableTokenStore(writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
     }
 
     private void givenReadableStakingInfoStore() {
@@ -714,8 +713,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     private void givenWritableTokenRelsStore() {
         writableTokenRelState = writableTokenRelState();
         given(writableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS)).willReturn(writableTokenRelState);
-        writableTokenRelStore = new WritableTokenRelationStore(
-                writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableTokenRelStore = new WritableTokenRelationStore(writableStates, writableEntityCounters);
     }
 
     private void givenReadableNftStore() {
@@ -733,8 +731,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 .value(nftIdSl2, nftSl2)
                 .build();
         given(writableStates.<NftID, Nft>get(NFTS)).willReturn(writableNftState);
-        writableNftStore =
-                new WritableNftStore(writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableNftStore = new WritableNftStore(writableStates, writableEntityCounters);
     }
 
     private void givenReadableAirdropStore() {
@@ -747,8 +744,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
         writableAirdropState = writableAirdropState();
         given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
                 .willReturn(writableAirdropState);
-        writableAirdropStore =
-                new WritableAirdropStore(writableStates, configuration, storeMetricsService, writableEntityCounters);
+        writableAirdropStore = new WritableAirdropStore(writableStates, writableEntityCounters);
     }
 
     @NonNull

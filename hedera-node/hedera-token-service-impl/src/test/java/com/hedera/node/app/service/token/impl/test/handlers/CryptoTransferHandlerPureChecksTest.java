@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -33,13 +34,18 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.TokenAssociateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Collections;
 import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 
 class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase {
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @SuppressWarnings("DataFlowIssue")
     @Test
@@ -54,8 +60,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                 .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_ID_3333))
                 .tokenAssociate(nonTransferTxnBody)
                 .build();
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_TRANSACTION_BODY));
     }
@@ -65,8 +72,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
         final var txn = newCryptoTransfer(
                 ACCT_3333_MINUS_10,
                 ACCT_4444_PLUS_10.copyBuilder().accountID((AccountID) null).build());
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_ACCOUNT_ID));
     }
@@ -82,8 +90,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                                 .build())
                         .amount(10)
                         .build());
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_ACCOUNT_ID));
     }
@@ -93,8 +102,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
         final var txn = newCryptoTransfer(
                 ACCT_3333_MINUS_10,
                 ACCT_4444_PLUS_10.copyBuilder().accountID(asAccount(0)).build());
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_ACCOUNT_ID));
     }
@@ -107,8 +117,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                         .accountID(AccountID.newBuilder().alias(Bytes.wrap("")).build())
                         .amount(5)
                         .build());
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_ACCOUNT_ID));
     }
@@ -118,7 +129,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
         // A net non-zero transfer balance of (-10 + 11) = 1 should cause the pure checks to fail
         final var txn = newCryptoTransfer(
                 ACCT_3333_MINUS_10, ACCT_4444_PLUS_10.copyBuilder().amount(11).build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
     }
@@ -127,7 +140,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
     void pureChecksHbarTransfersHasRepeatedAccountId() {
         final var txn = newCryptoTransfer(
                 ACCT_3333_MINUS_10, ACCT_3333_MINUS_10.copyBuilder().amount(10).build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
     }
@@ -136,7 +151,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
     void pureChecksHasValidHbarTransfers() {
         // Note: this test only checks for valid hbar transfers (WITHOUT any token transfers)
         final var txn = newCryptoTransfer(ACCT_4444_MINUS_5, ACCT_3333_PLUS_5);
-        Assertions.assertThatCode(() -> subject.pureChecks(txn)).doesNotThrowAnyException();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
@@ -146,7 +163,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                 // These are TOKEN fungible amount transfers, not HBAR amount transfers
                 .transfers(ACCT_4444_MINUS_5, ACCT_3333_PLUS_5)
                 .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOKEN_ID));
     }
@@ -163,7 +182,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                                 .accountID((AccountID) null)
                                 .build())
                 .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID));
     }
@@ -177,7 +198,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                         ACCT_4444_MINUS_5,
                         ACCT_4444_MINUS_5.copyBuilder().amount(5).build())
                 .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
     }
@@ -191,7 +214,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                         ACCT_3333_MINUS_10,
                         ACCT_4444_PLUS_10.copyBuilder().amount(5).build())
                 .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN));
     }
@@ -203,7 +228,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                 .token(TOKEN_2468)
                 .transfers(ACCT_4444_MINUS_5, ACCT_3333_PLUS_5)
                 .build());
-        Assertions.assertThatCode(() -> subject.pureChecks(txn)).doesNotThrowAnyException();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
@@ -213,7 +240,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                 // These are nft transfers, not hbar or fungible token transfers
                 .nftTransfers(SERIAL_1_FROM_3333_TO_4444)
                 .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOKEN_ID));
     }
@@ -226,7 +255,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                 .nftTransfers(
                         SERIAL_1_FROM_3333_TO_4444.copyBuilder().serialNumber(0).build())
                 .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
@@ -241,7 +272,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                         .senderAccountID((AccountID) null)
                         .build())
                 .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID));
     }
@@ -255,7 +288,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                         .receiverAccountID((AccountID) null)
                         .build())
                 .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID));
     }
@@ -271,7 +306,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                         .token(TOKEN_2468)
                         .nftTransfers(SERIAL_2_FROM_4444_TO_3333)
                         .build());
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TOKEN_LIST));
     }
@@ -287,7 +324,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                         SERIAL_2_FROM_4444_TO_3333,
                         SERIAL_1_FROM_3333_TO_4444.copyBuilder().serialNumber(3).build())
                 .build());
-        Assertions.assertThatCode(() -> subject.pureChecks(txn)).doesNotThrowAnyException();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
@@ -300,8 +339,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                 .transfers()
                 .nftTransfers()
                 .build());
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_TOKEN_TRANSFER_ACCOUNT_AMOUNTS));
     }
@@ -315,8 +355,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                 .transfers(ACCT_3333_MINUS_10, ACCT_4444_PLUS_10)
                 .nftTransfers(SERIAL_1_FROM_3333_TO_4444, SERIAL_1_FROM_3333_TO_4444)
                 .build());
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
     }
@@ -325,7 +366,9 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
     void pureChecksForEmptyHbarTransferAndEmptyTokenTransfers() {
         // It's actually valid to have no hbar transfers and no token transfers
         final var txn = newCryptoTransfer(Collections.emptyList(), Collections.emptyList());
-        Assertions.assertThatCode(() -> subject.pureChecks(txn)).doesNotThrowAnyException();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
@@ -352,7 +395,8 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
                                 .token(token9753)
                                 .nftTransfers(SERIAL_1_FROM_3333_TO_4444, SERIAL_2_FROM_4444_TO_3333)
                                 .build()));
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatCode(() -> subject.pureChecks(txn)).doesNotThrowAnyException();
+        Assertions.assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 }

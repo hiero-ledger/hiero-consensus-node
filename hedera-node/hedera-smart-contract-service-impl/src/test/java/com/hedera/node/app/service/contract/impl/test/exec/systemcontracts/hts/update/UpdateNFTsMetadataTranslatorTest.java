@@ -90,7 +90,7 @@ class UpdateNFTsMetadataTranslatorTest {
 
     @Test
     void callFromUpdateTest() {
-        final var tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, new long[] {1}, "P. Griffin".getBytes());
+        final var tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, new long[] {1}, "P. Griffin".getBytes());
         final var inputBytes =
                 Bytes.wrapByteBuffer(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA.encodeCall(tuple));
 

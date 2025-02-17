@@ -81,6 +81,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
@@ -119,7 +120,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         final var op = txn.cryptoCreateAccountOrThrow();
         // Note: validation lives here for now but should take place in handle in the future
         validateTruePreCheck(op.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
@@ -143,9 +146,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
         // sendRecordThreshold, receiveRecordThreshold and proxyAccountID are deprecated. So no need to check them.
         validateFalsePreCheck(op.hasProxyAccountID(), PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
-        // You can never set the alias to be an "entity num alias" (sometimes called "long-zero").
         final var alias = op.alias();
-        validateFalsePreCheck(isEntityNumAlias(alias), INVALID_ALIAS_KEY);
         // The alias, if set, must be of EVM address size, or it must be a valid key.
         validateTruePreCheck(alias.length() == 0 || isOfEvmAddressSize(alias) || isKeyAlias(alias), INVALID_ALIAS_KEY);
         // There must be a key provided, and it must not be empty, unless in one very particular case, where the
@@ -313,7 +314,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
+        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var alias = op.alias();
+        // You can never set the alias to be an "entity num alias" (sometimes called "long-zero").
+        validateFalse(isEntityNumAlias(alias, hederaConfig.shard(), hederaConfig.realm()), INVALID_ALIAS_KEY);
 
         // We have a limit on the total maximum number of entities that can be created on the network, for different
         // types of entities. We need to verify that creating a new account won't exceed that number.

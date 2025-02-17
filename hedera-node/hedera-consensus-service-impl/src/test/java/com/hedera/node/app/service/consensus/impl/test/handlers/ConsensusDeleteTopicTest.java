@@ -47,9 +47,9 @@ import com.hedera.node.app.service.consensus.impl.handlers.ConsensusDeleteTopicH
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -66,13 +66,13 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
     private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
 
     @Mock
+    private PureChecksContext pureChecksContext;
+
+    @Mock
     private ReadableAccountStore accountStore;
 
     @Mock
     private ReadableTopicStore mockStore;
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
 
     @Mock
     private WritableEntityCounters entityCounters;
@@ -85,15 +85,16 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
 
         writableTopicState = writableTopicStateWithOneKey();
         given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
-        writableStore = new WritableTopicStore(writableStates, CONFIGURATION, storeMetricsService, entityCounters);
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
     }
 
     @Test
     @DisplayName("pureChecks fails if topic ID is missing")
     void failsIfMissTopicId() {
         givenValidTopic();
-        final var txn = newDeleteTxnMissTopicId();
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_TOPIC_ID);
+        given(pureChecksContext.body()).willReturn(newDeleteTxnMissTopicId());
+
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_TOPIC_ID);
     }
 
     @Test
@@ -212,7 +213,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
 
         writableTopicState = writableTopicStateWithOneKey();
         given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
-        writableStore = new WritableTopicStore(writableStates, CONFIGURATION, storeMetricsService, entityCounters);
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
         given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));

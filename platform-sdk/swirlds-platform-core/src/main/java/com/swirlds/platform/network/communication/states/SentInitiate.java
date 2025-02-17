@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.communication.NegotiationException;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.NegotiatorBytes;
-import com.swirlds.platform.network.protocol.Protocol;
+import com.swirlds.platform.network.protocol.PeerProtocol;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -99,13 +99,13 @@ public class SentInitiate extends NegotiationStateWithDescription {
             return waitForAcceptReject;
         }
         if (b == protocolInitiated) { // both initiated the same protocol at the same time
-            final Protocol protocol = protocols.getInitiatedProtocol();
-            if (protocol.acceptOnSimultaneousInitiate()) {
-                setDescription("peer initiated the same protocol, running " + protocol.getProtocolName());
+            final PeerProtocol peerProtocol = protocols.getInitiatedProtocol();
+            if (peerProtocol.acceptOnSimultaneousInitiate()) {
+                setDescription("peer initiated the same protocol, running " + peerProtocol.getProtocolName());
                 return negotiated.runProtocol(protocols.initiateAccepted());
             } else {
-                setDescription(
-                        "peer initiated the same protocol, the protocol will not run - " + protocol.getProtocolName());
+                setDescription("peer initiated the same protocol, the protocol will not run - "
+                        + peerProtocol.getProtocolName());
                 protocols.initiateFailed();
                 return sleep;
             }

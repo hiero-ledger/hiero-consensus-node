@@ -39,6 +39,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -172,8 +173,13 @@ public class V053AddressBookSchema extends Schema {
         }
 
         if (readableFiles != null) {
-            final var nodeDetailFile = readableFiles.get(
-                    FileID.newBuilder().fileNum(fileConfig.nodeDetails()).build());
+            var hederaConfig = ctx.appConfig().getConfigData(HederaConfig.class);
+            final var nodeDetailFile = readableFiles.get(FileID.newBuilder()
+                    .shardNum(hederaConfig.shard())
+                    .realmNum(hederaConfig.realm())
+                    .fileNum(fileConfig.nodeDetails())
+                    .build());
+
             if (nodeDetailFile != null) {
                 try {
                     final var nodeDetails = NodeAddressBook.PROTOBUF

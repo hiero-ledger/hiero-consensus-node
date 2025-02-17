@@ -121,6 +121,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;
     exports com.swirlds.platform.reconnect;
+    exports com.swirlds.platform.gossip.modular;
     exports com.swirlds.platform.gossip.shadowgraph;
     exports com.swirlds.platform.recovery.emergencyfile;
     exports com.swirlds.platform.event;
@@ -166,6 +167,7 @@ module com.swirlds.platform.core {
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
+    requires com.google.common;
     requires java.desktop;
     requires java.management;
     requires java.scripting;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package com.hedera.node.app.workflows.handle.cache;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -32,12 +33,14 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.Round;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -54,14 +57,19 @@ public class CacheWarmer {
     private final TransactionDispatcher dispatcher;
     private final Executor executor;
 
+    @NonNull
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+
     @Inject
     public CacheWarmer(
             @NonNull final TransactionChecker checker,
             @NonNull final TransactionDispatcher dispatcher,
-            @NonNull @Named("CacheWarmer") final Executor executor) {
+            @NonNull @Named("CacheWarmer") final Executor executor,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.checker = checker;
         this.dispatcher = requireNonNull(dispatcher);
         this.executor = requireNonNull(executor);
+        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     /**
@@ -72,7 +80,7 @@ public class CacheWarmer {
      */
     public void warm(@NonNull final State state, @NonNull final Round round) {
         executor.execute(() -> {
-            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state);
+            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
             final ReadableAccountStore accountStore = storeFactory.getStore(ReadableAccountStore.class);
             for (final ConsensusEvent event : round) {
                 event.forEachTransaction(platformTransaction -> executor.execute(() -> {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,10 +73,11 @@ public interface AccountSummariesApi {
      */
     static String hexedEvmAddressOf(@NonNull final Account account) {
         requireNonNull(account);
+        final var accountId = account.accountIdOrThrow();
         final var arbitraryEvmAddress = extractEvmAddress(account.alias());
         final var evmAddress = arbitraryEvmAddress != null
                 ? arbitraryEvmAddress.toByteArray()
-                : asEvmAddress(account.accountIdOrThrow().accountNumOrThrow());
+                : asEvmAddress(accountId.shardNum(), accountId.realmNum(), accountId.accountNumOrThrow());
         return hex(evmAddress);
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import com.swirlds.state.spi.metrics.StoreMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.Map;
-import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @Singleton
@@ -30,7 +29,6 @@ public class StoreMetricsServiceImpl implements StoreMetricsService {
 
     private final Map<StoreType, StoreMetricsImpl> storeMetricsMap;
 
-    @Inject
     public StoreMetricsServiceImpl(@NonNull final Metrics metrics) {
         this.storeMetricsMap = new EnumMap<>(StoreType.class);
         storeMetricsMap.put(StoreType.TOPIC, new StoreMetricsImpl(metrics, "topics"));

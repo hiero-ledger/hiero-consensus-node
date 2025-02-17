@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,6 +67,9 @@ class ContractDeleteHandlerTest {
 
     @Mock
     private PreHandleContext preHandleContext;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock
     private StoreFactory storeFactory;
@@ -103,8 +107,9 @@ class ContractDeleteHandlerTest {
                 .contractDeleteInstance(
                         ContractDeleteTransactionBody.newBuilder().permanentRemoval(true))
                 .build();
-        final var ex = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
-        assertEquals(PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION, ex.responseCode());
+        given(pureChecksContext.body()).willReturn(txn);
+        final var exc = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION, exc.responseCode(), "Incorrect response code");
     }
 
     @Test
@@ -138,7 +143,8 @@ class ContractDeleteHandlerTest {
         final var txn = TransactionBody.newBuilder()
                 .contractDeleteInstance(missingObtainer(VALID_CONTRACT_ADDRESS))
                 .build();
-        final var ex = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var ex = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(OBTAINER_REQUIRED, ex.responseCode());
     }
 

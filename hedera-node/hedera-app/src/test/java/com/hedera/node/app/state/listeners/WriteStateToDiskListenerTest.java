@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.node.app.state.listeners;
 
 import static org.mockito.Mockito.verify;
 
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
@@ -52,7 +53,8 @@ class WriteStateToDiskListenerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new WriteStateToDiskListener(stateAccessor, executor, configProvider, startupNetworks);
+        subject = new WriteStateToDiskListener(
+                stateAccessor, executor, configProvider, startupNetworks, ServicesSoftwareVersion::new);
     }
 
     @Test

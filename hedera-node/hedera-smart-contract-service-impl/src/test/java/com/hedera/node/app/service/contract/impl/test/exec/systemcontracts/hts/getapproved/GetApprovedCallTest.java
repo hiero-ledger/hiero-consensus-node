@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -75,7 +76,7 @@ public class GetApprovedCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(GetApprovedTranslator.ERC_GET_APPROVED
                         .getOutputs()
-                        .encodeElements(headlongAddressOf(OPERATOR))
+                        .encode(Tuple.singleton(headlongAddressOf(OPERATOR)))
                         .array()),
                 result.getOutput());
     }
@@ -91,7 +92,7 @@ public class GetApprovedCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(GetApprovedTranslator.HAPI_GET_APPROVED
                         .getOutputs()
-                        .encodeElements(SUCCESS.getNumber(), headlongAddressOf(OPERATOR))
+                        .encode(Tuple.of(SUCCESS.getNumber(), headlongAddressOf(OPERATOR)))
                         .array()),
                 result.getOutput());
     }

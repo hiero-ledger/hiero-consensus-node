@@ -79,6 +79,13 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
                 "bootstrap.nodeAdminKeys.path",
                 getExternalPath(NODE_ADMIN_KEYS_JSON).toAbsolutePath().toString());
         System.setProperty("hedera.profiles.active", "DEV");
+
+        // We get the shard/realm from the metadata account which is coming from the property file
+        var shard = metadata().accountId().shardNum();
+        var realm = metadata().accountId().realmNum();
+        System.setProperty("hedera.shard", String.valueOf(shard));
+        System.setProperty("hedera.realm", String.valueOf(realm));
+
         final var log4j2ConfigLoc = getExternalPath(LOG4J2_XML).toString();
         if (isForShared(log4j2ConfigLoc)) {
             System.setProperty("log4j.configurationFile", log4j2ConfigLoc);

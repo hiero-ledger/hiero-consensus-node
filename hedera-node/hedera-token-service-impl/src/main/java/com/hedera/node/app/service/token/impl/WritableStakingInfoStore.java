@@ -20,9 +20,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -53,18 +53,6 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
 
         this.stakingInfoState = states.get(V0490TokenSchema.STAKING_INFO_KEY);
         this.entityCounters = requireNonNull(entityCounters);
-    }
-
-    /**
-     * Returns the {@link StakingNodeInfo} for the given node's numeric ID (NOT the account ID).
-     *
-     * @param nodeId - the node ID of the node to retrieve the staking info for
-     * @return the staking info for the given node ID, or null if no such node exists
-     */
-    @Nullable
-    public StakingNodeInfo getForModify(final long nodeId) {
-        return stakingInfoState.getForModify(
-                EntityNumber.newBuilder().number(nodeId).build());
     }
 
     /**

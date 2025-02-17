@@ -32,6 +32,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.transfersValue;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.RESULT_CANNOT_BE_EXTERNALIZED;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
@@ -137,7 +138,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                     return;
                 }
             }
-            doExecuteSystemContract(systemContracts.get(codeAddress), frame, tracer);
+            doExecuteSystemContract(systemContracts.get(codeAddress), codeAddress, frame, tracer);
             return;
         }
 
@@ -252,9 +253,11 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
      */
     private void doExecuteSystemContract(
             @NonNull final HederaSystemContract systemContract,
+            @NonNull final Address systemContractAddress,
             @NonNull final MessageFrame frame,
             @NonNull final OperationTracer tracer) {
-        final var fullResult = systemContract.computeFully(frame.getInputData(), frame);
+        final var fullResult =
+                systemContract.computeFully(asNumberedContractId(systemContractAddress), frame.getInputData(), frame);
         final var gasRequirement = fullResult.gasRequirement();
         final PrecompileContractResult result;
         if (frame.getRemainingGas() < gasRequirement) {

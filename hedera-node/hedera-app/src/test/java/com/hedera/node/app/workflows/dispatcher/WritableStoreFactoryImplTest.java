@@ -37,7 +37,6 @@ import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -88,8 +87,8 @@ class WritableStoreFactoryImplTest {
         // given
         given(stack.getWritableStates(serviceName)).willReturn(writableStates);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        final WritableStoreFactory subject = new WritableStoreFactory(
-                stack, serviceName, configuration, mock(StoreMetricsService.class), mock(WritableEntityCounters.class));
+        final WritableStoreFactory subject =
+                new WritableStoreFactory(stack, serviceName, mock(WritableEntityCounters.class));
 
         // given
         final var store = subject.getStore(storeClass);

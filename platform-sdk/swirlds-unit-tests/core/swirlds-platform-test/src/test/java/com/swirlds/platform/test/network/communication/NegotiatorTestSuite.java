@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,10 +36,10 @@ public class NegotiatorTestSuite {
 
     private static final int SLEEP_MS = 0;
 
-    private final TestProtocol protocol1 = new TestProtocol();
-    private final TestProtocol protocol2 = new TestProtocol();
-    private final TestProtocol protocol3 = new TestProtocol();
-    private final List<TestProtocol> protocols = List.of(protocol1, protocol2, protocol3);
+    private final TestPeerProtocol protocol1 = new TestPeerProtocol();
+    private final TestPeerProtocol protocol2 = new TestPeerProtocol();
+    private final TestPeerProtocol protocol3 = new TestPeerProtocol();
+    private final List<TestPeerProtocol> protocols = List.of(protocol1, protocol2, protocol3);
     private final OutputCheck outputCheck = new OutputCheck();
     private final TestInput input = new TestInput();
     private final ReadWriteFakeConnection connection;
@@ -101,7 +101,7 @@ public class NegotiatorTestSuite {
         assertProtocolRan(PROTOCOL_2, protocol2runs);
         assertProtocolRan(PROTOCOL_3, protocol3runs);
 
-        for (final TestProtocol protocol : protocols) {
+        for (final TestPeerProtocol protocol : protocols) {
             protocol.assertInitiateContract();
         }
     }
@@ -111,7 +111,7 @@ public class NegotiatorTestSuite {
      * 		the protocol ID
      * @return the protocol with the supplied ID
      */
-    public TestProtocol getProtocol(final int protocol) {
+    public TestPeerProtocol getProtocol(final int protocol) {
         return protocols.get(protocol);
     }
 
@@ -126,7 +126,7 @@ public class NegotiatorTestSuite {
      * Reset everything to the initial state, except the negotiator
      */
     public void reset() {
-        for (final TestProtocol protocol : protocols) {
+        for (final TestPeerProtocol protocol : protocols) {
             protocol.reset();
         }
         input.reset();

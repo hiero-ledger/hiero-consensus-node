@@ -21,17 +21,19 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 import java.util.Queue;
 
 /**
  * Contains a reserved signed state, and the consensus round which caused the state to be created
  *
- * @param reservedSignedState the state
+ * @param reservedSignedState the state may null, if the round is not sealed yet
  * @param round               the round that caused the state to be created
  * @param systemTransactions  the system transactions that were included in the round
  */
 public record StateAndRound(
-        @NonNull ReservedSignedState reservedSignedState,
+        @Nullable ReservedSignedState reservedSignedState,
         @NonNull ConsensusRound round,
         @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
     /**
@@ -42,6 +44,7 @@ public record StateAndRound(
      */
     @NonNull
     public StateAndRound makeAdditionalReservation(@NonNull final String reservationReason) {
+        Objects.requireNonNull(reservedSignedState, "reservedSignedState cannot be null");
         return new StateAndRound(reservedSignedState.getAndReserve(reservationReason), round, systemTransactions);
     }
 }

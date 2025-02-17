@@ -1228,10 +1228,16 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
         }
     }
 
+    /**
+     * For every 3 consensus rounds, seal the consensus round.
+     *
+     * @param round the current consensus round
+     * @param state the current state of the platform testing tool
+     * @return {@code true} every 3 consensus rounds
+     */
     @Override
     public boolean onSealConsensusRound(@NonNull Round round, @NonNull PlatformTestingToolState state) {
-        // no-op
-        return true;
+        return round.getRoundNum() % 3 == 0;
     }
 
     @Override

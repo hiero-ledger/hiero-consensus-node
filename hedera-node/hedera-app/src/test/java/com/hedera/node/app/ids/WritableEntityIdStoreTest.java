@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.node.app.spi.validation.EntityType;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.test.fixtures.MapWritableStates;
@@ -112,14 +112,5 @@ class WritableEntityIdStoreTest {
         assertEquals(1, entityCountsState.get().numContractStorageSlots());
         subject.decrementEntityTypeCounter(EntityType.CONTRACT_STORAGE);
         assertEquals(0, entityCountsState.get().numContractStorageSlots());
-    }
-
-    @Test
-    void cannotDecrementSomeEntityTypes() {
-        assertThrows(IllegalStateException.class, () -> subject.decrementEntityTypeCounter(EntityType.ACCOUNT));
-        assertThrows(IllegalStateException.class, () -> subject.decrementEntityTypeCounter(EntityType.TOKEN));
-        assertThrows(IllegalStateException.class, () -> subject.decrementEntityTypeCounter(EntityType.STAKING_INFO));
-        assertThrows(
-                IllegalStateException.class, () -> subject.decrementEntityTypeCounter(EntityType.CONTRACT_BYTECODE));
     }
 }

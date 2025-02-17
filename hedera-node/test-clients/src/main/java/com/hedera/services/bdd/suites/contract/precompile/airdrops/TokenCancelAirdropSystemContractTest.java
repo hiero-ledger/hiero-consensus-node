@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,9 @@ import static com.hedera.services.bdd.suites.contract.precompile.airdrops.System
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.prepareTokenAddresses;
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.prepareTokensAndBalances;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PENDING_AIRDROP_ID_LIST_TOO_LONG;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -208,7 +211,7 @@ public class TokenCancelAirdropSystemContractTest {
             final var receivers = prepareAccountAddresses(
                     spec, receiver, receiver, receiver, receiver, receiver, receiver, receiver, receiver, receiver,
                     receiver, receiver);
-            final var tokens = prepareTokenAddresses(spec, token1, token2, token3, token4, token5);
+            final var tokens = prepareTokenAddresses(spec, token1, token2, token3, token4, token5, token6);
             final var nfts = prepareTokenAddresses(spec, nft1, nft2, nft3, nft4, nft5);
             final var combined =
                     Stream.concat(Arrays.stream(tokens), Arrays.stream(nfts)).toArray(Address[]::new);
@@ -217,8 +220,8 @@ public class TokenCancelAirdropSystemContractTest {
                     spec,
                     cancelAirdrop
                             .call("cancelAirdrops", senders, receivers, combined, serials)
-                            .via("cancelAirdrops")
-                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                            .andAssert(txn ->
+                                    txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, PENDING_AIRDROP_ID_LIST_TOO_LONG)));
         }));
     }
 
@@ -229,7 +232,7 @@ public class TokenCancelAirdropSystemContractTest {
                 .call("cancelAirdrop", sender, receiver, receiver)
                 .payingWith(sender)
                 .via("cancelAirdrop")
-                .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID)));
     }
 
     @HapiTest
@@ -239,7 +242,7 @@ public class TokenCancelAirdropSystemContractTest {
                 .call("cancelAirdrop", token, receiver, token)
                 .payingWith(sender)
                 .via("cancelAirdrop")
-                .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_PENDING_AIRDROP_ID)));
     }
 
     @HapiTest
@@ -249,7 +252,7 @@ public class TokenCancelAirdropSystemContractTest {
                 .call("cancelAirdrop", sender, receiver, token)
                 .payingWith(sender)
                 .via("cancelAirdrop")
-                .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_PENDING_AIRDROP_ID)));
     }
 
     @HapiTest
@@ -259,7 +262,7 @@ public class TokenCancelAirdropSystemContractTest {
                 .call("cancelAirdrop", sender, token, token)
                 .payingWith(sender)
                 .via("cancelAirdrop")
-                .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_PENDING_AIRDROP_ID)));
     }
 
     @HapiTest
@@ -269,7 +272,7 @@ public class TokenCancelAirdropSystemContractTest {
                 .call("cancelNFTAirdrop", sender, receiver, receiver, 1L)
                 .payingWith(sender)
                 .via("cancelAirdrop")
-                .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID)));
     }
 
     @HapiTest
@@ -281,6 +284,6 @@ public class TokenCancelAirdropSystemContractTest {
                         .call("cancelNFTAirdrop", sender, receiver, nft, 1L)
                         .payingWith(sender)
                         .via("cancelAirdrop")
-                        .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_PENDING_AIRDROP_ID)));
     }
 }

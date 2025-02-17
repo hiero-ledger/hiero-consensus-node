@@ -67,6 +67,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -115,7 +116,9 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn);
         final var op = txn.tokenAirdropOrThrow();
         validator.pureChecks(op);
@@ -350,8 +353,8 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             // check for existence
             validateTrue(!pendingStore.exists(pendingId), PENDING_NFT_AIRDROP_ALREADY_EXISTS);
             updateNewPendingAirdrop(senderAccount, pendingId, null, accountStore, pendingStore);
-            final var record = createPendingAirdropRecord(pendingId, null);
-            recordBuilder.addPendingAirdrop(record);
+            final var pendingAirdropRecord = createPendingAirdropRecord(pendingId, null);
+            recordBuilder.addPendingAirdrop(pendingAirdropRecord);
         });
     }
 
@@ -407,9 +410,9 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
                     .build();
             updateNewPendingAirdrop(senderAccount, pendingId, pendingValue, accountStore, pendingStore);
             // use the value from the store, in case we already have a pending airdrop with the same id
-            final var record = createPendingAirdropRecord(
+            final var pendingAirdropRecord = createPendingAirdropRecord(
                     pendingId, requireNonNull(pendingStore.get(pendingId)).pendingAirdropValue());
-            recordBuilder.addPendingAirdrop(record);
+            recordBuilder.addPendingAirdrop(pendingAirdropRecord);
         });
     }
 
@@ -451,7 +454,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             if (senderAccount.hasHeadPendingAirdropId()) {
                 // Get the previous head pending airdrop and update the previous airdrop ID
                 final var currentHeadAirdropId = senderAccount.headPendingAirdropIdOrThrow();
-                final var currentHeadAirdrop = pendingStore.getForModify(currentHeadAirdropId);
+                final var currentHeadAirdrop = pendingStore.get(currentHeadAirdropId);
                 if (currentHeadAirdrop == null) {
                     log.error(
                             "Head pending airdrop {} not found for account {}",
@@ -590,7 +593,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         requireNonNull(airdropState);
 
         if (airdropId.hasFungibleTokenType()) {
-            final var existingAirdrop = requireNonNull(airdropState.getForModify(airdropId));
+            final var existingAirdrop = requireNonNull(airdropState.get(airdropId));
             final var existingValue = existingAirdrop.pendingAirdropValue();
             long newValue;
             try {

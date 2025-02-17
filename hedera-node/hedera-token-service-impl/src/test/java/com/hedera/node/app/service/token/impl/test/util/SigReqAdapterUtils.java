@@ -102,7 +102,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -181,10 +180,7 @@ public class SigReqAdapterUtils {
      */
     public static WritableTokenStore wellKnownWritableTokenStoreAt() {
         return new WritableTokenStore(
-                mockWritableStates(Map.of(TOKENS_KEY, wellKnownTokenState())),
-                CONFIGURATION,
-                mock(StoreMetricsService.class),
-                mock(WritableEntityCounters.class));
+                mockWritableStates(Map.of(TOKENS_KEY, wellKnownTokenState())), mock(WritableEntityCounters.class));
     }
 
     private static WritableKVState<TokenID, Token> wellKnownTokenState() {
@@ -221,11 +217,7 @@ public class SigReqAdapterUtils {
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .pauseKey(TOKEN_PAUSE_KT.asPbjKey())
                         .paused(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(3)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_FREEZE),
@@ -238,11 +230,7 @@ public class SigReqAdapterUtils {
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .freezeKey(TOKEN_FREEZE_KT.asPbjKey())
                         .accountsFrozenByDefault(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(3)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_KYC),
@@ -254,11 +242,7 @@ public class SigReqAdapterUtils {
                         .name("KYCTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .kycKey(TOKEN_KYC_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY),
@@ -270,11 +254,7 @@ public class SigReqAdapterUtils {
                         .name("FEE_SCHEDULETOKENNAME")
                         .feeScheduleKey(TOKEN_FEE_SCHEDULE_KT.asPbjKey())
                         .accountsKycGrantedByDefault(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_ROYALTY_FEE_AND_FALLBACK),
@@ -307,11 +287,7 @@ public class SigReqAdapterUtils {
                         .name("SUPPLYTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_WIPE),
@@ -323,11 +299,7 @@ public class SigReqAdapterUtils {
                         .name("WIPETOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .wipeKey(TOKEN_WIPE_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(DELETED_TOKEN),
@@ -339,11 +311,7 @@ public class SigReqAdapterUtils {
                         .name("DELETEDTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .deleted(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         return new MapWritableKVState<>("TOKENS", destination);
     }
@@ -388,10 +356,7 @@ public class SigReqAdapterUtils {
 
         final var wrappedState = new MapWritableKVState<>(TOKEN_RELS_KEY, destination);
         return new WritableTokenRelationStore(
-                mockWritableStates(Map.of(TOKEN_RELS_KEY, wrappedState)),
-                CONFIGURATION,
-                mock(StoreMetricsService.class),
-                mock(WritableEntityCounters.class));
+                mockWritableStates(Map.of(TOKEN_RELS_KEY, wrappedState)), mock(WritableEntityCounters.class));
     }
 
     /**
@@ -413,8 +378,6 @@ public class SigReqAdapterUtils {
     public static WritableAccountStore wellKnownWritableAccountStoreAt() {
         return new WritableAccountStore(
                 mockWritableStates(Map.of(ACCOUNTS_KEY, wrappedAccountState(), ALIASES_KEY, wellKnownAliasState())),
-                CONFIGURATION,
-                mock(StoreMetricsService.class),
                 mock(WritableEntityCounters.class));
     }
 

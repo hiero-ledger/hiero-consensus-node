@@ -105,7 +105,7 @@ class UpdateTranslatorTest extends CallTestBase {
 
     private final UpdateDecoder decoder = new UpdateDecoder();
 
-    private final Tuple hederaToken = Tuple.of(
+    private final Tuple hederaToken = Tuple.from(
             "name",
             "symbol",
             NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -254,7 +254,7 @@ class UpdateTranslatorTest extends CallTestBase {
 
     @Test
     void callFromUpdateTest() {
-        Tuple tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaToken);
+        Tuple tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaToken);
         Bytes inputBytes = Bytes.wrapByteBuffer(TOKEN_UPDATE_INFO_FUNCTION_V1.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.isSelector(TOKEN_UPDATE_INFO_FUNCTION_V1)).willReturn(true);

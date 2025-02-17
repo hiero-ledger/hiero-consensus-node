@@ -124,7 +124,7 @@ class TokenInfoTranslatorTest {
 
     @Test
     void callFromTest() {
-        final Tuple tuple = new Tuple(FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
+        final Tuple tuple = Tuple.singleton(FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
         final Bytes inputBytes = Bytes.wrapByteBuffer(TOKEN_INFO.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.enhancement()).willReturn(enhancement);
@@ -138,7 +138,7 @@ class TokenInfoTranslatorTest {
 
     @Test
     void callFromTestV2() {
-        final Tuple tuple = new Tuple(FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
+        final Tuple tuple = Tuple.singleton(FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
         final Bytes inputBytes = Bytes.wrapByteBuffer(TOKEN_INFO_V2.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.enhancement()).willReturn(enhancement);

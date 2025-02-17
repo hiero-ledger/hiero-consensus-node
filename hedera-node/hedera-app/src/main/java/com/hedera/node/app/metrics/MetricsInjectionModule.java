@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,9 @@
 
 package com.hedera.node.app.metrics;
 
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.swirlds.metrics.api.Metrics;
-import dagger.Binds;
 import dagger.Module;
-import edu.umd.cs.findbugs.annotations.NonNull;
 
 /** A Dagger module for providing dependencies based on {@link Metrics}. */
 @Module
-public interface MetricsInjectionModule {
-
-    @Binds
-    StoreMetricsService bindStoreMetricsService(@NonNull StoreMetricsServiceImpl storeMetricsService);
-}
+public interface MetricsInjectionModule {}

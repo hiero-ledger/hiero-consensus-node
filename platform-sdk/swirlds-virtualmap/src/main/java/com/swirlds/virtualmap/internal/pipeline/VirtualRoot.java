@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,10 +48,8 @@ public interface VirtualRoot<K extends VirtualKey, V extends VirtualValue> exten
      * returning true are guaranteed to be flushed, but other copies may be flushed, too.
      *
      * <p>This method can be expensive and may block for a long time before returning.
-     *
-     * @return if the copy has been flushed
      */
-    boolean flush();
+    void flush();
 
     /**
      * Check if this copy has already been flushed.

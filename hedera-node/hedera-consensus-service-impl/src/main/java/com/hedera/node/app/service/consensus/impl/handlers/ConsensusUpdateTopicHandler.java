@@ -67,6 +67,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -98,7 +99,9 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         final ConsensusUpdateTopicTransactionBody op = txn.consensusUpdateTopicOrThrow();
         validateTruePreCheck(op.hasTopicID(), INVALID_TOPIC_ID);
 
@@ -400,11 +403,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
     }
 
     private boolean designatesAccountRemoval(AccountID id) {
-        return id.shardNum() == 0
-                && id.realmNum() == 0
-                && id.hasAccountNum()
-                && id.accountNum() == 0
-                && id.alias() == null;
+        return id.hasAccountNum() && id.accountNum() == 0 && id.alias() == null;
     }
 
     private FeeData usageGivenExplicit(

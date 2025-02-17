@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,8 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.literalIdFromHexedMirrorAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -713,7 +715,8 @@ public class Create2OperationSuite {
                                             .addNftTransfers(NftTransfer.newBuilder()
                                                     .setSerialNumber(2L)
                                                     .setSenderAccountID(tt)
-                                                    .setReceiverAccountID(accountId(userMirrorAddr.get()))));
+                                                    .setReceiverAccountID(
+                                                            accountId(shard, realm, userMirrorAddr.get()))));
                         })
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY),
                 sourcing(() -> getContractInfo(userLiteralId.get()).logged()));

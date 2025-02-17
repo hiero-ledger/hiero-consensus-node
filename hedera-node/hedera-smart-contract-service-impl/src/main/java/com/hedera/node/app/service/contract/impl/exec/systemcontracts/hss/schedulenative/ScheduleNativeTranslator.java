@@ -16,7 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulenative;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_EVM_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.createMethodsMap;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator.updateMethodsMap;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -89,6 +89,7 @@ public class ScheduleNativeTranslator extends AbstractCallTranslator<HssCallAtte
         final var innerCallData = Bytes.wrap((byte[]) call.get(SCHEDULE_CALL_DATA));
         final var payerID = attempt.addressIdConverter().convert(call.get(SCHEDULE_PAYER));
         return new ScheduleNativeCall(
+                attempt.systemContractID(),
                 attempt.systemContractGasCalculator(),
                 attempt.enhancement(),
                 attempt.defaultVerificationStrategy(),
@@ -127,7 +128,8 @@ public class ScheduleNativeTranslator extends AbstractCallTranslator<HssCallAtte
         final var payerID = attempt.addressIdConverter().convert(payerAddress);
         validateTrue(payerID != AccountID.DEFAULT, ResponseCodeEnum.INVALID_ACCOUNT_ID);
         final var besuContractAddress = fromHexString(contractAddress.toString());
-        validateTrue(besuContractAddress.equals(fromHexString(HTS_EVM_ADDRESS)), ResponseCodeEnum.INVALID_CONTRACT_ID);
+        validateTrue(
+                besuContractAddress.equals(fromHexString(HTS_167_EVM_ADDRESS)), ResponseCodeEnum.INVALID_CONTRACT_ID);
         final var innerCallSelector =
                 Bytes.wrap((byte[]) call.get(SCHEDULE_CALL_DATA)).slice(0, 4).toArray();
         final var canBeCreateToken =
