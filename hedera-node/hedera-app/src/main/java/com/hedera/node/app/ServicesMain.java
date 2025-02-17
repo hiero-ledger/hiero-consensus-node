@@ -212,7 +212,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *     {@link Hedera#newStateRoot()} method reference as the genesis state
      *     factory. (<b>IMPORTANT:</b> This step instantiates and invokes
      *     {@link StateLifecycles#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
-     *     on a {@link HederaStateRoot} instance that delegates the call back to our
+     *     on a {@link MerkleNodeState} instance that delegates the call back to our
      *     Hedera instance.)</li>
      *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase
      *     validation and register notification listeners on the platform.</li>
@@ -239,7 +239,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *      method with the {@link ConstructableRegistry} as the factory for the Services state root
      *      class id.</li>
      * </ol>
-     *  Now, note that {@link Hedera#newStateRoot()} returns {@link HederaStateRoot}
+     *  Now, note that {@link Hedera#newStateRoot()} returns {@link MerkleNodeState}
      *  instances that delegate their lifecycle methods to an injected instance of
      *  {@link StateLifecycles}---and the implementation of that
      *  injected by {@link Hedera#newStateRoot()} delegates these calls back to the Hedera
