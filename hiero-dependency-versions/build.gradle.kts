@@ -106,7 +106,7 @@ dependencies.constraints {
     }
     api("commons-io:commons-io:2.18.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.17.0") { because("org.apache.commons.lang3") }
-    api("org.apache.commons:commons-compress:1.26.0") { because("org.apache.commons.compress") }
+    api("org.apache.commons:commons-compress:1.27.1") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
     api("org.apache.logging.log4j:log4j-core:$log4j") { because("org.apache.logging.log4j.core") }
     api("org.apache.logging.log4j:log4j-slf4j2-impl:$log4j") {
