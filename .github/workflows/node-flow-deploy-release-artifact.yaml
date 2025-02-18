@@ -37,7 +37,7 @@ permissions:
 jobs:
   prepare-tag-release:
     name: Prepare Release [Tag]
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
@@ -130,7 +130,7 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - release-branch
     steps:
@@ -162,7 +162,7 @@ jobs:
         uses: step-security/workflow-dispatch@4d1049025980f72b1327cbfdeecb07fe7a20f577 # v1.2.4
         with:
           workflow: .github/workflows/zxf-prepare-extended-test-suite.yaml
-          repo: hashgraph/hedera-services # ensure we are executing in the hashgraph org
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{ "ref": "${{ inputs.ref }}" }'
@@ -183,7 +183,7 @@ jobs:
         uses: step-security/workflow-dispatch@4d1049025980f72b1327cbfdeecb07fe7a20f577 # v1.2.4
         with:
           workflow: .github/workflows/node-zxf-deploy-integration.yaml
-          repo: hashgraph/hedera-services # ensure we are executing in the hashgraph org
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
@@ -192,7 +192,7 @@ jobs:
 
   update-hedera-protobufs:
     name: Update Hedera Protobufs
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - prepare-tag-release
     steps:

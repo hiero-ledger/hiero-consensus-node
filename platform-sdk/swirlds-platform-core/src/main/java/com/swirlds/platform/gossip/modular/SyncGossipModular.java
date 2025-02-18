@@ -16,17 +16,23 @@
 
 package com.swirlds.platform.gossip.modular;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+
 import com.google.common.collect.ImmutableList;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
+import com.swirlds.platform.Utilities;
 import com.swirlds.platform.consensus.EventWindow;
+import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.gossip.FallenBehindManagerImpl;
@@ -36,8 +42,10 @@ import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.sync.SyncManagerImpl;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
 import com.swirlds.platform.network.protocol.*;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -48,7 +56,9 @@ import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -102,29 +112,45 @@ public class SyncGossipModular implements Gossip {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
-        this.network = new PeerCommunication(platformContext, roster, selfId, keysAndCerts);
+        final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
+        final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
+        final List<PeerInfo> peers;
+        if (!CryptoStatic.checkCertificate(selfCert)) {
+            // Do not make peer connections if the self node does not have a valid signing certificate in the roster.
+            // https://github.com/hashgraph/hedera-services/issues/16648
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "The gossip certificate for node {} is missing or invalid. "
+                            + "This node will not connect to any peers.",
+                    selfId);
+            peers = Collections.emptyList();
+        } else {
+            peers = Utilities.createPeerInfoList(roster, selfId);
+        }
+        final PeerInfo selfPeer = Utilities.toPeerInfo(selfEntry);
 
-        var shadowgraph =
-                new Shadowgraph(platformContext, roster.rosterEntries().size(), intakeEventCounter);
+        this.network = new PeerCommunication(platformContext, peers, selfPeer, keysAndCerts);
 
-        var fallenBehindManager = new FallenBehindManagerImpl(
+        final Shadowgraph shadowgraph = new Shadowgraph(platformContext, peers.size() + 1, intakeEventCounter);
+
+        final FallenBehindManagerImpl fallenBehindManager = new FallenBehindManagerImpl(
                 selfId,
                 this.network.getTopology(),
                 statusActionSubmitter,
                 () -> sharedState.fallenBehindCallback().get().run(),
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class));
 
-        var syncManager = new SyncManagerImpl(platformContext, fallenBehindManager);
+        final SyncManagerImpl syncManager = new SyncManagerImpl(platformContext, fallenBehindManager);
 
-        var syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         final int permitCount;
         if (syncConfig.onePermitPerPeer()) {
-            permitCount = roster.rosterEntries().size() - 1;
+            permitCount = peers.size();
         } else {
             permitCount = syncConfig.syncProtocolPermitCount();
         }
 
-        var syncPermitProvider = new SyncPermitProvider(platformContext, permitCount);
+        final SyncPermitProvider syncPermitProvider = new SyncPermitProvider(platformContext, permitCount);
 
         sharedState = new SyncGossipSharedProtocolState(
                 this.network.getNetworkMetrics(),
@@ -147,20 +173,22 @@ public class SyncGossipModular implements Gossip {
                         threadManager,
                         latestCompleteState,
                         roster,
+                        network.getPeers(),
                         loadReconnectState,
                         clearAllPipelinesForReconnect,
                         swirldStateManager,
                         selfId,
                         controller,
                         platformStateFacade),
-                SyncProtocol.create(platformContext, sharedState, intakeEventCounter, roster));
+                SyncProtocol.create(platformContext, sharedState, intakeEventCounter, peers.size() + 1));
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
         final VersionCompareHandshake versionCompareHandshake =
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
-        var threads = network.buildProtocolThreads(threadManager, selfId, handshakeProtocols, protocols);
+        final List<StoppableThread> threads =
+                network.buildProtocolThreads(threadManager, selfId, handshakeProtocols, protocols);
 
         controller.registerThingToStartButNotStop(sharedState.shadowgraphExecutor());
         controller.registerThingsToStart(threads);

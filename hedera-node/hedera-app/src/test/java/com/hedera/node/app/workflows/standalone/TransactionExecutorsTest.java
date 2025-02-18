@@ -18,11 +18,11 @@ package com.hedera.node.app.workflows.standalone;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
+import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.DEFAULT_NODE_INFO;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
@@ -54,6 +54,7 @@ import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
@@ -164,6 +165,8 @@ public class TransactionExecutorsTest {
             new com.esaulpaugh.headlong.abi.Function("getLastBlockHash()", "(bytes32)");
     private static final String EXPECTED_TRACE_START =
             "{\"pc\":0,\"op\":96,\"gas\":\"0x13458\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
+    private static final NodeInfo DEFAULT_NODE_INFO =
+            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY);
 
     public static final Metrics NO_OP_METRICS = new NoOpMetrics();
     public static final NetworkInfo FAKE_NETWORK_INFO = fakeNetworkInfo();
@@ -196,10 +199,12 @@ public class TransactionExecutorsTest {
         final var state = genesisState(overrides);
 
         // Get a standalone executor based on this state, with an override to allow slightly longer memos
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(TransactionExecutors.Properties.newBuilder()
-                .state(state)
-                .appProperties(overrides)
-                .build());
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .appProperties(overrides)
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
 
         // Execute a FileCreate that uploads the initcode for the Multipurpose.sol contract
         final var uploadOutput = executor.execute(uploadMultipurposeInitcode(), Instant.EPOCH);
@@ -240,11 +245,13 @@ public class TransactionExecutorsTest {
 
         // Use a custom operation that overrides the BLOCKHASH operation
         final var customOp = new CustomBlockhashOperation();
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(TransactionExecutors.Properties.newBuilder()
-                .state(state)
-                .addCustomOp(customOp)
-                .appProperty("hedera.transaction.maxMemoUtf8Bytes", "101")
-                .build());
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .addCustomOp(customOp)
+                        .appProperty("hedera.transaction.maxMemoUtf8Bytes", "101")
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
 
         final var uploadOutput = executor.execute(uploadEmitBlockTimestampInitcode(), Instant.EPOCH);
         final var uploadReceipt = uploadOutput.getFirst().transactionRecord().receiptOrThrow();
@@ -272,10 +279,12 @@ public class TransactionExecutorsTest {
         final var state = genesisState(overrides);
 
         // Get a standalone executor based on this state, with an override to allow slightly longer memos
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(TransactionExecutors.Properties.newBuilder()
-                .state(state)
-                .appProperties(overrides)
-                .build());
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .appProperties(overrides)
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
 
         // With just 42 bytes allowed for signed transactions, the executor will not be able to construct
         // a dispatch for the transaction and throw an exception
@@ -390,13 +399,14 @@ public class TransactionExecutorsTest {
                 () -> config,
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
-                () -> NOOP_FEE_CHARGING,
                 new AppThrottleFactory(
                         () -> config,
                         () -> state,
                         () -> ThrottleDefinitions.DEFAULT,
                         ThrottleAccumulator::new,
-                        v -> new ServicesSoftwareVersion()));
+                        v -> new ServicesSoftwareVersion()),
+                () -> NOOP_FEE_CHARGING,
+                new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();

@@ -77,6 +77,7 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.GenesisNetworkInfo;
@@ -490,13 +491,14 @@ public final class Hedera
                 configSupplier,
                 () -> daggerApp.networkInfo().selfNodeInfo(),
                 () -> this.metrics,
-                () -> daggerApp.appFeeCharging(),
                 new AppThrottleFactory(
                         configSupplier,
                         () -> daggerApp.workingStateAccessor().getState(),
                         () -> daggerApp.throttleServiceManager().activeThrottleDefinitionsOrThrow(),
                         ThrottleAccumulator::new,
-                        ignore -> version));
+                        ignore -> version),
+                () -> daggerApp.appFeeCharging(),
+                new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
@@ -1151,6 +1153,7 @@ public final class Hedera
                 .hintsService(hintsService)
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
+                .appContext(appContext)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().accept(state);

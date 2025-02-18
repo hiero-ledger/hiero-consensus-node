@@ -18,9 +18,9 @@ package com.hedera.node.app.components;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.history.impl.HistoryLibraryCodecImpl.HISTORY_LIBRARY_CODEC;
+import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.DEFAULT_NODE_INFO;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,6 +42,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -67,6 +68,7 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.InstantSource;
 import java.util.ArrayDeque;
 import java.util.List;
@@ -97,6 +99,9 @@ class IngestComponentTest {
 
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
+    private static final NodeInfo DEFAULT_NODE_INFO =
+            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY);
+
     @BeforeEach
     void setUp() {
         final Configuration configuration = HederaTestConfigBuilder.createConfig();
@@ -122,8 +127,9 @@ class IngestComponentTest {
                 () -> configuration,
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
+                throttleFactory,
                 () -> NOOP_FEE_CHARGING,
-                throttleFactory);
+                new AppEntityIdFactory(configuration));
         final var hintsService = new HintsServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, mock(HintsLibrary.class), DEFAULT_CONFIG);
         final var historyService = new HistoryServiceImpl(
@@ -134,6 +140,7 @@ class IngestComponentTest {
                 HISTORY_LIBRARY_CODEC,
                 DEFAULT_CONFIG);
         app = DaggerHederaInjectionComponent.builder()
+                .appContext(appContext)
                 .configProviderImpl(configProvider)
                 .bootstrapConfigProviderImpl(new BootstrapConfigProviderImpl())
                 .fileServiceImpl(new FileServiceImpl())
