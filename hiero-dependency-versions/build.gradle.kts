@@ -54,7 +54,7 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
         because("io.helidon.webclient.grpc")
     }
-    api("org.awaitility:awaitility:4.2.0") { because("awaitility") }
+    api("org.awaitility:awaitility:4.2.2") { because("awaitility") }
     api("com.fasterxml.jackson.core:jackson-core:$jackson") {
         because("com.fasterxml.jackson.core")
     }
@@ -66,7 +66,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.1.8") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.4.1") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.0") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.1") {
         because("com.github.spotbugs.annotations")
     }
     api("com.google.auto.service:auto-service-annotations:$autoService") {
@@ -101,13 +101,13 @@ dependencies.constraints {
     api("com.goterl:lazysodium-java:5.1.4") { because("lazysodium.java") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
-    api("commons-codec:commons-codec:1.17.1") { because("org.apache.commons.codec") }
+    api("commons-codec:commons-codec:1.18.0") { because("org.apache.commons.codec") }
     api("org.apache.commons:commons-collections4:4.4") {
         because("org.apache.commons.collections4")
     }
     api("commons-io:commons-io:2.18.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.17.0") { because("org.apache.commons.lang3") }
-    api("org.apache.commons:commons-compress:1.26.0") { because("org.apache.commons.compress") }
+    api("org.apache.commons:commons-compress:1.27.1") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
     api("org.apache.logging.log4j:log4j-core:$log4j") { because("org.apache.logging.log4j.core") }
     api("org.apache.logging.log4j:log4j-slf4j2-impl:$log4j") {
@@ -139,7 +139,7 @@ dependencies.constraints {
     api("org.testcontainers:junit-jupiter:$testContainers") {
         because("org.testcontainers.junit.jupiter")
     }
-    api("org.yaml:snakeyaml:2.3") { because("org.yaml.snakeyaml") }
+    api("org.yaml:snakeyaml:2.4") { because("org.yaml.snakeyaml") }
     api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
     api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {
