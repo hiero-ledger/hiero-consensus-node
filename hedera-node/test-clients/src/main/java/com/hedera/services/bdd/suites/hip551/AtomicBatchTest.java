@@ -55,6 +55,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
@@ -143,7 +144,7 @@ public class AtomicBatchTest {
                 // create batch operator
                 cryptoCreate(batchOperator).balance(ONE_HBAR),
                 // create another payer for the inner txn
-                cryptoCreate(innerTnxPayer).balance(ONE_HBAR),
+                cryptoCreate(innerTnxPayer).balance(ONE_HUNDRED_HBARS),
                 // use custom txn id so we can get the record
                 usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
                 // create a batch txn
@@ -205,14 +206,14 @@ public class AtomicBatchTest {
                 .batchKey(batchOperator)
                 .payingWith(innerTnxPayer);
         final var innerTxn2 = cryptoCreate(account2)
-                .balance(ONE_HBAR)
+                .balance(ONE_MILLION_HBARS)
                 .txnId(innerTxnId2)
                 .batchKey(batchOperator)
                 .payingWith(innerTnxPayer);
 
         return hapiTest(
                 cryptoCreate(batchOperator).balance(ONE_HBAR),
-                cryptoCreate(innerTnxPayer).balance(ONE_HBAR),
+                cryptoCreate(innerTnxPayer).balance(ONE_HUNDRED_HBARS),
                 usableTxnIdNamed(innerTxnId1).payerId(innerTnxPayer),
                 usableTxnIdNamed(innerTxnId2).payerId(innerTnxPayer),
                 atomicBatch(innerTxn1, innerTxn2).via(atomicTxn).hasKnownStatus(INNER_TRANSACTION_FAILED),
