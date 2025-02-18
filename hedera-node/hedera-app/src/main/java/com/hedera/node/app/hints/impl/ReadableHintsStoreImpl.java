@@ -150,6 +150,18 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
                 .toList();
     }
 
+    @Override
+    public Map<Long, CrsPublicationTransactionBody> getCrsPublicationsByNodeIds(@NonNull final Set<Long> nodeIds) {
+        final Map<Long, CrsPublicationTransactionBody> publications = new HashMap<>();
+        for (final var nodeId : nodeIds) {
+            final var publication = crsPublications.get(new NodeId(nodeId));
+            if (publication != null) {
+                publications.put(nodeId, publication);
+            }
+        }
+        return publications;
+    }
+
     private boolean constructionIsFor(
             @NonNull final HintsConstruction construction, @NonNull final ActiveRosters activeRosters) {
         return activeRosters.sourceRosterHash().equals(construction.sourceRosterHash())

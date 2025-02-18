@@ -95,5 +95,10 @@ public interface HintsController {
             @NonNull Instant consensusTime,
             @NonNull WritableHintsStore hintsStore);
 
+    /**
+     * Verifies the given CRS update.
+     * @param publication the publication
+     * @param hintsStore the hints store
+     */
     void verifyCrsUpdate(@NonNull CrsPublicationTransactionBody publication, @NonNull WritableHintsStore hintsStore);
 }

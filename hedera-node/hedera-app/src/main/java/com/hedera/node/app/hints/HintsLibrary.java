@@ -52,10 +52,10 @@ public interface HintsLibrary {
     Bytes newCrs(int n);
 
     /**
-     * Updates the given CRS with the given 128 bits of entropy and returns the concatenation of the
+     * Updates the given CRS with the given 256 bits of entropy and returns the concatenation of the
      * updated CRS and a proof of the contribution.
      * @param crs the CRS
-     * @param entropy the 128-bit entropy
+     * @param entropy the 256-bit entropy
      * @return the updated CRS and proof
      */
     Bytes updateCrs(@NonNull Bytes crs, @NonNull Bytes entropy);
