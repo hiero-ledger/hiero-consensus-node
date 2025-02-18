@@ -80,7 +80,7 @@ class NFTOwnersChangeStepTest extends StepsBase {
 
     @Test
     void changesNftOwners() {
-        final var receiver = asAccount(tokenReceiver);
+        final var receiver = asAccount(0L, 0L, tokenReceiver);
         given(handleContext.payer()).willReturn(spenderId);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.savepointStack()).willReturn(stack);
@@ -176,7 +176,7 @@ class NFTOwnersChangeStepTest extends StepsBase {
         associateTokenRecepientsStep = new AssociateTokenRecipientsStep(body);
         transferContext = new TransferContextImpl(handleContext);
 
-        final var receiver = asAccount(tokenReceiver);
+        final var receiver = asAccount(0L, 0L, tokenReceiver);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         changeNFTOwnersStep = new NFTOwnersChangeStep(replacedOp.tokenTransfers(), spenderId);

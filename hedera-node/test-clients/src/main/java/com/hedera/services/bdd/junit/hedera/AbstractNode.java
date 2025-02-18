@@ -102,7 +102,7 @@ public abstract class AbstractNode implements HederaNode {
                     .resolve(DATA_DIR)
                     .resolve(RECORD_STREAMS_DIR)
                     .resolve(String.format(
-                            "record%d.%d.%d",
+                            "record%s.%s.%s",
                             getAccountId().shardNum(),
                             getAccountId().realmNum(),
                             getAccountId().accountNumOrThrow()));
@@ -110,7 +110,7 @@ public abstract class AbstractNode implements HederaNode {
                     .resolve(DATA_DIR)
                     .resolve(BLOCK_STREAMS_DIR)
                     .resolve(String.format(
-                            "block-%d.%d.%d",
+                            "block-%s.%s.%s",
                             getAccountId().shardNum(),
                             getAccountId().realmNum(),
                             getAccountId().accountNumOrThrow()));

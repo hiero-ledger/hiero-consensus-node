@@ -68,7 +68,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
 
     @Test
     void doesHbarBalanceChangesWithoutAllowances() {
-        final var receiver = asAccount(hbarReceiver);
+        final var receiver = asAccount(0L, 0L, hbarReceiver);
         given(handleContext.payer()).willReturn(spenderId);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.savepointStack()).willReturn(stack);
@@ -102,7 +102,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
 
-        final var receiver = asAccount(hbarReceiver);
+        final var receiver = asAccount(0L, 0L, hbarReceiver);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
@@ -144,7 +144,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(handleContext.body()).willReturn(txn);
         given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
 
-        final var receiver = asAccount(hbarReceiver);
+        final var receiver = asAccount(0L, 0L, hbarReceiver);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
@@ -176,7 +176,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         given(handleContext.body()).willReturn(txn);
         given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
 
-        final var receiver = asAccount(hbarReceiver);
+        final var receiver = asAccount(0L, 0L, hbarReceiver);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         adjustHbarChangesStep =
