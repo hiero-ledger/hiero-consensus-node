@@ -19,6 +19,7 @@ package com.hedera.node.app.components;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.history.impl.HistoryLibraryCodecImpl.HISTORY_LIBRARY_CODEC;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.DEFAULT_NODE_INFO;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -41,6 +42,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -121,7 +123,9 @@ class IngestComponentTest {
                 () -> configuration,
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
-                throttleFactory);
+                throttleFactory,
+                () -> NOOP_FEE_CHARGING,
+                new AppEntityIdFactory(configuration));
         final var hintsService = new HintsServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, mock(HintsLibrary.class), DEFAULT_CONFIG);
         final var historyService = new HistoryServiceImpl(
@@ -132,11 +136,12 @@ class IngestComponentTest {
                 HISTORY_LIBRARY_CODEC,
                 DEFAULT_CONFIG);
         app = DaggerHederaInjectionComponent.builder()
+                .appContext(appContext)
                 .configProviderImpl(configProvider)
                 .bootstrapConfigProviderImpl(new BootstrapConfigProviderImpl())
                 .fileServiceImpl(new FileServiceImpl())
                 .contractServiceImpl(new ContractServiceImpl(appContext, NO_OP_METRICS))
-                .scheduleService(new ScheduleServiceImpl())
+                .scheduleService(new ScheduleServiceImpl(appContext))
                 .initTrigger(InitTrigger.GENESIS)
                 .platform(platform)
                 .crypto(CryptographyHolder.get())

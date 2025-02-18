@@ -42,9 +42,11 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.key.KeyComparator;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
+import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.DispatchOptions.StakingRewards;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -69,6 +71,12 @@ import java.util.function.Predicate;
  */
 public abstract class AbstractScheduleHandler {
     static final Comparator<Key> KEY_COMPARATOR = new KeyComparator();
+
+    private final FeeCharging customFeeCharging;
+
+    protected AbstractScheduleHandler(@NonNull final FeeCharging customFeeCharging) {
+        this.customFeeCharging = requireNonNull(customFeeCharging);
+    }
 
     @FunctionalInterface
     protected interface TransactionKeysFn {
@@ -280,7 +288,9 @@ public abstract class AbstractScheduleHandler {
                             emptySet(),
                             ScheduleStreamBuilder.class,
                             StakingRewards.ON,
-                            DispatchOptions.UsePresetTxnId.NO))
+                            DispatchOptions.UsePresetTxnId.NO,
+                            customFeeCharging,
+                            PropagateFeeChargingStrategy.NO))
                     .scheduleRef(schedule.scheduleId());
             context.savepointStack()
                     .getBaseBuilder(ScheduleStreamBuilder.class)

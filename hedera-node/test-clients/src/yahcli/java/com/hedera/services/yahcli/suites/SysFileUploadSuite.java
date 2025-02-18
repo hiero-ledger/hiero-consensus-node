@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.services.yahcli.suites;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.suites.Utils.isSpecialFile;
 
 import com.google.protobuf.ByteString;
@@ -94,7 +95,7 @@ public class SysFileUploadSuite extends HapiSuite {
 
     final Stream<DynamicTest> uploadSysFiles() {
         final var name = String.format("UploadSystemFile-%s", sysFileId);
-        final var fileId = String.format("0.0.%d", sysFileId);
+        final var fileId = asEntityString(sysFileId);
         final var isSpecial = isSpecialFile(sysFileId);
         final AtomicInteger wrappedAppendsToSkip = new AtomicInteger();
 
@@ -104,7 +105,7 @@ public class SysFileUploadSuite extends HapiSuite {
                     if (!restartFromFailure) {
                         return;
                     }
-                    final var lookup = QueryVerbs.getFileInfo("0.0." + sysFileId);
+                    final var lookup = QueryVerbs.getFileInfo(fileId);
                     CustomSpecAssert.allRunFor(spec, lookup);
                     final var currentHash =
                             lookup.getResponse().getFileGetInfo().getFileInfo().getMemo();

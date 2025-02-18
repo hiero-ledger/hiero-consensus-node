@@ -22,9 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
@@ -45,6 +48,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 
 /**
  * Unit tests for {@link DefaultTransactionHandler}.
@@ -141,8 +145,12 @@ class DefaultTransactionHandlerTests {
                 "at least one event with no transactions should have been provided to the app");
         assertNull(tester.getPlatformState().getLastFrozenTime(), "no freeze time should have been set");
 
+        ArgumentCaptor<Hash> hashCaptor = ArgumentCaptor.forClass(Hash.class);
+        verify(tester.getPlatformStateFacade())
+                .setLegacyRunningEventHashTo(same(tester.getConsensusState()), hashCaptor.capture());
+
         assertEquals(
-                tester.getPlatformState().getLegacyRunningEventHash(),
+                hashCaptor.getValue(),
                 consensusRound
                         .getStreamedEvents()
                         .getLast()
@@ -164,7 +172,8 @@ class DefaultTransactionHandlerTests {
     void freezeHandling() throws InterruptedException {
         final TransactionHandlerTester tester = new TransactionHandlerTester(addressBook);
         final ConsensusRound consensusRound = newConsensusRound(false);
-        tester.getPlatformState().setFreezeTime(consensusRound.getConsensusTimestamp());
+        when(tester.getPlatformStateFacade().freezeTimeOf(tester.getConsensusState()))
+                .thenReturn(consensusRound.getConsensusTimestamp());
 
         final StateAndRound handlerOutput = tester.getTransactionHandler().handleConsensusRound(consensusRound);
         assertNotNull(handlerOutput, "new state should have been created");
@@ -180,7 +189,7 @@ class DefaultTransactionHandlerTests {
                 tester.getSubmittedActions().getFirst().getClass());
         assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
         assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
-        assertNotNull(tester.getPlatformState().getLastFrozenTime(), "freeze time should have been set");
+        verify(tester.getPlatformStateFacade()).updateLastFrozenTime(tester.getConsensusState());
 
         final ConsensusRound postFreezeConsensusRound = newConsensusRound(false);
         final StateAndRound postFreezeOutput =
@@ -190,8 +199,12 @@ class DefaultTransactionHandlerTests {
         assertEquals(2, tester.getSubmittedActions().size(), "no new status should have been submitted");
         assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
         assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
+        ArgumentCaptor<Hash> hashCaptor = ArgumentCaptor.forClass(Hash.class);
+        verify(tester.getPlatformStateFacade())
+                .setLegacyRunningEventHashTo(same(tester.getConsensusState()), hashCaptor.capture());
+
         assertEquals(
-                tester.getPlatformState().getLegacyRunningEventHash(),
+                hashCaptor.getValue(),
                 consensusRound
                         .getStreamedEvents()
                         .getLast()
