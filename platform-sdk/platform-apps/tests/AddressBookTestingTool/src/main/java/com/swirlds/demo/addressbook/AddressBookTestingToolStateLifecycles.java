@@ -37,8 +37,8 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -98,6 +98,15 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
     private Platform platform = null;
     private PlatformContext context = null;
 
+    private final PlatformStateFacade platformStateFacade;
+
+    /**
+     * @param platformStateFacade platform state facade
+     */
+    public AddressBookTestingToolStateLifecycles(@NonNull final PlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
+    }
+
     @Override
     public void onStateInitialized(
             @NonNull AddressBookTestingToolState state,
@@ -137,8 +146,6 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
         requireNonNull(round, "the round cannot be null");
         requireNonNull(state, "the state cannot be null");
         state.throwIfImmutable();
-        PlatformStateModifier platformState = state.getWritablePlatformState();
-        requireNonNull(platformState, "the platform state cannot be null");
 
         if (state.getRoundsHandled() == 0 && !freezeAfterGenesis.equals(Duration.ZERO)) {
             // This is the first round after genesis.
@@ -146,7 +153,9 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
                     STARTUP.getMarker(),
                     "Setting freeze time to {} seconds after genesis.",
                     freezeAfterGenesis.getSeconds());
-            platformState.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+            platformStateFacade.bulkUpdateOf(state, v -> {
+                v.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+            });
         }
 
         state.incrementRoundsHandled();

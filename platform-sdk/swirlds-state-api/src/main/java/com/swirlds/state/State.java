@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,12 @@
 
 package com.swirlds.state;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.crypto.Hashable;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -27,13 +31,22 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.LongSupplier;
 
 /**
  * The full state used of the app. The primary implementation is based on a merkle tree, and the data
  * structures provided by the hashgraph platform. But most of our code doesn't need to know that
  * detail, and are happy with just the API provided by this interface.
  */
-public interface State extends FastCopyable {
+public interface State extends FastCopyable, Hashable {
+    /**
+     * Initializes the state with the given parameters.
+     * @param time The time provider.
+     * @param metrics The metrics provider.
+     * @param merkleCryptography The merkle cryptography provider.
+     * @param roundSupplier The round supplier.
+     */
+    void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier);
 
     /**
      * Returns a {@link ReadableStates} for the given named service. If such a service doesn't

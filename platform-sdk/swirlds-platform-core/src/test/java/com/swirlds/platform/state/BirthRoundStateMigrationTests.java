@@ -105,7 +105,7 @@ class BirthRoundStateMigrationTests {
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState().cast());
+        rehashTree(signedState.getState());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }

@@ -31,7 +31,7 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -49,10 +49,11 @@ class SignedStateReserverTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
+        MerkleNodeState mock = mock(MerkleNodeState.class);
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
                 mock(SignatureVerifier.class),
-                mock(PlatformMerkleStateRoot.class),
+                mock,
                 "create",
                 false,
                 false,

@@ -77,8 +77,7 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
             final ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(
                     new ClassConstructorPair(StatsSigningTestingToolState.class, () -> {
-                        StatsSigningTestingToolState statsSigningTestingToolState =
-                                new StatsSigningTestingToolState(version -> new BasicSoftwareVersion(version.major()));
+                        StatsSigningTestingToolState statsSigningTestingToolState = new StatsSigningTestingToolState();
                         return statsSigningTestingToolState;
                     }));
             registerMerkleStateRootClassIds();
@@ -301,9 +300,8 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
 
     @Override
     @NonNull
-    public StatsSigningTestingToolState newMerkleStateRoot() {
-        final StatsSigningTestingToolState state = new StatsSigningTestingToolState(
-                version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+    public StatsSigningTestingToolState newStateRoot() {
+        final StatsSigningTestingToolState state = new StatsSigningTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }

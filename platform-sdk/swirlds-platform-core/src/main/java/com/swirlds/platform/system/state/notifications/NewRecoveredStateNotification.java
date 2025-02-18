@@ -17,7 +17,7 @@
 package com.swirlds.platform.system.state.notifications;
 
 import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import java.time.Instant;
 
 /**
@@ -28,7 +28,7 @@ import java.time.Instant;
  */
 public class NewRecoveredStateNotification extends AbstractNotification {
 
-    private final PlatformMerkleStateRoot state;
+    private final MerkleNodeState state;
     private final long round;
     private final Instant consensusTimestamp;
 
@@ -40,7 +40,7 @@ public class NewRecoveredStateNotification extends AbstractNotification {
      * @param consensusTimestamp the consensus timestamp of the recovered state round
      */
     public NewRecoveredStateNotification(
-            final PlatformMerkleStateRoot state, final long round, final Instant consensusTimestamp) {
+            final MerkleNodeState state, final long round, final Instant consensusTimestamp) {
         this.state = state;
         this.round = round;
         this.consensusTimestamp = consensusTimestamp;
@@ -50,7 +50,7 @@ public class NewRecoveredStateNotification extends AbstractNotification {
      * Get the state from the recovered state. Guaranteed to hold a reservation in the scope of this
      * notification.
      */
-    public PlatformMerkleStateRoot getState() {
+    public MerkleNodeState getState() {
         return state;
     }
 

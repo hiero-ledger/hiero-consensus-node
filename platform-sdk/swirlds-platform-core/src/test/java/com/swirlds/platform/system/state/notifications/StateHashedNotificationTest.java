@@ -23,7 +23,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.wiring.components.StateAndRound;
@@ -39,7 +39,7 @@ class StateHashedNotificationTest {
     private static final Hash HASH = new Hash(new byte[48]);
 
     @Mock
-    private PlatformMerkleStateRoot merkleRoot;
+    private MerkleNodeState merkleRoot;
 
     @Mock
     private SignedState signedState;

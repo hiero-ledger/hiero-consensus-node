@@ -273,6 +273,9 @@ class DiskStartupNetworksTest {
         final var servicesRegistry = new FakeServicesRegistry();
         final var tssBaseService = new TssBaseServiceImpl();
         given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(network);
+        final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
+        ServicesSoftwareVersion currentVersion = new ServicesSoftwareVersion(
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion());
         PLATFORM_STATE_SERVICE.setAppVersionFn(ServicesSoftwareVersion::from);
         Set.of(
                         tssBaseService,
@@ -282,13 +285,11 @@ class DiskStartupNetworksTest {
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
-        final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(
                 state,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
+                currentVersion,
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
                 FAKE_NETWORK_INFO,

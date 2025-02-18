@@ -26,9 +26,8 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.system.PlatformStatNames;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.State;
 
 /**
  * Collection of metrics related to the state lifecycle
@@ -78,7 +77,7 @@ public class StateMetrics {
     }
 
     /**
-     * Records the amount of time to handle a consensus transaction in {@link PlatformMerkleStateRoot}.
+     * Records the amount of time to handle a consensus transaction in {@link State}.
      *
      * @param seconds
      * 		the amount of time in seconds
@@ -88,7 +87,7 @@ public class StateMetrics {
     }
 
     /**
-     * Records the amount of time between a transaction reaching consensus and being handled in {@link PlatformMerkleStateRoot}.
+     * Records the amount of time between a transaction reaching consensus and being handled in {@link State}.
      *
      * @param seconds
      * 		the amount of time in seconds
@@ -98,14 +97,14 @@ public class StateMetrics {
     }
 
     /**
-     * Records the fact that consensus transactions were handled by {@link PlatformMerkleStateRoot}.
+     * Records the fact that consensus transactions were handled by {@link State}.
      */
     public void consensusTransHandled(final int numTrans) {
         transHandledPerSecond.update(numTrans);
     }
 
     /**
-     * Records the time it takes {@link MerkleStateRoot#copy()} to finish (in microseconds)
+     * Records the time it takes {@link State#copy()} to finish (in microseconds)
      *
      * @param micros
      * 		the amount of time in microseconds

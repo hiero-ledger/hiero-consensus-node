@@ -16,6 +16,7 @@
 
 package com.swirlds.demo.addressbook;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
@@ -46,7 +47,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,8 +75,8 @@ class AddressBookTestingToolStateTest {
 
     @BeforeAll
     static void initState() {
-        state = new AddressBookTestingToolState(mock(Function.class));
-        stateLifecycles = new AddressBookTestingToolStateLifecycles();
+        state = new AddressBookTestingToolState();
+        stateLifecycles = new AddressBookTestingToolStateLifecycles(DEFAULT_PLATFORM_STATE_FACADE);
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
     }
 

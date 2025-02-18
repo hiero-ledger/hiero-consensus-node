@@ -37,7 +37,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.IssListener;
 import com.swirlds.platform.system.state.notifications.IssNotification;
@@ -88,7 +88,7 @@ public class DefaultAppNotifierTest {
 
     @Test
     void testReconnectCompleteNotificationSent() {
-        final PlatformMerkleStateRoot state = mock(PlatformMerkleStateRoot.class);
+        final MerkleNodeState state = mock(MerkleNodeState.class);
         final ReconnectCompleteNotification notification =
                 new ReconnectCompleteNotification(100L, Instant.now(), state);
 
@@ -114,7 +114,7 @@ public class DefaultAppNotifierTest {
 
     @Test
     void testLatestCompleteStateNotificationSent() {
-        final PlatformMerkleStateRoot state = mock(PlatformMerkleStateRoot.class);
+        final MerkleNodeState state = mock(MerkleNodeState.class);
         final CompletionCallback<NotificationResult<NewSignedStateNotification>> cleanup =
                 mock(CompletionCallback.class);
         final NewSignedStateNotification signedStateNotification =

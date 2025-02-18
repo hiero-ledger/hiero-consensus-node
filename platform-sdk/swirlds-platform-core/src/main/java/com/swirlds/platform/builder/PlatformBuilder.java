@@ -54,7 +54,7 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.roster.RosterHistory;
 import com.swirlds.platform.scratchpad.Scratchpad;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
@@ -88,7 +88,7 @@ public final class PlatformBuilder {
     private final SoftwareVersion softwareVersion;
     private final ReservedSignedState initialState;
 
-    private final StateLifecycles<PlatformMerkleStateRoot> stateLifecycles;
+    private final StateLifecycles<MerkleNodeState> stateLifecycles;
     private final PlatformStateFacade platformStateFacade;
 
     private final NodeId selfId;

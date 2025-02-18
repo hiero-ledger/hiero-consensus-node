@@ -31,6 +31,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -67,9 +68,8 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
         try {
             logger.info(STARTUP.getMarker(), "Registering AddressBookTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    AddressBookTestingToolState.class,
-                    () -> new AddressBookTestingToolState(version -> new BasicSoftwareVersion(version.major()))));
+            constructableRegistry.registerConstructable(
+                    new ClassConstructorPair(AddressBookTestingToolState.class, AddressBookTestingToolState::new));
             registerMerkleStateRootClassIds();
             logger.info(STARTUP.getMarker(), "AddressBookTestingToolState is registered with ConstructableRegistry");
         } catch (ConstructableRegistryException e) {
@@ -126,9 +126,8 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
      */
     @Override
     @NonNull
-    public AddressBookTestingToolState newMerkleStateRoot() {
-        final AddressBookTestingToolState state = new AddressBookTestingToolState(
-                version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+    public AddressBookTestingToolState newStateRoot() {
+        final AddressBookTestingToolState state = new AddressBookTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }
@@ -136,7 +135,7 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
     @Override
     @NonNull
     public StateLifecycles<AddressBookTestingToolState> newStateLifecycles() {
-        return new AddressBookTestingToolStateLifecycles();
+        return new AddressBookTestingToolStateLifecycles(new PlatformStateFacade((v) -> getSoftwareVersion()));
     }
 
     /**

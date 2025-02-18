@@ -28,7 +28,7 @@ import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -92,8 +92,7 @@ public abstract class AbstractFakePlatform implements Platform {
     }
 
     @Override
-    public @NonNull <T extends MerkleStateRoot> AutoCloseableWrapper<T> getLatestImmutableState(
-            @NonNull String reason) {
+    public @NonNull <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull String reason) {
         throw new UnsupportedOperationException("Not used by Hedera");
     }
 

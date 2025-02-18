@@ -40,8 +40,8 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -75,7 +75,7 @@ public class RandomSignedStateGenerator {
 
     final Random random;
 
-    private PlatformMerkleStateRoot state;
+    private MerkleNodeState state;
     private Long round;
     private Hash legacyRunningEventHash;
     private Roster roster;
@@ -146,7 +146,7 @@ public class RandomSignedStateGenerator {
             softwareVersionInstance = softwareVersion;
         }
 
-        final PlatformMerkleStateRoot stateInstance;
+        final MerkleNodeState stateInstance;
         registerMerkleStateRootClassIds();
         final long roundInstance;
         if (round == null) {
@@ -160,9 +160,13 @@ public class RandomSignedStateGenerator {
             if (useBlockingState) {
                 stateInstance = new BlockingState(platformStateFacade);
             } else {
-                stateInstance = new PlatformMerkleStateRoot(version -> new BasicSoftwareVersion(version.major()));
+                stateInstance = new TestMerkleStateRoot();
             }
-            stateInstance.init(Time.getCurrent(), new NoOpMetrics(), MerkleCryptoFactory.getInstance());
+            stateInstance.init(
+                    Time.getCurrent(),
+                    new NoOpMetrics(),
+                    MerkleCryptoFactory.getInstance(),
+                    () -> platformStateFacade.roundOf(stateInstance));
         } else {
             stateInstance = state;
         }
@@ -240,7 +244,7 @@ public class RandomSignedStateGenerator {
                 pcesRound,
                 platformStateFacade);
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.cast());
+        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance);
         if (stateHash != null) {
             stateInstance.setHash(stateHash);
         }
@@ -310,7 +314,7 @@ public class RandomSignedStateGenerator {
      *
      * @return this object
      */
-    public RandomSignedStateGenerator setState(final PlatformMerkleStateRoot state) {
+    public RandomSignedStateGenerator setState(final MerkleNodeState state) {
         this.state = state;
         return this;
     }

@@ -25,7 +25,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.Hedera;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -58,7 +58,7 @@ class StateLifecyclesImplTest extends MerkleTestBase {
     private PlatformContext platformContext;
 
     @Mock
-    private PlatformMerkleStateRoot merkleStateRoot;
+    private MerkleNodeState merkleStateRoot;
 
     private StateLifecyclesImpl subject;
 

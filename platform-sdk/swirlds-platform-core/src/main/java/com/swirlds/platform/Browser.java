@@ -279,7 +279,7 @@ public class Browser {
                     configuration,
                     recycleBin,
                     appMain.getSoftwareVersion(),
-                    appMain::newMerkleStateRoot,
+                    appMain::newStateRoot,
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,

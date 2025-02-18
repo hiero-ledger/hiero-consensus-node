@@ -28,19 +28,17 @@ package com.swirlds.demo.addressbook;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.utility.ByteUtils;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,7 +46,8 @@ import org.apache.logging.log4j.Logger;
  * State for the AddressBookTestingTool.
  */
 @ConstructableIgnored
-public class AddressBookTestingToolState extends PlatformMerkleStateRoot {
+public class AddressBookTestingToolState extends MerkleStateRoot<AddressBookTestingToolState>
+        implements MerkleNodeState {
 
     private static final Logger logger = LogManager.getLogger(AddressBookTestingToolState.class);
 
@@ -76,8 +75,7 @@ public class AddressBookTestingToolState extends PlatformMerkleStateRoot {
      */
     private long roundsHandled = 0;
 
-    public AddressBookTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public AddressBookTestingToolState() {
         logger.info(STARTUP.getMarker(), "New State Constructed.");
     }
 
@@ -124,6 +122,7 @@ public class AddressBookTestingToolState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized AddressBookTestingToolState copy() {
         throwIfImmutable();
@@ -172,5 +171,10 @@ public class AddressBookTestingToolState extends PlatformMerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.ORIGINAL;
+    }
+
+    @Override
+    protected AddressBookTestingToolState copyingConstructor() {
+        return new AddressBookTestingToolState(this);
     }
 }

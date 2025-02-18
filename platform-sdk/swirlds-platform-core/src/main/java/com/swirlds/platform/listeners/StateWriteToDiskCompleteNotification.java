@@ -17,8 +17,6 @@
 package com.swirlds.platform.listeners;
 
 import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import java.nio.file.Path;
 import java.time.Instant;
 
 /**
@@ -53,26 +51,6 @@ public class StateWriteToDiskCompleteNotification extends AbstractNotification {
      */
     public Instant getConsensusTimestamp() {
         return consensusTimestamp;
-    }
-
-    /**
-     * Deprecated method, always returns null
-     * @return null
-     * @deprecated used by PTT for an obsolete feature
-     */
-    @Deprecated(forRemoval = true)
-    public PlatformMerkleStateRoot getState() {
-        return null;
-    }
-
-    /**
-     * Deprecated method, always returns null
-     * @return null
-     * @deprecated used by PTT for an obsolete feature
-     */
-    @Deprecated(forRemoval = true)
-    public Path getFolder() {
-        return null;
     }
 
     /**

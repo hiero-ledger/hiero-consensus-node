@@ -21,6 +21,7 @@ import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
 import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 
@@ -33,15 +34,15 @@ public final class SwirldStateManagerUtils {
     private SwirldStateManagerUtils() {}
 
     /**
-     * Performs a fast copy on a {@link PlatformMerkleStateRoot}. The {@code state} must not be modified during execution of this method.
+     * Performs a fast copy on a {@link State}. The {@code state} must not be modified during execution of this method.
      *
      * @param state           the state object to fast copy
      * @param stats           object to record stats in
      * @param softwareVersion the current software version
      * @return the newly created state copy
      */
-    public static PlatformMerkleStateRoot fastCopy(
-            @NonNull final PlatformMerkleStateRoot state,
+    public static MerkleNodeState fastCopy(
+            @NonNull final MerkleNodeState state,
             @NonNull final StateMetrics stats,
             @NonNull final SoftwareVersion softwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade) {
@@ -51,7 +52,7 @@ public final class SwirldStateManagerUtils {
         final long copyStart = System.nanoTime();
 
         // Create a fast copy
-        final PlatformMerkleStateRoot copy = state.copy();
+        final MerkleNodeState copy = state.copy();
         platformStateFacade.setCreationSoftwareVersionTo(copy, softwareVersion);
 
         // Increment the reference count because this reference becomes the new value
