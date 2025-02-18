@@ -21,6 +21,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_H
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
@@ -227,7 +228,13 @@ public final class IngestChecker {
             throw new PreCheckException(BUSY);
         }
 
-        // 4a. Run pure checks
+        // 4a. Check for batch key on non-inner transactions, not in 1, check() because inner transaction goes through
+        // it.
+        if (txBody.hasBatchKey()) {
+            throw new PreCheckException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+        }
+
+        // 4b. Run pure checks
         final var pureChecksContext = new PureChecksContextImpl(txBody, configuration, dispatcher, transactionChecker);
         dispatcher.dispatchPureChecks(pureChecksContext);
 

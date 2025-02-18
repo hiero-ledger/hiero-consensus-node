@@ -20,6 +20,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_FEE;
@@ -89,6 +90,7 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.status.PlatformStatus;
 import java.time.Instant;
@@ -281,6 +283,48 @@ class IngestCheckerTest extends AppTestBase {
         assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_NODE_ACCOUNT));
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @Test
+    @DisplayName("batchKey in transaction fails")
+    void batchKeyInTransactionFails() throws PreCheckException {
+        final var batchKey = Key.newBuilder()
+                .ed25519(Bytes.wrap("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".getBytes()))
+                .build();
+        txBody = txBody.copyBuilder().batchKey(batchKey).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(asBytes(TransactionBody.PROTOBUF, txBody))
+                .build();
+        tx = Transaction.newBuilder()
+                .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
+                .build();
+
+        subject = new IngestChecker(
+                nodeSelfAccountId,
+                currentPlatformStatus,
+                blockStreamManager,
+                transactionChecker,
+                solvencyPreCheck,
+                signatureExpander,
+                signatureVerifier,
+                deduplicationCache,
+                dispatcher,
+                feeManager,
+                authorizer,
+                synchronizedThrottleAccumulator,
+                instantSource,
+                opWorkflowMetrics,
+                ServicesSoftwareVersion::new);
+        transactionInfo = new TransactionInfo(
+                tx, txBody, MOCK_SIGNATURE_MAP, tx.signedTransactionBytes(), UNCHECKED_SUBMIT, null);
+        when(transactionChecker.check(tx, null)).thenReturn(transactionInfo);
+
+        final var configProvider = HederaTestConfigBuilder.createConfigProvider();
+        this.deduplicationCache = new DeduplicationCacheImpl(configProvider, instantSource);
+        assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION));
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
