@@ -85,7 +85,7 @@ public class HandleException extends RuntimeException {
      * If the exception was constructed with rollback fee charging, charges it in the given context.
      * @param context the context in which to charge the rollback fees
      */
-    public void maybeChargeRollbackFees(@NonNull final FeeCharging.Context context) {
+    public void maybeReplayFees(@NonNull final FeeCharging.Context context) {
         if (rollbackFeesCb != null) {
             rollbackFeesCb.accept(context);
         }

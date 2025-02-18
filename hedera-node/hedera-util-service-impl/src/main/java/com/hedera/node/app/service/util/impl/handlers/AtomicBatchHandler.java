@@ -49,10 +49,12 @@ import com.hedera.node.config.data.AtomicBatchConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
@@ -192,8 +194,11 @@ public class AtomicBatchHandler implements TransactionHandler {
                 @NonNull ReplayableFeeStreamBuilder streamBuilder, @NonNull List<Charge> charges) {}
 
         private final FeeCharging delegate;
-        private final List<Charge> charges = new ArrayList<>();
         private final List<ChargingEvent> chargingEvents = new ArrayList<>();
+
+        // We track just the final charging event of any dispatch (earlier ones would be rolled back)
+        @Nullable
+        private Charge finalCharge;
 
         public RecordedFeeCharging(@NonNull final FeeCharging delegate) {
             this.delegate = requireNonNull(delegate);
@@ -203,7 +208,7 @@ public class AtomicBatchHandler implements TransactionHandler {
          * Starts recording balance adjustments for a new charging event.
          */
         public void startRecording() {
-            charges.clear();
+            finalCharge = null;
         }
 
         /**
@@ -211,7 +216,9 @@ public class AtomicBatchHandler implements TransactionHandler {
          */
         public void finishRecordingTo(@NonNull final ReplayableFeeStreamBuilder streamBuilder) {
             requireNonNull(streamBuilder);
-            chargingEvents.add(new ChargingEvent(streamBuilder, new ArrayList<>(charges)));
+            chargingEvents.add(new ChargingEvent(
+                    streamBuilder,
+                    finalCharge == null ? Collections.emptyList() : Collections.singletonList(finalCharge)));
         }
 
         /**
@@ -236,7 +243,7 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         @Override
         public void charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
-            final var recordingContext = new RecordingContext(ctx, charges);
+            final var recordingContext = new RecordingContext(ctx, charge -> this.finalCharge = charge);
             delegate.charge(recordingContext, validation, fees);
         }
 
@@ -245,11 +252,11 @@ public class AtomicBatchHandler implements TransactionHandler {
          */
         private static class RecordingContext implements Context {
             private final Context delegate;
-            private final List<Charge> charges;
+            private final Consumer<Charge> chargeCb;
 
-            public RecordingContext(@NonNull final Context delegate, @NonNull final List<Charge> charges) {
+            public RecordingContext(@NonNull final Context delegate, @NonNull final Consumer<Charge> chargeCb) {
                 this.delegate = requireNonNull(delegate);
-                this.charges = requireNonNull(charges);
+                this.chargeCb = requireNonNull(chargeCb);
             }
 
             @Override
@@ -258,7 +265,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                     @NonNull final Fees fees,
                     @Nullable final ObjLongConsumer<AccountID> cb) {
                 delegate.charge(payerId, fees, cb);
-                charges.add(new Charge(payerId, fees, null));
+                chargeCb.accept(new Charge(payerId, fees, null));
             }
 
             @Override
@@ -268,7 +275,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                     @NonNull final AccountID nodeAccountId,
                     @Nullable final ObjLongConsumer<AccountID> cb) {
                 delegate.charge(payerId, fees, nodeAccountId, cb);
-                charges.add(new Charge(payerId, fees, nodeAccountId));
+                chargeCb.accept(new Charge(payerId, fees, nodeAccountId));
             }
 
             @Override

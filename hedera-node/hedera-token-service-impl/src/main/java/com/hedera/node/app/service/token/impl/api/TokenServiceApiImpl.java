@@ -332,13 +332,13 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID payerId,
             final long amount,
             @NonNull final FeeStreamBuilder rb,
-            @Nullable ObjLongConsumer<AccountID> cb) {
+            @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(rb);
         requireNonNull(payerId);
 
         final var payerAccount = lookupAccount("Payer", payerId);
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
-        chargePayer(payerAccount, amountToCharge);
+        chargePayer(payerAccount, amountToCharge, cb);
         // We may be charging for preceding child record fees, which are additive to the base fee
         rb.transactionFee(rb.transactionFee() + amountToCharge);
         distributeToNetworkFundingAccounts(amountToCharge, cb);
@@ -348,7 +348,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     @Override
     public void chargeFees(
             @NonNull AccountID payerId,
-            AccountID nodeAccountId,
+            @NonNull final AccountID nodeAccountId,
             @NonNull Fees fees,
             @NonNull final FeeStreamBuilder rb,
             @Nullable final ObjLongConsumer<AccountID> cb) {
@@ -376,10 +376,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final long amountToCharge = fees.totalWithoutNodeFee() + chargeableNodeFee;
         final long amountToDistributeToFundingAccounts = amountToCharge - chargeableNodeFee;
 
-        chargePayer(payerAccount, amountToCharge);
-        if (cb != null) {
-            cb.accept(payerId, -amountToCharge);
-        }
+        chargePayer(payerAccount, amountToCharge, cb);
         // Record the amount charged into the record builder
         rb.transactionFee(amountToCharge);
         distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, cb);
@@ -421,7 +418,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      * @param amount the maximum amount to charge
      * @throws IllegalStateException if the payer account doesn't exist
      */
-    private void chargePayer(@NonNull final Account payerAccount, final long amount) {
+    private void chargePayer(
+            @NonNull final Account payerAccount, final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         if (amount > payerAccount.tinybarBalance()) {
             throw new IllegalArgumentException("Payer %s (balance=%d) cannot afford fee of %d"
                     .formatted(payerAccount, payerAccount.tinybarBalance(), amount));
@@ -431,6 +429,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .copyBuilder()
                 .tinybarBalance(currentBalance - amount)
                 .build());
+        if (cb != null) {
+            cb.accept(payerAccount.accountId(), -amount);
+        }
     }
 
     /**
