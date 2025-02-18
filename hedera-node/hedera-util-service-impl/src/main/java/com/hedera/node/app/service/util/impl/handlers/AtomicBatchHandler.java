@@ -25,6 +25,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -82,17 +83,8 @@ public class AtomicBatchHandler implements TransactionHandler {
             throw new PreCheckException(BATCH_LIST_EMPTY);
         }
 
-        // the atomic batch transaction body cannot have a batch key
-        // only the inner transactions can have a batch key
-        // in future, we may wish to allow nested batches, in which case the atomic batch transaction could have a batch
-        // key
-        if (txn.hasBatchKey()) {
-            throw new PreCheckException(BATCH_LIST_EMPTY);
-        }
-
-        Set<TransactionBody> set = new HashSet<>();
+        Set<TransactionID> set = new HashSet<>();
         for (final var transaction : transactions) {
-
             final TransactionBody txBody;
             try {
                 txBody = bodyParser.apply(transaction);
@@ -100,7 +92,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                 throw new PreCheckException(e.getStatus());
             }
 
-            validateTruePreCheck(set.add(txBody), BATCH_LIST_CONTAINS_DUPLICATES);
+            validateTruePreCheck(set.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
 
             // validate batch key exists on each inner transaction
             if (!txBody.hasBatchKey()) {
@@ -110,6 +102,9 @@ public class AtomicBatchHandler implements TransactionHandler {
             if (!txBody.nodeAccountID().equals(ATOMIC_BATCH_NODE_ACCOUNT_ID)) {
                 throw new PreCheckException(INVALID_NODE_ACCOUNT_ID);
             }
+
+            if (txBody.hasFreeze() || txBody.hasAtomicBatch())
+                throw new PreCheckException(BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
 
             context.executeInnerPureCheck(txBody);
         }

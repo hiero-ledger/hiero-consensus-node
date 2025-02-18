@@ -1724,9 +1724,9 @@ enum ResponseCodeEnum {
     BATCH_LIST_CONTAINS_DUPLICATES = 389;
 
     /**
-    * The list of batch transactions contains null values
+    * The list of batch transactions contains a disallowed transaction type.
     */
-    BATCH_LIST_CONTAINS_NULL_VALUES = 390;
+    BATCH_LIST_CONTAINS_INVALID_TRANSACTION = 390;
 
     /**
      * The inner transaction failed
