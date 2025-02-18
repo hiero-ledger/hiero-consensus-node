@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURR
 import static com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion.PAST;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -135,7 +136,7 @@ public class ConcurrentIntegrationTests {
                 blockStreamMustIncludePassFrom(spec -> blockWithResultOf(BUSY)),
                 cryptoCreate("somebody").balance(0L),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, "somebody", ONE_HBAR))
-                        .setNode("0.0.4")
+                        .setNode(asEntityString(4))
                         .withSubmissionStrategy(usingVersion(PAST))
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY),
                 getAccountBalance("somebody").hasTinyBars(0L),
@@ -148,7 +149,7 @@ public class ConcurrentIntegrationTests {
     final Stream<DynamicTest> completelySkipsTransactionFromUnknownNode() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("0.0.666")
+                        .setNode(asEntityString(666))
                         .via("toBeSkipped")
                         .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
                         .hasAnyStatusAtAll(),

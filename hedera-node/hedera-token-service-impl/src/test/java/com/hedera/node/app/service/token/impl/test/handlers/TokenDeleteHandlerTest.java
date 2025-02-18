@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class TokenDeleteHandlerTest extends ParityTestBase {
-    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(1339);
+
+    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(0L, 0L, 1339);
     private static final TokenID TOKEN_987_ID = BaseTokenHandler.asToken(987L);
 
     private final TokenDeleteHandler subject = new TokenDeleteHandler();
@@ -134,7 +135,7 @@ class TokenDeleteHandlerTest extends ParityTestBase {
         @Test
         void deletesValidToken() {
             // Verify that the treasury account's treasury titles count is correct before the test
-            final var treasuryAcctId = BaseCryptoHandler.asAccount(3);
+            final var treasuryAcctId = BaseCryptoHandler.asAccount(0L, 0L, 3);
             final var treasuryAcct = writableAccountStore.get(treasuryAcctId);
             Assertions.assertThat(treasuryAcct.numberTreasuryTitles()).isEqualTo(2);
 

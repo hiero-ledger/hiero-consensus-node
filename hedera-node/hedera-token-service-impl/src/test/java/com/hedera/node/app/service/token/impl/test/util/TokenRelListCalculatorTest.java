@@ -120,7 +120,7 @@ class TokenRelListCalculatorTest {
     @Test
     void removeTokenRels_tokenRelsFromDifferentAccountPresent() {
         final var tokenRelFromDifferentAccount = TokenRelation.newBuilder()
-                .accountId(asAccount(2301L))
+                .accountId(asAccount(0L, 0L, 2301L))
                 .tokenId(TOKEN_ID_1)
                 .build();
         final var tokenRelsToRemove = List.of(LOCAL_TOKEN_REL_1, LOCAL_TOKEN_REL_2, tokenRelFromDifferentAccount);

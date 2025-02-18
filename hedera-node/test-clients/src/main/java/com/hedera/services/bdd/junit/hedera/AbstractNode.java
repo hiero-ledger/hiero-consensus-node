@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,11 +101,19 @@ public abstract class AbstractNode implements HederaNode {
             case RECORD_STREAMS_DIR -> workingDir
                     .resolve(DATA_DIR)
                     .resolve(RECORD_STREAMS_DIR)
-                    .resolve("record0.0." + getAccountId().accountNumOrThrow());
+                    .resolve(String.format(
+                            "record%s.%s.%s",
+                            getAccountId().shardNum(),
+                            getAccountId().realmNum(),
+                            getAccountId().accountNumOrThrow()));
             case BLOCK_STREAMS_DIR -> workingDir
                     .resolve(DATA_DIR)
                     .resolve(BLOCK_STREAMS_DIR)
-                    .resolve("block-0.0." + getAccountId().accountNumOrThrow());
+                    .resolve(String.format(
+                            "block-%s.%s.%s",
+                            getAccountId().shardNum(),
+                            getAccountId().realmNum(),
+                            getAccountId().accountNumOrThrow()));
             case UPGRADE_ARTIFACTS_DIR -> workingDir
                     .resolve(DATA_DIR)
                     .resolve(UPGRADE_DIR)

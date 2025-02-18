@@ -487,7 +487,7 @@ public class NetworkAdminHandlerTestBase {
     protected void givenNonFungibleTokenRelation() {
         nonFungibleTokenRelation = TokenRelation.newBuilder()
                 .tokenId(nonFungibleTokenId)
-                .accountId(asAccount(accountNum))
+                .accountId(asAccount(0L, 0L, accountNum))
                 .balance(1000L)
                 .frozen(false)
                 .kycGranted(false)

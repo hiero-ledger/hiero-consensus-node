@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 
@@ -30,7 +31,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public final class CommonUpgradeResources {
-    public static final String DEFAULT_UPGRADE_FILE_ID = "0.0.150";
+
+    public static final String DEFAULT_UPGRADE_FILE_ID = asEntityString(150);
     public static final String DEFAULT_UPGRADE_FILE_PATH = "testfiles/poeticUpgrade.zip";
     // This file is inside the pretend ZIP and PREPARE_UPGRADE should put it in the current artifacts directory
     public static final String FAKE_UPGRADE_FILE_NAME = "MrBleaney.txt";

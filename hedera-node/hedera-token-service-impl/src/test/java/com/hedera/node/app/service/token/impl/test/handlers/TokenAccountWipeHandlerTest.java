@@ -85,8 +85,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TokenAccountWipeHandlerTest extends ParityTestBase {
-    private static final AccountID ACCOUNT_4680 = BaseCryptoHandler.asAccount(4680);
-    private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(9876);
+
+    private static final AccountID ACCOUNT_4680 = BaseCryptoHandler.asAccount(0L, 0L, 4680);
+    private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(0L, 0L, 9876);
     private static final TokenID TOKEN_531 = BaseTokenHandler.asToken(531);
     private final TokenSupplyChangeOpsValidator validator = new TokenSupplyChangeOpsValidator();
     private final TokenAccountWipeHandler subject = new TokenAccountWipeHandler(validator);

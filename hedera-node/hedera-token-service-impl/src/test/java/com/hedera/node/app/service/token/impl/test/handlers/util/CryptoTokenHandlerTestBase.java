@@ -479,7 +479,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
 
         aliasesMap = new HashMap<>();
         aliasesMap.put(new ProtoBytes(alias.alias()), payerId);
-        aliasesMap.put(new ProtoBytes(contractAlias.evmAddress()), asAccount(contract.contractNum()));
+        aliasesMap.put(new ProtoBytes(contractAlias.evmAddress()), asAccount(0L, 0L, contract.contractNum()));
 
         tokenRelsMap = new HashMap<>();
         tokenRelsMap.put(fungiblePair, fungibleTokenRelation);

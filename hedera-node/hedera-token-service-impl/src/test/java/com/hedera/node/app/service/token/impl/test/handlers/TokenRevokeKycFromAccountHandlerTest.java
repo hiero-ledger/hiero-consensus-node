@@ -135,7 +135,7 @@ class TokenRevokeKycFromAccountHandlerTest {
         @Mock(strictness = LENIENT)
         private StoreFactory storeFactory;
 
-        private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(9876);
+        private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(0L, 0L, 9876);
 
         private static final Token newToken10 = Token.newBuilder()
                 .tokenId(TOKEN_10)

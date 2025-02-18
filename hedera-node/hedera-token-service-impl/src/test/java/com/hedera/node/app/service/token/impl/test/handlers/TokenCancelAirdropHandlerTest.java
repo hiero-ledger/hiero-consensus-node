@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,8 +78,8 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
     private WritableAirdropStore airdropStore;
     private WritableAccountStore writableAccountStore;
     protected Configuration testConfig;
-    private static final AccountID senderId = asAccount(1001);
-    private static final AccountID receiverId = asAccount(1010);
+    private static final AccountID senderId = asAccount(0L, 0L, 1001);
+    private static final AccountID receiverId = asAccount(0L, 0L, 1010);
     private static final TokenID fungibleTokenId = asToken(333);
     private static final NftID nftId =
             NftID.newBuilder().tokenId(fungibleTokenId).build();

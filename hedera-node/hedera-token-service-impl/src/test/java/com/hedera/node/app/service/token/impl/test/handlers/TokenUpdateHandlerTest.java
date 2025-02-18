@@ -778,7 +778,7 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsOnInvalidNewTreasury() {
-        txn = new TokenUpdateBuilder().withTreasury(asAccount(2000000)).build();
+        txn = new TokenUpdateBuilder().withTreasury(asAccount(0L, 0L, 2000000)).build();
         given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
                 .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);

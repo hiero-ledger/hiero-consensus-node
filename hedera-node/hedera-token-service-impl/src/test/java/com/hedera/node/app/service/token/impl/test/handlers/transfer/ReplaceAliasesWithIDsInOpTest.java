@@ -70,8 +70,8 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();
                     writableAccountStore.putAndIncrementCount(copy);
-                    writableAccountStore.putAndIncrementCountAlias(ecKeyAlias.value(), asAccount(hbarReceiver));
-                    writableAliases.put(ecKeyAlias, asAccount(hbarReceiver));
+                    writableAccountStore.putAndIncrementCountAlias(ecKeyAlias.value(), asAccount(0L, 0L, hbarReceiver));
+                    writableAliases.put(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 })
@@ -79,8 +79,9 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                     final var copy =
                             account.copyBuilder().accountId(tokenReceiverId).build();
                     writableAccountStore.putAndIncrementCount(copy);
-                    writableAccountStore.putAndIncrementCountAlias(edKeyAlias.value(), asAccount(tokenReceiver));
-                    writableAliases.put(edKeyAlias, asAccount(tokenReceiver));
+                    writableAccountStore.putAndIncrementCountAlias(
+                            edKeyAlias.value(), asAccount(0L, 0L, tokenReceiver));
+                    writableAliases.put(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });
@@ -89,9 +90,9 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
 
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(2);
         assertThat(writableAccountStore.modifiedAccountsInState()).isEmpty();
-        assertThat(writableAccountStore.getAliasedAccountById(asAccount(hbarReceiver)))
+        assertThat(writableAccountStore.getAliasedAccountById(asAccount(0L, 0L, hbarReceiver)))
                 .isNull();
-        assertThat(writableAccountStore.getAliasedAccountById(asAccount(tokenReceiver)))
+        assertThat(writableAccountStore.getAliasedAccountById(asAccount(0L, 0L, tokenReceiver)))
                 .isNull();
         assertThat(writableAliases.get(ecKeyAlias)).isNull();
         assertThat(writableAliases.get(edKeyAlias)).isNull();
@@ -101,9 +102,9 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
         assertThat(writableAccountStore.modifiedAliasesInState()).hasSize(2);
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(2);
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(4);
-        assertThat(writableAccountStore.getAliasedAccountById(asAccount(hbarReceiver)))
+        assertThat(writableAccountStore.getAliasedAccountById(asAccount(0L, 0L, hbarReceiver)))
                 .isNotNull();
-        assertThat(writableAccountStore.getAliasedAccountById(asAccount(tokenReceiver)))
+        assertThat(writableAccountStore.getAliasedAccountById(asAccount(0L, 0L, tokenReceiver)))
                 .isNotNull();
         assertThat(writableAliases.get(ecKeyAlias).accountNum()).isEqualTo(hbarReceiver);
         assertThat(writableAliases.get(edKeyAlias).accountNum()).isEqualTo(tokenReceiver);
@@ -147,7 +148,8 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                             .alias(evmAddressAlias1.value())
                             .build();
                     writableAccountStore.putAndIncrementCount(copy);
-                    writableAccountStore.putAndIncrementCountAlias(evmAddressAlias1.value(), asAccount(hbarReceiver));
+                    writableAccountStore.putAndIncrementCountAlias(
+                            evmAddressAlias1.value(), asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 })
@@ -157,7 +159,8 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                             .alias(evmAddressAlias2.value())
                             .build();
                     writableAccountStore.putAndIncrementCount(copy);
-                    writableAccountStore.putAndIncrementCountAlias(evmAddressAlias2.value(), asAccount(tokenReceiver));
+                    writableAccountStore.putAndIncrementCountAlias(
+                            evmAddressAlias2.value(), asAccount(0L, 0L, tokenReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 })
@@ -168,7 +171,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                             .build();
                     writableAccountStore.putAndIncrementCount(copy);
                     writableAccountStore.putAndIncrementCountAlias(
-                            evmAddressAlias3.value(), asAccount(hbarReceiver + 2));
+                            evmAddressAlias3.value(), asAccount(0L, 0L, hbarReceiver + 2));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });
@@ -182,11 +185,11 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
         assertThat(writableAccountStore.modifiedAliasesInState()).hasSize(3);
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(3);
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(5);
-        assertThat(writableAccountStore.getAliasedAccountById(asAccount(hbarReceiver)))
+        assertThat(writableAccountStore.getAliasedAccountById(asAccount(0L, 0L, hbarReceiver)))
                 .isNotNull();
-        assertThat(writableAccountStore.getAliasedAccountById(asAccount(tokenReceiver)))
+        assertThat(writableAccountStore.getAliasedAccountById(asAccount(0L, 0L, tokenReceiver)))
                 .isNotNull();
-        assertThat(writableAccountStore.getAliasedAccountById(asAccount(hbarReceiver + 2)))
+        assertThat(writableAccountStore.getAliasedAccountById(asAccount(0L, 0L, hbarReceiver + 2)))
                 .isNotNull();
         assertThat(writableAliases.get(evmAddressAlias1).accountNum()).isEqualTo(hbarReceiver);
         assertThat(writableAliases.get(evmAddressAlias2).accountNum()).isEqualTo(tokenReceiver);
@@ -255,7 +258,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();
                     writableAccountStore.put(copy);
-                    writableAliases.put(ecKeyAlias, asAccount(hbarReceiver));
+                    writableAliases.put(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 })
@@ -263,7 +266,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                     final var copy =
                             account.copyBuilder().accountId(tokenReceiverId).build();
                     writableAccountStore.put(copy);
-                    writableAliases.put(edKeyAlias, asAccount(tokenReceiver));
+                    writableAliases.put(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });
@@ -298,7 +301,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();
                     writableAccountStore.put(copy);
-                    writableAliases.put(ecKeyAlias, asAccount(hbarReceiver));
+                    writableAliases.put(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 })
@@ -306,7 +309,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                     final var copy =
                             account.copyBuilder().accountId(tokenReceiverId).build();
                     writableAccountStore.put(copy);
-                    writableAliases.put(edKeyAlias, asAccount(tokenReceiver));
+                    writableAliases.put(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });
@@ -363,13 +366,13 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
 
     private void setUpInsertingKnownAliasesToState() {
         final var readableBuilder = emptyReadableAliasStateBuilder();
-        readableBuilder.value(ecKeyAlias, asAccount(hbarReceiver));
-        readableBuilder.value(edKeyAlias, asAccount(tokenReceiver));
+        readableBuilder.value(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
+        readableBuilder.value(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
         readableAliases = readableBuilder.build();
 
         final var writableBuilder = emptyWritableAliasStateBuilder();
-        writableBuilder.value(ecKeyAlias, asAccount(hbarReceiver));
-        writableBuilder.value(edKeyAlias, asAccount(tokenReceiver));
+        writableBuilder.value(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
+        writableBuilder.value(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
         writableAliases = writableBuilder.build();
 
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);

@@ -138,7 +138,7 @@ class WritableNftStoreTest extends CryptoTokenHandlerTestBase {
         // Set up the NFT state with an existing NFT
         final var nftToRemove =
                 NftID.newBuilder().tokenId(fungibleTokenId).serialNumber(1).build();
-        final var ownerId = asAccount(12345);
+        final var ownerId = asAccount(0L, 0L, 12345);
         writableNftState = emptyWritableNftStateBuilder()
                 .value(
                         nftToRemove,

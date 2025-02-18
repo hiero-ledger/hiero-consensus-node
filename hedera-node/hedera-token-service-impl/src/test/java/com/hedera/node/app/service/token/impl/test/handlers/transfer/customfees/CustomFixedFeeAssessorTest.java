@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,11 +45,11 @@ public class CustomFixedFeeAssessorTest {
 
     private AssessmentResult result;
 
-    private final AccountID payer = asAccount(4001);
-    private final AccountID otherCollector = asAccount(1001);
-    private final AccountID funding = asAccount(98);
+    private final AccountID payer = asAccount(0L, 0L, 4001);
+    private final AccountID otherCollector = asAccount(0L, 0L, 1001);
+    private final AccountID funding = asAccount(0L, 0L, 98);
     private final TokenID firstFungibleTokenId = asToken(3000);
-    private final AccountID minter = asAccount(6000);
+    private final AccountID minter = asAccount(0L, 0L, 6000);
     private final TokenID nonFungibleTokenId = asToken(70000);
     private final TokenTransferList nftTransferList = asNftTransferList(nonFungibleTokenId, payer, funding, 1);
     final FixedFee htsFixedFee = FixedFee.newBuilder()

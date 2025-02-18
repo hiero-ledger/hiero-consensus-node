@@ -26,15 +26,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * This class contains common functionality needed for crypto handlers.
  */
 public class BaseCryptoHandler {
-    /**
-     * Gets the accountId from the account number provided.
-     * @param num the account number
-     * @return the accountID
-     */
-    @NonNull
-    public static AccountID asAccount(final long num) {
-        return AccountID.newBuilder().accountNum(num).build();
-    }
 
     /**
      * Gets the accountId from the account number provided.
