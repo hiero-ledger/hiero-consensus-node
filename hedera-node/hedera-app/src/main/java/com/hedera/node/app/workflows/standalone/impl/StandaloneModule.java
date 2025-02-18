@@ -19,6 +19,7 @@ package com.hedera.node.app.workflows.standalone.impl;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyHolder;
@@ -61,9 +62,9 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     @NodeSelfId
-    static AccountID provideNodeSelfId() {
+    static AccountID provideNodeSelfId(EntityIdFactory entityIdFactory) {
         // This is only used to check the shard and realm of account ids
-        return AccountID.DEFAULT;
+        return entityIdFactory.newDefaultAccountId();
     }
 
     @Provides
