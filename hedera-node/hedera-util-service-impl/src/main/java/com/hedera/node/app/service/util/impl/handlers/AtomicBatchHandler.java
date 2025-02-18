@@ -20,14 +20,19 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -39,8 +44,14 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AtomicBatchConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -49,14 +60,18 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class AtomicBatchHandler implements TransactionHandler {
+    private final Supplier<FeeCharging> appFeeCharging;
     private final Function<Transaction, TransactionBody> bodyParser;
 
     /**
      * Constructs a {@link AtomicBatchHandler}
      */
     @Inject
-    public AtomicBatchHandler(Function<Transaction, TransactionBody> bodyParser) {
-        this.bodyParser = bodyParser;
+    public AtomicBatchHandler(
+            @NonNull final AppContext appContext, @NonNull final Function<Transaction, TransactionBody> bodyParser) {
+        requireNonNull(appContext);
+        this.bodyParser = requireNonNull(bodyParser);
+        this.appFeeCharging = appContext.feeChargingSupplier();
     }
 
     /**
@@ -135,5 +150,78 @@ public class AtomicBatchHandler implements TransactionHandler {
         // adjust the price based on the number of signatures
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
         return calculator.calculate();
+    }
+
+    /**
+     * A {@link FeeCharging} strategy that delegates to a given {@link FeeCharging} and records the balance adjustments
+     * made by that strategy's charging logic.
+     */
+    static class RecordedFeeCharging implements FeeCharging {
+        private final FeeCharging delegate;
+        private final SortedMap<AccountID, Long> balanceAdjustments = new TreeMap<>(ACCOUNT_ID_COMPARATOR);
+
+        public RecordedFeeCharging(@NonNull final FeeCharging delegate) {
+            this.delegate = requireNonNull(delegate);
+        }
+
+        @Override
+        public Validation validate(
+                @NonNull final Account payer,
+                @NonNull final AccountID creatorId,
+                @NonNull final Fees fees,
+                @NonNull final TransactionBody body,
+                final boolean isDuplicate,
+                @NonNull final HederaFunctionality function,
+                @NonNull final HandleContext.TransactionCategory category) {
+            return delegate.validate(payer, creatorId, fees, body, isDuplicate, function, category);
+        }
+
+        @Override
+        public void charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+            final var recordedCtx = new RecordedContext(ctx);
+            delegate.charge(recordedCtx, validation, fees);
+            balanceAdjustments.putAll(recordedCtx.cumulativeAdjustments);
+        }
+
+        private static class RecordedContext implements Context {
+            private final Context delegate;
+            private final Map<AccountID, Long> cumulativeAdjustments = new HashMap<>();
+
+            public RecordedContext(@NonNull final Context delegate) {
+                this.delegate = requireNonNull(delegate);
+            }
+
+            @Override
+            public void charge(
+                    @NonNull final AccountID payerId,
+                    @NonNull final Fees fees,
+                    @Nullable final Map<AccountID, Long> balanceAdjustments) {
+                final Map<AccountID, Long> adjustments = new HashMap<>();
+                delegate.charge(payerId, fees, adjustments);
+                adjustments.forEach((key, value) -> cumulativeAdjustments.merge(key, value, Long::sum));
+                if (balanceAdjustments != null) {
+                    balanceAdjustments.putAll(adjustments);
+                }
+            }
+
+            @Override
+            public void charge(
+                    @NonNull final AccountID payerId,
+                    @NonNull final Fees fees,
+                    @NonNull final AccountID nodeAccountId,
+                    @Nullable final Map<AccountID, Long> balanceAdjustments) {
+                final Map<AccountID, Long> adjustments = new HashMap<>();
+                delegate.charge(payerId, fees, nodeAccountId, adjustments);
+                adjustments.forEach((key, value) -> cumulativeAdjustments.merge(key, value, Long::sum));
+                if (balanceAdjustments != null) {
+                    balanceAdjustments.putAll(adjustments);
+                }
+            }
+
+            @Override
+            public HandleContext.TransactionCategory category() {
+                return delegate.category();
+            }
+        }
     }
 }

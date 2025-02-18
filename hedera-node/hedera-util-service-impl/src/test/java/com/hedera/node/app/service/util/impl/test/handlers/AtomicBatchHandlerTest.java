@@ -38,6 +38,7 @@ import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
+import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -60,6 +61,9 @@ class AtomicBatchHandlerTest {
     private StreamBuilder recordBuilder;
 
     @Mock
+    private AppContext appContext;
+
+    @Mock
     private Function<Transaction, TransactionBody> bodyParser;
 
     private AtomicBatchHandler subject;
@@ -80,7 +84,7 @@ class AtomicBatchHandlerTest {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
 
-        subject = new AtomicBatchHandler(bodyParser);
+        subject = new AtomicBatchHandler(appContext, bodyParser);
     }
 
     @Test

@@ -40,6 +40,7 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -230,14 +231,20 @@ public interface Dispatch extends FeeCharging.Context {
     }
 
     @Override
-    default void charge(@NonNull final AccountID payerId, @NonNull final Fees fees) {
-        feeAccumulator().chargeNetworkFee(payerId, fees.totalFee());
+    default void charge(
+            @NonNull final AccountID payerId,
+            @NonNull final Fees fees,
+            @Nullable final Map<AccountID, Long> balanceAdjustments) {
+        feeAccumulator().chargeNetworkFee(payerId, fees.totalFee(), balanceAdjustments);
     }
 
     @Override
     default void charge(
-            @NonNull final AccountID payerId, @NonNull final Fees fees, @NonNull final AccountID nodeAccountId) {
-        feeAccumulator().chargeFees(payerId, nodeAccountId, fees);
+            @NonNull final AccountID payerId,
+            @NonNull final Fees fees,
+            @NonNull final AccountID nodeAccountId,
+            @Nullable Map<AccountID, Long> balanceAdjustments) {
+        feeAccumulator().chargeFees(payerId, nodeAccountId, fees, balanceAdjustments);
     }
 
     @Override

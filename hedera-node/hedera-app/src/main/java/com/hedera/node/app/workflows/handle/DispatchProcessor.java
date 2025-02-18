@@ -226,7 +226,7 @@ public class DispatchProcessor {
         }
         dispatch.feeAccumulator()
                 .chargeNetworkFee(
-                        dispatch.creatorInfo().accountId(), dispatch.fees().networkFee());
+                        dispatch.creatorInfo().accountId(), dispatch.fees().networkFee(), null);
     }
 
     /**
