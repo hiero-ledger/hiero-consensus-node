@@ -156,7 +156,6 @@ import com.hedera.services.bdd.spec.utilops.mod.SubmitModificationsOp;
 import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
-import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
@@ -696,14 +695,6 @@ public class UtilVerbs {
      */
     public static HapiSpecWaitUntil waitUntilStartOfNextAdhocPeriod(final long periodMs) {
         return untilStartOfNextAdhocPeriod(periodMs);
-    }
-
-    /**
-     * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next block stream block.
-     * @return the operation that sleeps until the beginning of the next block stream block
-     */
-    public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
-        return new HapiSpecWaitUntilNextBlock();
     }
 
     public static HapiSpecWaitUntil waitUntilJustBeforeNextStakingPeriod(

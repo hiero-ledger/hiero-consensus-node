@@ -376,7 +376,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase implement
                 fileCreate(filename).contents("anyContent"),
                 getFileContents(filename).payingWith(NODE_OPERATOR).asNodeOperator(),
                 getFileContents(filename).payingWith(PAYER),
-                sleepFor(3_000),
+                sleepFor(1_000),
                 getAccountBalance(NODE_OPERATOR).hasTinyBars(ONE_HUNDRED_HBARS),
                 getAccountBalance(PAYER).hasTinyBars(lessThan(ONE_HUNDRED_HBARS))));
     }

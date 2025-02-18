@@ -185,13 +185,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         try {
             writableStreamingData.close();
             state = State.CLOSED;
-            // Write a .mf file to indicate that the block file is complete.
-            final Path markerFile = getBlockFilePath(blockNumber).resolveSibling(longToFileName(blockNumber) + ".mf");
-            if (Files.exists(markerFile)) {
-                logger.info("Skipping block marker file for {} as it already exists", markerFile);
-            } else {
-                Files.createFile(markerFile);
-            }
         } catch (final IOException e) {
             logger.error("Error closing the FileBlockItemWriter output stream", e);
             throw new UncheckedIOException(e);
@@ -216,7 +209,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * @return the 36-character string padded with leading zeros
      */
     @NonNull
-    public static String longToFileName(final long value) {
+    private static String longToFileName(final long value) {
         // Convert the signed long to an unsigned long using BigInteger for correct representation
         BigInteger unsignedValue =
                 BigInteger.valueOf(value & Long.MAX_VALUE).add(BigInteger.valueOf(Long.MIN_VALUE & value));
