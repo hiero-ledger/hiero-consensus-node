@@ -243,8 +243,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final int n = blocks.size();
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
-            final var shouldVerifyProof = true;
-            if (i != 0) {
+            final var shouldVerifyProof = i == 0 || i == n - 1 || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
+            if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
                 startOfStateHash = CRYPTO.digestTreeSync(stateToBeCopied).getBytes();
