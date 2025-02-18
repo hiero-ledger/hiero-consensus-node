@@ -29,7 +29,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Map;
+import java.util.function.ObjLongConsumer;
 
 /**
  * Defines mutations that can't be expressed as a {@link com.hedera.hapi.node.transaction.TransactionBody} dispatch.
@@ -199,14 +199,14 @@ public interface TokenServiceApi {
      * @param payer the id of the account that should be charged
      * @param amount the amount to charge
      * @param recordBuilder the record builder to record the fees in
-     * @param balanceAdjustments if not null, a map to record the balance adjustments in
+     * @param cb if not null, a callback to receive the fee disbursements
      * @return true if the full amount was charged, false otherwise
      */
     boolean chargeNetworkFee(
             @NonNull AccountID payer,
             long amount,
             @NonNull FeeStreamBuilder recordBuilder,
-            @Nullable Map<AccountID, Long> balanceAdjustments);
+            @Nullable ObjLongConsumer<AccountID> cb);
 
     /**
      * Charges the payer the given fees, and records those fees in the given record builder.
@@ -215,14 +215,14 @@ public interface TokenServiceApi {
      * @param nodeAccount the id of the node that should receive the node fee, if present and payable
      * @param fees the fees to charge
      * @param recordBuilder the record builder to record the fees in
-     * @param balanceAdjustments if not null, a map to record the balance adjustments in
+     * @param cb if not null, a map to record the balance adjustments in
      */
     void chargeFees(
             @NonNull AccountID payer,
             AccountID nodeAccount,
             @NonNull Fees fees,
             @NonNull FeeStreamBuilder recordBuilder,
-            @Nullable Map<AccountID, Long> balanceAdjustments);
+            @Nullable ObjLongConsumer<AccountID> cb);
 
     /**
      * Refunds the given fees to the given receiver, and records those fees in the given record builder.

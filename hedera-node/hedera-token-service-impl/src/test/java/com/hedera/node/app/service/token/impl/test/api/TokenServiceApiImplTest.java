@@ -493,7 +493,12 @@ class TokenServiceApiImplTest {
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we charge network+service fees of 10 tinybars and a node fee of 2 tinybars
-            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, adjustments);
+            subject.chargeFees(
+                    EOA_ACCOUNT_ID,
+                    NODE_ACCOUNT_ID,
+                    fees,
+                    rb,
+                    (id, amount) -> adjustments.merge(id, amount, Long::sum));
 
             // Then we find that 10% go to node rewards, 20% to staking rewards, and the rest to the funding account
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
@@ -529,7 +534,12 @@ class TokenServiceApiImplTest {
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we charge fees of 10 tinybars
-            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, adjustments);
+            subject.chargeFees(
+                    EOA_ACCOUNT_ID,
+                    NODE_ACCOUNT_ID,
+                    fees,
+                    rb,
+                    (id, amount) -> adjustments.merge(id, amount, Long::sum));
 
             // Then we find that all the fees go to the funding account
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));

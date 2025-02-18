@@ -24,7 +24,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.Fees;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Map;
+import java.util.function.ObjLongConsumer;
 
 /**
  * Accumulates fees for a given transaction. They can either be charged to a payer account, ore refunded to a receiver
@@ -50,15 +50,13 @@ public class FeeAccumulator {
      *
      * @param payer The account to charge the fees to
      * @param networkFee The network fee to charge
-     * @param balanceAdjustments if not null, the map to record the balance adjustments in
+     * @param cb if not null, a callback to receive the fee disbursements
      * @return true if the full fee was charged
      */
     public boolean chargeNetworkFee(
-            @NonNull final AccountID payer,
-            final long networkFee,
-            @Nullable final Map<AccountID, Long> balanceAdjustments) {
+            @NonNull final AccountID payer, final long networkFee, @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(payer);
-        return tokenApi.chargeNetworkFee(payer, networkFee, recordBuilder, balanceAdjustments);
+        return tokenApi.chargeNetworkFee(payer, networkFee, recordBuilder, cb);
     }
 
     /**
@@ -68,17 +66,17 @@ public class FeeAccumulator {
      * @param payer The account to charge the fees to
      * @param nodeAccount The node account to receive the node fee
      * @param fees The fees to charge
-     * @param balanceAdjustments if not null, the map to record the balance adjustments in
+     * @param cb if not null, a callback to receive the fee disbursements
      */
     public void chargeFees(
             @NonNull AccountID payer,
             @NonNull final AccountID nodeAccount,
             @NonNull Fees fees,
-            @Nullable final Map<AccountID, Long> balanceAdjustments) {
+            @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(payer);
         requireNonNull(nodeAccount);
         requireNonNull(fees);
-        tokenApi.chargeFees(payer, nodeAccount, fees, recordBuilder, balanceAdjustments);
+        tokenApi.chargeFees(payer, nodeAccount, fees, recordBuilder, cb);
     }
 
     /**

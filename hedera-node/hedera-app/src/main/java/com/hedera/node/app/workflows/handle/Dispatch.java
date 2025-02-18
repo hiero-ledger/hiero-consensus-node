@@ -40,8 +40,8 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Set;
+import java.util.function.ObjLongConsumer;
 
 /**
  * The fundamental unit of work in the handle workflow.
@@ -232,10 +232,8 @@ public interface Dispatch extends FeeCharging.Context {
 
     @Override
     default void charge(
-            @NonNull final AccountID payerId,
-            @NonNull final Fees fees,
-            @Nullable final Map<AccountID, Long> balanceAdjustments) {
-        feeAccumulator().chargeNetworkFee(payerId, fees.totalFee(), balanceAdjustments);
+            @NonNull final AccountID payerId, @NonNull final Fees fees, @Nullable final ObjLongConsumer<AccountID> cb) {
+        feeAccumulator().chargeNetworkFee(payerId, fees.totalFee(), cb);
     }
 
     @Override
@@ -243,8 +241,8 @@ public interface Dispatch extends FeeCharging.Context {
             @NonNull final AccountID payerId,
             @NonNull final Fees fees,
             @NonNull final AccountID nodeAccountId,
-            @Nullable Map<AccountID, Long> balanceAdjustments) {
-        feeAccumulator().chargeFees(payerId, nodeAccountId, fees, balanceAdjustments);
+            @Nullable ObjLongConsumer<AccountID> cb) {
+        feeAccumulator().chargeFees(payerId, nodeAccountId, fees, cb);
     }
 
     @Override
