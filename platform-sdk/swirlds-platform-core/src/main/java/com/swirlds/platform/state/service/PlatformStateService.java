@@ -16,12 +16,8 @@
 
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V059RosterLifecycleTransitionSchema;
@@ -30,9 +26,7 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.singleton.SingletonNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -78,40 +72,5 @@ public enum PlatformStateService implements Service {
      */
     public void setAppVersionFn(@NonNull final Function<Configuration, SoftwareVersion> appVersionFn) {
         APP_VERSION_FN.set(requireNonNull(appVersionFn));
-    }
-
-    /**
-     * Given a {@link MerkleStateRoot}, returns the creation version of the platform state if it exists.
-     * @param root the root to extract the creation version from
-     * @return the creation version of the platform state, or null if the state is a genesis state
-     */
-    public SemanticVersion creationVersionOf(@NonNull final MerkleStateRoot<?> root) {
-        requireNonNull(root);
-        final var state = platformStateOf(root);
-        return state == null ? null : state.creationSoftwareVersionOrThrow();
-    }
-
-    /**
-     * Given a {@link MerkleStateRoot}, returns the round number of the platform state if it exists.
-     * @param root the root to extract the round number from
-     * @return the round number of the platform state, or zero if the state is a genesis state
-     */
-    public long roundOf(@NonNull final MerkleStateRoot<?> root) {
-        requireNonNull(root);
-        final var platformState = platformStateOf(root);
-        return platformState == null
-                ? 0L
-                : platformState
-                        .consensusSnapshotOrElse(ConsensusSnapshot.DEFAULT)
-                        .round();
-    }
-
-    @SuppressWarnings("unchecked")
-    public @Nullable PlatformState platformStateOf(@NonNull final MerkleStateRoot<?> root) {
-        final var index = root.findNodeIndex(NAME, PLATFORM_STATE_KEY);
-        if (index == -1) {
-            return null;
-        }
-        return ((SingletonNode<PlatformState>) root.getChild(index)).getValue();
     }
 }

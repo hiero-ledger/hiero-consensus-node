@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
 import static java.util.Objects.requireNonNull;
@@ -35,6 +36,7 @@ import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.DispatchOptions.StakingRewards;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -100,7 +102,13 @@ public class HandleSystemContractOperations implements SystemContractOperations 
                 authorizingKeys,
                 streamBuilderType,
                 StakingRewards.OFF,
-                usePresetTxnId));
+                usePresetTxnId,
+                // Currently the contract service "manually" pre-computes fees and takes them out of the EVM
+                // transaction's remaining gas, so there is no more charging to do in the DispatchProcessor;
+                // FUTURE - make the custom implementation here _directly_ deduct from remaining gas without
+                // the manual precomputation upstream from here
+                NOOP_FEE_CHARGING,
+                PropagateFeeChargingStrategy.YES));
     }
 
     @Override

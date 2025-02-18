@@ -72,6 +72,7 @@ import "state/tss/tss_vote_map_key.proto";
 import "state/hints/hints_types.proto";
 import "state/history/history_types.proto";
 import "state/entity/entity_counts.proto";
+import "auxiliary/hints/crs_publication.proto";
 
 /**
  * A set of state changes.
@@ -458,6 +459,16 @@ enum StateIdentifier {
     STATE_ID_PROOF_VOTES = 47;
 
     /**
+     * A state identifier for the CRS state.
+     */
+    STATE_ID_CRS_STATE = 48;
+
+    /**
+     * A state identifier for the CRS publications.
+     */
+    STATE_ID_CRS_PUBLICATIONS = 49;
+
+    /**
      * A state identifier for the round receipts queue.
      */
     STATE_ID_TRANSACTION_RECEIPTS_QUEUE = 126;
@@ -681,6 +692,11 @@ message SingletonUpdateChange {
          * A change to a hinTS construction singleton.
          */
         com.hedera.hapi.node.state.history.HistoryProofConstruction history_proof_construction_value = 16;
+
+        /**
+         * A change to the CRS State singleton.
+         */
+        com.hedera.hapi.node.state.hints.CRSState crs_state_value = 17;
     }
 }
 
@@ -1000,6 +1016,11 @@ message MapChangeValue {
          * A hinTS preprocessing vote.
          */
         com.hedera.hapi.node.state.hints.PreprocessingVote preprocessing_vote_value = 24;
+
+        /**
+         * A CRS publication submission.
+         */
+        com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication_value = 25;
     }
 }
 

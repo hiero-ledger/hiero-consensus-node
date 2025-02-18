@@ -21,7 +21,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.*;
 import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -179,7 +179,7 @@ public class CommonPbjConverters {
      * @param <T> the PBJ type
      * @param <R> the proto type
      */
-    public static <T extends Record, R extends GeneratedMessageV3> R pbjToProto(
+    public static <T extends Record, R extends GeneratedMessage> R pbjToProto(
             final T pbj, final Class<T> pbjClass, final Class<R> protoClass) {
         try {
             final var codecField = pbjClass.getDeclaredField("PROTOBUF");
@@ -216,11 +216,11 @@ public class CommonPbjConverters {
                 customFee, CustomFee.PROTOBUF, com.hederahashgraph.api.proto.java.CustomFee::parseFrom);
     }
 
-    private interface ProtoParser<R extends GeneratedMessageV3> {
+    private interface ProtoParser<R extends GeneratedMessage> {
         R parseFrom(byte[] bytes) throws InvalidProtocolBufferException;
     }
 
-    private static <T extends Record, R extends GeneratedMessageV3> R explicitPbjToProto(
+    private static <T extends Record, R extends GeneratedMessage> R explicitPbjToProto(
             @NonNull final T pbj, @NonNull final Codec<T> pbjCodec, @NonNull final ProtoParser<R> protoParser) {
         requireNonNull(pbj);
         requireNonNull(pbjCodec);
@@ -265,7 +265,7 @@ public class CommonPbjConverters {
         return builder.build();
     }
 
-    public static <T extends GeneratedMessageV3, R extends Record> @NonNull R protoToPbj(
+    public static <T extends GeneratedMessage, R extends Record> @NonNull R protoToPbj(
             @NonNull final T proto, @NonNull final Class<R> pbjClass) {
         try {
             final var bytes = requireNonNull(proto).toByteArray();

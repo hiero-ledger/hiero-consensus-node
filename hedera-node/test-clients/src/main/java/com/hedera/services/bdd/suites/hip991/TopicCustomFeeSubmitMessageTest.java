@@ -29,6 +29,7 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.isEndOfStakingPeriodRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -68,6 +69,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_C
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -1879,9 +1881,10 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                                 .hasAssessedCustomFeesSize(28)
                                 .logged();
                         allRunFor(spec, submitTxnRecord);
-                        final var transactionRecordSize =
-                                submitTxnRecord.getChildRecords().size();
-                        assertEquals(0, transactionRecordSize);
+                        final var nonStakingChildRecords = submitTxnRecord.getChildRecords().stream()
+                                .filter(child -> !isEndOfStakingPeriodRecord(child))
+                                .toList();
+                        assertTrue(nonStakingChildRecords.isEmpty(), "Topic fees should not result in child records");
                     }),
                     // assert topic fee collector balance
                     assertAllCollectorsBalances(9)));

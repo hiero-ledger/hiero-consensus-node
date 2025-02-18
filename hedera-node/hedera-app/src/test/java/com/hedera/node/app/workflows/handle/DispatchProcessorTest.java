@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,9 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,6 +61,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
@@ -71,6 +74,7 @@ import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.DispatchValidator;
@@ -83,6 +87,7 @@ import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -175,6 +180,9 @@ class DispatchProcessorTest {
     @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
 
+    @Mock
+    private SolvencyPreCheck solvencyPreCheck;
+
     private DispatchProcessor subject;
 
     @BeforeEach
@@ -190,7 +198,8 @@ class DispatchProcessorTest {
                 dispatcher,
                 ethereumTransactionHandler,
                 networkInfo,
-                opWorkflowMetrics);
+                opWorkflowMetrics,
+                new AppFeeCharging(solvencyPreCheck));
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.recordBuilder()).willReturn(recordBuilder);
     }
@@ -199,8 +208,11 @@ class DispatchProcessorTest {
     void creatorErrorAsExpected() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch))
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
                 .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_SIGNATURE));
+        final var creatorInfo = mock(NodeInfo.class);
+        given(dispatch.creatorInfo()).willReturn(creatorInfo);
+        given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -213,7 +225,8 @@ class DispatchProcessorTest {
 
     @Test
     void waivedFeesDoesNotCharge() {
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.fees()).willReturn(FEES);
@@ -235,7 +248,8 @@ class DispatchProcessorTest {
 
     @Test
     void unauthorizedSystemDeleteIsNotSupported() {
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(SYS_DEL_TXN_INFO);
         given(authorizer.isAuthorized(PAYER_ACCOUNT_ID, SYS_DEL_TXN_INFO.functionality()))
@@ -243,6 +257,9 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -256,7 +273,8 @@ class DispatchProcessorTest {
 
     @Test
     void unauthorizedOtherIsUnauthorized() {
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(SYS_UNDEL_TXN_INFO);
         given(authorizer.isAuthorized(PAYER_ACCOUNT_ID, SYS_UNDEL_TXN_INFO.functionality()))
@@ -264,6 +282,9 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -277,7 +298,8 @@ class DispatchProcessorTest {
 
     @Test
     void unprivilegedSystemUndeleteIsAuthorizationFailed() {
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(SYS_DEL_TXN_INFO);
         given(authorizer.isAuthorized(PAYER_ACCOUNT_ID, SYS_DEL_TXN_INFO.functionality()))
@@ -287,6 +309,9 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -300,7 +325,8 @@ class DispatchProcessorTest {
 
     @Test
     void unprivilegedSystemDeleteIsImpermissible() {
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(SYS_DEL_TXN_INFO);
         given(authorizer.isAuthorized(PAYER_ACCOUNT_ID, SYS_DEL_TXN_INFO.functionality()))
@@ -310,6 +336,9 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -323,7 +352,8 @@ class DispatchProcessorTest {
 
     @Test
     void invalidSignatureCryptoTransferFails() {
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.txnCategory()).willReturn(USER);
@@ -333,6 +363,9 @@ class DispatchProcessorTest {
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
         given(dispatch.requiredKeys()).willReturn(Set.of(Key.DEFAULT));
         given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(FAILED_VERIFICATION);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -346,7 +379,8 @@ class DispatchProcessorTest {
 
     @Test
     void invalidHollowAccountCryptoTransferFails() {
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         givenAuthorization();
@@ -358,6 +392,9 @@ class DispatchProcessorTest {
         given(dispatch.hollowAccounts()).willReturn(Set.of(HOLLOW));
         given(keyVerifier.verificationFor(HOLLOW.alias())).willReturn(FAILED_VERIFICATION);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -373,7 +410,8 @@ class DispatchProcessorTest {
     void thrownHandleExceptionRollsBackIfRequested() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.handleContext()).willReturn(context);
@@ -382,6 +420,9 @@ class DispatchProcessorTest {
                 .when(dispatcher)
                 .dispatchHandle(context);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -398,7 +439,8 @@ class DispatchProcessorTest {
     void thrownHandleExceptionDoesNotRollBackIfNotRequested() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CONTRACT_TXN_INFO);
         given(dispatch.handleContext()).willReturn(context);
@@ -407,6 +449,9 @@ class DispatchProcessorTest {
                 .when(dispatcher)
                 .dispatchHandle(context);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -422,7 +467,8 @@ class DispatchProcessorTest {
     void consGasExhaustedWaivesServiceFee() throws ThrottleException {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CONTRACT_TXN_INFO);
         givenAuthorization(CONTRACT_TXN_INFO);
@@ -430,6 +476,9 @@ class DispatchProcessorTest {
                 .when(dispatchUsageManager)
                 .screenForCapacity(dispatch);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -446,7 +495,8 @@ class DispatchProcessorTest {
     void throttledTxIncrementsMetric() throws ThrottleException {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
@@ -454,6 +504,9 @@ class DispatchProcessorTest {
         doThrow(ThrottleException.newGasThrottleException())
                 .when(dispatchUsageManager)
                 .screenForCapacity(dispatch);
+        doCallRealMethod().when(dispatch).charge(any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -469,7 +522,8 @@ class DispatchProcessorTest {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.handleContext()).willReturn(context);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(ETH_TXN_INFO);
         givenAuthorization(ETH_TXN_INFO);
@@ -477,6 +531,9 @@ class DispatchProcessorTest {
                 .when(dispatchUsageManager)
                 .screenForCapacity(dispatch);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -494,13 +551,17 @@ class DispatchProcessorTest {
     void failInvalidWaivesServiceFee() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.handleContext()).willReturn(context);
         givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
         doThrow(new IllegalStateException()).when(dispatcher).dispatchHandle(context);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -516,7 +577,8 @@ class DispatchProcessorTest {
     void happyPathContractCallAsExpected() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CONTRACT_TXN_INFO);
         given(dispatch.handleContext()).willReturn(context);
@@ -528,6 +590,9 @@ class DispatchProcessorTest {
         given(keyVerifier.verificationFor(HOLLOW.alias())).willReturn(PASSED_VERIFICATION);
         givenAuthorization(CONTRACT_TXN_INFO);
         givenSystemEffectSuccess(CONTRACT_TXN_INFO);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -543,18 +608,25 @@ class DispatchProcessorTest {
     void happyPathChildCryptoTransferAsExpected() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
         given(dispatch.handleContext()).willReturn(context);
         givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        doCallRealMethod().when(dispatch).charge(any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
         verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder).status(SUCCESS);
         verify(feeAccumulator).chargeNetworkFee(PAYER_ACCOUNT_ID, FEES.totalFee());
+        verify(feeAccumulator)
+                .chargeNetworkFee(
+                        PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee());
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
         assertFinished(IsRootStack.NO);
     }
@@ -562,7 +634,8 @@ class DispatchProcessorTest {
     @Test
     void happyPathFreeChildCryptoTransferAsExpected() {
         given(dispatch.fees()).willReturn(Fees.FREE);
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.handleContext()).willReturn(context);
@@ -580,7 +653,7 @@ class DispatchProcessorTest {
     void unableToAffordServiceFeesChargesAccordingly() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch))
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
                 .willReturn(newPayerError(
                         CREATOR_ACCOUNT_ID,
                         PAYER,
@@ -590,6 +663,9 @@ class DispatchProcessorTest {
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -604,11 +680,14 @@ class DispatchProcessorTest {
     void duplicateChargesAccordingly() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validationReportFor(dispatch))
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
                 .willReturn(newPayerDuplicateError(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 
@@ -622,7 +701,8 @@ class DispatchProcessorTest {
 
     @Test
     void unauthorizedNodeCreateWhenPayerNotTreasurySysAdminAddressBookAdmin() {
-        given(dispatchValidator.validationReportFor(dispatch)).willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(NODE_CREATE_TXN_INFO);
         given(authorizer.isAuthorized(PAYER_ACCOUNT_ID, NODE_CREATE_TXN_INFO.functionality()))
@@ -630,6 +710,9 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         subject.processDispatch(dispatch);
 

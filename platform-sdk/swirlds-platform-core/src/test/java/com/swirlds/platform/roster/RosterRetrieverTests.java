@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.swirlds.platform.roster;
 
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -215,7 +216,7 @@ public class RosterRetrieverTests {
 
     @Test
     void testGetRound() {
-        assertEquals(666L, RosterRetriever.getRound(state));
+        assertEquals(666L, TEST_PLATFORM_STATE_FACADE.roundOf(state));
     }
 
     private static Stream<Arguments> provideArgumentsForGetActiveRosterHash() {
@@ -239,7 +240,7 @@ public class RosterRetrieverTests {
 
     @Test
     void testRetrieveActiveOrGenesisActiveRoster() {
-        assertEquals(ROSTER_666, RosterRetriever.retrieveActiveOrGenesisRoster(state));
+        assertEquals(ROSTER_666, RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
     }
 
     private static Stream<Arguments> provideArgumentsForRetrieveActiveOrGenesisActiveParametrizedRoster() {
@@ -259,7 +260,7 @@ public class RosterRetrieverTests {
     @MethodSource("provideArgumentsForRetrieveActiveOrGenesisActiveParametrizedRoster")
     void testRetrieveActiveOrGenesisActiveParametrizedRoster(final long round, final Roster roster) {
         doReturn(round).when(consensusSnapshot).round();
-        assertEquals(roster, RosterRetriever.retrieveActiveOrGenesisRoster(state));
+        assertEquals(roster, RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
     }
 
     private static Stream<Arguments> provideArgumentsForRetrieveActiveOrGenesisActiveForRoundRoster() {
@@ -285,14 +286,18 @@ public class RosterRetrieverTests {
     void testRetrieveActiveOrGenesisActiveAddressBookRoster() {
         // First try a very old round for which there's not a roster
         doReturn(554L).when(consensusSnapshot).round();
-        assertEquals(ROSTER_FROM_ADDRESS_BOOK, RosterRetriever.retrieveActiveOrGenesisRoster(state));
+        assertEquals(
+                ROSTER_FROM_ADDRESS_BOOK,
+                RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
 
         // Then try a newer round, but remove the roster from the RosterMap
         doReturn(666L).when(consensusSnapshot).round();
         doReturn(null)
                 .when(rosterMap)
                 .get(eq(ProtoBytes.newBuilder().value(HASH_666).build()));
-        assertEquals(ROSTER_FROM_ADDRESS_BOOK, RosterRetriever.retrieveActiveOrGenesisRoster(state));
+        assertEquals(
+                ROSTER_FROM_ADDRESS_BOOK,
+                RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
     }
 
     public static X509Certificate randomX509Certificate() {

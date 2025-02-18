@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.signature.AppKeyVerifier;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -32,6 +33,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Set;
 
@@ -53,5 +55,6 @@ public record RecordDispatch(
         @NonNull HandleContext.TransactionCategory txnCategory,
         @NonNull FinalizeContext finalizeContext,
         @NonNull PreHandleResult preHandleResult,
-        @NonNull HandleContext.ConsensusThrottling throttleStrategy)
+        @NonNull HandleContext.ConsensusThrottling throttleStrategy,
+        @Nullable FeeCharging customFeeCharging)
         implements Dispatch {}

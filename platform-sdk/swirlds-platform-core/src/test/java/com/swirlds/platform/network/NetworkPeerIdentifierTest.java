@@ -95,6 +95,7 @@ class NetworkPeerIdentifierTest {
                 peer = new PeerInfo(
                         id,
                         "127.0.0.1",
+                        12345,
                         Objects.requireNonNull(publicStores.getCertificate(KeyCertPurpose.SIGNING, id)));
             } catch (final KeyLoadingException e) {
                 throw new RuntimeException(e);

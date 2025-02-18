@@ -77,6 +77,7 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.GenesisNetworkInfo;
@@ -143,6 +144,7 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.ReadableRosterStore;
@@ -174,7 +176,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -286,6 +288,12 @@ public final class Hedera
     private final BlockStreamService blockStreamService;
 
     /**
+     * The platform state facade singleton, kept as a field here to avoid constructing twice`
+     * (once in constructor to register schemas, again inside Dagger component).
+     */
+    private final PlatformStateFacade platformStateFacade;
+
+    /**
      * The block hash signer factory.
      */
     private final BlockHashSignerFactory blockHashSignerFactory;
@@ -359,7 +367,7 @@ public final class Hedera
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiConsumer<Round, State> onSealConsensusRound;
+    private final BiPredicate<Round, State> onSealConsensusRound;
     /**
      * Once set, a future that resolves to the hash of the state used to initialize the application. This is known
      * immediately at genesis or on restart from a saved state; during reconnect, it is known when reconnect
@@ -427,6 +435,7 @@ public final class Hedera
      * @param historyServiceFactory  the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
      * @param metrics                the metrics object to use for reporting
+     * @param platformStateFacade    the facade object to access platform state
      */
     public Hedera(
             @NonNull final ConstructableRegistry constructableRegistry,
@@ -437,7 +446,8 @@ public final class Hedera
             @NonNull final HintsServiceFactory hintsServiceFactory,
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
@@ -447,6 +457,7 @@ public final class Hedera
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
+        this.platformStateFacade = requireNonNull(platformStateFacade);
         logger.info(
                 """
 
@@ -485,12 +496,14 @@ public final class Hedera
                         () -> daggerApp.workingStateAccessor().getState(),
                         () -> daggerApp.throttleServiceManager().activeThrottleDefinitionsOrThrow(),
                         ThrottleAccumulator::new,
-                        ignore -> version));
+                        ignore -> version),
+                () -> daggerApp.appFeeCharging(),
+                new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
-        scheduleServiceImpl = new ScheduleServiceImpl();
+        scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
@@ -512,7 +525,11 @@ public final class Hedera
                         new CongestionThrottleService(),
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl(),
-                        new RosterService(this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
+                        new RosterService(
+                                this::canAdoptRoster,
+                                this::onAdoptRoster,
+                                () -> requireNonNull(initState),
+                                platformStateFacade),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
         try {
@@ -521,7 +538,7 @@ public final class Hedera
                     () -> new PlatformMerkleStateRoot(ServicesSoftwareVersion::new);
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
-            onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> {};
+            onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
             // And the factory for the MerkleStateRoot class id must be our constructor
             constructableRegistry.registerConstructable(
                     new ClassConstructorPair(PlatformMerkleStateRoot.class, stateRootSupplier));
@@ -612,7 +629,7 @@ public final class Hedera
         requireNonNull(state);
         requireNonNull(platformConfig);
         this.configProvider = new ConfigProviderImpl(trigger == GENESIS, metrics);
-        final var deserializedVersion = serviceMigrator.creationVersionOf(state);
+        final var deserializedVersion = platformStateFacade.creationSemanticVersionOf(state);
         logger.info(
                 "Initializing Hedera state version {} in {} mode with trigger {} and previous version {}",
                 version,
@@ -644,8 +661,8 @@ public final class Hedera
         final var readableStore = new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
         logger.info(
                 "Platform state includes freeze time={} and last frozen={}",
-                readableStore.getFreezeTime(),
-                readableStore.getLastFrozenTime());
+                platformStateFacade.freezeTimeOf(state),
+                platformStateFacade.lastFrozenTimeOf(state));
     }
 
     /**
@@ -734,7 +751,8 @@ public final class Hedera
                 metrics,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                platformStateFacade);
         this.initState = null;
         migrationStateChanges = new ArrayList<>(migrationChanges);
         kvStateChangeListener.reset();
@@ -952,9 +970,7 @@ public final class Hedera
     public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         requireNonNull(state);
         requireNonNull(round);
-        onSealConsensusRound.accept(round, state);
-        // This logic to be completed in https://github.com/hashgraph/hedera-services/issues/17469
-        return true;
+        return onSealConsensusRound.test(round, state);
     }
 
     /*==================================================================================================================
@@ -1135,6 +1151,7 @@ public final class Hedera
                 .hintsService(hintsService)
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
+                .appContext(appContext)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().accept(state);
@@ -1268,8 +1285,8 @@ public final class Hedera
         return root;
     }
 
-    private void manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
-        daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
+        return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }
 
     /**

@@ -29,6 +29,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_GET_BYTECOD
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_GET_RECORDS;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE;
@@ -277,7 +278,8 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange stateSignature,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofKeyPublication,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyAssemblySignature,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofVote) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofVote,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -362,6 +364,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(HISTORY_PROOF_KEY_PUBLICATION, c -> c.historyProofKeyPublication);
         permissionKeys.put(HISTORY_ASSEMBLY_SIGNATURE, c -> c.historyAssemblySignature);
         permissionKeys.put(HISTORY_PROOF_VOTE, c -> c.historyProofVote);
+        permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
     }
 
     /**

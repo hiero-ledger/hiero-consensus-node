@@ -17,11 +17,16 @@
 package com.swirlds.platform.turtle.runner;
 
 import com.swirlds.common.test.fixtures.Randotron;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TurtleTests {
+
+    @TempDir
+    Path outputDirectory;
 
     /**
      * Simulate a turtle network for 5 minutes.
@@ -46,6 +51,7 @@ class TurtleTests {
                 .withNodeCount(4)
                 .withSimulationGranularity(Duration.ofMillis(10))
                 .withTimeReportingEnabled(true)
+                .withOutputDirectory(outputDirectory)
                 .build();
 
         turtle.start();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.takeBalanceSnapshots;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTransactionFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE;
@@ -71,7 +72,7 @@ public class ContractRecordsSanityCheckSuite {
                         "txn",
                         List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, BALANCE_LOOKUP),
                         Set.of(BALANCE_LOOKUP)),
-                validateRecordTransactionFees("txn")));
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -82,7 +83,7 @@ public class ContractRecordsSanityCheckSuite {
                 contractCreate(BALANCE_LOOKUP).balance(1_000L).via("txn"),
                 validateTransferListForBalances(
                         "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, BALANCE_LOOKUP)),
-                validateRecordTransactionFees("txn")));
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -97,7 +98,7 @@ public class ContractRecordsSanityCheckSuite {
                         .sending(1_000L),
                 validateTransferListForBalances(
                         "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, PAYABLE_CONTRACT)),
-                validateRecordTransactionFees("txn")));
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -145,7 +146,7 @@ public class ContractRecordsSanityCheckSuite {
                                         Stream.of(canonicalAccounts),
                                         Stream.of(altruists).map(suffix -> contractName + suffix))
                                 .toList()),
-                validateRecordTransactionFees(ALTRUISTIC_TXN),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, ALTRUISTIC_TXN)),
                 addLogInfo((spec, infoLog) -> {
                     long[] finalBalances = IntStream.range(0, numAltruists)
                             .mapToLong(ignore -> initBalanceFn.applyAsLong(""))
@@ -182,7 +183,7 @@ public class ContractRecordsSanityCheckSuite {
                 contractUpdate(BALANCE_LOOKUP).newKey("newKey").via("txn").fee(95_000_000L),
                 validateTransferListForBalances(
                         "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)),
-                validateRecordTransactionFees("txn")));
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     private static final String SET_NODES_ABI =
