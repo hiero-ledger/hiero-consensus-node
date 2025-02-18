@@ -23,6 +23,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -71,14 +72,10 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var op = context.body().atomicBatchOrThrow();
         validateFalsePreCheck(context.body().hasBatchKey(), MISSING_BATCH_KEY);
         for (final var transaction : op.transactions()) {
-            if (!transaction.hasBody()) {
-                throw new PreCheckException(INVALID_TRANSACTION);
-            }
+            validateTruePreCheck(transaction.hasBody(), INVALID_TRANSACTION);
 
             // validate batch key exists on each inner transaction
-            if (!transaction.bodyOrThrow().hasBatchKey()) {
-                throw new PreCheckException(MISSING_BATCH_KEY);
-            }
+            validateTruePreCheck(transaction.bodyOrThrow().hasBatchKey(), MISSING_BATCH_KEY);
         }
     }
 
