@@ -85,6 +85,7 @@ public class TopicCreateSuite {
         return hapiTest(
                 cryptoCreate("payer"),
                 cryptoCreate("autoRenewAccount"),
+                // autoRenewAccount can be set on topic without adminKey
                 createTopic("noAdminKeyExplicitAutoRenewAccount")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
@@ -151,10 +152,10 @@ public class TopicCreateSuite {
                 createTopic("NotToBe")
                         .autoRenewAccountId(PAY_RECEIVABLE_CONTRACT)
                         .hasKnownStatusFrom(INVALID_SIGNATURE),
+                // Auto-renew account should sign if set on a topic
                 createTopic("testTopic")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
-                        /* SigMap missing signature from auto-renew account's key. */
                         .signedBy("payer")
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
@@ -185,6 +186,7 @@ public class TopicCreateSuite {
                 getTopicInfo("explicitAdminKeyNoAutoRenewAccount")
                         .hasAdminKey("adminKey")
                         .logged(),
+                // Auto-renew account can be set along with admin key on topic
                 createTopic("explicitAdminKeyExplicitAutoRenewAccount")
                         .adminKeyName("adminKey")
                         .autoRenewAccountId("autoRenewAccount"),
