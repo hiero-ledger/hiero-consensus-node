@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,11 +70,11 @@ public class SimpleLinker {
     public SimpleLinker(@NonNull final AncientMode ancientMode) {
         this.ancientMode = ancientMode;
         this.parentDescriptorMap = new StandardSequenceMap<>(
-                0, INITIAL_CAPACITY,
+                0,
+                INITIAL_CAPACITY,
                 true,
-                ed -> ancientMode.selectIndicator(ed.eventDescriptor().generation(),
-                        ed.eventDescriptor().birthRound()));
-
+                ed -> ancientMode.selectIndicator(
+                        ed.eventDescriptor().generation(), ed.eventDescriptor().birthRound()));
     }
 
     /**

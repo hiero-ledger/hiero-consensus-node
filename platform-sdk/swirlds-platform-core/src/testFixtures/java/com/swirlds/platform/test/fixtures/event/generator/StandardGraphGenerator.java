@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -94,6 +94,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      * The consensus implementation for determining birth rounds of events.
      */
     private ConsensusImpl consensus;
+
     private ConsensusSnapshot consensusSnapshot;
 
     /**
@@ -202,7 +203,10 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
-        linker = new SimpleLinker(platformContext.getConfiguration().getConfigData(EventConfig.class).getAncientMode());
+        linker = new SimpleLinker(platformContext
+                .getConfiguration()
+                .getConfigData(EventConfig.class)
+                .getAncientMode());
     }
 
     /**
@@ -458,7 +462,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
         final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
         if (!consensusRounds.isEmpty()) {
             consensusSnapshot = consensusRounds.getLast().getSnapshot();
-            linker.setNonAncientThreshold(consensusRounds.getLast().getEventWindow().getAncientThreshold());
+            linker.setNonAncientThreshold(
+                    consensusRounds.getLast().getEventWindow().getAncientThreshold());
         }
 
         return next;

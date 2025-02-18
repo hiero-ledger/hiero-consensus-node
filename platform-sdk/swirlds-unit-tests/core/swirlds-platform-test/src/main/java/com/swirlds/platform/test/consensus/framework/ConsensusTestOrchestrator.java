@@ -153,7 +153,7 @@ public class ConsensusTestOrchestrator {
         }
     }
 
-    public void removeNode(final NodeId nodeId){
+    public void removeNode(final NodeId nodeId) {
         nodes.forEach(node -> node.removeNode(nodeId));
     }
 

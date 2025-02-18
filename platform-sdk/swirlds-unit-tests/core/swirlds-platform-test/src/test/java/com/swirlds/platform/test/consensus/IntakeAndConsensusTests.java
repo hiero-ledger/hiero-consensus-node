@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,8 +69,8 @@ class IntakeAndConsensusTests {
         // using them
         final List<StandardEventSource> eventSources =
                 Stream.generate(StandardEventSource::new).limit(numNodes).toList();
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext, seed, (List<EventSource<?>>) (List<?>) eventSources);
+        final StandardGraphGenerator generator =
+                new StandardGraphGenerator(platformContext, seed, (List<EventSource<?>>) (List<?>) eventSources);
         final TestIntake node1 = new TestIntake(platformContext, generator.getAddressBook());
         final TestIntake node2 = new TestIntake(platformContext, generator.getAddressBook());
 
@@ -129,7 +129,8 @@ class IntakeAndConsensusTests {
         // now the partitions rejoin
         generator.setOtherParentAffinity(OtherParentMatrixFactory.createBalancedOtherParentMatrix(numNodes));
 
-        final long consRoundBeforeLastBatch = node1.getConsensusRounds().getLast().getRoundNum();
+        final long consRoundBeforeLastBatch =
+                node1.getConsensusRounds().getLast().getRoundNum();
 
         // now we generate more events and expect consensus to be the same
         final int secondBatchSize = 1000;
@@ -139,7 +140,8 @@ class IntakeAndConsensusTests {
             node2.addEvent(event.getBaseEvent());
         }
         assertConsensusEvents(node1, node2);
-        Assertions.assertTrue(node1.getConsensusRounds().getLast().getRoundNum() > consRoundBeforeLastBatch,
+        Assertions.assertTrue(
+                node1.getConsensusRounds().getLast().getRoundNum() > consRoundBeforeLastBatch,
                 "consensus did not advance after the partition rejoined");
     }
 
