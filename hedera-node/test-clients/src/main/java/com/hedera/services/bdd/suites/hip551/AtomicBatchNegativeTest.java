@@ -110,5 +110,34 @@ public class AtomicBatchNegativeTest {
                         allRunFor(spec, accountQuery);
                     }));
         }
+
+        @HapiTest
+        @DisplayName("Batch transactions reverts on failure")
+        // BATCH_57
+        public Stream<DynamicTest> fuzzy_test() {
+            final var sender = "sender";
+            final var oldKey = "oldKey";
+            final var newKey = "newKey";
+            return hapiTest(
+                    newKeyNamed(oldKey),
+                    cryptoCreate(sender).key(oldKey).balance(FIVE_HBARS),
+                    newKeyNamed(newKey),
+                    atomicBatch(
+                                    cryptoUpdate(sender).key(newKey).batchKey(sender),
+                                    cryptoDelete(sender).batchKey(sender),
+                                    cryptoTransfer(tinyBarsFromTo(GENESIS, sender, 1))
+                                            .batchKey(sender))
+                            .payingWith(sender)
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+
+                    // validate the account update and delete were reverted
+                    withOpContext((spec, opLog) -> {
+                        final var expectedKey = spec.registry().getKey(oldKey);
+                        final var accountQuery = getAccountDetails(sender)
+                                .logged()
+                                .has(accountDetailsWith().key(expectedKey));
+                        allRunFor(spec, accountQuery);
+                    }));
+        }
     }
 }
