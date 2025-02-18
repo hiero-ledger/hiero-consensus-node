@@ -160,6 +160,11 @@ public class TopicCreateSuite {
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
+                        .autoRenewAccountId("autoRenewAccount")
+                        .signedBy("autoRenewAccount")
+                        .hasPrecheck(INVALID_SIGNATURE),
+                createTopic("testTopic")
+                        .payingWith("payer")
                         .adminKeyName("adminKey")
                         /* SigMap missing signature from adminKey. */
                         .signedBy("payer")
