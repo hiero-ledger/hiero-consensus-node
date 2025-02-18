@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -334,8 +334,8 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
         if (advertiseCreation) {
             String banner = "\n\n"
                     + bannerWith(String.format(
-                            "Created schedule '%s' with id '0.0.%d'.",
-                            scheduleEntity, lastReceipt.getScheduleID().getScheduleNum()));
+                            "Created schedule '%s' with id '%s'.",
+                            scheduleEntity, asScheduleString(lastReceipt.getScheduleID())));
             log.info(banner);
         }
     }

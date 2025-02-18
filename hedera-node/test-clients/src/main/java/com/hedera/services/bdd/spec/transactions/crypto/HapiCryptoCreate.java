@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package com.hedera.services.bdd.spec.transactions.crypto;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
@@ -350,8 +351,8 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
         if (advertiseCreation) {
             final String banner = "\n\n"
                     + bannerWith(String.format(
-                            "Created account '%s' with id '0.0.%d'.",
-                            account, lastReceipt.getAccountID().getAccountNum()));
+                            "Created account '%s' with id '%s'.",
+                            account, asAccountString(lastReceipt.getAccountID())));
             log.info(banner);
         }
     }

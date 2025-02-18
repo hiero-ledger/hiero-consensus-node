@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,16 @@ package com.hedera.services.bdd.spec.transactions;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityNumber;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asFile;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSchedule;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopic;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
@@ -258,7 +262,11 @@ public class TxnUtils {
 
     public static AccountID asIdForKeyLookUp(final String s, final HapiSpec lookupSpec) {
         if (isLiteralEvmAddress(s)) {
-            return AccountID.newBuilder().setAlias(asLiteralEvmAddress(s)).build();
+            return AccountID.newBuilder()
+                    .setShardNum(shard)
+                    .setRealmNum(realm)
+                    .setAlias(asLiteralEvmAddress(s))
+                    .build();
         }
         return isIdLiteral(s)
                 ? asAccount(s)
@@ -315,6 +323,8 @@ public class TxnUtils {
         final var effS = s.startsWith("0x") ? s.substring(2) : s;
         if (effS.length() == HapiContractCall.HEXED_EVM_ADDRESS_LEN) {
             return ContractID.newBuilder()
+                    .setShardNum(shard)
+                    .setRealmNum(realm)
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effS)))
                     .build();
         }
@@ -341,13 +351,14 @@ public class TxnUtils {
     }
 
     public static ContractID asContractId(final byte[] bytes) {
+        final int shard = Ints.fromByteArray(Arrays.copyOfRange(bytes, 0, 4));
         final long realm = Longs.fromByteArray(Arrays.copyOfRange(bytes, 4, 12));
         final long accountNum = Longs.fromByteArray(Arrays.copyOfRange(bytes, 12, 20));
 
         return ContractID.newBuilder()
                 .setContractNum(accountNum)
                 .setRealmNum(realm)
-                .setShardNum(0L)
+                .setShardNum(shard)
                 .build();
     }
 
@@ -442,8 +453,8 @@ public class TxnUtils {
         final Optional<Throwable> error = subOp.execFor(spec);
         if (error.isPresent()) {
             String message = String.format(
-                    "Unable to look up current expiration timestamp of file 0.0.%d",
-                    spec.registry().getFileId(file).getFileNum());
+                    "Unable to look up current expiration timestamp of file %s",
+                    asFileString(spec.registry().getFileId(file)));
             log.error(message);
             throw error.get();
         }
@@ -459,8 +470,8 @@ public class TxnUtils {
         final Optional<Throwable> error = subOp.execFor(spec);
         if (error.isPresent()) {
             String message = String.format(
-                    "Unable to look up current expiration timestamp of contract 0.0.%d",
-                    spec.registry().getContractId(contract).getContractNum());
+                    "Unable to look up current expiration timestamp of contract %s",
+                    asContractString(spec.registry().getContractId(contract)));
             log.error(message);
             throw error.get();
         }
