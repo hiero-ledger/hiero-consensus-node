@@ -175,7 +175,12 @@ public class ConsensusTestArgs {
                 Arguments.of(new ConsensusTestParams(20, RANDOM, RANDOM_WEIGHT_DESC)));
     }
 
-    public static Stream<Arguments> nodeRemoveTestParams() {
-        return Stream.of(Arguments.of(new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC)));
+    public static Stream<ConsensusTestParams> nodeRemoveTestParams() {
+        return Stream.of(
+                //new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC)
+                //,
+                //new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC, -6773732860394034212L) //no-super-majority
+                new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC, 1564834285940355351L) //no judges
+        );
     }
 }

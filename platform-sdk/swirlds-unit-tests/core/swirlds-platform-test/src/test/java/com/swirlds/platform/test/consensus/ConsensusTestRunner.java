@@ -59,6 +59,11 @@ public class ConsensusTestRunner {
             runWithSeed(seed);
         }
 
+        if (params.seeds().length > 0) {
+            // if we are given an explicit seed, we should not run with random seeds
+            return;
+        }
+
         for (int i = 0; i < iterations; i++) {
             final long seed = new Random().nextLong();
             runWithSeed(seed);
