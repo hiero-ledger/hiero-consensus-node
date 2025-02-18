@@ -28,7 +28,7 @@ permissions:
 jobs:
   jenkins-checks:
     name: Build Artifact
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     if: ${{ !github.event.workflow_dispatch.repository.fork }}
     steps:
       - name: Harden Runner

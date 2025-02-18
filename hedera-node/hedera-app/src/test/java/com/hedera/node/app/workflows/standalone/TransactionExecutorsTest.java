@@ -199,10 +199,12 @@ public class TransactionExecutorsTest {
         final var state = genesisState(overrides);
 
         // Get a standalone executor based on this state, with an override to allow slightly longer memos
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(TransactionExecutors.Properties.newBuilder()
-                .state(state)
-                .appProperties(overrides)
-                .build());
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .appProperties(overrides)
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
 
         // Execute a FileCreate that uploads the initcode for the Multipurpose.sol contract
         final var uploadOutput = executor.execute(uploadMultipurposeInitcode(), Instant.EPOCH);
@@ -243,11 +245,13 @@ public class TransactionExecutorsTest {
 
         // Use a custom operation that overrides the BLOCKHASH operation
         final var customOp = new CustomBlockhashOperation();
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(TransactionExecutors.Properties.newBuilder()
-                .state(state)
-                .addCustomOp(customOp)
-                .appProperty("hedera.transaction.maxMemoUtf8Bytes", "101")
-                .build());
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .addCustomOp(customOp)
+                        .appProperty("hedera.transaction.maxMemoUtf8Bytes", "101")
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
 
         final var uploadOutput = executor.execute(uploadEmitBlockTimestampInitcode(), Instant.EPOCH);
         final var uploadReceipt = uploadOutput.getFirst().transactionRecord().receiptOrThrow();
@@ -275,10 +279,12 @@ public class TransactionExecutorsTest {
         final var state = genesisState(overrides);
 
         // Get a standalone executor based on this state, with an override to allow slightly longer memos
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(TransactionExecutors.Properties.newBuilder()
-                .state(state)
-                .appProperties(overrides)
-                .build());
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .appProperties(overrides)
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
 
         // With just 42 bytes allowed for signed transactions, the executor will not be able to construct
         // a dispatch for the transaction and throw an exception
