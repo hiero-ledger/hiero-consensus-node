@@ -20,8 +20,10 @@ import static com.google.protobuf.ByteString.EMPTY;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -139,6 +141,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -209,8 +212,7 @@ public class LeakyCryptoTestsSuite {
                 validateChargedUsd(updateWithExpiredAccount, baseFee));
     }
 
-    @HapiTest
-    @Order(8)
+    @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     final Stream<DynamicTest> getsInsufficientPayerBalanceIfSendingAccountCanPayEverythingButServiceFee() {
         final var civilian = "civilian";
         final var creation = "creation";
@@ -251,18 +253,13 @@ public class LeakyCryptoTestsSuite {
                         .hasTinyBars(civilianStartBalance - nodeAndNetworkFee.get() - gasFee.get())),
                 // Fire-and-forget a txn that will leave the civilian payer with 1 too few
                 // tinybars at consensus
-                cryptoTransfer(tinyBarsFromTo(civilian, FUNDING, 1))
-                        .payingWith(GENESIS)
-                        .deferStatusResolution(),
+                cryptoTransfer(tinyBarsFromTo(civilian, FUNDING, 1)).payingWith(GENESIS),
                 sourcing(() -> contractCustomCreate(EMPTY_CONSTRUCTOR_CONTRACT, "Clone")
                         .gas(gasToOffer)
                         .payingWith(civilian)
+                        .setNode(asEntityString(4))
                         .balance(maxSendable.get())
-                        // because this fails depending on the previous operation reaching
-                        // consensus before the current operation or after, since we have added
-                        // deferStatusResolution
-                        .hasPrecheckFrom(OK, INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)
-                        .hasKnownStatusFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)));
+                        .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)));
     }
 
     @Order(1)
