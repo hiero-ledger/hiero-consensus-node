@@ -19,6 +19,7 @@ package com.hedera.services.bdd.suites.issues;
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
@@ -214,16 +215,16 @@ public class IssueRegressionTests {
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
-                cryptoCreate("acct3").setNode("0.0.3").via("txnId1"),
+                cryptoCreate("acct3").setNode(asEntityString(3)).via("txnId1"),
                 sleepFor(2000),
                 cryptoCreate("acctWithDuplicateTxnId")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .txnId("txnId1")
                         .hasPrecheck(DUPLICATE_TRANSACTION),
                 uncheckedSubmit(cryptoCreate("acctWithDuplicateTxnId")
-                                .setNode("0.0.5")
+                                .setNode(asEntityString(5))
                                 .txnId("txnId1"))
-                        .setNode("0.0.5"),
+                        .setNode(asEntityString(5)),
                 sleepFor(2000),
                 getTxnRecord("txnId1")
                         .andAnyDuplicates()
@@ -235,9 +236,9 @@ public class IssueRegressionTests {
     @HapiTest
     final Stream<DynamicTest> duplicatedTxnsDifferentTypesDifferentNodesDetected() {
         return hapiTest(
-                cryptoCreate("acct4").via("txnId4").setNode("0.0.3"),
+                cryptoCreate("acct4").via("txnId4").setNode(asEntityString(3)),
                 newKeyNamed("key2"),
-                createTopic("topic2").setNode("0.0.5").submitKeyName("key2"),
+                createTopic("topic2").setNode(asEntityString(5)).submitKeyName("key2"),
                 submitMessageTo("topic2")
                         .message("Hello world")
                         .payingWith("acct4")

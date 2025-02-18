@@ -18,6 +18,7 @@ package com.hedera.node.app.ids;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
@@ -50,5 +51,14 @@ public class AppEntityIdFactory implements EntityIdFactory {
     @Override
     public ScheduleID newScheduleId(final long number) {
         return new ScheduleID(shard, realm, number);
+    }
+
+    @Override
+    public AccountID newAccountId(long number) {
+        return AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(number)
+                .build();
     }
 }
