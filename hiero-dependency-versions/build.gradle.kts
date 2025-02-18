@@ -22,7 +22,7 @@ plugins {
 }
 
 dependencies {
-    api(platform("io.netty:netty-bom:4.1.117.Final"))
+    api(platform("io.netty:netty-bom:4.1.118.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -42,7 +42,7 @@ val jackson = "2.18.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.15.2"
-val protobuf = "4.28.2"
+val protobuf = "4.29.3"
 val testContainers = "1.20.4"
 val tuweni = "2.4.2"
 val webcompare = "2.1.7"
@@ -65,7 +65,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.1.8") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.4.1") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.0") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.1") {
         because("com.github.spotbugs.annotations")
     }
     api("com.google.auto.service:auto-service-annotations:$autoService") {
@@ -138,7 +138,7 @@ dependencies.constraints {
     api("org.testcontainers:junit-jupiter:$testContainers") {
         because("org.testcontainers.junit.jupiter")
     }
-    api("org.yaml:snakeyaml:2.3") { because("org.yaml.snakeyaml") }
+    api("org.yaml:snakeyaml:2.4") { because("org.yaml.snakeyaml") }
     api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
     api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {
@@ -147,7 +147,7 @@ dependencies.constraints {
     api("uk.org.webcompere:system-stubs-jupiter:$webcompare") {
         because("uk.org.webcompere.systemstubs.jupiter")
     }
-    api("com.google.protobuf:protoc:3.25.4")
+    api("com.google.protobuf:protoc:$protobuf")
     api("io.grpc:protoc-gen-grpc-java:$grpc")
 
     api("com.hedera.cryptography:hedera-cryptography-pairings-api:$hederaCryptography") {

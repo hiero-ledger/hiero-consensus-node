@@ -17,6 +17,7 @@
 package com.swirlds.platform.cli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.commands.StateCommand;
 import com.swirlds.cli.utility.AbstractCommand;
@@ -136,7 +137,7 @@ public final class CompareStatesCommand extends AbstractCommand {
         logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", statePath);
 
         final ReservedSignedState signedState = SignedStateFileReader.readStateFile(
-                        platformContext.getConfiguration(), statePath)
+                        platformContext.getConfiguration(), statePath, DEFAULT_PLATFORM_STATE_FACADE)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
         try {

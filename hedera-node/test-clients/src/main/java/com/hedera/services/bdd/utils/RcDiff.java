@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.Descriptors;
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.hedera.node.app.hapi.utils.forensics.DifferingEntries;
 import com.hedera.node.app.hapi.utils.forensics.OrderedComparison;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -171,8 +171,8 @@ public class RcDiff implements Callable<Integer> {
      * @param mismatchContext a supplier of a string that describes the context of the mismatch
      */
     public static void exactMatch(
-            @NonNull GeneratedMessageV3 expectedMessage,
-            @NonNull GeneratedMessageV3 actualMessage,
+            @NonNull GeneratedMessage expectedMessage,
+            @NonNull GeneratedMessage actualMessage,
             @NonNull final Supplier<String> mismatchContext) {
         requireNonNull(expectedMessage);
         requireNonNull(actualMessage);
@@ -396,7 +396,7 @@ public class RcDiff implements Callable<Integer> {
     }
 
     /**
-     * Either recursively matches two given {@link GeneratedMessageV3}; or asserts object equality via
+     * Either recursively matches two given {@link GeneratedMessage}; or asserts object equality via
      * {@code Assertions#assertEquals()}; or fails immediately if the types are mismatched.
      *
      * @param expected the expected value
@@ -410,8 +410,8 @@ public class RcDiff implements Callable<Integer> {
         requireNonNull(expected);
         requireNonNull(actual);
         requireNonNull(mismatchContext);
-        if (expected instanceof GeneratedMessageV3 expectedMessage) {
-            if (actual instanceof GeneratedMessageV3 actualMessage) {
+        if (expected instanceof GeneratedMessage expectedMessage) {
+            if (actual instanceof GeneratedMessage actualMessage) {
                 exactMatch(expectedMessage, actualMessage, mismatchContext);
             } else {
                 Assertions.fail("Mismatched types between expected message '" + expectedMessage + "' and "

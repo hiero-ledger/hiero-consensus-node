@@ -97,7 +97,7 @@ public final class AliasUtils {
      *
      * <p>Every entity in the system (accounts, tokens, etc.) may be represented within ethereum with a 20-byte EVM
      * address. This address can be explicit (as part of the alias), or it can be based on the entity ID number. When
-     * based on the entity number, the first 20 bytes represent the shard and alias, while the last 8 bytes represent
+     * based on the entity number, the first 12 bytes represent the shard and alias, while the last 8 bytes represent
      * the entity number. When shard and realm are zero, this prefix is all zeros, which is why it is sometimes known as
      * the "long-zero" alias.
      *

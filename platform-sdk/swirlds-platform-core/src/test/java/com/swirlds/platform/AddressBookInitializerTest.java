@@ -23,6 +23,7 @@ import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_AD
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_NULL;
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_USED;
 import static com.swirlds.platform.state.address.AddressBookInitializer.USED_ADDRESS_BOOK_HEADER;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -48,6 +49,7 @@ import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.address.AddressBookInitializer;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.Address;
@@ -55,6 +57,7 @@ import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -100,7 +103,8 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(true),
-                stateLifecycles);
+                stateLifecycles,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -131,7 +135,8 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                stateLifecycles);
+                stateLifecycles,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -159,7 +164,8 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                stateLifecycles);
+                stateLifecycles,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -187,7 +193,8 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                stateLifecycles);
+                stateLifecycles,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -218,7 +225,8 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                stateLifecycles);
+                stateLifecycles,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -264,7 +272,8 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                stateLifecycles);
+                stateLifecycles,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -296,7 +305,8 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                stateLifecycles);
+                stateLifecycles,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         assertEquals(
                 configAddressBook,
@@ -326,7 +336,8 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                stateLifecycles);
+                stateLifecycles,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         assertNotEquals(
                 configAddressBook,
@@ -433,11 +444,13 @@ class AddressBookInitializerTest {
         final SoftwareVersion softwareVersion = getMockSoftwareVersion(2);
         configureUpdateWeightForStateLifecycles(weightValue);
         final PlatformMerkleStateRoot state = mock(PlatformMerkleStateRoot.class);
+        ;
+        final ReadableStates readableStates = mock(ReadableStates.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
         when(platformState.getCreationSoftwareVersion()).thenReturn(softwareVersion);
+        when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
         RosterServiceStateMock.setup(state, currentRoster, 1L, RosterRetriever.buildRoster(previousAddressBook));
 
-        when(state.getReadablePlatformState()).thenReturn(platformState);
         when(signedState.getState()).thenReturn(state);
         when(signedState.isGenesisState()).thenReturn(fromGenesis);
         when(signedState.getRoster()).thenReturn(currentRoster);
