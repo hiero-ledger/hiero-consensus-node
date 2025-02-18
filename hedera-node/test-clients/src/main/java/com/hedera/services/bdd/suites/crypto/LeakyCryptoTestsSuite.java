@@ -23,6 +23,7 @@ import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVER
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -256,7 +257,7 @@ public class LeakyCryptoTestsSuite {
                 sourcing(() -> contractCustomCreate(EMPTY_CONSTRUCTOR_CONTRACT, "Clone")
                         .gas(gasToOffer)
                         .payingWith(civilian)
-                        .setNode("0.0.4")
+                        .setNode(asEntityString(4))
                         .balance(maxSendable.get())
                         .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)));
     }
