@@ -27,6 +27,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
@@ -270,7 +271,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                     previousVersion,
                     roundNumber,
                     sharedValues,
-                    startupNetworks);
+                    startupNetworks,
+                    new AppEntityIdFactory(appConfig));
             if (applications.contains(MIGRATION)) {
                 schema.migrate(migrationContext);
             }
