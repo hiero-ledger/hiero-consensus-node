@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1081,6 +1081,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
                     return true; // turns this into a callable, so it can throw checked
                     // exceptions
+                } catch (final Throwable t) {
+                    // log and rethrow
+                    logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
+                    throw t;
                 } finally {
                     countDownLatch.countDown();
                 }

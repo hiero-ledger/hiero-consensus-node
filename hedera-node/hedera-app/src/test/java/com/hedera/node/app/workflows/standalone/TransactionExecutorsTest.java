@@ -19,11 +19,13 @@ package com.hedera.node.app.workflows.standalone;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.DEFAULT_NODE_INFO;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -52,6 +54,7 @@ import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
@@ -393,7 +396,9 @@ public class TransactionExecutorsTest {
                         () -> state,
                         () -> ThrottleDefinitions.DEFAULT,
                         ThrottleAccumulator::new,
-                        v -> new ServicesSoftwareVersion()));
+                        v -> new ServicesSoftwareVersion()),
+                () -> NOOP_FEE_CHARGING,
+                new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
@@ -410,7 +415,8 @@ public class TransactionExecutorsTest {
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                TEST_PLATFORM_STATE_FACADE);
         final var writableStates = state.getWritableStates(FileService.NAME);
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
@@ -453,7 +459,7 @@ public class TransactionExecutorsTest {
                         new ContractServiceImpl(appContext, NO_OP_METRICS),
                         new FileServiceImpl(),
                         new FreezeServiceImpl(),
-                        new ScheduleServiceImpl(),
+                        new ScheduleServiceImpl(appContext),
                         new TokenServiceImpl(),
                         new UtilServiceImpl(),
                         new RecordCacheService(),

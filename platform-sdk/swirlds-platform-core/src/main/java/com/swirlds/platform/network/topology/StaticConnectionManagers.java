@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,46 +35,41 @@ import org.apache.logging.log4j.Logger;
  */
 public class StaticConnectionManagers {
     private static final Logger logger = LogManager.getLogger(StaticConnectionManagers.class);
-    private final NetworkTopology topology;
-    private final Map<ConnectionMapping, ConnectionManager> connectionManagers;
+    private final Map<NodeId, ConnectionManager> connectionManagers;
 
     public StaticConnectionManagers(final NetworkTopology topology, final OutboundConnectionCreator connectionCreator) {
-        this.topology = topology;
         // is thread safe because it never changes
         connectionManagers = new HashMap<>();
         for (final NodeId neighbor : topology.getNeighbors()) {
             if (topology.shouldConnectToMe(neighbor)) {
-                connectionManagers.put(new ConnectionMapping(neighbor, false), new InboundConnectionManager());
+                connectionManagers.put(neighbor, new InboundConnectionManager());
             }
             if (topology.shouldConnectTo(neighbor)) {
-                connectionManagers.put(
-                        new ConnectionMapping(neighbor, true),
-                        new OutboundConnectionManager(neighbor, connectionCreator));
+                connectionManagers.put(neighbor, new OutboundConnectionManager(neighbor, connectionCreator));
             }
         }
     }
 
-    public ConnectionManager getManager(final NodeId id, final boolean outbound) {
-        final ConnectionMapping key = new ConnectionMapping(id, outbound);
-        return connectionManagers.get(key);
+    /**
+     * Returns pre-allocated connection for given node.
+     *
+     * @param id node id to retrieve connection for
+     * @return inbound or outbound connection for that node, depending on the topology, or null if such node id is unknown
+     */
+    public ConnectionManager getManager(final NodeId id) {
+        return connectionManagers.get(id);
     }
 
     /**
      * Called when a new connection is established by a peer. After startup, we don't expect this to be called unless
      * there are networking issues. The connection is passed on to the appropriate connection manager if valid.
      *
-     * @param newConn
-     * 		a new connection that has been established
+     * @param newConn a new connection that has been established
      */
     public void newConnection(final Connection newConn) throws InterruptedException {
-        if (!topology.shouldConnectToMe(newConn.getOtherId())) {
-            logger.error(EXCEPTION.getMarker(), "Unexpected new connection {}", newConn.getDescription());
-            newConn.disconnect();
-        }
 
-        final ConnectionMapping key = new ConnectionMapping(newConn.getOtherId(), false);
-        final ConnectionManager cs = connectionManagers.get(key);
-        if (cs == null) {
+        final ConnectionManager cs = connectionManagers.get(newConn.getOtherId());
+        if (cs == null || cs.isOutbound()) {
             logger.error(EXCEPTION.getMarker(), "Unexpected new connection {}", newConn.getDescription());
             newConn.disconnect();
             return;
@@ -92,6 +87,4 @@ public class StaticConnectionManagers {
             throw e;
         }
     }
-
-    private record ConnectionMapping(NodeId id, boolean outbound) {}
 }
