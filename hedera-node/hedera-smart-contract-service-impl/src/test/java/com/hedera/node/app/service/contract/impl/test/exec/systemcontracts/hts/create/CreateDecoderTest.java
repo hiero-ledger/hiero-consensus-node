@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,10 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create;
 
 import static com.hedera.hapi.node.base.TokenSupplyType.FINITE;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V1_TUPLE;
@@ -50,8 +54,8 @@ import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateDecoder;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,11 +73,17 @@ class CreateDecoderTest {
     @Mock
     private AddressIdConverter addressIdConverter;
 
-    private CreateDecoder subject;
+    private com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateDecoder
+            subject0x167;
+    private com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateDecoder
+            subject0x16c;
 
     @BeforeEach
     void setUp() {
-        subject = new CreateDecoder();
+        subject0x167 = new CreateDecoder();
+        subject0x16c =
+                new com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c
+                        .CreateDecoder();
         given(addressIdConverter.convert(any())).willReturn(SENDER_ID);
     }
 
@@ -83,7 +93,7 @@ class CreateDecoderTest {
                 .encodeCall(CREATE_FUNGIBLE_V1_TUPLE)
                 .array();
         final TransactionBody transaction =
-                subject.decodeCreateFungibleTokenV1(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+                subject0x167.decodeCreateFungibleTokenV1(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         tokenAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isEmpty();
     }
@@ -94,7 +104,7 @@ class CreateDecoderTest {
                 .encodeCall(CREATE_FUNGIBLE_V2_TUPLE)
                 .array();
         final TransactionBody transaction =
-                subject.decodeCreateFungibleTokenV2(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+                subject0x167.decodeCreateFungibleTokenV2(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         tokenAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isEmpty();
     }
@@ -105,17 +115,17 @@ class CreateDecoderTest {
                 .encodeCall(CREATE_FUNGIBLE_V3_TUPLE)
                 .array();
         final TransactionBody transaction =
-                subject.decodeCreateFungibleTokenV3(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+                subject0x167.decodeCreateFungibleTokenV3(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         tokenAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isEmpty();
     }
 
     @Test
     void decodeCreateTokenWithMeta() {
-        byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA
+        byte[] inputBytes = CREATE_FUNGIBLE_TOKEN_WITH_METADATA
                 .encodeCall(CREATE_FUNGIBLE_WITH_META_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithMetadata(
+        final TransactionBody transaction = subject0x16c.decodeCreateFungibleTokenWithMetadata(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         tokenAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isEmpty();
@@ -128,7 +138,7 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V1_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithCustomFeesV1(
+        final TransactionBody transaction = subject0x167.decodeCreateFungibleTokenWithCustomFeesV1(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         tokenAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
@@ -140,7 +150,7 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V2_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithCustomFeesV2(
+        final TransactionBody transaction = subject0x167.decodeCreateFungibleTokenWithCustomFeesV2(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         tokenAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
@@ -152,7 +162,7 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V3_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithCustomFeesV3(
+        final TransactionBody transaction = subject0x167.decodeCreateFungibleTokenWithCustomFeesV3(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         tokenAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
@@ -161,10 +171,10 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateTokenWithMetaAndCustomFees() {
-        byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
+        byte[] inputBytes = CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
                 .encodeCall(CREATE_FUNGIBLE_WITH_META_AND_FEES_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithMetadataAndCustomFees(
+        final TransactionBody transaction = subject0x16c.decodeCreateFungibleTokenWithMetadataAndCustomFees(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         tokenAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
@@ -179,7 +189,7 @@ class CreateDecoderTest {
                 .encodeCall(CREATE_NON_FUNGIBLE_V1_TUPLE)
                 .array();
         final TransactionBody transaction =
-                subject.decodeCreateNonFungibleV1(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+                subject0x167.decodeCreateNonFungibleV1(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         nftAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isEmpty();
     }
@@ -190,7 +200,7 @@ class CreateDecoderTest {
                 .encodeCall(CREATE_NON_FUNGIBLE_V2_TUPLE)
                 .array();
         final TransactionBody transaction =
-                subject.decodeCreateNonFungibleV2(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+                subject0x167.decodeCreateNonFungibleV2(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         nftAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isEmpty();
     }
@@ -201,17 +211,17 @@ class CreateDecoderTest {
                 .encodeCall(CREATE_NON_FUNGIBLE_V3_TUPLE)
                 .array();
         final TransactionBody transaction =
-                subject.decodeCreateNonFungibleV3(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+                subject0x167.decodeCreateNonFungibleV3(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         nftAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isEmpty();
     }
 
     @Test
     void decodeCreateNonFungibleWithMetadata() {
-        byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA
+        byte[] inputBytes = CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_META_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithMetadata(
+        final TransactionBody transaction = subject0x16c.decodeCreateNonFungibleWithMetadata(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         nftAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isEmpty();
@@ -224,7 +234,7 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V1_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithCustomFeesV1(
+        final TransactionBody transaction = subject0x167.decodeCreateNonFungibleWithCustomFeesV1(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         nftAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
@@ -236,7 +246,7 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V2_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithCustomFeesV2(
+        final TransactionBody transaction = subject0x167.decodeCreateNonFungibleWithCustomFeesV2(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         nftAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
@@ -248,7 +258,7 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V3_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithCustomFeesV3(
+        final TransactionBody transaction = subject0x167.decodeCreateNonFungibleWithCustomFeesV3(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         nftAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
@@ -257,10 +267,10 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateNonFungibleWithMetadataAndCustomFees() {
-        byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
+        byte[] inputBytes = CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_META_AND_FEES_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithMetadataAndCustomFees(
+        final TransactionBody transaction = subject0x16c.decodeCreateNonFungibleWithMetadataAndCustomFees(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
         nftAssertions(transaction);
         assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
