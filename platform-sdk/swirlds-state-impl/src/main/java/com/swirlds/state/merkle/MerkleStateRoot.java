@@ -103,7 +103,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     private static final Logger logger = LogManager.getLogger(MerkleStateRoot.class);
 
     private static final long CLASS_ID = 0x8e300b0dfdafbb1bL;
-
     // Migrates from `PlatformState` to State API singleton
     public static final int CURRENT_VERSION = 31;
 
