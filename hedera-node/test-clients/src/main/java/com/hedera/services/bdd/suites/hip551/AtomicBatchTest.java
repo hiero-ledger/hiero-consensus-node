@@ -301,7 +301,7 @@ public class AtomicBatchTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> hasBatchKeyFails() {
+    public Stream<DynamicTest> nonInnerTransactionHasBatchKeyFails() {
         final var batchOperator = "batchOperator";
         final var innerTnxPayer = "innerPayer";
         final var innerTxnId = "innerId";
