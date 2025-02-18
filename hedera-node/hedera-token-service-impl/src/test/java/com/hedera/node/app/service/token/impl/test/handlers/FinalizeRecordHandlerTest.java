@@ -607,7 +607,7 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                         .nftTransfers(NftTransfer.newBuilder()
                                 .serialNumber(1)
                                 .senderAccountID(ACCOUNT_1212_ID)
-                                .receiverAccountID(asAccount(0))
+                                .receiverAccountID(asAccount(0L, 0L, 0))
                                 .build())
                         .build()));
     }
