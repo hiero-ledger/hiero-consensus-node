@@ -121,7 +121,13 @@ public class Turtle {
 
         for (final NodeId nodeId : addressBook.getNodeIdSet().stream().sorted().toList()) {
             nodes.add(new TurtleNode(
-                    randotron, time, nodeId, addressBook, addressBookBuilder.getPrivateKeys(nodeId), network));
+                    randotron,
+                    time,
+                    nodeId,
+                    addressBook,
+                    addressBookBuilder.getPrivateKeys(nodeId),
+                    network,
+                    builder.getOutputDirectory().resolve("node-" + nodeId.id())));
         }
     }
 

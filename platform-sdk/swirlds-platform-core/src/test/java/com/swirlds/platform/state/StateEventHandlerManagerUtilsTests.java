@@ -17,6 +17,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
@@ -40,7 +41,7 @@ public class StateEventHandlerManagerUtilsTests {
         state.reserve();
         final StateMetrics stats = mock(StateMetrics.class);
         final PlatformMerkleStateRoot result =
-                SwirldStateManagerUtils.fastCopy(state, stats, new BasicSoftwareVersion(1));
+                SwirldStateManagerUtils.fastCopy(state, stats, new BasicSoftwareVersion(1), TEST_PLATFORM_STATE_FACADE);
 
         assertFalse(result.isImmutable(), "The copy state should be mutable.");
         assertEquals(

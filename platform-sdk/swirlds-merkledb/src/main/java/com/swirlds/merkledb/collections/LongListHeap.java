@@ -108,8 +108,11 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
         AtomicLongArray chunk = createChunk();
 
         readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, initReadBuffer);
+
         final int startOffset = startIndex * Long.BYTES;
+        final int endOffset = endIndex * Long.BYTES;
         initReadBuffer.position(startOffset);
+        initReadBuffer.limit(endOffset);
 
         while (initReadBuffer.hasRemaining()) {
             int index = initReadBuffer.position() / Long.BYTES;

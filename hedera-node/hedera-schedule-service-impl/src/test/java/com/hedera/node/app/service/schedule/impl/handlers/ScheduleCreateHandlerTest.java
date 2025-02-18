@@ -63,12 +63,15 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     @Mock
     private Throttle throttle;
 
+    @Mock
+    private ScheduleFeeCharging feeCharging;
+
     private ScheduleCreateHandler subject;
     private PreHandleContext realPreContext;
 
     @BeforeEach
     void setUp() throws PreCheckException, InvalidKeyException {
-        subject = new ScheduleCreateHandler(InstantSource.system(), throttleFactory);
+        subject = new ScheduleCreateHandler(idFactory, InstantSource.system(), throttleFactory, feeCharging);
         setUpBase();
     }
 
