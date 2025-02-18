@@ -54,8 +54,8 @@ public class V0540PlatformStateSchema extends Schema {
      * A platform state to be used as the non-null platform state under any circumstance a genesis state
      * is encountered before initializing the States API.
      */
-    public static final PlatformState UNINITIALIZED_PLATFORM_STATE = new PlatformState(
-            SemanticVersion.DEFAULT, 0, ConsensusSnapshot.DEFAULT, null, null, Bytes.EMPTY, 0L, 0L, null, null, null);
+    public static final PlatformState UNINITIALIZED_PLATFORM_STATE =
+            new PlatformState(null, 0, ConsensusSnapshot.DEFAULT, null, null, Bytes.EMPTY, 0L, 0L, null, null, null);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();

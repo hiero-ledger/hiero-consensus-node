@@ -27,6 +27,7 @@ import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -277,17 +278,21 @@ public enum TransactionExecutors {
                         () -> state,
                         () -> componentRef.get().throttleServiceManager().activeThrottleDefinitionsOrThrow(),
                         ThrottleAccumulator::new,
-                        softwareVersionFactory));
+                        softwareVersionFactory),
+                () -> componentRef.get().appFeeCharging(),
+                new AppEntityIdFactory(bootstrapConfig));
         final var contractService = new ContractServiceImpl(
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
         final var fileService = new FileServiceImpl();
-        final var scheduleService = new ScheduleServiceImpl();
+        final var scheduleService = new ScheduleServiceImpl(appContext);
         final var hintsService = new HintsServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl(), bootstrapConfig);
         final var component = DaggerExecutorComponent.builder()
+                .appContext(appContext)
                 .configProviderImpl(configProvider)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
+                .scheduleService(scheduleService)
                 .contractServiceImpl(contractService)
                 .scheduleServiceImpl(scheduleService)
                 .hintsService(hintsService)

@@ -162,6 +162,10 @@ public interface HandleContext {
              * The fixed fee of a transaction.
              */
             TRANSACTION_FIXED_FEE,
+            /**
+             * A fee charging strategy that should be used to customize further dispatches.
+             */
+            CUSTOM_FEE_CHARGING,
         }
     }
 

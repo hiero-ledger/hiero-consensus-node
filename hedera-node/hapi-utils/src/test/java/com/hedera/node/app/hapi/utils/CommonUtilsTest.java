@@ -72,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
@@ -218,7 +218,7 @@ class CommonUtilsTest {
 
     @Test
     void getsExpectedTxnFunctionality() {
-        final Map<HederaFunctionality, BodySetter<? extends GeneratedMessageV3, Builder>> setters = new HashMap<>() {
+        final Map<HederaFunctionality, BodySetter<? extends GeneratedMessage, Builder>> setters = new HashMap<>() {
             {
                 put(SystemDelete, new BodySetter<>(SystemDeleteTransactionBody.class));
                 put(SystemUndelete, new BodySetter<>(SystemUndeleteTransactionBody.class));

@@ -64,6 +64,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
@@ -176,7 +177,8 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 (appContext, bootstrapConfig) -> this.historyService = new FakeHistoryService(),
                 (hints, history, configProvider) ->
                         this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
-                metrics);
+                metrics,
+                new PlatformStateFacade(ServicesSoftwareVersion::new));
         version = (ServicesSoftwareVersion) hedera.getSoftwareVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));

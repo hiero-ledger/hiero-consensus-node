@@ -60,8 +60,8 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
     private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
 
     @Inject
-    public ScheduleSignHandler() {
-        // Dagger2
+    public ScheduleSignHandler(@NonNull final ScheduleFeeCharging feeCharging) {
+        super(feeCharging);
     }
 
     @Override

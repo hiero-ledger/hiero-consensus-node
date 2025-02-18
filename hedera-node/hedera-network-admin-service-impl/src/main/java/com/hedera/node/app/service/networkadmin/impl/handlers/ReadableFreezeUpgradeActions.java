@@ -88,6 +88,8 @@ public class ReadableFreezeUpgradeActions {
     public static final String FREEZE_SCHEDULED_MARKER = "freeze_scheduled.mf";
     public static final String FREEZE_ABORTED_MARKER = "freeze_aborted.mf";
 
+    public static final long UPGRADE_FILE_ID = 150L;
+
     public static final String MARK = "✓";
 
     public ReadableFreezeUpgradeActions(
@@ -116,7 +118,7 @@ public class ReadableFreezeUpgradeActions {
         this.upgradeFileId = FileID.newBuilder()
                 .shardNum(hederaConfig.shard())
                 .realmNum(hederaConfig.realm())
-                .fileNum(150L)
+                .fileNum(UPGRADE_FILE_ID)
                 .build();
     }
 

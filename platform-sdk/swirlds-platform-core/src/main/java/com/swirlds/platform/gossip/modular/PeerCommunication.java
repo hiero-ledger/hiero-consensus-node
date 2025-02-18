@@ -16,19 +16,13 @@
 
 package com.swirlds.platform.gossip.modular;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.network.*;
@@ -42,12 +36,9 @@ import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
-import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -63,48 +54,34 @@ public class PeerCommunication implements ConnectionTracker {
 
     private final NetworkMetrics networkMetrics;
     private final StaticTopology topology;
-    private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final PlatformContext platformContext;
     private final List<PeerInfo> peers;
+    private final PeerInfo selfPeer;
 
     /**
      * Create manager of communication with neighbouring nodes for exchanging events.
      *
      * @param platformContext               the platform context
-     * @param roster                        the current roster
-     * @param selfId                        this node's ID
+     * @param peers                        the current list of peers
+     * @param selfPeer                        this node's data
      * @param keysAndCerts                  private keys and public certificates
      */
     public PeerCommunication(
             @NonNull final PlatformContext platformContext,
-            @NonNull final Roster roster,
-            @NonNull final NodeId selfId,
+            @NonNull final List<PeerInfo> peers,
+            @NonNull final PeerInfo selfPeer,
             @NonNull final KeysAndCerts keysAndCerts) {
 
-        this.roster = roster;
         this.keysAndCerts = keysAndCerts;
         this.platformContext = platformContext;
+        this.peers = peers;
+        this.selfPeer = selfPeer;
 
-        final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
-        final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
-        if (!CryptoStatic.checkCertificate(selfCert)) {
-            // Do not make peer connections if the self node does not have a valid signing certificate in the roster.
-            // https://github.com/hashgraph/hedera-services/issues/16648
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "The gossip certificate for node {} is missing or invalid. "
-                            + "This node will not connect to any peers.",
-                    selfId);
-            this.peers = Collections.emptyList();
-        } else {
-            this.peers = Utilities.createPeerInfoList(roster, selfId);
-        }
-
-        this.networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId, this.peers);
+        this.networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfPeer.nodeId(), this.peers);
         platformContext.getMetrics().addUpdater(networkMetrics::update);
 
-        this.topology = new StaticTopology(peers, selfId);
+        this.topology = new StaticTopology(peers, selfPeer.nodeId());
     }
 
     /**
@@ -121,6 +98,14 @@ public class PeerCommunication implements ConnectionTracker {
      */
     public NetworkMetrics getNetworkMetrics() {
         return networkMetrics;
+    }
+
+    /**
+     *
+     * @return list of peers for current static topology
+     */
+    public List<PeerInfo> getPeers() {
+        return peers;
     }
 
     List<StoppableThread> buildProtocolThreads(
@@ -141,7 +126,7 @@ public class PeerCommunication implements ConnectionTracker {
                 NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
         // create an instance that can create new outbound connections
         final OutboundConnectionCreator connectionCreator =
-                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, roster);
+                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, peers);
         var connectionManagers = new StaticConnectionManagers(topology, connectionCreator);
         final InboundConnectionHandler inboundConnectionHandler = new InboundConnectionHandler(
                 platformContext,
@@ -151,7 +136,6 @@ public class PeerCommunication implements ConnectionTracker {
                 connectionManagers::newConnection,
                 platformContext.getTime());
         // allow other members to create connections to me
-        final RosterEntry rosterEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         // Assume all ServiceEndpoints use the same port and use the port from the first endpoint.
         // Previously, this code used a "local port" corresponding to the internal endpoint,
         // which should normally be the second entry in the endpoints list if it's obtained via
@@ -159,8 +143,8 @@ public class PeerCommunication implements ConnectionTracker {
         // The assumption must be correct, otherwise, if ports were indeed different, then the old code
         // using the AddressBook would never have listened on a port associated with the external endpoint,
         // thus not allowing anyone to connect to the node from outside the local network, which we'd have noticed.
-        final ConnectionServer connectionServer = new ConnectionServer(
-                threadManager, RosterUtils.fetchPort(rosterEntry, 0), socketFactory, inboundConnectionHandler::handle);
+        final ConnectionServer connectionServer =
+                new ConnectionServer(threadManager, selfPeer.port(), socketFactory, inboundConnectionHandler::handle);
         syncProtocolThreads.add(new StoppableThreadConfiguration<>(threadManager)
                 .setPriority(threadConfig.threadPrioritySync())
                 .setNodeId(selfId)
@@ -180,7 +164,7 @@ public class PeerCommunication implements ConnectionTracker {
                     .setThreadName("SyncProtocolWith" + otherId)
                     .setHangingThreadPeriod(hangingThreadDuration)
                     .setWork(new ProtocolNegotiatorThread(
-                            connectionManagers.getManager(otherId, topology.shouldConnectTo(otherId)),
+                            connectionManagers.getManager(otherId),
                             syncConfig.syncSleepAfterFailedNegotiation(),
                             handshakeProtocols,
                             new NegotiationProtocols(protocolList.stream()

@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
@@ -67,11 +68,14 @@ class HintsServiceImplTest {
     @Mock
     private HintsController controller;
 
+    @Mock
+    private HintsLibrary library;
+
     private HintsServiceImpl subject;
 
     @BeforeEach
     void setUp() {
-        subject = new HintsServiceImpl(WITH_ENABLED_HINTS, component);
+        subject = new HintsServiceImpl(WITH_ENABLED_HINTS, component, library);
     }
 
     @Test
