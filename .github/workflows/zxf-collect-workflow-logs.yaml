@@ -29,7 +29,7 @@ defaults:
 jobs:
   collect-logs:
     name: Collect Workflow Run Logs
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
@@ -42,7 +42,7 @@ jobs:
         id: run_id
         run: |
           RUN_ID=$(gh api -H "Accept: application/vnd.github+json" \
-            /repos/hashgraph/hedera-services/actions/workflows/zxcron-extended-test-suite.yaml/runs \
+            /repos/hiero-ledger/hiero-consensus-node/actions/workflows/zxcron-extended-test-suite.yaml/runs \
             --jq '.workflow_runs[] | select(.run_number == ${{ inputs.workflow_id }}) | .id')
           echo "::set-output name=value::$RUN_ID"
 
@@ -68,5 +68,5 @@ jobs:
         run: |
           echo "### Logs Collected for Workflow:" >> $GITHUB_STEP_SUMMARY
           echo "Workflow run ID: ${{ inputs.workflow_id  }}" >> $GITHUB_STEP_SUMMARY
-          echo "Workflow URL: https://github.com/hashgraph/hedera-services/actions/runs/${{ steps.run_id.outputs.value }}" >> $GITHUB_STEP_SUMMARY
+          echo "Workflow URL: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/${{ steps.run_id.outputs.value }}" >> $GITHUB_STEP_SUMMARY
           echo "Log file download URL: ${{ steps.upload-log.outputs.artifact-url }}" >> $GITHUB_STEP_SUMMARY
