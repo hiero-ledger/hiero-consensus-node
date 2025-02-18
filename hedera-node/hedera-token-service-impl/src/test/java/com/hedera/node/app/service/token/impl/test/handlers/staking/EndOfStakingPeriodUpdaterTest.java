@@ -97,7 +97,7 @@ public class EndOfStakingPeriodUpdaterTest {
     @BeforeEach
     void setup() {
         accountStore = TestStoreFactory.newReadableStoreWithAccounts(Account.newBuilder()
-                .accountId(asAccount(800))
+                .accountId(asAccount(0L, 0L, 800))
                 .tinybarBalance(100_000_000_000L)
                 .build());
         subject = new EndOfStakingPeriodUpdater(

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,8 +33,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class TokenComparatorsTest {
-    private static final AccountID ACCOUNT_1234_ID = asAccount(1234);
-    private static final AccountID ACCOUNT_9876_ID = asAccount(9876);
+
+    private static final AccountID ACCOUNT_1234_ID = asAccount(0L, 0L, 1234);
+    private static final AccountID ACCOUNT_9876_ID = asAccount(0L, 0L, 9876);
 
     @Nested
     class AccountAmountComparatorTest {
@@ -115,23 +116,23 @@ class TokenComparatorsTest {
     @Nested
     class NftTransferComparatorTest {
         private static final NftTransfer NFT_TRANSFER_LIST_1 = NftTransfer.newBuilder()
-                .senderAccountID(asAccount(1111))
-                .receiverAccountID(asAccount(2222))
+                .senderAccountID(asAccount(0L, 0L, 1111))
+                .receiverAccountID(asAccount(0L, 0L, 2222))
                 .serialNumber(1)
                 .build();
         private static final NftTransfer NFT_TRANSFER_LIST_2 = NftTransfer.newBuilder()
-                .senderAccountID(asAccount(1111))
-                .receiverAccountID(asAccount(2222))
+                .senderAccountID(asAccount(0L, 0L, 1111))
+                .receiverAccountID(asAccount(0L, 0L, 2222))
                 .serialNumber(2)
                 .build();
         private static final NftTransfer NFT_TRANSFER_LIST_3 = NftTransfer.newBuilder()
-                .senderAccountID(asAccount(3333))
-                .receiverAccountID(asAccount(2222))
+                .senderAccountID(asAccount(0L, 0L, 3333))
+                .receiverAccountID(asAccount(0L, 0L, 2222))
                 .serialNumber(2)
                 .build();
         private static final NftTransfer NFT_TRANSFER_LIST_4 = NftTransfer.newBuilder()
-                .senderAccountID(asAccount(1111))
-                .receiverAccountID(asAccount(3333))
+                .senderAccountID(asAccount(0L, 0L, 1111))
+                .receiverAccountID(asAccount(0L, 0L, 3333))
                 .serialNumber(2)
                 .build();
 

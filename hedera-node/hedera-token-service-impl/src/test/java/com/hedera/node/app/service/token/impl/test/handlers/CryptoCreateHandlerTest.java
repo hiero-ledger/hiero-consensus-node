@@ -765,7 +765,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         setupConfig();
         setupExpiryValidator();
         final var writableAliases = emptyWritableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(0L, 0L, accountNum))
                 .build();
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
