@@ -24,6 +24,7 @@ import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -578,6 +579,35 @@ public class EventImpl implements Clearable {
 
     @Override
     public String toString() {
-        return baseEvent.toString();
+        final StringBuilder sb = new StringBuilder();
+        descriptorString(sb, baseEvent.getDescriptor());
+        final List<EventDescriptorWrapper> allParents = baseEvent.getAllParents();
+        for (final EventDescriptorWrapper parent : allParents) {
+            //sb.append("\n    parent:");
+            descriptorString(sb, parent);
+        }
+        return sb.toString();
+    }
+
+    public String shortString(){
+        final StringBuilder sb = new StringBuilder();
+        descriptorString(sb, baseEvent.getDescriptor());
+        return sb.toString();
+    }
+
+    private static void descriptorString(final StringBuilder sb, final EventDescriptorWrapper desc){
+        sb.append('(')
+                .append("CR:")
+                .append(desc.creator().id())
+                .append(" ")
+                .append("H:")
+                .append(desc.hash().toHex(6))
+                .append(" ")
+                .append("G:")
+                .append(desc.eventDescriptor().generation())
+                .append(" ")
+                .append("BR:")
+                .append(desc.eventDescriptor().birthRound())
+                .append(')');
     }
 }

@@ -26,6 +26,7 @@ import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
@@ -64,8 +65,14 @@ public class GuiEventStorage {
 
         this.consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
-        // Future work: birth round compatibility for GUI
-        this.linker = new SimpleLinker(GENERATION_THRESHOLD);
+        this.linker = new SimpleLinker(configuration.getConfigData(EventConfig.class).getAncientMode());
+    }
+
+    public GuiEventStorage(final Consensus consensus, final SimpleLinker linker, final Configuration configuration) {
+        this.consensus = consensus;
+        this.linker = linker;
+        this.configuration = configuration;
+        maxGeneration = linker.getNonAncientEvents().stream().mapToLong(EventImpl::getGeneration).max().orElseThrow();
     }
 
     /**

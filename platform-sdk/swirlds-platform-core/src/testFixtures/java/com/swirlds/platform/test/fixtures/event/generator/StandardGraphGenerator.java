@@ -202,7 +202,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
 
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
+                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook),
+                true);
         linker = new SimpleLinker(platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
@@ -476,13 +477,29 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
 
     @Override
     public void removeNode(final NodeId nodeId) {
+        System.out.println("Removing node, last round decided: "+consensusSnapshot.round());
         final int nodeIndex = addressBook.getIndexOfNodeId(nodeId);
         sources.remove(nodeIndex);
         addressBook = addressBook.remove(nodeId);
         buildDefaultOtherParentAffinityMatrix();
+        consensus = new ConsensusImpl(
+                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook),
+                true);
         consensus.loadSnapshot(consensusSnapshot);
         for (final EventImpl event : linker.getNonAncientEvents()) {
+            if(event.getBaseHash().toHex().startsWith("384127a8ece4")){
+                System.out.println("Breaking event 2");
+                return;
+            }
             consensus.addEvent(event);
         }
+    }
+
+    public ConsensusImpl getConsensus() {
+        return consensus;
+    }
+
+    public SimpleLinker getLinker() {
+        return linker;
     }
 }

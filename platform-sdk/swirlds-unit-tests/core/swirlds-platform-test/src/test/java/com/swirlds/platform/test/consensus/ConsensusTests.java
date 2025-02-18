@@ -20,13 +20,27 @@ import static com.swirlds.common.test.fixtures.WeightGenerators.RANDOM;
 import static com.swirlds.platform.test.consensus.ConsensusTestArgs.RANDOM_WEIGHT_DESC;
 
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.ResettableRandom;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.ConsensusImpl;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.eventhandling.EventConfig_;
+import com.swirlds.platform.gui.GuiEventStorage;
+import com.swirlds.platform.gui.SimpleLinker;
+import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
+import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.PlatformTest;
+import com.swirlds.platform.test.event.source.EventSourceFactory;
+import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
+import com.swirlds.platform.test.fixtures.event.source.EventSource;
+import com.swirlds.platform.test.gui.HashgraphGuiRunner;
 import java.util.List;
+import javax.swing.JPanel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -39,7 +53,7 @@ class ConsensusTests extends PlatformTest {
      * Number of iterations in each test. An iteration is to create one graph, and feed it in twice in different
      * topological orders, and check if they match.
      */
-    private final int NUM_ITER = 1;
+    private final int NUM_ITER = 10;
 
     private boolean ignoreNoSuperMajorityMarkerFile = false;
     private boolean ignoreNoJudgesMarkerFile = false;
@@ -61,12 +75,11 @@ class ConsensusTests extends PlatformTest {
 
     private List<PlatformContext> contexts() {
         return List.of(
-                //            createPlatformContext(
-                //                null,
-                //                configBuilder -> configBuilder.withValue(
-                //                    EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                //                   false))
-                //                ,
+//                createPlatformContext(
+//                        null,
+//                        configBuilder -> configBuilder.withValue(
+//                                EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
+//                                false)),
                 createPlatformContext(
                         null,
                         configBuilder ->
@@ -323,5 +336,35 @@ class ConsensusTests extends PlatformTest {
                 .setContexts(contexts())
                 .setIterations(NUM_ITER)
                 .run();
+    }
+
+    //@RepeatedTest(50)
+    @Test
+    void test(){
+        final ResettableRandom random = RandomUtils.initRandom(-5298602547365345220L, false);
+        //final ResettableRandom random = RandomUtils.getRandomPrintSeed();
+        final long weightSeed = random.nextLong();
+        final long graphSeed = random.nextLong();
+
+        final PlatformContext context = contexts().getFirst();
+
+        final List<Long> weights = RANDOM.getWeights(weightSeed, 4);
+        final List<EventSource<?>> eventSources = EventSourceFactory.newStandardEventSources(weights);
+        final StandardGraphGenerator graphGenerator =
+                new StandardGraphGenerator(context, graphSeed, eventSources);
+
+        final AddressBook preRemovalAb = graphGenerator.getAddressBook();
+        graphGenerator.generateEvents(5000);
+        graphGenerator.removeNode(graphGenerator.getAddressBook().getNodeId(0));
+
+//        final SimpleLinker linker = new SimpleLinker(
+//                context.getConfiguration().getConfigData(EventConfig.class).getAncientMode());
+        HashgraphGuiRunner.runHashgraphGui(new StandardGuiSource(preRemovalAb, new GuiEventStorage(
+                graphGenerator.getConsensus(),
+                graphGenerator.getLinker(),
+                null
+        )), new JPanel());
+        //Random seed: -5298602547365345220L
+        //Random seed: -7058144929547239143L
     }
 }

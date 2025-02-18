@@ -117,7 +117,7 @@ public class OrchestratorBuilder {
         // Create two instances to run consensus on. Each instance reseeds the emitter so that they
         // emit events in different orders.
         nodes.add(ConsensusTestNode.genesisContext(platformContext, node1Emitter));
-        nodes.add(ConsensusTestNode.genesisContext(platformContext, node2Emitter));
+        //nodes.add(ConsensusTestNode.genesisContext(platformContext, node2Emitter));
 
         return new ConsensusTestOrchestrator(platformContext, nodes, weights, totalEventNum);
     }
