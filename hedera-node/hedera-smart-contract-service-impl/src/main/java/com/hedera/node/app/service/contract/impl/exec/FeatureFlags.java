@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,7 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 
-import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,24 +37,13 @@ public interface FeatureFlags {
     boolean isCreate2Enabled(@NonNull MessageFrame frame);
 
     /**
-     * Whether the sidecar of a given type is enabled.
-     *
-     * @param frame the {@link MessageFrame} to check
-     * @param sidecarType the type of the sidecar
-     * @return whether the given sidecar type is enabled
-     */
-    default boolean isSidecarEnabled(@NonNull MessageFrame frame, @NonNull SidecarType sidecarType) {
-        return contractsConfigOf(frame).sidecars().contains(sidecarType);
-    }
-
-    /**
      * Whether "implicit creation" of accounts via sending value or targeting a {@code CREATE2} to an EIP-1014 address
      * should be enabled for the given {@code frame}.
      *
      * @param frame the {@link MessageFrame} to check
      * @return whether implicit creation should be enabled
      */
-    default boolean isImplicitCreationEnabled(@NonNull MessageFrame frame) {
+    default boolean isImplicitCreationEnabled(@NonNull final MessageFrame frame) {
         return isImplicitCreationEnabled(configOf(frame));
     }
 
@@ -77,7 +64,7 @@ public interface FeatureFlags {
      * @return true if calls to non-existing contract addresses will result in a successful NOOP.
      */
     default boolean isAllowCallsToNonContractAccountsEnabled(
-            @NonNull final ContractsConfig config, @Nullable Long possiblyGrandFatheredEntityNum) {
+            @NonNull final ContractsConfig config, @Nullable final Long possiblyGrandFatheredEntityNum) {
         return false;
     }
 
@@ -86,7 +73,7 @@ public interface FeatureFlags {
      * @param config the active configuration
      * @return true whether to  charge intrinsic gas for calls that fail with a pre-EVM exception.
      */
-    default boolean isChargeGasOnPreEvmException(@NonNull Configuration config) {
+    default boolean isChargeGasOnPreEvmException(@NonNull final Configuration config) {
         return false;
     }
 
@@ -95,7 +82,7 @@ public interface FeatureFlags {
      * @param config the active configuration
      * @return true whether calls to Hedera Account Service system contract are enabled.
      */
-    default boolean isHederaAccountServiceEnabled(@NonNull Configuration config) {
+    default boolean isHederaAccountServiceEnabled(@NonNull final Configuration config) {
         return false;
     }
 
@@ -103,7 +90,7 @@ public interface FeatureFlags {
      * @param config the active configuration
      * @return true whether authorized raw method is enabled.
      */
-    default boolean isAuthorizedRawMethodEnabled(@NonNull Configuration config) {
+    default boolean isAuthorizedRawMethodEnabled(@NonNull final Configuration config) {
         return false;
     }
 }

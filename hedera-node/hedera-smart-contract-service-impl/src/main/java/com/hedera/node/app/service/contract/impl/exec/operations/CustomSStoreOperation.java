@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,9 @@
 
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
-import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
 import static com.hedera.node.app.service.contract.impl.exec.operations.utils.OpUtils.maybeTrackReadIn;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -30,8 +28,7 @@ import org.hyperledger.besu.evm.operation.SStoreOperation;
 
 /**
  * A wrapper around {@link SStoreOperation} that takes the extra step of tracking the overwritten storage
- * value if {@link FeatureFlags#isSidecarEnabled(MessageFrame, SidecarType)} returns true for the
- * {@link SidecarType#CONTRACT_STATE_CHANGE} type.
+ * value.
  */
 public class CustomSStoreOperation extends DelegatingOperation {
     private final FeatureFlags featureFlags;
@@ -55,7 +52,7 @@ public class CustomSStoreOperation extends DelegatingOperation {
 
         final var key = frame.getStackItem(0);
         final var result = super.execute(frame, evm);
-        if (result.getHaltReason() == null && featureFlags.isSidecarEnabled(frame, CONTRACT_STATE_CHANGE)) {
+        if (result.getHaltReason() == null) {
             // We have to explicitly get the original value before this store operation
             final var account = frame.getWorldUpdater().get(frame.getRecipientAddress());
             final var slotKey = UInt256.fromBytes(key);

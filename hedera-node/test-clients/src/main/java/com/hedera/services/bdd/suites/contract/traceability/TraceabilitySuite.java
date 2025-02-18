@@ -169,7 +169,6 @@ public class TraceabilitySuite {
     private static final String SET_SECOND_SLOT = "setSlot2";
     private static final String DELEGATE_CALL_ADDRESS_GET_SLOT_2 = "delegateCallAddressGetSlot2";
     private static final String AUTO_ACCOUNT_TXN = "autoAccount";
-    public static final String SIDECARS_PROP = "contracts.sidecars";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -4475,7 +4474,6 @@ public class TraceabilitySuite {
     }
 
     @Order(24)
-    @LeakyHapiTest(overrides = {"contracts.sidecars"})
     final Stream<DynamicTest> actionsShowPropagatedRevert() {
         final var APPROVE_BY_DELEGATE = "ApproveByDelegateCall";
         final var badApproval = "BadApproval";
@@ -4489,7 +4487,6 @@ public class TraceabilitySuite {
         final String contractCreateTxn = "contractCreate";
         final var serialNumberId = MAX_UINT256_VALUE;
         return hapiTest(
-                overriding(SIDECARS_PROP, "CONTRACT_ACTION"),
                 uploadInitCode(APPROVE_BY_DELEGATE),
                 contractCreate(APPROVE_BY_DELEGATE).gas(500_000).via(contractCreateTxn),
                 withOpContext((spec, opLog) -> {
@@ -4745,7 +4742,6 @@ public class TraceabilitySuite {
 
     @SuppressWarnings("java:S5960")
     @Order(26)
-    @LeakyHapiTest(overrides = {"contracts.sidecars"})
     final Stream<DynamicTest> hollowAccountCreate2MergeExportsExpectedSidecars() {
         final var tcValue = 1_234L;
         final var create2Factory = "Create2Factory";
@@ -4762,7 +4758,6 @@ public class TraceabilitySuite {
         final AtomicReference<AccountID> mergedAccountId = new AtomicReference<>();
         final var CREATE_2_TXN = "create2Txn";
         return hapiTest(
-                overriding("contracts.sidecars", ""),
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(create2Factory),
@@ -4811,7 +4806,6 @@ public class TraceabilitySuite {
                 // save the id of the hollow account
                 sourcing(() ->
                         getAccountInfo(hollowCreationAddress.get()).logged().exposingIdTo(mergedAccountId::set)),
-                sourcing(() -> overriding(SIDECARS_PROP, "CONTRACT_ACTION,CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE")),
                 sourcing(() -> contractCall(create2Factory, DEPLOY, testContractInitcode.get(), salt)
                         .payingWith(GENESIS)
                         .gas(4_000_000L)

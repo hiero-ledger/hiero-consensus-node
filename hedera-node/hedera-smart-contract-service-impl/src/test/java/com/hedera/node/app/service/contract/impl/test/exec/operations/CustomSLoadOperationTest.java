@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
-import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSLoadOperation;
@@ -94,25 +94,9 @@ class CustomSLoadOperationTest {
     }
 
     @Test
-    void doesNoTrackingIfSidecarDisabled() {
-        final var successResult = new Operation.OperationResult(123, null);
-
-        given(frame.getStackItem(0)).willReturn(A_STORAGE_KEY);
-        given(delegate.execute(frame, evm)).willReturn(successResult);
-
-        final var result = subject.execute(frame, evm);
-
-        assertSame(successResult, result);
-
-        verify(featureFlags).isSidecarEnabled(frame, CONTRACT_STATE_CHANGE);
-        verifyNoMoreInteractions(frame);
-    }
-
-    @Test
     void tracksReadValueOnSuccess() {
         final var successResult = new Operation.OperationResult(123, null);
 
-        given(featureFlags.isSidecarEnabled(frame, CONTRACT_STATE_CHANGE)).willReturn(true);
         given(frame.getContextVariable(FrameUtils.TRACKER_CONTEXT_VARIABLE)).willReturn(accessTracker);
         given(frame.getStackItem(0)).willReturn(A_STORAGE_KEY).willReturn(A_STORAGE_VALUE);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
@@ -134,7 +118,6 @@ class CustomSLoadOperationTest {
     void worksAroundUnexpectedlyMissingAccessTracker() {
         final var successResult = new Operation.OperationResult(123, null);
 
-        given(featureFlags.isSidecarEnabled(frame, CONTRACT_STATE_CHANGE)).willReturn(true);
         given(frame.getStackItem(0)).willReturn(A_STORAGE_KEY).willReturn(A_STORAGE_VALUE);
         given(delegate.execute(frame, evm)).willReturn(successResult);
         given(frame.getMessageFrameStack()).willReturn(stack);

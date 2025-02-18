@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_RE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.errorMessageFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
@@ -139,6 +138,7 @@ public record HederaEvmTransactionResult(
      *
      * @return the status
      */
+    @Override
     public ResponseCodeEnum finalStatus() {
         if (finalStatus != null) {
             return finalStatus;
@@ -199,7 +199,7 @@ public record HederaEvmTransactionResult(
                 frame.getOutputData(),
                 frame.getLogs(),
                 maybeAllStateChangesFrom(frame),
-                maybeActionsFrom(frame, tracer));
+                tracer.contractActions());
     }
 
     public static HederaEvmTransactionResult successFrom(
@@ -211,7 +211,7 @@ public record HederaEvmTransactionResult(
             @NonNull final org.apache.tuweni.bytes.Bytes output,
             @NonNull final List<Log> logs,
             @Nullable final ContractStateChanges stateChanges,
-            @Nullable ContractActions actions) {
+            @Nullable final ContractActions actions) {
         return new HederaEvmTransactionResult(
                 gasUsed,
                 requireNonNull(gasPrice).toLong(),
@@ -259,7 +259,7 @@ public record HederaEvmTransactionResult(
                 Collections.emptyList(),
                 maybeReadOnlyStateChangesFrom(frame),
                 null,
-                maybeActionsFrom(frame, tracer),
+                tracer.contractActions(),
                 null);
     }
 
@@ -303,7 +303,7 @@ public record HederaEvmTransactionResult(
      */
     public static HederaEvmTransactionResult fromAborted(
             @NonNull final AccountID senderId,
-            @Nullable ContractID recipientId,
+            @Nullable final ContractID recipientId,
             @NonNull final ResponseCodeEnum reason) {
         requireNonNull(senderId);
         requireNonNull(reason);
@@ -382,11 +382,6 @@ public record HederaEvmTransactionResult(
 
     private static @Nullable ContractStateChanges maybeAllStateChangesFrom(@NonNull final MessageFrame frame) {
         return stateChangesFrom(frame, true);
-    }
-
-    private static @Nullable ContractActions maybeActionsFrom(
-            @NonNull final MessageFrame frame, @NonNull final ActionSidecarContentTracer tracer) {
-        return hasActionSidecarsEnabled(frame) ? tracer.contractActions() : null;
     }
 
     private static @Nullable ContractStateChanges maybeReadOnlyStateChangesFrom(@NonNull final MessageFrame frame) {

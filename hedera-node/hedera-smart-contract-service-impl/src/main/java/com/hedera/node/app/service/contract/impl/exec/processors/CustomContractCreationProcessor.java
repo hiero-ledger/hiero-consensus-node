@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package com.hedera.node.app.service.contract.impl.exec.processors;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getAndClearPendingCreationMetadata;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasBytecodeSidecarsEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
@@ -127,18 +126,16 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
     public void codeSuccess(@NonNull final MessageFrame frame, @NonNull final OperationTracer tracer) {
         super.codeSuccess(requireNonNull(frame), requireNonNull(tracer));
         // TODO - check if a code rule failed before proceeding
-        if (hasBytecodeSidecarsEnabled(frame)) {
-            final var recipient = proxyUpdaterFor(frame).getHederaAccount(frame.getRecipientAddress());
-            final var recipientId = requireNonNull(recipient).hederaContractId();
-            final var pendingCreationMetadata = getAndClearPendingCreationMetadata(frame, recipientId);
-            final var contractBytecode = ContractBytecode.newBuilder()
-                    .contractId(recipientId)
-                    .runtimeBytecode(tuweniToPbjBytes(recipient.getCode()));
-            if (pendingCreationMetadata.externalizeInitcodeOnSuccess()) {
-                contractBytecode.initcode(tuweniToPbjBytes(frame.getCode().getBytes()));
-            }
-            pendingCreationMetadata.recordBuilder().addContractBytecode(contractBytecode.build(), false);
+        final var recipient = proxyUpdaterFor(frame).getHederaAccount(frame.getRecipientAddress());
+        final var recipientId = requireNonNull(recipient).hederaContractId();
+        final var pendingCreationMetadata = getAndClearPendingCreationMetadata(frame, recipientId);
+        final var contractBytecode = ContractBytecode.newBuilder()
+                .contractId(recipientId)
+                .runtimeBytecode(tuweniToPbjBytes(recipient.getCode()));
+        if (pendingCreationMetadata.externalizeInitcodeOnSuccess()) {
+            contractBytecode.initcode(tuweniToPbjBytes(frame.getCode().getBytes()));
         }
+        pendingCreationMetadata.recordBuilder().addContractBytecode(contractBytecode.build(), false);
     }
 
     private void halt(
@@ -156,7 +153,7 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
     }
 
     private boolean isHollow(@NonNull final MutableAccount account) {
-        if (account instanceof AbstractProxyEvmAccount abstractProxyEvmAccount) {
+        if (account instanceof final AbstractProxyEvmAccount abstractProxyEvmAccount) {
             return abstractProxyEvmAccount.isHollow();
         }
         throw new IllegalArgumentException("Creation target not a AbstractProxyEvmAccount - " + account);

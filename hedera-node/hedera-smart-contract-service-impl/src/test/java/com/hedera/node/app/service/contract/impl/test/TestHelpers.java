@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package com.hedera.node.app.service.contract.impl.test;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.typedKeyTupleFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
@@ -33,7 +32,6 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERA
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doReturn;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
@@ -854,7 +852,7 @@ public class TestHelpers {
             @NonNull final HederaEvmBlocks blocks,
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
-            @NonNull ContractOperationStreamBuilder recordBuilder) {
+            @NonNull final ContractOperationStreamBuilder recordBuilder) {
         return new HederaEvmContext(
                 NETWORK_GAS_PRICE,
                 false,
@@ -954,7 +952,6 @@ public class TestHelpers {
     public static void givenConfigInFrame(@NonNull final MessageFrame frame, @NonNull final Configuration config) {
         final Deque<MessageFrame> stack = new ArrayDeque<>();
         given(frame.getMessageFrameStack()).willReturn(stack);
-        doReturn(config).when(frame).getContextVariable(CONFIG_CONTEXT_VARIABLE);
         given(frame.getMessageFrameStack()).willReturn(stack);
     }
 
@@ -981,7 +978,7 @@ public class TestHelpers {
         private Tuple transferList;
 
         public TransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.transferList = Tuple.singleton(accountAmounts);
+            transferList = Tuple.singleton(accountAmounts);
             return this;
         }
 
@@ -1021,12 +1018,12 @@ public class TestHelpers {
         }
 
         public TokenTransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
+            tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
             return this;
         }
 
         public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
-            this.tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
+            tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
             return this;
         }
 

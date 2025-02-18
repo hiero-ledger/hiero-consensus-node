@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,6 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -160,54 +159,6 @@ class FrameBuilderTest {
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
-    }
-
-    @Test
-    void constructsExpectedFrameForCallToExtantContractNotIncludingAccessTrackerWithSidecarDisabled() {
-        final var transaction = wellKnownHapiCall();
-        givenContractExists();
-        given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
-        given(blocks.blockHashOf(SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
-        given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
-        given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()))).willReturn(CONTRACT_CODE);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
-                .withValue("contracts.sidecars", "CONTRACT_BYTECODE,CONTRACT_ACTION")
-                .getOrCreateConfig();
-
-        final var frame = subject.buildInitialFrameWith(
-                transaction,
-                worldUpdater,
-                wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
-                config,
-                featureFlags,
-                EIP_1014_ADDRESS,
-                NON_SYSTEM_LONG_ZERO_ADDRESS,
-                INTRINSIC_GAS);
-
-        assertEquals(1024, frame.getMaxStackSize());
-        assertSame(stackedUpdater, frame.getWorldUpdater());
-        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
-        assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
-        assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
-        assertEquals(Wei.ONE, frame.getBlobGasPrice());
-        assertEquals(Wei.of(VALUE), frame.getValue());
-        assertEquals(Wei.of(VALUE), frame.getApparentValue());
-        assertSame(blockValues, frame.getBlockValues());
-        assertFalse(frame.isStatic());
-        assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
-        final var hashLookup = frame.getBlockHashLookup();
-        assertEquals(Hash.EMPTY, hashLookup.apply(SOME_BLOCK_NO));
-        assertSame(config, configOf(frame));
-        assertDoesNotThrow(frame::notifyCompletion);
-        assertEquals(MessageFrame.Type.MESSAGE_CALL, frame.getType());
-        assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
-        assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
-        assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE, frame.getCode());
-        assertNull(accessTrackerFor(frame));
-        assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
     @Test

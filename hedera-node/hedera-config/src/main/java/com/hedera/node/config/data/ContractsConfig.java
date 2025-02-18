@@ -16,7 +16,6 @@
 
 package com.hedera.node.config.data;
 
-import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.config.NetworkProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -49,8 +48,6 @@ public record ContractsConfig(
         // CHAINID returns 295 (0x0127) for mainnet, 296 (0x0128) for testnet, and 297 (0x0129) for previewnet.
         // c.f. https://hips.hedera.com/hip/hip-26 for reference
         @ConfigProperty(defaultValue = "295") @NetworkProperty int chainId,
-        @ConfigProperty(defaultValue = "CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE,CONTRACT_ACTION") @NetworkProperty
-                Set<SidecarType> sidecars,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean sidecarValidationEnabled,
         @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "true") @NetworkProperty
                 boolean throttleThrottleByGas,
