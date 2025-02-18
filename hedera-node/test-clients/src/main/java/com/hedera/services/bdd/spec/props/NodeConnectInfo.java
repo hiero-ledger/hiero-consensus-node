@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.services.bdd.spec.props;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isNumericLiteral;
 
@@ -68,7 +69,7 @@ public class NodeConnectInfo {
                 .filter(TxnUtils::isIdLiteral)
                 .map(HapiPropertySource::asAccount)
                 .findAny()
-                .orElse(HapiPropertySource.asAccount(String.format("0.0.%d", NEXT_DEFAULT_ACCOUNT_NUM++)));
+                .orElse(HapiPropertySource.asAccount(asEntityString(NEXT_DEFAULT_ACCOUNT_NUM++)));
         host = Stream.of(aspects)
                 .filter(aspect -> !(isIdLiteral(aspect) || isNumericLiteral(aspect)))
                 .findAny()

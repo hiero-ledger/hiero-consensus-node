@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.services.bdd.spec.transactions.file;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.defaultExpiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
@@ -238,8 +239,7 @@ public class HapiFileCreate extends HapiTxnOp<HapiFileCreate> {
         if (advertiseCreation) {
             String banner = "\n\n"
                     + bannerWith(String.format(
-                            "Created file '%s' with id '0.0.%d'.",
-                            fileName, lastReceipt.getFileID().getFileNum()));
+                            "Created file '%s' with id '%s'.", fileName, asFileString(lastReceipt.getFileID())));
             LOG.info(banner);
         }
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.services.bdd.spec.transactions.token;
 
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyUnchecked;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.defaultExpiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
@@ -436,7 +437,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
         registerAttributes(spec);
         if (advertiseCreation) {
             final String banner = "\n\n"
-                    + bannerWith(String.format("Created token '%s' with id '0.0.%d'.", token, tokenID.getTokenNum()));
+                    + bannerWith(String.format("Created token '%s' with id '%s'.", token, asTokenString(tokenID)));
             log.info(banner);
         }
         if (asCallableContract) {
