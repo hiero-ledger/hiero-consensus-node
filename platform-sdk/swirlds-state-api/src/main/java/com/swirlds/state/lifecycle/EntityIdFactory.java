@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+// FUTURE: This can be moved elsewhere once all the migration code happens in handle.
 /**
  * A strategy for creating entity ids.
  */

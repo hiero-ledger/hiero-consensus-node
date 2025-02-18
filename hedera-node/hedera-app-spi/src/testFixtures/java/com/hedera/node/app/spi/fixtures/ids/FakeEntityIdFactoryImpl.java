@@ -28,11 +28,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * Fixed shard/realm implementation of {@link EntityIdFactory}.
  */
-public class EntityIdFactoryImpl implements EntityIdFactory {
+public class FakeEntityIdFactoryImpl implements EntityIdFactory {
     private final long shard;
     private final long realm;
 
-    public EntityIdFactoryImpl(final long shard, final long realm) {
+    public FakeEntityIdFactoryImpl(final long shard, final long realm) {
         this.shard = shard;
         this.realm = realm;
     }

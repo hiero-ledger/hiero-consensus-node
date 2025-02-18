@@ -94,7 +94,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -409,7 +409,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     protected Account zeroAccount;
 
     /* ---------- Ids ---------- */
-    protected EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    protected EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
 
     /* ---------- Maps for updating both readable and writable stores ---------- */
     private Map<AccountID, Account> accountsMap;

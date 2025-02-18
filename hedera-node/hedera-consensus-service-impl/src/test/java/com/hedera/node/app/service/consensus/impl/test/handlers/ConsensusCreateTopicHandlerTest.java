@@ -57,7 +57,7 @@ import com.hedera.node.app.service.consensus.impl.validators.ConsensusCustomFees
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
@@ -114,7 +114,7 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
     @Mock
     private WritableEntityCounters entityCounters;
 
-    private final EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    private final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
 
     private WritableTopicStore topicStore;
     private Configuration config;
