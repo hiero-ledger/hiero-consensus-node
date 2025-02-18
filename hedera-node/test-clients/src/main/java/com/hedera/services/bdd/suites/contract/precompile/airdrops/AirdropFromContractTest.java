@@ -346,7 +346,8 @@ public class AirdropFromContractTest {
         }
 
         @HapiTest
-        @DisplayName("Airdrop nft to the same account twice should fail with PENDING_NFT_AIRDROP_ALREADY_EXISTS")
+        @DisplayName(
+                "Airdrop nft to the same account twice should fail with TOKEN_ID_REPEATED_IN_TOKEN_LIST for single airdrop or PENDING_NFT_AIRDROP_ALREADY_EXISTS for multiple airdrops")
         public Stream<DynamicTest> airdropNftToTheSameAccountTwice(
                 @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount associatedReceiver,
                 @NonNull @Account(maxAutoAssociations = 0, tinybarBalance = 100L)
