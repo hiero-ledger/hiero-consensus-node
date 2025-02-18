@@ -43,12 +43,15 @@ import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -104,6 +107,12 @@ public class AddressBookTestBase {
                                     A_COMPLEX_KEY)))
             .build();
     public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
+    protected static final long SHARD =
+            DEFAULT_CONFIG.getConfigData(HederaConfig.class).shard();
+    protected static final long REALM =
+            DEFAULT_CONFIG.getConfigData(HederaConfig.class).realm();
+    protected EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
+
     protected final Key key = A_COMPLEX_KEY;
     protected final Key anotherKey = B_COMPLEX_KEY;
 
@@ -113,9 +122,9 @@ public class AddressBookTestBase {
     final Key invalidKey = Key.newBuilder()
             .ecdsaSecp256k1((Bytes.fromHex("0000000000000000000000000000000000000000")))
             .build();
-    protected final AccountID accountId = AccountID.newBuilder().accountNum(3).build();
+    protected final AccountID accountId = idFactory.newAccountId(3);
 
-    protected final AccountID payerId = AccountID.newBuilder().accountNum(2).build();
+    protected final AccountID payerId = idFactory.newAccountId(2);
     protected final byte[] grpcCertificateHash = "grpcCertificateHash".getBytes();
     protected final byte[] gossipCaCertificate = "gossipCaCertificate".getBytes();
     protected final long WELL_KNOWN_NODE_ID = 1L;
@@ -129,8 +138,7 @@ public class AddressBookTestBase {
             .ed25519(Bytes.wrap("01234567890123456789012345678901"))
             .build();
     protected static final ProtoBytes edKeyAlias = new ProtoBytes(Bytes.wrap(asBytes(Key.PROTOBUF, aPrimitiveKey)));
-    protected final AccountID alias =
-            AccountID.newBuilder().alias(edKeyAlias.value()).build();
+    protected final AccountID alias = idFactory.newAccountIdWithAlias(edKeyAlias.value());
 
     protected final ServiceEndpoint endpoint1 = V053AddressBookSchema.endpointFor("127.0.0.1", 1234);
 

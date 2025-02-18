@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -54,13 +55,15 @@ public record MigrationContextImpl(
         @Nullable SemanticVersion previousVersion,
         long roundNumber,
         @NonNull Map<String, Object> sharedValues,
-        @NonNull StartupNetworks startupNetworks)
+        @NonNull StartupNetworks startupNetworks,
+        @NonNull EntityIdFactory entityIdFactory)
         implements MigrationContext {
     public MigrationContextImpl {
         requireNonNull(previousStates);
         requireNonNull(newStates);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
+        requireNonNull(entityIdFactory);
     }
 
     @Override
