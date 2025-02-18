@@ -537,24 +537,25 @@ public class AirdropFromContractTest {
             @NonNull @Account(maxAutoAssociations = -1, tinybarBalance = 100_000_000L) final SpecAccount receiver2,
             @NonNull @Contract(contract = "EmptyOne", creationGas = 100_000_000L) final SpecContract sender1,
             @NonNull @Contract(contract = "EmptyConstructor", creationGas = 100_000_000L) final SpecContract sender2,
-            @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token) {
+            @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token1,
+            @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token2) {
         return hapiTest(withOpContext((spec, opLog) -> {
             allRunFor(
                     spec,
                     sender1.authorizeContract(airdropContract),
                     sender2.authorizeContract(airdropContract),
-                    sender1.associateTokens(token),
-                    sender2.associateTokens(token),
-                    token.treasury().transferUnitsTo(sender1, 100L, token),
-                    token.treasury().transferUnitsTo(sender2, 100L, token));
-            allRunFor(spec, checkForEmptyBalance(receiver1, List.of(token), List.of()));
-            allRunFor(spec, checkForEmptyBalance(receiver2, List.of(token), List.of()));
+                    sender1.associateTokens(token1),
+                    sender2.associateTokens(token2),
+                    token1.treasury().transferUnitsTo(sender1, 100L, token1),
+                    token2.treasury().transferUnitsTo(sender2, 100L, token2));
+            allRunFor(spec, checkForEmptyBalance(receiver1, List.of(token1), List.of()));
+            allRunFor(spec, checkForEmptyBalance(receiver2, List.of(token2), List.of()));
             allRunFor(
                     spec,
                     airdropContract
                             .call(
                                     "tokenNAmountAirdrops",
-                                    prepareTokenAddresses(spec, List.of(token, token)),
+                                    prepareTokenAddresses(spec, List.of(token1, token2)),
                                     prepareContractAddresses(spec, List.of(sender1, sender2)),
                                     prepareAccountAddresses(spec, List.of(receiver1, receiver2)),
                                     1L)
@@ -565,8 +566,8 @@ public class AirdropFromContractTest {
                             .hasChildRecords(recordWith().pendingAirdropsCount(0)),
                     receiver1.getBalance().andAssert(balance -> balance.hasTinyBars(100_000_000L)),
                     receiver2.getBalance().andAssert(balance -> balance.hasTinyBars(100_000_000L)),
-                    receiver1.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)),
-                    receiver2.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)));
+                    receiver1.getBalance().andAssert(balance -> balance.hasTokenBalance(token1.name(), 1L)),
+                    receiver2.getBalance().andAssert(balance -> balance.hasTokenBalance(token2.name(), 1L)));
         }));
     }
 }
