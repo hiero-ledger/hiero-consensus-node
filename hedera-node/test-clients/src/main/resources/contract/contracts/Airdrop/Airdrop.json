@@ -200,7 +200,7 @@
         "type": "int64"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
