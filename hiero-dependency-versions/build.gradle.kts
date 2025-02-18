@@ -138,7 +138,7 @@ dependencies.constraints {
     api("org.testcontainers:junit-jupiter:$testContainers") {
         because("org.testcontainers.junit.jupiter")
     }
-    api("org.yaml:snakeyaml:2.3") { because("org.yaml.snakeyaml") }
+    api("org.yaml:snakeyaml:2.4") { because("org.yaml.snakeyaml") }
     api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
     api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {
