@@ -61,6 +61,12 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
             throw new IllegalStateException("Block stream directory not available");
         }
 
+        // Ensure the directory exists before trying to walk it
+        if (!Files.exists(blockDir)) {
+            log.info("Creating block stream directory at {}", blockDir);
+            Files.createDirectories(blockDir);
+        }
+
         final var currentBlock = findLatestBlockNumber(blockDir);
         final var targetBlock = currentBlock + 1;
 
