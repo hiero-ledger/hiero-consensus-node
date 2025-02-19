@@ -204,6 +204,7 @@ public class ServicesMain implements SwirldMain {
      * @param args optionally, what node id to run; required if the address book is ambiguous
      */
     public static void main(final String... args) throws Exception {
+        initLogging();
         // --- Configure platform infrastructure and context from the command line and environment ---
         BootstrapUtils.setupConstructableRegistry();
         final var diskAddressBook = loadAddressBook(DEFAULT_CONFIG_FILE_NAME);
@@ -219,7 +220,7 @@ public class ServicesMain implements SwirldMain {
         final var selfId = ensureSingleNode(nodesToRun, commandLineArgs.localNodesToStart());
         final var platformConfig = buildPlatformConfig();
         BootstrapUtils.setupConstructableRegistryWithConfiguration(platformConfig);
-        final var networkKeysAndCerts = initNodeSecurity(diskAddressBook, platformConfig);
+        final var networkKeysAndCerts = initNodeSecurity(diskAddressBook, platformConfig, Set.copyOf(nodesToRun));
         final var keysAndCerts = networkKeysAndCerts.get(selfId);
         setupGlobalMetrics(platformConfig);
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
@@ -245,8 +246,6 @@ public class ServicesMain implements SwirldMain {
         hedera = newHedera(selfId, metrics);
         final var version = hedera.getSoftwareVersion();
         final var isGenesis = new AtomicBoolean(false);
-        // We want to be able to see the schema migration logs, so init logging here
-        initLogging();
         logger.info("Starting node {} with version {}", selfId, version);
         final var reservedState = loadInitialState(
                 platformConfig,

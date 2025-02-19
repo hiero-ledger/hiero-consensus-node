@@ -37,6 +37,7 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldState;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -78,7 +79,8 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
         this.addressBook = RosterUtils.buildAddressBook(this.roster);
 
         if (loadSigningKeys) {
-            keysAndCerts = initNodeSecurity(addressBook, configuration).get(selfId);
+            keysAndCerts = initNodeSecurity(addressBook, configuration, Collections.singleton(selfId))
+                    .get(selfId);
         } else {
             keysAndCerts = null;
         }

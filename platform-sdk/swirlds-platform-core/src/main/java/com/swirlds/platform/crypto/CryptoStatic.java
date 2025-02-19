@@ -78,6 +78,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -105,6 +106,7 @@ public final class CryptoStatic {
     private static final int SWIRLD_ID_MULTIPLIER = 163;
     private static final int BITS_IN_BYTE = 8;
     private static final String ADDRESS_BOOK_MUST_NOT_BE_NULL = "addressBook must not be null";
+    private static final String LOCAL_NODES_MUST_NOT_BE_NULL = "the local nodes must not be null";
 
     static {
         // used to generate certificates
@@ -351,12 +353,16 @@ public final class CryptoStatic {
     @NonNull
     @Deprecated(since = "0.47.0", forRemoval = false)
     static Map<NodeId, KeysAndCerts> loadKeysAndCerts(
-            @NonNull final AddressBook addressBook, @NonNull final Path keysDirPath, @NonNull final char[] password)
+            @NonNull final AddressBook addressBook,
+            @NonNull final Path keysDirPath,
+            @NonNull final char[] password,
+            @NonNull final Set<NodeId> localNodes)
             throws KeyStoreException, KeyLoadingException, UnrecoverableKeyException, NoSuchAlgorithmException,
                     KeyGeneratingException, NoSuchProviderException {
         Objects.requireNonNull(addressBook, ADDRESS_BOOK_MUST_NOT_BE_NULL);
         Objects.requireNonNull(keysDirPath, "keysDirPath must not be null");
         Objects.requireNonNull(password, "password must not be null");
+        Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
         final int n = addressBook.getSize();
 
         final List<String> names = new ArrayList<>();
@@ -376,9 +382,9 @@ public final class CryptoStatic {
         for (int i = 0; i < n; i++) {
             final NodeId nodeId = addressBook.getNodeId(i);
             final Address address = addressBook.getAddress(nodeId);
-            if (!AddressBookNetworkUtils.isLocal(address)) {
+            if (!localNodes.contains(address.getNodeId())) {
                 // in case we are not creating keys but loading them from disk, we do not need to create
-                // a KeysAndCerts object for every node, just the local ones
+                // a KeysAndCerts object for every node, just the ones that are started.
                 continue;
             }
             final String name = nameToAlias(addressBook.getAddress(nodeId).getSelfName());
@@ -535,9 +541,12 @@ public final class CryptoStatic {
      * @return a map of KeysAndCerts objects, one for each node
      */
     public static Map<NodeId, KeysAndCerts> initNodeSecurity(
-            @NonNull final AddressBook addressBook, @NonNull final Configuration configuration) {
+            @NonNull final AddressBook addressBook,
+            @NonNull final Configuration configuration,
+            @NonNull final Set<NodeId> localNodes) {
         Objects.requireNonNull(addressBook, ADDRESS_BOOK_MUST_NOT_BE_NULL);
         Objects.requireNonNull(configuration, "configuration must not be null");
+        Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
 
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
         final CryptoConfig cryptoConfig = configuration.getConfigData(CryptoConfig.class);
@@ -556,7 +565,7 @@ public final class CryptoStatic {
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
                 if (cryptoConfig.enableNewKeyStoreModel()) {
                     logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                    keysAndCerts = EnhancedKeyStoreLoader.using(addressBook, configuration)
+                    keysAndCerts = EnhancedKeyStoreLoader.using(addressBook, configuration, localNodes)
                             .migrate()
                             .scan()
                             .generate()
@@ -568,7 +577,8 @@ public final class CryptoStatic {
                     keysAndCerts = loadKeysAndCerts(
                             addressBook,
                             pathsConfig.getKeysDirPath(),
-                            cryptoConfig.keystorePassword().toCharArray());
+                            cryptoConfig.keystorePassword().toCharArray(),
+                            localNodes);
                 }
                 logger.debug(STARTUP.getMarker(), "Done loading keys");
             } else {

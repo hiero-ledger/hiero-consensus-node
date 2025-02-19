@@ -102,11 +102,13 @@ public class CryptoArgsProvider {
      */
     @NonNull
     public static RosterAndCerts loadAddressBookWithKeys(final int size)
-            throws URISyntaxException, UnrecoverableKeyException, KeyLoadingException, KeyStoreException,
-                    NoSuchAlgorithmException, KeyGeneratingException, NoSuchProviderException {
+            throws URISyntaxException, KeyLoadingException, KeyStoreException, NoSuchAlgorithmException,
+                    KeyGeneratingException, NoSuchProviderException {
         final AddressBook createdAB = createAddressBook(size);
         final Map<NodeId, KeysAndCerts> loadedC = EnhancedKeyStoreLoader.using(
-                        createdAB, configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")))
+                        createdAB,
+                        configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")),
+                        createdAB.getNodeIdSet())
                 .scan()
                 .generate()
                 .verify()
