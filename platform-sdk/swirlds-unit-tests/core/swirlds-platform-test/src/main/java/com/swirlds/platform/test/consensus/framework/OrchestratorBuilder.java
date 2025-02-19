@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,8 +42,8 @@ public class OrchestratorBuilder {
     private WeightGenerator weightGenerator = BALANCED;
     private long seed = 0;
     private int totalEventNum = 10_000;
-    private Function<List<Long>, List<EventSource<?>>> eventSourceBuilder = EventSourceFactory::newStandardEventSources;
-    private Consumer<EventSource<?>> eventSourceConfigurator = es -> {};
+    private Function<List<Long>, List<EventSource>> eventSourceBuilder = EventSourceFactory::newStandardEventSources;
+    private Consumer<EventSource> eventSourceConfigurator = es -> {};
     private PlatformContext platformContext =
             TestPlatformContextBuilder.create().build();
     /**
@@ -62,7 +62,7 @@ public class OrchestratorBuilder {
     }
 
     public @NonNull OrchestratorBuilder setEventSourceBuilder(
-            @NonNull final Function<List<Long>, List<EventSource<?>>> eventSourceBuilder) {
+            @NonNull final Function<List<Long>, List<EventSource>> eventSourceBuilder) {
         this.eventSourceBuilder = eventSourceBuilder;
         return this;
     }
@@ -88,7 +88,7 @@ public class OrchestratorBuilder {
     }
 
     public @NonNull OrchestratorBuilder setEventSourceConfigurator(
-            @NonNull final Consumer<EventSource<?>> eventSourceConfigurator) {
+            @NonNull final Consumer<EventSource> eventSourceConfigurator) {
         this.eventSourceConfigurator = eventSourceConfigurator;
         return this;
     }
@@ -113,8 +113,8 @@ public class OrchestratorBuilder {
         final long shuffler2Seed = random.nextLong();
 
         final List<Long> weights = weightGenerator.getWeights(weightSeed, numberOfNodes);
-        final List<EventSource<?>> eventSources = eventSourceBuilder.apply(weights);
-        for (final EventSource<?> eventSource : eventSources) {
+        final List<EventSource> eventSources = eventSourceBuilder.apply(weights);
+        for (final EventSource eventSource : eventSources) {
             eventSourceConfigurator.accept(eventSource);
         }
         final StandardGraphGenerator graphGenerator =
@@ -122,9 +122,9 @@ public class OrchestratorBuilder {
 
         // Make the graph generators create a fresh set of events.
         // Use the same seed so that they create identical graphs.
-        final EventEmitter<?> node1Emitter =
+        final EventEmitter node1Emitter =
                 node1EventEmitterGenerator.getEventEmitter(graphGenerator.cleanCopy(), shuffler1Seed);
-        final EventEmitter<?> node2Emitter =
+        final EventEmitter node2Emitter =
                 node2EventEmitterGenerator.getEventEmitter(graphGenerator.cleanCopy(), shuffler2Seed);
 
         final List<ConsensusTestNode> nodes = new ArrayList<>();

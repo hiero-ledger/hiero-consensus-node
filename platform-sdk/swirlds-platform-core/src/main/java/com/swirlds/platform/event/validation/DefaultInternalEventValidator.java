@@ -23,8 +23,8 @@ import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION
 
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.SignatureType;
@@ -182,7 +182,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             nullField = "version";
         } else if (eventCore.parents().stream().anyMatch(Objects::isNull)) {
             nullField = "parent";
-        } else if (gossipEvent.eventTransaction().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
+        } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
             nullField = "transaction";
         }
         if (nullField != null) {
@@ -199,10 +199,8 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @param transaction the transaction to check
      * @return true if the transaction is null, otherwise false
      */
-    private static boolean isTransactionNull(@Nullable final EventTransaction transaction) {
-        return transaction == null
-                || transaction.transaction() == null
-                || transaction.transaction().value() == null;
+    private static boolean isTransactionNull(@Nullable final Bytes transaction) {
+        return transaction == null || transaction.length() == 0;
     }
 
     /**

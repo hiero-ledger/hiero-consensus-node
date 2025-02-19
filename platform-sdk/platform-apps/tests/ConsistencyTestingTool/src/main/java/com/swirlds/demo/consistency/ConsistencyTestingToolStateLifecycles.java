@@ -133,10 +133,6 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
             @NonNull ConsistencyTestingToolState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         event.forEachTransaction(transaction -> {
-            if (transaction.isSystem()) {
-                return;
-            }
-
             if (isSystemTransaction(transaction)) {
                 state.consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
                 return;

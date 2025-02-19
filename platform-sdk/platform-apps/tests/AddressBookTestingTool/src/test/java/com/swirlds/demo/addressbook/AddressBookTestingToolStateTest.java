@@ -202,26 +202,6 @@ class AddressBookTestingToolStateTest {
     }
 
     @Test
-    void handleConsensusRoundWithDeprecatedSystemTransaction() {
-        // Given
-        givenRoundAndEvent();
-
-        when(consensusTransaction.getApplicationTransaction()).thenReturn(Bytes.EMPTY);
-        when(consensusTransaction.isSystem()).thenReturn(true);
-
-        // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        verify(round, times(1)).iterator();
-        verify(event, times(1)).consensusTransactionIterator();
-
-        assertThat(Long.parseLong(((StringLeaf) state.getChild(RUNNING_SUM_INDEX)).getLabel()))
-                .isZero();
-        assertThat(consumedTransactions).isEmpty();
-    }
-
-    @Test
     void handleConsensusRoundWithEmptyTransaction() {
         // Given
         givenRoundAndEvent();
@@ -231,7 +211,6 @@ class AddressBookTestingToolStateTest {
                 StateSignatureTransaction.PROTOBUF.toBytes(emptyStateSignatureTransaction);
         when(main.encodeSystemTransaction(emptyStateSignatureTransaction))
                 .thenReturn(emptyStateSignatureTransactionBytes);
-        when(consensusTransaction.isSystem()).thenReturn(false);
         when(consensusTransaction.getApplicationTransaction()).thenReturn(emptyStateSignatureTransactionBytes);
 
         // When
@@ -283,21 +262,6 @@ class AddressBookTestingToolStateTest {
 
         // Then
         assertThat(consumedTransactions).hasSize(1);
-    }
-
-    @Test
-    void preHandleEventWithDeprecatedSystemTransaction() {
-        // Given
-        when(round.iterator()).thenReturn(Collections.singletonList(event).iterator());
-        when(event.transactionIterator())
-                .thenReturn(Collections.singletonList(consensusTransaction).iterator());
-        when(consensusTransaction.isSystem()).thenReturn(true);
-
-        // When
-        stateLifecycles.onPreHandle(event, state, consumer);
-
-        // Then
-        assertThat(consumedTransactions).isEmpty();
     }
 
     @Test

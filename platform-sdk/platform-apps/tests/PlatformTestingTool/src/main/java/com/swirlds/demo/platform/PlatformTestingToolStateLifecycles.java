@@ -726,10 +726,6 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
             final Event event,
             final PlatformTestingToolState state,
             Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-        if (transaction.isSystem()) {
-            return;
-        }
-
         try {
             final byte[] payloadBytes = transaction.getApplicationTransaction().toByteArray();
             final TestTransactionWrapper testTransactionWrapper = TestTransactionWrapper.parseFrom(payloadBytes);
@@ -793,9 +789,6 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
             final long roundNum,
             final PlatformTestingToolState state,
             final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-        if (trans.isSystem()) {
-            return;
-        }
         try {
             waitForSignatureValidation(trans);
             handleTransaction(
