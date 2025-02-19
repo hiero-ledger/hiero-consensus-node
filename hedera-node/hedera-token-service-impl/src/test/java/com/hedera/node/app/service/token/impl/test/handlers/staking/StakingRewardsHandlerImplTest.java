@@ -153,12 +153,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
         randomStakeNodeChanges();
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
-
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
 
@@ -211,11 +206,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
 
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
 
@@ -250,11 +241,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(context.consensusTime()).willReturn(nextDayInstant);
         stakePeriodManager.setCurrentStakePeriodFor(nextDayInstant);
 
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
 
@@ -277,11 +264,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .withDeleted(false)
                 .build();
         addToState(Map.of(payerId, payerAccountBefore));
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         // Change node, so to trigger rewards
         writableAccountStore.put(
@@ -315,11 +298,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .build();
         addToState(Map.of(payerId, payerAccountBefore));
 
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         // Change node, so to trigger rewards
         writableAccountStore.put(account.copyBuilder().stakedNodeId(0L).build());
@@ -346,11 +325,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .withDeleted(false)
                 .build();
         addToState(Map.of(payerId, payerAccountBefore));
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         // Change node, so to trigger rewards
         writableAccountStore.put(
@@ -407,11 +382,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .withDeleted(false)
                 .build();
         addToState(Map.of(payerId, payerAccountBefore));
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         writableAccountStore.put(writableAccountStore
                 .get(payerId)
@@ -477,11 +448,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
 
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
 
@@ -551,11 +518,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(recordBuilder.getNumberOfDeletedAccounts()).willReturn(1);
         given(recordBuilder.getDeletedAccountBeneficiaryFor(payerId)).willReturn(ownerId);
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
         assertThat(rewards).hasSize(1);
@@ -580,11 +543,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
 
         final var node1InfoBefore = writableStakingInfoState.get(node1Id);
 
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         writableAccountStore.put(account.copyBuilder()
                 .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
@@ -626,11 +585,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .build();
         addToState(Map.of(payerId, payerAccountBefore));
         final var initialStakePeriodStart = payerAccountBefore.stakePeriodStart();
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         final var node1InfoBefore = writableStakingInfoState.get(node1Id);
 
@@ -688,11 +643,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 1)
                         .atStartOfDay(ZoneOffset.UTC)
                         .toInstant());
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
 
         // No rewards rewarded
@@ -746,11 +697,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .tinybarBalance(payerLaterBalance)
                 .stakedAccountId(ownerId)
                 .build());
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
         given(context.consensusTime())
                 .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 2)
                         .atStartOfDay(ZoneOffset.UTC)
@@ -822,11 +769,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(recordBuilder.getNumberOfDeletedAccounts()).willReturn(1);
         given(recordBuilder.getDeletedAccountBeneficiaryFor(payerId)).willReturn(ownerId);
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
         assertThat(rewards).hasSize(1);
@@ -879,11 +822,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.getNumberOfDeletedAccounts()).willReturn(1);
         given(recordBuilder.getDeletedAccountBeneficiaryFor(payerId)).willReturn(ownerId);
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
 
         final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
@@ -975,11 +914,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .build();
         addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
 
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
 
         final var node0InfoBefore = writableStakingInfoState.get(node0Id);
 
@@ -1095,11 +1030,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .withStakedToMe(0L)
                 .withStakedAccountId(ownerId)
                 .build();
-        long stackingRewardAccount =
-                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
-        given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+        mockEntityIdFactory();
         final var ownerAccountBefore = new AccountCustomizer()
                 .withAccount(ownerAccount)
                 .withBalance(ownerBalance)
@@ -1138,13 +1069,12 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(modifiedPayer.stakePeriodStart()).isEqualTo(stakePeriodStart);
     }
 
-    private void randomStakeAccountChanges() {
-        writableAccountStore.put(account.copyBuilder()
-                .tinybarBalance(100L)
-                .stakedAccountId(treasuryId)
-                .declineReward(true)
-                .build());
-        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+    private void mockEntityIdFactory() {
+        long stackingRewardAccount =
+                configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
+        given(entityIdFactory.newAccountId(stackingRewardAccount))
+                .willReturn(
+                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
     }
 
     private void randomStakeNodeChanges() {
