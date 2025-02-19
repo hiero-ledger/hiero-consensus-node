@@ -46,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import java.util.stream.Stream;
@@ -78,9 +79,13 @@ public class AtomicBatchNegativeTest {
                             .waitForExpiry(false),
                     atomicBatch(
                                     // sign the schedule
-                                    scheduleSign("schedule").payingWith(sender).batchKey(batchOperator),
+                                    scheduleSign("schedule")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .payingWith(sender)
+                                            .batchKey(batchOperator),
                                     // failing transfer
                                     cryptoTransfer(tinyBarsFromTo(sender, receiver, ONE_HUNDRED_HBARS))
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey(batchOperator))
                             .payingWith(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -102,9 +107,15 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(sender).key(oldKey).balance(FIVE_HBARS),
                     newKeyNamed(newKey),
                     atomicBatch(
-                                    cryptoUpdate(sender).key(newKey).batchKey(sender),
-                                    cryptoDelete(sender).batchKey(sender),
+                                    cryptoUpdate(sender)
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .key(newKey)
+                                            .batchKey(sender),
+                                    cryptoDelete(sender)
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey(sender),
                                     cryptoTransfer(tinyBarsFromTo(GENESIS, sender, 1))
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey(sender))
                             .payingWith(sender)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
