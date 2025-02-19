@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.swirlds.virtualmap.benchmark.reconnect;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -50,10 +51,10 @@ public class StateBuilder {
             final long size,
             final double learnerMissingProbability,
             final double learnerDifferentProbability,
-            final BiConsumer<TestKey, TestValue> teacherPopulator,
-            final BiConsumer<TestKey, TestValue> learnerPopulator) {
+            final BiConsumer<Bytes, TestValue> teacherPopulator,
+            final BiConsumer<Bytes, TestValue> learnerPopulator) {
         LongStream.range(1, size).forEach(i -> {
-            final TestKey key = new TestKey(i);
+            final Bytes key = TestKey.longToKey(i);
 
             final TestValue teacherValue = new TestValue(RandomUtils.randomString(random, random.nextInt(1, 64)));
             teacherPopulator.accept(key, teacherValue);

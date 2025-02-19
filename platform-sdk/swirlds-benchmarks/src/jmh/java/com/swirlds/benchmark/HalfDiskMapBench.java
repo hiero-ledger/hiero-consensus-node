@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.swirlds.benchmark;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
@@ -63,16 +64,15 @@ public class HalfDiskMapBench extends BaseBench {
         System.out.println();
 
         // Write files
-        final BenchmarkKeySerializer keySerializer = new BenchmarkKeySerializer();
         long start = System.currentTimeMillis();
         for (int i = 0; i < numFiles; i++) {
             store.startWriting();
             resetKeys();
             for (int j = 0; j < numRecords; ++j) {
                 long id = nextAscKey();
-                BenchmarkKey key = new BenchmarkKey(id);
                 long value = nextValue();
-                store.put(keySerializer.toBytes(key), key.hashCode(), value);
+                final Bytes key = BenchmarkKey.longToKey(id);
+                store.put(key, value);
                 if (verify) map[(int) id] = value;
             }
             store.endWriting();
@@ -88,8 +88,8 @@ public class HalfDiskMapBench extends BaseBench {
         if (verify) {
             start = System.currentTimeMillis();
             for (int id = 0; id < map.length; ++id) {
-                final BenchmarkKey key = new BenchmarkKey(id);
-                long value = store.get(keySerializer.toBytes(key), key.hashCode(), INVALID_PATH);
+                final Bytes key = BenchmarkKey.longToKey(id);
+                long value = store.get(key, INVALID_PATH);
                 if (value != map[id]) {
                     throw new RuntimeException("Bad value");
                 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,12 @@
 package com.swirlds.virtualmap.internal.hash;
 
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 
 /**
  * Listens to various events that occur during the hashing process.
  */
-public interface VirtualHashListener<K extends VirtualKey, V extends VirtualValue> {
+public interface VirtualHashListener {
     /**
      * Called when starting a new fresh hash operation.
      */
@@ -48,7 +46,7 @@ public interface VirtualHashListener<K extends VirtualKey, V extends VirtualValu
      * @param leaf
      * 		A non-null leaf record representing the hashed leaf.
      */
-    default void onLeafHashed(VirtualLeafRecord<K, V> leaf) {}
+    default void onLeafHashed(VirtualLeafBytes<?> leaf) {}
 
     /**
      * Called when all hashing has completed.

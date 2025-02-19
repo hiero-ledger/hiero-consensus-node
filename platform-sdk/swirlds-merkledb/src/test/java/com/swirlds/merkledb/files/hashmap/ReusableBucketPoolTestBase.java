@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 package com.swirlds.merkledb.files.hashmap;
 
-import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
-import com.swirlds.virtualmap.serialize.KeySerializer;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
@@ -56,7 +54,6 @@ abstract class ReusableBucketPoolTestBase {
     @Test
     @DisplayName("Basic get / release bucket")
     void basicGetRelease() {
-        final KeySerializer<ExampleLongKeyFixedSize> serializer = new ExampleLongKeyFixedSize.Serializer();
         final ReusableBucketPool pool = createPool(2);
         final Bucket bucket1 = pool.getBucket();
         Assertions.assertNotNull(bucket1);

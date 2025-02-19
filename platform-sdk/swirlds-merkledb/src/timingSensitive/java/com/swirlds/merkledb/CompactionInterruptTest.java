@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.TestType;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
@@ -207,17 +205,12 @@ class CompactionInterruptTest {
             final int start = batch * count;
             final int end = start + count;
             final int lastLeafPath = (COUNT + end) - 1;
-            final KeySerializer keySerializer =
-                    TestType.variable_variable.dataType().getKeySerializer();
-            final ValueSerializer valueSerializer =
-                    TestType.variable_variable.dataType().getValueSerializer();
             dataSource.saveRecords(
                     COUNT,
                     lastLeafPath,
                     IntStream.range(start, end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(COUNT + start, COUNT + end)
-                            .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
         }
     }

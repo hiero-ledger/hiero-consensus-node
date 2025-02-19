@@ -24,8 +24,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import com.swirlds.base.function.CheckedSupplier;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
@@ -112,7 +110,7 @@ import org.apache.logging.log4j.Logger;
  * 		calls that race with this one and come after will not execute.</li>
  * </ul>
  */
-public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
+public class VirtualPipeline {
 
     private static final String PIPELINE_COMPONENT = "virtual-pipeline";
     private static final String PIPELINE_THREAD_NAME = "lifecycle";
@@ -124,7 +122,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      *
      * <p>Copies are removed from this list when destroyed and (flushed or merged).
      */
-    private final PipelineList<VirtualRoot<K, V>> copies;
+    private final PipelineList<VirtualRoot> copies;
 
     private final AtomicInteger undestroyedCopies = new AtomicInteger();
 
@@ -134,13 +132,13 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * {@link #registerCopy(VirtualRoot)} to establish that order). Once hashed, the
      * copy is removed from this deque.
      */
-    private final ConcurrentLinkedDeque<VirtualRoot<K, V>> unhashedCopies;
+    private final ConcurrentLinkedDeque<VirtualRoot> unhashedCopies;
 
     /**
      * A reference to the most recent copy. This is the copy that {@link VirtualRoot#onShutdown(boolean)}
      * will be called on.
      */
-    private final AtomicReference<VirtualRoot<K, V>> mostRecentCopy = new AtomicReference<>();
+    private final AtomicReference<VirtualRoot> mostRecentCopy = new AtomicReference<>();
 
     /**
      * True if the pipeline is alive and running. When set to false, any already scheduled work
@@ -201,7 +199,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * @param copy
      * 		the copy in question
      */
-    private void validatePipelineRegistration(final VirtualRoot<K, V> copy) {
+    private void validatePipelineRegistration(final VirtualRoot copy) {
         if (!copy.isRegisteredToPipeline(this)) {
             throw new IllegalStateException("copy is not registered with this pipeline");
         }
@@ -263,7 +261,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * @throws NullPointerException
      * 		if the copy is null
      */
-    public void registerCopy(final VirtualRoot<K, V> copy) {
+    public void registerCopy(final VirtualRoot copy) {
         Objects.requireNonNull(copy);
 
         if (copy.isImmutable()) {
@@ -316,7 +314,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * at a later time (i.e. merge and flush), and so this method only gives the guarantee
      * that the resources held by the copy will be eventually destroyed.
      */
-    public synchronized void destroyCopy(final VirtualRoot<K, V> copy) {
+    public synchronized void destroyCopy(final VirtualRoot copy) {
         if (!alive) {
             // Copy destroyed after the pipeline was manually shut down.
             return;
@@ -342,11 +340,11 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * @param copy
      * 		a copy of the map that needs to be hashed
      */
-    public void hashCopy(final VirtualRoot<K, V> copy) {
+    public void hashCopy(final VirtualRoot copy) {
         validatePipelineRegistration(copy);
 
         for (; ; ) {
-            final VirtualRoot<K, V> unhashedCopy = unhashedCopies.peekFirst();
+            final VirtualRoot unhashedCopy = unhashedCopies.peekFirst();
             if (unhashedCopy == null) {
                 break;
             }
@@ -393,9 +391,9 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * 		the copy to detach
      * @return a reference to the detached state
      */
-    public RecordAccessor<K, V> detachCopy(final VirtualRoot<K, V> copy) {
+    public RecordAccessor detachCopy(final VirtualRoot copy) {
         validatePipelineRegistration(copy);
-        final RecordAccessor<K, V> ret = pausePipelineAndExecute("detach", copy::detach);
+        final RecordAccessor ret = pausePipelineAndExecute("detach", copy::detach);
         if (alive) {
             scheduleWork();
         }
@@ -414,7 +412,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * @param targetDirectory
      * 		the location where detached files are written. If null then default location is used.
      */
-    public void snapshot(final VirtualRoot<K, V> copy, final Path targetDirectory) throws IOException {
+    public void snapshot(final VirtualRoot copy, final Path targetDirectory) throws IOException {
         validatePipelineRegistration(copy);
         pausePipelineAndExecute("snapshot", () -> {
             copy.snapshot(targetDirectory);
@@ -453,7 +451,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
     /**
      * Check if this copy should be flushed.
      */
-    private boolean shouldBeFlushed(final VirtualRoot<K, V> copy) {
+    private boolean shouldBeFlushed(final VirtualRoot copy) {
         return copy.shouldBeFlushed() // either explicitly marked to flush or based on its size
                 && (copy.isDestroyed() || copy.isDetached()); // destroyed or detached
     }
@@ -465,8 +463,8 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      */
     private long currentTotalSize() {
         long totalEstimatedSize = 0;
-        for (PipelineListNode<VirtualRoot<K, V>> node = copies.getFirst(); node != null; node = node.getNext()) {
-            final VirtualRoot<K, V> copy = node.getValue();
+        for (PipelineListNode<VirtualRoot> node = copies.getFirst(); node != null; node = node.getNext()) {
+            final VirtualRoot copy = node.getValue();
             if (!copy.isImmutable()) {
                 break;
             }
@@ -481,7 +479,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      *
      * @param copy the copy to flush
      */
-    private void flush(final VirtualRoot<K, V> copy) {
+    private void flush(final VirtualRoot copy) {
         if (copy.isFlushed()) {
             throw new IllegalStateException("copy is already flushed");
         }
@@ -494,9 +492,9 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
     /**
      * Copies can only be merged into younger copies that are themselves immutable. Check if that is the case.
      */
-    private boolean canBeMerged(final PipelineListNode<VirtualRoot<K, V>> mergeCandidate) {
-        final VirtualRoot<K, V> copy = mergeCandidate.getValue();
-        final PipelineListNode<VirtualRoot<K, V>> mergeTarget = mergeCandidate.getNext();
+    private boolean canBeMerged(final PipelineListNode<VirtualRoot> mergeCandidate) {
+        final VirtualRoot copy = mergeCandidate.getValue();
+        final PipelineListNode<VirtualRoot> mergeTarget = mergeCandidate.getNext();
 
         return !copy.shouldBeFlushed() // shouldn't be flushed
                 && (copy.isDestroyed() || copy.isDetached()) // copy must be destroyed or detached
@@ -511,8 +509,8 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * @param node
      * 		the node containing the copy to merge
      */
-    private void merge(final PipelineListNode<VirtualRoot<K, V>> node) {
-        final VirtualRoot<K, V> copy = node.getValue();
+    private void merge(final PipelineListNode<VirtualRoot> node) {
+        final VirtualRoot copy = node.getValue();
 
         if (copy.isMerged()) {
             throw new IllegalStateException("copy is already merged");
@@ -522,7 +520,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
             hashCopy(copy);
         }
 
-        final VirtualRoot<K, V> next = node.getNext().getValue();
+        final VirtualRoot next = node.getNext().getValue();
         if (!next.isHashed()) {
             hashCopy(next);
         }
@@ -534,10 +532,10 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * Hash, flush, and merge all copies currently capable of these operations.
      */
     private void hashFlushMerge() {
-        PipelineListNode<VirtualRoot<K, V>> next = copies.getFirst();
+        PipelineListNode<VirtualRoot> next = copies.getFirst();
         // Iterate from the oldest copy to the newest
         while ((next != null) && !Thread.currentThread().isInterrupted()) {
-            final VirtualRoot<K, V> copy = next.getValue();
+            final VirtualRoot copy = next.getValue();
             // The newest copy. Nothing can be done to it
             if (!copy.isImmutable()) {
                 break;
@@ -670,15 +668,14 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
         sb.append("  size = ").append(copies.getSize()).append("\n");
         sb.append("Copies listed oldest to newest:\n");
 
-        PipelineListNode<VirtualRoot<K, V>> next = copies.getFirst();
+        PipelineListNode<VirtualRoot> next = copies.getFirst();
         int index = 0;
         while (next != null) {
-            final VirtualRoot<K, V> copy = next.getValue();
+            final VirtualRoot copy = next.getValue();
 
             sb.append(index);
-            sb.append(", should be flushed = ").append(uppercaseBoolean(shouldBeFlushed(copy)));
-            sb.append(", can be merged = ").append(uppercaseBoolean(canBeMerged(next)));
             sb.append(", flushed = ").append(uppercaseBoolean(copy.isFlushed()));
+            sb.append(", flushed = ").append(uppercaseBoolean(copy.isMerged()));
             sb.append(", destroyed = ").append(uppercaseBoolean(copy.isDestroyed()));
             sb.append(", hashed = ").append(uppercaseBoolean(copy.isHashed()));
             sb.append(", detached = ").append(uppercaseBoolean(copy.isDetached()));
@@ -703,7 +700,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * @return
      *        True, if this pipeline already has the copy registered, false otherwise
      */
-    private boolean isAlreadyRegistered(final VirtualRoot<K, V> copy) {
+    private boolean isAlreadyRegistered(final VirtualRoot copy) {
         return !copies.testAll(c -> !copy.equals(c));
     }
 }

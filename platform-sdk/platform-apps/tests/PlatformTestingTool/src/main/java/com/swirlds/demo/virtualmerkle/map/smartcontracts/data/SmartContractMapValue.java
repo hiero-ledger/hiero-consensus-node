@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,6 +83,12 @@ public final class SmartContractMapValue implements VirtualValue {
         this.value = Arrays.copyOf(value, getSizeInBytes());
     }
 
+    public SmartContractMapValue(final ReadableSequentialData in) {
+        final int len = in.readInt();
+        value = new byte[len];
+        in.readBytes(value);
+    }
+
     /**
      * Creates an instance with a array of bytes representing the given {@code value}.
      *
@@ -91,6 +97,11 @@ public final class SmartContractMapValue implements VirtualValue {
      */
     public SmartContractMapValue(final long value) {
         this.value = ByteBuffer.allocate(getSizeInBytes()).putLong(value).array();
+    }
+
+    public void writeTo(final WritableSequentialData out) {
+        out.writeInt(value.length);
+        out.writeBytes(value);
     }
 
     /**
@@ -160,7 +171,7 @@ public final class SmartContractMapValue implements VirtualValue {
         return Arrays.hashCode(value);
     }
 
-    static int getSizeInBytes() {
+    public int getSizeInBytes() {
         return 32;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.swirlds.common.utility.StopWatch;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeDataSerializer;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -95,7 +94,6 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
             throws IOException, InterruptedException {
 
         // Collection of database files and index
-        final var serializer = new ExampleFixedSizeDataSerializer();
         LongListOffHeap storeIndex = new LongListOffHeap();
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var store = new MemoryIndexDiskKeyValueStore(

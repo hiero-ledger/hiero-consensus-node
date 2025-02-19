@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,14 +23,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.demo.platform.fs.stresstest.proto.CreateSmartContract;
 import com.swirlds.demo.platform.fs.stresstest.proto.VirtualMerkleTransaction;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKeySerializer;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValueSerializer;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKeySerializer;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValueSerializer;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -48,44 +40,27 @@ public class VirtualMerkleTransactionHandlerTest {
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
             .build();
-    private static VirtualMap<SmartContractMapKey, SmartContractMapValue> smartContract;
-    private static VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue> smartContractByteCodeVM;
+
+    private static VirtualMap smartContract;
+    private static VirtualMap smartContractByteCodeVM;
 
     @BeforeAll
     public static void beforeAll() {
         // Should storage dir be set to a certain value?
 
         final long maximumNumberOfKeyValuePairsCreation = 28750;
-        final SmartContractMapKeySerializer keySerializer = new SmartContractMapKeySerializer();
-        final SmartContractMapValueSerializer valueSerializer = new SmartContractMapValueSerializer();
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                        (short) 1,
-                        DigestType.SHA_384,
-                        merkleDbConfig.maxNumOfKeys(),
-                        merkleDbConfig.hashesRamToDiskThreshold())
-                .maxNumberOfKeys(maximumNumberOfKeyValuePairsCreation)
-                .hashesRamToDiskThreshold(0);
+        final MerkleDbTableConfig tableConfig =
+                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, maximumNumberOfKeyValuePairsCreation, 0);
         final MerkleDbDataSourceBuilder dataSourceBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
 
-        smartContract =
-                new VirtualMap<>("smartContracts", keySerializer, valueSerializer, dataSourceBuilder, CONFIGURATION);
+        smartContract = new VirtualMap("smartContracts", dataSourceBuilder, CONFIGURATION);
 
         final long totalSmartContractCreations = 23;
 
-        final SmartContractByteCodeMapKeySerializer keySerializer2 = new SmartContractByteCodeMapKeySerializer();
-        final SmartContractByteCodeMapValueSerializer valueSerializer2 = new SmartContractByteCodeMapValueSerializer();
-        final MerkleDbTableConfig tableConfig2 = new MerkleDbTableConfig(
-                        (short) 1,
-                        DigestType.SHA_384,
-                        merkleDbConfig.maxNumOfKeys(),
-                        merkleDbConfig.hashesRamToDiskThreshold())
-                .maxNumberOfKeys(totalSmartContractCreations)
-                .hashesRamToDiskThreshold(0);
+        final MerkleDbTableConfig tableConfig2 =
+                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, totalSmartContractCreations, 0);
         final MerkleDbDataSourceBuilder dataSourceBuilder2 = new MerkleDbDataSourceBuilder(tableConfig2, CONFIGURATION);
-
-        smartContractByteCodeVM = new VirtualMap<>(
-                "smartContractByteCode", keySerializer2, valueSerializer2, dataSourceBuilder2, CONFIGURATION);
+        smartContractByteCodeVM = new VirtualMap("smartContractByteCode", dataSourceBuilder2, CONFIGURATION);
     }
 
     private VirtualMerkleTransaction buildCreateSmartContractTransaction(

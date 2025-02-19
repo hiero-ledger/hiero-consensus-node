@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +27,11 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -63,7 +64,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @DisplayName("Null stream produces NPE")
     void nullStreamProducesNPE() {
         final TestDataSource ds = new TestDataSource(1, 2);
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
+        final VirtualHasher hasher = new VirtualHasher();
         assertThrows(
                 NullPointerException.class,
                 () -> hasher.hash(ds::loadHash, null, 1, 2, VIRTUAL_MAP_CONFIG),
@@ -79,8 +80,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @SuppressWarnings({"MismatchedQueryAndUpdateOfCollection", "RedundantOperationOnEmptyContainer"})
     void emptyStreamProducesNull() {
         final TestDataSource ds = new TestDataSource(1, 2);
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves = new ArrayList<>();
+        final VirtualHasher hasher = new VirtualHasher();
+        final List<VirtualLeafBytes> leaves = new ArrayList<>();
         assertNull(
                 hasher.hash(ds::loadHash, leaves.iterator(), 1, 2, VIRTUAL_MAP_CONFIG),
                 "Call should have returned a null hash");
@@ -94,8 +95,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @DisplayName("Invalid leaf paths")
     void invalidLeafPaths() {
         final TestDataSource ds = new TestDataSource(Path.INVALID_PATH, Path.INVALID_PATH);
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
-        final List<VirtualLeafRecord<TestKey, TestValue>> emptyLeaves = new ArrayList<>();
+        final VirtualHasher hasher = new VirtualHasher();
+        final List<VirtualLeafBytes> emptyLeaves = new ArrayList<>();
         // Empty dirty leaves stream -> null hash
         assertNull(
                 hasher.hash(
@@ -114,7 +115,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                 hasher.hash(ds::loadHash, emptyLeaves.iterator(), 1, 0, VIRTUAL_MAP_CONFIG),
                 "Call should have produced null");
         // Non-empty dirty leaves stream + empty leaf path range -> IllegalStateException
-        final List<VirtualLeafRecord<TestKey, TestValue>> nonEmptyLeaves = new ArrayList<>();
+        final List<VirtualLeafBytes> nonEmptyLeaves = new ArrayList<>();
         nonEmptyLeaves.add(appleLeaf(VirtualTestBase.A_PATH));
         assertThrows(
                 IllegalArgumentException.class,
@@ -153,9 +154,9 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     void hashingPermutations(final long firstLeafPath, final long lastLeafPath, final List<Long> dirtyPaths) {
         final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath);
         final HashingListener listener = new HashingListener();
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
+        final VirtualHasher hasher = new VirtualHasher();
         final Hash expected = hashTree(ds);
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves = invalidateNodes(ds, dirtyPaths.stream());
+        final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyPaths.stream());
         final Hash rootHash =
                 hasher.hash(ds::loadHash, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, rootHash, "Hash value does not match expected");
@@ -303,7 +304,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @DisplayName("Test the same situation over and over and over")
     void repeatedTest() {
         final TestDataSource ds = new TestDataSource(52L, 104L);
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
+        final VirtualHasher hasher = new VirtualHasher();
         final Hash expected = hashTree(ds);
         final List<Long> dirtyLeafPaths = List.of(
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
@@ -311,7 +312,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         // Iterate a thousand times, doing the same thing. If there are race conditions among the hashing threads,
         // this will *likely* find it.
         for (int i = 0; i < 1000; i++) {
-            final List<VirtualLeafRecord<TestKey, TestValue>> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
+            final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
             final Hash rootHash = hasher.hash(ds::loadHash, leaves.iterator(), 52L, 104L, VIRTUAL_MAP_CONFIG);
             assertEquals(expected, rootHash, "Expected equals");
         }
@@ -328,12 +329,12 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     void listenerCallCounts() {
         final TestDataSource ds = new TestDataSource(52L, 104L);
         final HashingListener listener = new HashingListener();
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
+        final VirtualHasher hasher = new VirtualHasher();
         hashTree(ds);
         final List<Long> dirtyLeafPaths = List.of(
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
 
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
+        final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
         hasher.hash(ds::loadHash, leaves.iterator(), 52L, 104L, listener, VIRTUAL_MAP_CONFIG);
 
         // Check the different callbacks were called the correct number of times
@@ -356,16 +357,16 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @DisplayName("Verify the hasher does not ask for internal records it will recreate")
     void hasherDoesNotAskForInternalsItWillRecreate() {
         final HashingListener listener = new HashingListener();
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
+        final VirtualHasher hasher = new VirtualHasher();
 
         // We will simulate growing the tree from 53 leaves to 106 leaves (doubling the size) and providing
         // all new leaves. This will guarantee that some internal nodes live at the paths that leaves used
         // to. We'll then hash in several batches. If there are no exceptions, then we're OK.
         final long firstLeafPath = 105L;
         final long lastLeafPath = 211L;
-        final Iterator<VirtualLeafRecord<TestKey, TestValue>> dirtyLeaves = LongStream.range(
-                        firstLeafPath, lastLeafPath)
-                .mapToObj(path -> new VirtualLeafRecord<>(path, new TestKey(path), new TestValue(path)))
+        final Iterator<VirtualLeafBytes> dirtyLeaves = LongStream.range(firstLeafPath, lastLeafPath)
+                .mapToObj(path -> new VirtualLeafBytes(
+                        path, TestKey.longToKey(path), new TestValue(path), TestValueCodec.INSTANCE))
                 .iterator();
 
         final LongFunction<Hash> hashReader = path -> {
@@ -409,7 +410,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
      * the set of internal and leaf records that are sent to the listener during hashing to validate
      * that hashing visited everything we expect.
      */
-    private static final class HashingListener implements VirtualHashListener<TestKey, TestValue> {
+    private static final class HashingListener implements VirtualHashListener {
 
         static final char ON_HASHING_STARTED_SYMBOL = '{';
         static final char ON_HASHING_COMPLETED_SYMBOL = '}';

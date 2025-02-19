@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.demo.migration.virtual.AccountVirtualMapKey;
 import com.swirlds.demo.migration.virtual.AccountVirtualMapValue;
+import com.swirlds.demo.migration.virtual.AccountVirtualMapValueCodec;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
@@ -102,13 +103,13 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
      * Perform a {@link TransactionType#VIRTUAL_MAP} transaction.
      */
     private void applyVirtualMapTransaction(final MigrationTestingToolState state, final Random random) {
-        final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> map = state.getVirtualMap();
+        final VirtualMap map = state.getVirtualMap();
 
         final AccountVirtualMapKey key = new AccountVirtualMapKey(0, 0, Math.abs(random.nextLong()));
         final AccountVirtualMapValue value = new AccountVirtualMapValue(
                 random.nextLong(), random.nextLong(), random.nextLong(), random.nextBoolean(), random.nextLong());
 
-        map.put(key, value);
+        map.put(key.toBytes(), value, AccountVirtualMapValueCodec.INSTANCE);
     }
 
     /**

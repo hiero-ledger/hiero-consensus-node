@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,12 +28,9 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import java.io.IOException;
@@ -45,8 +42,7 @@ import java.util.Objects;
  * Represents a virtual internal merkle node.
  */
 @ConstructableIgnored
-public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualValue> extends PartialBinaryMerkleInternal
-        implements MerkleInternal, VirtualNode {
+public final class VirtualInternalNode extends PartialBinaryMerkleInternal implements MerkleInternal, VirtualNode {
 
     private static final int NUMBER_OF_CHILDREN = 2;
 
@@ -57,14 +53,14 @@ public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualVa
      * The {@link VirtualMap} associated with this node. Nodes cannot be moved from one map
      * to another.
      */
-    private final VirtualRootNode<K, V> root;
+    private final VirtualRootNode root;
 
     /**
      * The {@link VirtualHashRecord} is the backing data for this node.
      */
     private final VirtualHashRecord virtualHashRecord;
 
-    public VirtualInternalNode(final VirtualRootNode<K, V> root, final VirtualHashRecord virtualHashRecord) {
+    public VirtualInternalNode(final VirtualRootNode root, final VirtualHashRecord virtualHashRecord) {
         this.root = Objects.requireNonNull(root);
         this.virtualHashRecord = Objects.requireNonNull(virtualHashRecord);
         setHash(virtualHashRecord.hash());
@@ -164,11 +160,11 @@ public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualVa
      * 		The path of the node to find. If INVALID_PATH, null is returned.
      * @return The node. Only returns null if INVALID_PATH was the path.
      */
-    private VirtualInternalNode<K, V> getInternalNode(final long path) {
+    private VirtualInternalNode getInternalNode(final long path) {
         assert path != INVALID_PATH : "Cannot happen. Path will be a child of virtual record path every time.";
 
         assert path < root.getState().getFirstLeafPath();
-        Hash hash = root.getCache().lookupHashByPath(path, false);
+        Hash hash = root.getCache().lookupHashByPath(path);
         if (hash == null) {
             try {
                 hash = root.getDataSource().loadHash(path);
@@ -178,7 +174,7 @@ public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualVa
         }
 
         final VirtualHashRecord rec = new VirtualHashRecord(path, hash != VirtualNodeCache.DELETED_HASH ? hash : null);
-        return new VirtualInternalNode<>(root, rec);
+        return new VirtualInternalNode(root, rec);
     }
 
     /**
@@ -189,7 +185,7 @@ public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualVa
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		a RuntimeException is thrown.
      */
-    private VirtualLeafNode<K, V> getLeafNode(final long path) {
+    private VirtualLeafNode getLeafNode(final long path) {
         // If the code was properly written, this will always hold true.
         assert path != INVALID_PATH;
         assert path != ROOT_PATH;
@@ -200,25 +196,24 @@ public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualVa
         }
 
         // Check the cache first
-        VirtualLeafRecord<K, V> rec = root.getCache().lookupLeafByPath(path, false);
+        VirtualLeafBytes rec = root.getCache().lookupLeafByPath(path);
 
         // On cache miss, check the data source. It *has* to be there.
         if (rec == null) {
             try {
-                final VirtualLeafBytes leafBytes = root.getDataSource().loadLeafRecord(path);
+                rec = root.getDataSource().loadLeafRecord(path);
                 // This should absolutely be impossible. We already checked to make sure the path falls
                 // within the firstLeafPath and lastLeafPath, and we already failed to find the leaf
                 // in the cache. It **MUST** be on disk, or we have a broken system.
-                if (leafBytes == null) {
+                if (rec == null) {
                     throw new IllegalStateException("Attempted to read from disk but couldn't find the leaf");
                 }
-                rec = leafBytes.toRecord(root.getKeySerializer(), root.getValueSerializer());
             } catch (final IOException ex) {
                 throw new RuntimeException("Failed to read a leaf record from the data source", ex);
             }
         }
 
-        Hash hash = root.getCache().lookupHashByPath(path, false);
+        Hash hash = root.getCache().lookupHashByPath(path);
         if (hash == null) {
             try {
                 hash = root.getDataSource().loadHash(path);
@@ -227,14 +222,14 @@ public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualVa
             }
         }
 
-        return new VirtualLeafNode<>(rec, hash);
+        return new VirtualLeafNode(rec, hash);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public VirtualInternalNode<K, V> copy() {
+    public VirtualInternalNode copy() {
         throw new UnsupportedOperationException("Don't use this. Need a map pointer.");
     }
 
@@ -271,7 +266,7 @@ public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualVa
             return true;
         }
 
-        if (!(o instanceof final VirtualInternalNode<?, ?> that)) {
+        if (!(o instanceof final VirtualInternalNode that)) {
             return false;
         }
 

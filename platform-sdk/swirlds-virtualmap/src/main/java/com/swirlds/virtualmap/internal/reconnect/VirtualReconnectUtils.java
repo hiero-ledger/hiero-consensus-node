@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,10 @@
 
 package com.swirlds.virtualmap.internal.reconnect;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.streams.SerializableDataInputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -44,5 +48,38 @@ public class VirtualReconnectUtils {
             totalBytesRead += bytesRead;
         }
         return totalBytesRead;
+    }
+
+    public static VirtualLeafBytes readLeafRecord(final SerializableDataInputStream in) throws IOException {
+        final long leafPath = in.readLong();
+        final int leafKeyLen = in.readInt();
+        final byte[] leafKeyBytes = new byte[leafKeyLen];
+        in.readFully(leafKeyBytes, 0, leafKeyLen);
+        final Bytes leafKey = Bytes.wrap(leafKeyBytes);
+        final int leafValueLen = in.readInt();
+        final Bytes leafValue;
+        if (leafValueLen > 0) {
+            final byte[] leafValueBytes = new byte[leafValueLen];
+            in.readFully(leafValueBytes, 0, leafValueLen);
+            leafValue = Bytes.wrap(leafValueBytes);
+        } else {
+            leafValue = null;
+        }
+        return new VirtualLeafBytes(leafPath, leafKey, leafValue);
+    }
+
+    public static void writeLeafRecord(final SerializableDataOutputStream out, final VirtualLeafBytes leaf)
+            throws IOException {
+        out.writeLong(leaf.path());
+        final Bytes key = leaf.keyBytes();
+        out.writeInt(Math.toIntExact(key.length()));
+        key.writeTo(out);
+        final Bytes value = leaf.valueBytes();
+        if (value != null) {
+            out.writeInt(Math.toIntExact(value.length()));
+            value.writeTo(out);
+        } else {
+            out.writeInt(0);
+        }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,12 @@ public class AccountVirtualMapValueSerializer implements ValueSerializer<Account
 
     @Override
     public int getSerializedSize() {
-        return AccountVirtualMapValue.getSizeInBytes();
+        return VARIABLE_DATA_SIZE;
+    }
+
+    @Override
+    public int getSerializedSize(@NonNull AccountVirtualMapValue value) {
+        return value.getSizeInBytes();
     }
 
     @Override

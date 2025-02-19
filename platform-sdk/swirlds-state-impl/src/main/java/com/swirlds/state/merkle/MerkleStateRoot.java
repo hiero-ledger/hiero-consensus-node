@@ -222,7 +222,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 final var index = findNodeIndex(md.serviceName(), extractStateKey(md));
                 if (index >= 0) {
                     final var node = getChild(index);
-                    if (node instanceof VirtualMap<?, ?> virtualMap) {
+                    if (node instanceof VirtualMap virtualMap) {
                         try {
                             virtualMap.getDataSource().close();
                         } catch (IOException e) {
@@ -372,7 +372,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 throw new IllegalArgumentException("`node` must be a Labeled and have a label");
             }
 
-            if (def.onDisk() && !(node instanceof VirtualMap<?, ?>)) {
+            if (def.onDisk() && !(node instanceof VirtualMap)) {
                 throw new IllegalArgumentException(
                         "Mismatch: state definition claims on-disk, but " + "the merkle node is not a VirtualMap");
             }
@@ -669,8 +669,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 @NonNull final StateMetadata md, @NonNull final VirtualMap v) {
             return new OnDiskReadableKVState<>(
                     extractStateKey(md),
-                    md.onDiskKeyClassId(),
-                    md.stateDefinition().keyCodec(),
+                    Objects.requireNonNull(md.stateDefinition().keyCodec()),
+                    md.stateDefinition().valueCodec(),
                     v);
         }
 
@@ -722,7 +722,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
          */
         public void copyAndReleaseVirtualMap(@NonNull final String stateKey) {
             final var md = stateMetadata.get(stateKey);
-            final VirtualMap<?, ?> virtualMap = (VirtualMap<?, ?>) findNode(md);
+            final VirtualMap virtualMap = findNode(md).cast();
             final var mutableCopy = virtualMap.copy();
             if (metrics != null) {
                 mutableCopy.registerMetrics(metrics);
@@ -755,9 +755,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 @NonNull final StateMetadata md, @NonNull final VirtualMap v) {
             final var state = new OnDiskWritableKVState<>(
                     extractStateKey(md),
-                    md.onDiskKeyClassId(),
-                    md.stateDefinition().keyCodec(),
-                    md.onDiskValueClassId(),
+                    Objects.requireNonNull(md.stateDefinition().keyCodec()),
                     md.stateDefinition().valueCodec(),
                     v);
             listeners.forEach(listener -> {

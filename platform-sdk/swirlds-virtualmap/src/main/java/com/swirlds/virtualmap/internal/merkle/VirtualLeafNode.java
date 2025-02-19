@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package com.swirlds.virtualmap.internal.merkle;
 
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.crypto.Hash;
@@ -23,9 +25,7 @@ import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.util.Objects;
 
@@ -33,8 +33,8 @@ import java.util.Objects;
  * Implementation of a VirtualLeaf
  */
 @ConstructableIgnored
-public final class VirtualLeafNode<K extends VirtualKey, V extends VirtualValue> extends PartialMerkleLeaf
-        implements MerkleLeaf, VirtualNode {
+@SuppressWarnings("rawtypes")
+public final class VirtualLeafNode extends PartialMerkleLeaf implements MerkleLeaf, VirtualNode {
 
     public static final long CLASS_ID = 0x499677a326fb04caL;
 
@@ -44,18 +44,18 @@ public final class VirtualLeafNode<K extends VirtualKey, V extends VirtualValue>
     }
 
     /**
-     * The {@link VirtualLeafRecord} is the backing data for this node.
+     * The {@link VirtualLeafBytes} is the backing data for this node.
      */
-    private final VirtualLeafRecord<K, V> virtualRecord;
+    private final VirtualLeafBytes virtualRecord;
 
-    public VirtualLeafNode(final VirtualLeafRecord<K, V> virtualRecord, final Hash hash) {
+    public VirtualLeafNode(final VirtualLeafBytes virtualRecord, final Hash hash) {
         this.virtualRecord = Objects.requireNonNull(virtualRecord);
         setHash(hash);
     }
 
     @Override
     public long getPath() {
-        return virtualRecord.getPath();
+        return virtualRecord.path();
     }
 
     /**
@@ -63,8 +63,8 @@ public final class VirtualLeafNode<K extends VirtualKey, V extends VirtualValue>
      *
      * @return the key
      */
-    public K getKey() {
-        return virtualRecord.getKey();
+    public Bytes getKey() {
+        return virtualRecord.keyBytes();
     }
 
     /**
@@ -72,15 +72,20 @@ public final class VirtualLeafNode<K extends VirtualKey, V extends VirtualValue>
      *
      * @return the value
      */
-    public V getValue() {
-        return virtualRecord.getValue();
+    public Bytes getValue() {
+        return virtualRecord.valueBytes();
+    }
+
+    @SuppressWarnings("unchecked")
+    public <V> V getValue(final Codec<V> valueCodec) {
+        return ((VirtualLeafBytes<V>) virtualRecord).value(valueCodec);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public VirtualLeafNode<K, V> copy() {
+    public VirtualLeafNode copy() {
         throw new UnsupportedOperationException("Don't use this");
     }
 
@@ -135,7 +140,7 @@ public final class VirtualLeafNode<K extends VirtualKey, V extends VirtualValue>
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        final VirtualLeafNode<?, ?> that = (VirtualLeafNode<?, ?>) o;
+        final VirtualLeafNode that = (VirtualLeafNode) o;
         return virtualRecord.equals(that.virtualRecord);
     }
 

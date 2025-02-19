@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.swirlds.demo.migration.virtual;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualValue;
@@ -64,6 +65,40 @@ public class AccountVirtualMapValue implements VirtualValue {
         this.receiveThreshold = accountVirtualMapValue.receiveThreshold;
         this.requireSignature = accountVirtualMapValue.requireSignature;
         this.uid = accountVirtualMapValue.uid;
+    }
+
+    public AccountVirtualMapValue(final ReadableSequentialData in) {
+        this.balance = in.readLong();
+        this.sendThreshold = in.readLong();
+        this.receiveThreshold = in.readLong();
+        this.requireSignature = in.readByte() != 0;
+        this.uid = in.readLong();
+    }
+
+    public Bytes toBytes() {
+        final byte[] bytes = new byte[Long.BYTES * 4 + 1];
+        ByteBuffer.wrap(bytes)
+                .putLong(balance)
+                .putLong(sendThreshold)
+                .putLong(receiveThreshold)
+                .put(getRequireSignatureAsByte())
+                .putLong(uid);
+        return Bytes.wrap(bytes);
+    }
+
+    /**
+     * @return The total size in bytes of all the fields of this class.
+     */
+    public int getSizeInBytes() {
+        return 4 * Long.BYTES + 1;
+    }
+
+    public void writeTo(final WritableSequentialData out) {
+        out.writeLong(balance);
+        out.writeLong(sendThreshold);
+        out.writeLong(receiveThreshold);
+        out.writeByte(getRequireSignatureAsByte());
+        out.writeLong(uid);
     }
 
     /**
@@ -209,12 +244,5 @@ public class AccountVirtualMapValue implements VirtualValue {
      */
     public long getUid() {
         return uid;
-    }
-
-    /**
-     * @return The total size in bytes of all the fields of this class.
-     */
-    public static int getSizeInBytes() {
-        return 4 * Long.BYTES + 1;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,10 +29,9 @@ import java.io.IOException;
  * learner. Every response includes a path followed by an integer flag that indicates if the node
  * is clear (value 0, node hash on the teacher is the same as sent by the learner), or not (non-zero
  * value). If the path corresponds to a leaf node, and the node is not clear, a {@link
- * com.swirlds.virtualmap.datasource.VirtualLeafRecord} for the node is included in the end of the
+ * com.swirlds.virtualmap.datasource.VirtualLeafBytes} for the node is included in the end of the
  * response.
  */
-@SuppressWarnings("rawtypes")
 public class PullVirtualTreeResponse implements SelfSerializable {
 
     private static final long CLASS_ID = 0xecfbef49a90334e3L;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,12 @@ public class BenchmarkRecordSerializer implements BaseSerializer<BenchmarkRecord
 
     @Override
     public int getSerializedSize() {
-        return Integer.BYTES + BenchmarkRecord.getSerializedSize();
+        return VARIABLE_DATA_SIZE;
+    }
+
+    @Override
+    public int getSerializedSize(final BenchmarkRecord record) {
+        return record.getSizeInBytes();
     }
 
     @Override

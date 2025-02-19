@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,8 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import java.util.HashSet;
@@ -49,13 +48,8 @@ import org.apache.logging.log4j.Logger;
  * to M. Later during flush, key K is in the list of candidates to remove, but with path N (this is where it
  * was originally located in the learner tree). Since the path is different, the leaf will not be actually
  * removed from disk.
- *
- * @param <K>
- * 		the type of the key
- * @param <V>
- * 		the type of the value
  */
-public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> {
+public class ReconnectNodeRemover {
 
     private static final Logger logger = LogManager.getLogger(ReconnectNodeRemover.class);
 
@@ -67,7 +61,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
     /**
      * Can be used to access the tree being constructed.
      */
-    private final RecordAccessor<K, ?> oldRecords;
+    private final RecordAccessor oldRecords;
 
     /**
      * The first leaf path of the original merkle tree.
@@ -82,10 +76,10 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
     /**
      * Set of keys (actually, keys + paths) collected for removal. This set is empties every
      * time {@link #getRecordsToDelete()} is called, and a new set is started. The set is
-     * populated in {@link #newLeafNode(long, VirtualKey)} based on what is received from the
+     * populated in {@link #newLeafNode(long, Bytes)} based on what is received from the
      * teacher (method args) and what was on the learner ({@link #oldRecords}).
      */
-    private Set<VirtualLeafRecord<K, ?>> leavesToDelete = new HashSet<>();
+    private Set<VirtualLeafBytes> leavesToDelete = new HashSet<>();
 
     /**
      * Create an object responsible for removing virtual map nodes during a reconnect.
@@ -98,7 +92,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * 		the original last leaf path from before the reconnect
      */
     public ReconnectNodeRemover(
-            final RecordAccessor<K, ?> oldRecords, final long oldFirstLeafPath, final long oldLastLeafPath) {
+            final RecordAccessor oldRecords, final long oldFirstLeafPath, final long oldLastLeafPath) {
         this.oldRecords = oldRecords;
         this.oldFirstLeafPath = oldFirstLeafPath;
         this.oldLastLeafPath = oldLastLeafPath;
@@ -123,7 +117,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
         if (oldLastLeafPath > 0) {
             // no-op if new first leaf path is less or equal to old first leaf path
             for (long path = oldFirstLeafPath; path < Math.min(newFirstLeafPath, oldLastLeafPath + 1); path++) {
-                final VirtualLeafRecord<K, ?> oldRecord = oldRecords.findLeafRecord(path, false);
+                final VirtualLeafBytes oldRecord = oldRecords.findLeafRecord(path);
                 assert oldRecord != null;
                 leavesToDelete.add(oldRecord);
             }
@@ -139,9 +133,9 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * @param newKey
      * 		the key of the new leaf node
      */
-    public synchronized void newLeafNode(final long path, final K newKey) {
-        final VirtualLeafRecord<K, ?> oldRecord = oldRecords.findLeafRecord(path, false);
-        if ((oldRecord != null) && !newKey.equals(oldRecord.getKey())) {
+    public synchronized void newLeafNode(final long path, final Bytes newKey) {
+        final VirtualLeafBytes oldRecord = oldRecords.findLeafRecord(path);
+        if ((oldRecord != null) && !newKey.equals(oldRecord.keyBytes())) {
             leavesToDelete.add(oldRecord);
         }
     }
@@ -153,7 +147,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
         final long firstOldStalePath = (newLastLeafPath == Path.INVALID_PATH) ? 1 : newLastLeafPath + 1;
         // No-op if newLastLeafPath is greater or equal to oldLastLeafPath
         for (long p = firstOldStalePath; p <= oldLastLeafPath; p++) {
-            final VirtualLeafRecord<K, ?> oldExtraLeafRecord = oldRecords.findLeafRecord(p, false);
+            final VirtualLeafBytes<?> oldExtraLeafRecord = oldRecords.findLeafRecord(p);
             assert oldExtraLeafRecord != null || p < oldFirstLeafPath;
             if (oldExtraLeafRecord != null) {
                 leavesToDelete.add(oldExtraLeafRecord);
@@ -164,14 +158,13 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
     /**
      * Return a stream of keys collected so far for deletion. The set of collected keys is reset,
      * so subsequent calls to this method will return different keys collected in {@link
-     * #newLeafNode(long, VirtualKey)}.
+     * #newLeafNode(long, Bytes)}.
      *
      * @return a stream of keys to be deleted. Only the key and path in these records
      * 		are populated, all other data is uninitialized.
      */
-    public synchronized Stream<VirtualLeafRecord<K, V>> getRecordsToDelete() {
-        final Stream<VirtualLeafRecord<K, V>> stream =
-                leavesToDelete.stream().map(r -> new VirtualLeafRecord<>(r.getPath(), r.getKey(), null));
+    public synchronized Stream<VirtualLeafBytes> getRecordsToDelete() {
+        final Stream<VirtualLeafBytes> stream = leavesToDelete.stream();
         // Don't use clear(), as it would affect the returned stream
         leavesToDelete = new HashSet<>();
         return stream;

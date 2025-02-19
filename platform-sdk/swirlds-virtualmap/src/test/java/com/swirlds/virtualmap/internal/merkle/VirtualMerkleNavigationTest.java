@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,8 +27,7 @@ import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.common.merkle.route.ReverseMerkleRouteIterator;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.test.fixtures.TestKey;
-import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.util.Iterator;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,20 +38,21 @@ import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("SpellCheckingInspection")
 class VirtualMerkleNavigationTest extends VirtualTestBase {
-    private VirtualMap<TestKey, TestValue> vm;
-    private VirtualRootNode<TestKey, TestValue> virtualRoot;
-    private VirtualInternalNode<TestKey, TestValue> left;
-    private VirtualInternalNode<TestKey, TestValue> right;
-    private VirtualInternalNode<TestKey, TestValue> leftLeft;
-    private VirtualInternalNode<TestKey, TestValue> leftRight;
-    private VirtualInternalNode<TestKey, TestValue> rightLeft;
-    private VirtualLeafNode<TestKey, TestValue> a;
-    private VirtualLeafNode<TestKey, TestValue> b;
-    private VirtualLeafNode<TestKey, TestValue> c;
-    private VirtualLeafNode<TestKey, TestValue> d;
-    private VirtualLeafNode<TestKey, TestValue> e;
-    private VirtualLeafNode<TestKey, TestValue> f;
-    private VirtualLeafNode<TestKey, TestValue> g;
+
+    private VirtualMap vm;
+    private VirtualRootNode virtualRoot;
+    private VirtualInternalNode left;
+    private VirtualInternalNode right;
+    private VirtualInternalNode leftLeft;
+    private VirtualInternalNode leftRight;
+    private VirtualInternalNode rightLeft;
+    private VirtualLeafNode a;
+    private VirtualLeafNode b;
+    private VirtualLeafNode c;
+    private VirtualLeafNode d;
+    private VirtualLeafNode e;
+    private VirtualLeafNode f;
+    private VirtualLeafNode g;
     private TestInternal treeRoot;
     private TestInternal tl;
     private TestInternal tr;
@@ -69,13 +69,13 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
     @BeforeEach
     public void setup() {
         vm = createMap();
-        vm.put(A_KEY, APPLE);
-        vm.put(B_KEY, BANANA);
-        vm.put(C_KEY, CHERRY);
-        vm.put(D_KEY, DATE);
-        vm.put(E_KEY, EGGPLANT);
-        vm.put(F_KEY, FIG);
-        vm.put(G_KEY, GRAPE);
+        vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        vm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        vm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        vm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        vm.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        vm.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        vm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
         virtualRoot = vm.getChild(1);
         assert virtualRoot != null;
@@ -137,13 +137,13 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
     @DisplayName("Verify that the tree is navigable using 'getChild'")
     void treeIsNavigableByGetChild() {
         // Verify that all the internal nodes are where they should be
-        assertEquals(APPLE, a.getValue(), "Wrong value");
-        assertEquals(BANANA, b.getValue(), "Wrong value");
-        assertEquals(CHERRY, c.getValue(), "Wrong value");
-        assertEquals(DATE, d.getValue(), "Wrong value");
-        assertEquals(EGGPLANT, e.getValue(), "Wrong " + "value");
-        assertEquals(FIG, f.getValue(), "Wrong value");
-        assertEquals(GRAPE, g.getValue(), "Wrong value");
+        assertEquals(APPLE, a.getValue(TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(BANANA, b.getValue(TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(CHERRY, c.getValue(TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(DATE, d.getValue(TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(EGGPLANT, e.getValue(TestValueCodec.INSTANCE), "Wrong " + "value");
+        assertEquals(FIG, f.getValue(TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(GRAPE, g.getValue(TestValueCodec.INSTANCE), "Wrong value");
     }
 
     @Test

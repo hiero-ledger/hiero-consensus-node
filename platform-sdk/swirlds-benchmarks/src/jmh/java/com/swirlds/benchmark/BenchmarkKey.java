@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package com.swirlds.benchmark;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualKey;
@@ -40,6 +41,12 @@ public class BenchmarkKey implements VirtualKey {
 
     public static int getKeySize() {
         return keySize;
+    }
+
+    public static Bytes longToKey(long seed) {
+        final byte[] keyBytes = new byte[keySize];
+        Utils.toBytes(seed, keyBytes);
+        return Bytes.wrap(keyBytes);
     }
 
     public BenchmarkKey() {

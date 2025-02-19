@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,11 @@
 
 package com.swirlds.virtualmap.internal.reconnect;
 
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.merkle.AbstractHashListener;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -50,14 +46,10 @@ import java.util.stream.Stream;
  * deepest rank (the leaves) to the lowest rank (nearest the top). When we flush, we flush in the opposite order
  * from the closest to the top of the tree to the deepest rank. Each rank is processed in ascending path order.
  * So we store each rank as a separate array and then stream them out in the proper order to disk.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public class ReconnectHashListener<K extends VirtualKey, V extends VirtualValue> extends AbstractHashListener<K, V> {
-    private final ReconnectNodeRemover<K, V> nodeRemover;
+public class ReconnectHashListener extends AbstractHashListener {
+
+    private final ReconnectNodeRemover nodeRemover;
 
     /**
      * Create a new {@link ReconnectHashListener}.
@@ -76,20 +68,11 @@ public class ReconnectHashListener<K extends VirtualKey, V extends VirtualValue>
     public ReconnectHashListener(
             final long firstLeafPath,
             final long lastLeafPath,
-            final KeySerializer<K> keySerializer,
-            final ValueSerializer<V> valueSerializer,
             @NonNull final VirtualDataSource dataSource,
             final int reconnectFlushInterval,
             @NonNull final VirtualMapStatistics statistics,
-            @NonNull final ReconnectNodeRemover<K, V> nodeRemover) {
-        super(
-                firstLeafPath,
-                lastLeafPath,
-                keySerializer,
-                valueSerializer,
-                dataSource,
-                reconnectFlushInterval,
-                statistics);
+            @NonNull final ReconnectNodeRemover nodeRemover) {
+        super(firstLeafPath, lastLeafPath, dataSource, reconnectFlushInterval, statistics);
         this.nodeRemover = Objects.requireNonNull(nodeRemover);
     }
 
@@ -97,7 +80,7 @@ public class ReconnectHashListener<K extends VirtualKey, V extends VirtualValue>
      * {@inheritDoc}
      */
     @Override
-    protected Stream<VirtualLeafRecord<K, V>> findLeavesToRemove() {
+    protected Stream<VirtualLeafBytes> findLeavesToRemove() {
         return nodeRemover.getRecordsToDelete();
     }
 }

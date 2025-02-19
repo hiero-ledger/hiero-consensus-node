@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.swirlds.common.crypto;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.logging.legacy.LogMarker;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -154,6 +155,16 @@ public class HashBuilder {
             digest.update(t);
         }
 
+        return this;
+    }
+
+    public HashBuilder update(final Bytes bytes) {
+        if (bytes == null) {
+            update(0);
+        } else {
+            update(bytes.length());
+            bytes.writeTo(digest);
+        }
         return this;
     }
 

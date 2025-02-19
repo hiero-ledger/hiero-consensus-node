@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 
 package com.swirlds.benchmark;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.internal.pipeline.VirtualRoot;
 import java.util.ArrayList;
 import java.util.List;
@@ -98,11 +97,11 @@ public class ReconnectBench extends VirtualMapBaseBench {
     @Param({"0.15"})
     public double delayNetworkFuzzRangePercent;
 
-    private List<VirtualMap<BenchmarkKey, BenchmarkValue>> teacherMaps;
-    private List<VirtualMap<BenchmarkKey, BenchmarkValue>> learnerMaps;
+    private List<VirtualMap> teacherMaps;
+    private List<VirtualMap> learnerMaps;
 
     private MerkleInternal teacherTree;
-    private List<VirtualMap<BenchmarkKey, BenchmarkValue>> teacherMapCopies;
+    private List<VirtualMap> teacherMapCopies;
 
     private MerkleInternal learnerTree;
 
@@ -118,16 +117,13 @@ public class ReconnectBench extends VirtualMapBaseBench {
      *
      * @param mapRef a reference to a VirtualMap instance
      * @return a populator for the map
-     * @param <K> key type
-     * @param <V> value type
      */
-    private static <K extends VirtualKey, V extends VirtualValue> BiConsumer<K, V> buildVMPopulator(
-            final AtomicReference<VirtualMap<K, V>> mapRef) {
+    private static BiConsumer<Bytes, BenchmarkValue> buildVMPopulator(final AtomicReference<VirtualMap> mapRef) {
         return (k, v) -> {
             if (v == null) {
-                mapRef.get().remove(k);
+                mapRef.get().remove(k, BenchmarkValueCodec.INSTANCE);
             } else {
-                mapRef.get().put(k, v);
+                mapRef.get().put(k, v, BenchmarkValueCodec.INSTANCE);
             }
         };
     }
@@ -140,15 +136,13 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
         final Random random = new Random(randomSeed);
 
-        final List<VirtualMap<BenchmarkKey, BenchmarkValue>> maps = new ArrayList<>();
+        final List<VirtualMap> maps = new ArrayList<>();
 
         for (int mapIndex = 0; mapIndex < mapCount; mapIndex++) {
-            final AtomicReference<VirtualMap<BenchmarkKey, BenchmarkValue>> teacherRef =
-                    new AtomicReference<>(createEmptyMap("teacher" + mapIndex));
-            final AtomicReference<VirtualMap<BenchmarkKey, BenchmarkValue>> learnerRef =
-                    new AtomicReference<>(createEmptyMap("learner" + mapIndex));
+            final AtomicReference<VirtualMap> teacherRef = new AtomicReference<>(createEmptyMap("teacher" + mapIndex));
+            final AtomicReference<VirtualMap> learnerRef = new AtomicReference<>(createEmptyMap("learner" + mapIndex));
 
-            new StateBuilder<>(BenchmarkKey::new, BenchmarkValue::new)
+            new StateBuilder(BenchmarkKey::longToKey, BenchmarkValue::new)
                     .buildState(
                             random,
                             (long) numRecords * numFiles,
@@ -172,7 +166,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
             maps.add(learnerRef.get());
         }
 
-        final List<VirtualMap<BenchmarkKey, BenchmarkValue>> mapCopies = saveMaps(maps);
+        final List<VirtualMap> mapCopies = saveMaps(maps);
         mapCopies.forEach(this::releaseAndCloseMap);
     }
 
@@ -185,7 +179,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         learnerMaps = new ArrayList<>(mapCount);
         teacherMapCopies = new ArrayList<>(mapCount);
         for (int mapIndex = 0; mapIndex < mapCount; mapIndex++) {
-            VirtualMap<BenchmarkKey, BenchmarkValue> teacherMap = restoreMap("teacher" + mapIndex);
+            VirtualMap teacherMap = restoreMap("teacher" + mapIndex);
             if (teacherMap == null) {
                 throw new RuntimeException("Failed to restore the 'teacher' map #" + mapIndex);
             }
@@ -193,7 +187,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
             BenchmarkMetrics.register(teacherMap::registerMetrics);
             teacherMaps.add(teacherMap);
 
-            VirtualMap<BenchmarkKey, BenchmarkValue> learnerMap = restoreMap("learner" + mapIndex);
+            VirtualMap learnerMap = restoreMap("learner" + mapIndex);
             if (learnerMap == null) {
                 throw new RuntimeException("Failed to restore the 'learner' map #" + mapIndex);
             }
@@ -205,7 +199,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         teacherTree = MerkleBenchmarkUtils.createTreeForMaps(teacherMaps);
         learnerTree = MerkleBenchmarkUtils.createTreeForMaps(learnerMaps);
 
-        for (final VirtualMap<BenchmarkKey, BenchmarkValue> teacherMap : teacherMaps) {
+        for (final VirtualMap teacherMap : teacherMaps) {
             teacherMapCopies.add(teacherMap.copy());
         }
     }
@@ -213,7 +207,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
     @TearDown(Level.Invocation)
     public void tearDownInvocation() throws Exception {
         try {
-            for (final VirtualMap<BenchmarkKey, BenchmarkValue> learnerMap : learnerMaps) {
+            for (final VirtualMap learnerMap : learnerMaps) {
                 final VirtualRoot root = learnerMap.getRight();
                 if (!root.isHashed()) {
                     throw new IllegalStateException("Learner root node must be hashed");
@@ -226,7 +220,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
             teacherTree = null;
             learnerTree.release();
             learnerTree = null;
-            for (final VirtualMap<BenchmarkKey, BenchmarkValue> teacherMapCopy : teacherMapCopies) {
+            for (final VirtualMap teacherMapCopy : teacherMapCopies) {
                 teacherMapCopy.release();
             }
         }

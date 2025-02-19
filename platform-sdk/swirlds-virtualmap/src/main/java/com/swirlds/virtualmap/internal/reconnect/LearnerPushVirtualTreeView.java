@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,9 +40,7 @@ import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.VirtualStateAccessor;
@@ -60,14 +58,8 @@ import org.apache.logging.log4j.Logger;
  * needs access both to the original state and records, and the current reconnect state and records.
  * This implementation uses {@link Long} as the representation of a node and corresponds directly
  * to the path of the node.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
-        extends VirtualTreeViewBase<K, V> implements LearnerTreeView<Long> {
+public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView<Long> {
 
     private static final Logger logger = LogManager.getLogger(LearnerPushVirtualTreeView.class);
 
@@ -91,7 +83,7 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * Handles removal of old nodes.
      */
-    private final ReconnectNodeRemover<K, V> nodeRemover;
+    private final ReconnectNodeRemover nodeRemover;
 
     /**
      * As part of tracking {@link ExpectedLesson}s, this keeps track of the "nodeAlreadyPresent" boolean.
@@ -113,7 +105,7 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * A {@link RecordAccessor} for getting access to the original records.
      */
-    private final RecordAccessor<K, V> originalRecords;
+    private final RecordAccessor originalRecords;
 
     private final ReconnectMapStats mapStats;
 
@@ -137,11 +129,11 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     public LearnerPushVirtualTreeView(
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode<K, V> root,
-            final RecordAccessor<K, V> originalRecords,
+            final VirtualRootNode root,
+            final RecordAccessor originalRecords,
             final VirtualStateAccessor originalState,
             final VirtualStateAccessor reconnectState,
-            final ReconnectNodeRemover<K, V> nodeRemover,
+            final ReconnectNodeRemover nodeRemover,
             @NonNull final ReconnectMapStats mapStats) {
         super(root, originalState, reconnectState);
         this.reconnectConfig = reconnectConfig;
@@ -257,10 +249,10 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
-        final VirtualLeafRecord<K, V> leaf = in.readSerializable(false, VirtualLeafRecord::new);
-        nodeRemover.newLeafNode(leaf.getPath(), leaf.getKey());
+        final VirtualLeafBytes leaf = VirtualReconnectUtils.readLeafRecord(in);
+        nodeRemover.newLeafNode(leaf.path(), leaf.keyBytes());
         root.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
-        return leaf.getPath();
+        return leaf.path();
     }
 
     /**

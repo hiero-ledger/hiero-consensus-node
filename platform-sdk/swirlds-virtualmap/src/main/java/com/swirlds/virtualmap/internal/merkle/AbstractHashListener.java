@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,16 +20,12 @@ import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -60,23 +56,15 @@ import org.apache.logging.log4j.Logger;
  * deepest rank (the leaves) to the lowest rank (nearest the top). When we flush, we flush in the opposite order
  * from the closest to the top of the tree to the deepest rank. Each rank is processed in ascending path order.
  * So we store each rank as a separate array and then stream them out in the proper order to disk.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public abstract class AbstractHashListener<K extends VirtualKey, V extends VirtualValue>
-        implements VirtualHashListener<K, V> {
+public abstract class AbstractHashListener implements VirtualHashListener {
 
     private static final Logger logger = LogManager.getLogger(AbstractHashListener.class);
 
-    private final KeySerializer<K> keySerializer;
-    private final ValueSerializer<V> valueSerializer;
     private final VirtualDataSource dataSource;
     private final long firstLeafPath;
     private final long lastLeafPath;
-    private List<VirtualLeafRecord<K, V>> leaves;
+    private List<VirtualLeafBytes> leaves;
     private List<VirtualHashRecord> hashes;
 
     // Flushes are initiated from onNodeHashed(). While a flush is in progress, other nodes
@@ -96,10 +84,6 @@ public abstract class AbstractHashListener<K extends VirtualKey, V extends Virtu
      * 		The first leaf path. Must be a valid path.
      * @param lastLeafPath
      * 		The last leaf path. Must be a valid path.
-     * @param keySerializer
-     *      Virtual key serializer. Cannot be null
-     * @param valueSerializer
-     *      Virtual value serializer. Cannot be null
      * @param dataSource
      * 		The data source. Cannot be null.
      * @param flushInterval
@@ -110,8 +94,6 @@ public abstract class AbstractHashListener<K extends VirtualKey, V extends Virtu
     protected AbstractHashListener(
             final long firstLeafPath,
             final long lastLeafPath,
-            final KeySerializer<K> keySerializer,
-            final ValueSerializer<V> valueSerializer,
             @NonNull final VirtualDataSource dataSource,
             final int flushInterval,
             @NonNull final VirtualMapStatistics statistics) {
@@ -128,8 +110,6 @@ public abstract class AbstractHashListener<K extends VirtualKey, V extends Virtu
 
         this.firstLeafPath = firstLeafPath;
         this.lastLeafPath = lastLeafPath;
-        this.keySerializer = requireNonNull(keySerializer);
-        this.valueSerializer = requireNonNull(valueSerializer);
         this.dataSource = requireNonNull(dataSource);
         this.flushInterval = flushInterval;
         this.statistics = requireNonNull(statistics);
@@ -149,7 +129,7 @@ public abstract class AbstractHashListener<K extends VirtualKey, V extends Virtu
     public void onNodeHashed(final long path, final Hash hash) {
         assert hashes != null && leaves != null : "onNodeHashed called without onHashingStarted";
         final List<VirtualHashRecord> dirtyHashesToFlush;
-        final List<VirtualLeafRecord<K, V>> dirtyLeavesToFlush;
+        final List<VirtualLeafBytes> dirtyLeavesToFlush;
         synchronized (this) {
             hashes.add(new VirtualHashRecord(path, hash));
             if ((flushInterval > 0) && (hashes.size() >= flushInterval) && flushInProgress.compareAndSet(false, true)) {
@@ -168,14 +148,14 @@ public abstract class AbstractHashListener<K extends VirtualKey, V extends Virtu
     }
 
     @Override
-    public synchronized void onLeafHashed(final VirtualLeafRecord<K, V> leaf) {
+    public synchronized void onLeafHashed(final VirtualLeafBytes<?> leaf) {
         leaves.add(leaf);
     }
 
     @Override
     public void onHashingCompleted() {
         final List<VirtualHashRecord> finalNodesToFlush;
-        final List<VirtualLeafRecord<K, V>> finalLeavesToFlush;
+        final List<VirtualLeafBytes> finalLeavesToFlush;
         synchronized (this) {
             finalNodesToFlush = hashes;
             hashes = null;
@@ -192,8 +172,7 @@ public abstract class AbstractHashListener<K extends VirtualKey, V extends Virtu
     // Since flushes may take quite some time, this method is called outside synchronized blocks,
     // otherwise all hashing tasks would be blocked on listener calls until flush is completed.
     private void flush(
-            @NonNull final List<VirtualHashRecord> hashesToFlush,
-            @NonNull final List<VirtualLeafRecord<K, V>> leavesToFlush) {
+            @NonNull final List<VirtualHashRecord> hashesToFlush, @NonNull final List<VirtualLeafBytes> leavesToFlush) {
         assert flushInProgress.get() : "Flush in progress flag must be set";
         try {
             logger.debug(
@@ -208,8 +187,8 @@ public abstract class AbstractHashListener<K extends VirtualKey, V extends Virtu
                         firstLeafPath,
                         lastLeafPath,
                         hashesToFlush.stream(),
-                        leavesToFlush.stream().map(r -> r.toBytes(keySerializer, valueSerializer)),
-                        findLeavesToRemove().map(r -> r.toBytes(keySerializer, valueSerializer)),
+                        leavesToFlush.stream(),
+                        findLeavesToRemove(),
                         true);
                 final long end = System.currentTimeMillis();
                 statistics.recordFlush(end - start);
@@ -227,5 +206,5 @@ public abstract class AbstractHashListener<K extends VirtualKey, V extends Virtu
      *
      * @return a stream of leaves to remove
      */
-    protected abstract Stream<VirtualLeafRecord<K, V>> findLeavesToRemove();
+    protected abstract Stream<VirtualLeafBytes> findLeavesToRemove();
 }

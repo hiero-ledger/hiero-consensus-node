@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,14 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -109,8 +105,6 @@ class MerkleDbDataSourceSnapshotMergeTest {
             throws IOException, InterruptedException {
         final Path storeDir = Files.createTempDirectory("createMergeSnapshotReadBackImpl");
         final String tableName = "mergeSnapshotReadBack";
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         final MerkleDbDataSource dataSource = testType.dataType()
                 .createDataSource(storeDir, tableName, COUNT, hashesRamToDiskThreshold, false, preferDiskBasedIndexes);
         final ExecutorService exec = Executors.newCachedThreadPool();
@@ -118,7 +112,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
             // create some internal and leaf nodes in batches
             populateDataSource(testType, dataSource);
             // check all data
-            checkData(COUNT, testType, keySerializer, valueSerializer, dataSource);
+            checkData(COUNT, testType, dataSource);
             // create snapshot and test creating a second snapshot in another thread causes exception
             final Path snapshotDir = Files.createTempDirectory("createMergeSnapshotReadBackImplSnapshot");
             final CountDownLatch countDownLatch = new CountDownLatch(3);
@@ -159,8 +153,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                             IntStream.range(0, lastLeafPathInclusive + 1 /* exclusive */)
                                     .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                             IntStream.range(firstLeafPath, lastLeafPathInclusive + 1 /* exclusive */)
-                                    .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                                    .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                                    .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                             Stream.empty());
                 } finally {
                     countDownLatch.countDown();
@@ -172,14 +165,13 @@ class MerkleDbDataSourceSnapshotMergeTest {
             // check data in original dataSource it should have the new data written in another thread while we were
             // doing
             // the snapshot
-            checkData(COUNT2, testType, keySerializer, valueSerializer, dataSource);
+            checkData(COUNT2, testType, dataSource);
             // load snapshot and check data
             final MerkleDbDataSource snapshotDataSource =
                     testType.dataType().getDataSource(snapshotDir, tableName, false);
-            checkData(COUNT, testType, keySerializer, valueSerializer, snapshotDataSource);
+            checkData(COUNT, testType, snapshotDataSource);
             // validate all data in the snapshot
-            final DataSourceValidator<VirtualKey, ExampleByteArrayVirtualValue> dataSourceValidator =
-                    new DataSourceValidator<>(keySerializer, valueSerializer, snapshotDataSource);
+            final DataSourceValidator dataSourceValidator = new DataSourceValidator(snapshotDataSource);
             assertTrue(dataSourceValidator.validate(), "Validation of snapshot data failed.");
             // close and cleanup snapshot
             snapshotDataSource.close();
@@ -191,7 +183,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                 if (thread == 0) { // thread 0 checks data over and over while we are compacting
                     try {
                         while (compacting.get()) {
-                            checkData(COUNT2, testType, keySerializer, valueSerializer, dataSource);
+                            checkData(COUNT2, testType, dataSource);
                         }
                     } catch (final IOException e) {
                         e.printStackTrace();
@@ -210,7 +202,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                 }
             });
 
-            checkData(COUNT2, testType, keySerializer, valueSerializer, dataSource);
+            checkData(COUNT2, testType, dataSource);
 
             // check the database statistics - starting with the five speedometers
             final Metrics metrics = MerkleDbTestUtils.createMetrics();
@@ -243,14 +235,12 @@ class MerkleDbDataSourceSnapshotMergeTest {
             double fileSizeInMB = (double) fileSizeEntry.get(VALUE);
             assertNotEquals(0.0, fileSizeInMB, "internalHashesStoreTotalFileSizeInMB was unexpectedly 0.");
 
-            if (testType.dataType().hasKeyToPathStore()) {
-                fileCountEntry = getMetric(metrics, dataSource, "leafKeyToPathFileCount_");
-                fileCount = (int) fileCountEntry.get(VALUE);
-                assertNotEquals(0, fileCount, "leafKeyToPathFileCount was unexpectedly 0.");
-                fileSizeEntry = getMetric(metrics, dataSource, "leafKeyToPathFileSizeMb_");
-                fileSizeInMB = (double) fileSizeEntry.get(VALUE);
-                assertNotEquals(0.0, fileSizeInMB, "leafKeyToPathFileSizeMb was unexpectedly 0.");
-            }
+            fileCountEntry = getMetric(metrics, dataSource, "leafKeyToPathFileCount_");
+            fileCount = (int) fileCountEntry.get(VALUE);
+            assertNotEquals(0, fileCount, "leafKeyToPathFileCount was unexpectedly 0.");
+            fileSizeEntry = getMetric(metrics, dataSource, "leafKeyToPathFileSizeMb_");
+            fileSizeInMB = (double) fileSizeEntry.get(VALUE);
+            assertNotEquals(0.0, fileSizeInMB, "leafKeyToPathFileSizeMb was unexpectedly 0.");
 
             fileCountEntry = getMetric(metrics, dataSource, "leafHKVFileCount_");
             fileCount = (int) fileCountEntry.get(VALUE);
@@ -273,17 +263,15 @@ class MerkleDbDataSourceSnapshotMergeTest {
             double largeMergeTime = (double) largeMergeTimeStat.get(VALUE);
             assertEquals(0.0, largeMergeTime, "internalHashesStoreLargeMergeTime was unexpectedly not 0.0");
 
-            if (testType.dataType().hasKeyToPathStore()) {
-                smallMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathSmallMergeTime_", true);
-                smallMergeTime = (double) smallMergeTimeStat.get(VALUE);
-                assertNotEquals(0.0, smallMergeTime, "leafKeyToPathStoreSmallMergeTime was unexpectedly 0.0");
-                mediumMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathMediumMergeTime_", true);
-                mediumMergeTime = (double) mediumMergeTimeStat.get(VALUE);
-                assertEquals(0.0, mediumMergeTime, "leafKeyToPathStoreMediumMergeTime was unexpectedly not 0.0");
-                largeMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathLargeMergeTime_", true);
-                largeMergeTime = (double) largeMergeTimeStat.get(VALUE);
-                assertEquals(0.0, largeMergeTime, "leafKeyToPathStoreLargeMergeTime was unexpectedly not 0.0");
-            }
+            smallMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathSmallMergeTime_", true);
+            smallMergeTime = (double) smallMergeTimeStat.get(VALUE);
+            assertNotEquals(0.0, smallMergeTime, "leafKeyToPathStoreSmallMergeTime was unexpectedly 0.0");
+            mediumMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathMediumMergeTime_", true);
+            mediumMergeTime = (double) mediumMergeTimeStat.get(VALUE);
+            assertEquals(0.0, mediumMergeTime, "leafKeyToPathStoreMediumMergeTime was unexpectedly not 0.0");
+            largeMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathLargeMergeTime_", true);
+            largeMergeTime = (double) largeMergeTimeStat.get(VALUE);
+            assertEquals(0.0, largeMergeTime, "leafKeyToPathStoreLargeMergeTime was unexpectedly not 0.0");
 
             smallMergeTimeStat = getMetric(metrics, dataSource, "leafHKVSmallMergeTime_");
             smallMergeTime = (double) smallMergeTimeStat.get(VALUE);
@@ -325,8 +313,6 @@ class MerkleDbDataSourceSnapshotMergeTest {
 
     private static void populateDataSource(TestType testType, MerkleDbDataSource dataSource) throws IOException {
         final int count = COUNT / 10;
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         for (int batch = 0; batch < 10; batch++) {
             final int start = batch * count;
             final int end = start + count;
@@ -339,8 +325,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                     lastLeafPath,
                     IntStream.range(start, COUNT + end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(COUNT + start, COUNT + end)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
         }
     }
@@ -357,12 +342,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
         return arguments.stream();
     }
 
-    private static void checkData(
-            final int count,
-            final TestType testType,
-            final KeySerializer keySerializer,
-            final ValueSerializer valueSerializer,
-            final MerkleDbDataSource dataSource)
+    private static void checkData(final int count, final TestType testType, final MerkleDbDataSource dataSource)
             throws IOException {
         System.out.println("checking internal nodes 0 to " + (count - 1) + " and leaves from " + count + " to "
                 + ((count * 2) - 1));
@@ -373,7 +353,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
         }
         // check all the leaf data
         for (int i = count; i < (count * 2); i++) {
-            assertLeaf(testType, keySerializer, valueSerializer, dataSource, i, i);
+            assertLeaf(testType, dataSource, i, i);
         }
     }
 }

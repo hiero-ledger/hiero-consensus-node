@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package com.swirlds.demo.migration.virtual;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualKey;
@@ -31,6 +32,7 @@ import java.util.Objects;
  * stored inside a {@link com.swirlds.virtualmap.VirtualMap} instance.
  */
 public class AccountVirtualMapKey implements VirtualKey {
+
     private static final long CLASS_ID = 0xff95b64a8d311cdaL;
 
     private static final class ClassVersion {
@@ -49,6 +51,12 @@ public class AccountVirtualMapKey implements VirtualKey {
         this.realmID = realmID;
         this.shardID = shardID;
         this.accountID = accountID;
+    }
+
+    public Bytes toBytes() {
+        final byte[] bytes = new byte[Long.BYTES * 3];
+        ByteBuffer.wrap(bytes).putLong(realmID).putLong(shardID).putLong(accountID);
+        return Bytes.wrap(bytes);
     }
 
     /**

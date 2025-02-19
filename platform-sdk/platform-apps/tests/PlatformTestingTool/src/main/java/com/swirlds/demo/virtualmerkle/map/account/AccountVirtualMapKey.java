@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,12 @@ package com.swirlds.demo.virtualmerkle.map.account;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualKey;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 
 /**
@@ -48,6 +50,22 @@ public class AccountVirtualMapKey implements VirtualKey {
         this.realmID = realmID;
         this.shardID = shardID;
         this.accountID = accountID;
+    }
+
+    public static AccountVirtualMapKey fromBytes(final Bytes bytes) {
+        if (bytes == null) {
+            return null;
+        }
+        final long realmID = bytes.getLong(0);
+        final long shardID = bytes.getLong(Long.BYTES);
+        final long accountID = bytes.getLong(Long.BYTES * 2);
+        return new AccountVirtualMapKey(realmID, shardID, accountID);
+    }
+
+    public Bytes toBytes() {
+        final byte[] bytes = new byte[Long.BYTES * 3];
+        ByteBuffer.wrap(bytes).putLong(realmID).putLong(shardID).putLong(accountID);
+        return Bytes.wrap(bytes);
     }
 
     /**

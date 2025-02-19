@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,31 +40,27 @@ public final class VirtualMapTestUtils {
 
     public static final VirtualMapConfig VIRTUAL_MAP_CONFIG = CONFIGURATION.getConfigData(VirtualMapConfig.class);
 
-    public static VirtualMap<TestKey, TestValue> createMap(String label) {
+    public static VirtualMap createMap(String label) {
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
-        return new VirtualMap<>(
-                label, TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, builder, CONFIGURATION);
+        return new VirtualMap(label, builder, CONFIGURATION);
     }
 
-    public static VirtualMap<TestKey, TestValue> createMap() {
+    public static VirtualMap createMap() {
         return createMap("Test");
     }
 
-    public static VirtualRootNode<TestKey, TestValue> createRoot() {
+    public static VirtualRootNode createRoot() {
         return createRoot(CONFIGURATION);
     }
 
-    public static VirtualRootNode<TestKey, TestValue> createRoot(final Configuration configuration) {
-        final VirtualRootNode<TestKey, TestValue> root = new VirtualRootNode<>(
-                TestKeySerializer.INSTANCE,
-                TestValueSerializer.INSTANCE,
-                new InMemoryBuilder(),
-                configuration.getConfigData(VirtualMapConfig.class));
+    public static VirtualRootNode createRoot(final Configuration configuration) {
+        final VirtualRootNode root =
+                new VirtualRootNode(new InMemoryBuilder(), configuration.getConfigData(VirtualMapConfig.class));
         root.postInit(new DummyVirtualStateAccessor());
         return root;
     }
 
-    public static VirtualRootNode<TestKey, TestValue> getRoot(VirtualMap<TestKey, TestValue> map) {
+    public static VirtualRootNode getRoot(VirtualMap map) {
         return map.getChild(1);
     }
 }
