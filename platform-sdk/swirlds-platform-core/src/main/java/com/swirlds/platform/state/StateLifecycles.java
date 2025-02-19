@@ -25,7 +25,6 @@ import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.Event;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
@@ -36,7 +35,7 @@ import java.util.function.Consumer;
  * meant to be created once at the start of the application and then used for the lifetime of the application.
  *
  */
-public interface StateLifecycles<T extends MerkleStateRoot> {
+public interface StateLifecycles<T extends MerkleNodeState> {
     /**
      * Called when an event is added to the hashgraph used to compute consensus ordering
      * for this node.
@@ -65,8 +64,10 @@ public interface StateLifecycles<T extends MerkleStateRoot> {
     /**
      * Called by the platform after it has made all its changes to this state for the given round.
      * @param round the round whose platform state changes are completed
+     * @return true if sealing this round completes a block, in effect signaling if it is safe to
+     * sign this round's state
      */
-    void onSealConsensusRound(@NonNull Round round, @NonNull T state);
+    boolean onSealConsensusRound(@NonNull Round round, @NonNull T state);
 
     /**
      * Called when the platform is initializing the network state.
@@ -83,10 +84,8 @@ public interface StateLifecycles<T extends MerkleStateRoot> {
             @Nullable SoftwareVersion previousVersion);
 
     /**
-     * Called when the platform needs to update the weights in the network address book; deprecated since 0.58
-     * because the application now directly decides what weights to put in address book (or, once roster lifecycle
-     * is fully enabled, the roster).
-     *
+     * Called exclusively by platform test apps to update the weight of the address book. Should be removed
+     * as these apps are refactored to stop using {@link com.swirlds.platform.Browser}.
      * @param state the working state of the network
      * @param configAddressBook the address book used to configure the network
      * @param context the current platform context

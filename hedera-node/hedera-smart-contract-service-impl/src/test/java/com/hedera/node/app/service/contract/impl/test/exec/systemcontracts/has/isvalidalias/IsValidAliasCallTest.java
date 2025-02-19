@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isvalidalias.IsValidAliasCall;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -61,7 +62,12 @@ public class IsValidAliasCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(Bytes.wrap(IS_VALID_ALIAS.getOutputs().encodeElements(true).array()), result.getOutput());
+        assertEquals(
+                Bytes.wrap(IS_VALID_ALIAS
+                        .getOutputs()
+                        .encode(Tuple.singleton(true))
+                        .array()),
+                result.getOutput());
     }
 
     @Test
@@ -74,7 +80,12 @@ public class IsValidAliasCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(Bytes.wrap(IS_VALID_ALIAS.getOutputs().encodeElements(true).array()), result.getOutput());
+        assertEquals(
+                Bytes.wrap(IS_VALID_ALIAS
+                        .getOutputs()
+                        .encode(Tuple.singleton(true))
+                        .array()),
+                result.getOutput());
     }
 
     @Test
@@ -87,7 +98,12 @@ public class IsValidAliasCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(Bytes.wrap(IS_VALID_ALIAS.getOutputs().encodeElements(true).array()), result.getOutput());
+        assertEquals(
+                Bytes.wrap(IS_VALID_ALIAS
+                        .getOutputs()
+                        .encode(Tuple.singleton(true))
+                        .array()),
+                result.getOutput());
     }
 
     @Test
@@ -104,7 +120,11 @@ public class IsValidAliasCallTest extends CallTestBase {
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                Bytes.wrap(IS_VALID_ALIAS.getOutputs().encodeElements(false).array()), result.getOutput());
+                Bytes.wrap(IS_VALID_ALIAS
+                        .getOutputs()
+                        .encode(Tuple.singleton(false))
+                        .array()),
+                result.getOutput());
     }
 
     @Test
@@ -119,6 +139,10 @@ public class IsValidAliasCallTest extends CallTestBase {
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                Bytes.wrap(IS_VALID_ALIAS.getOutputs().encodeElements(false).array()), result.getOutput());
+                Bytes.wrap(IS_VALID_ALIAS
+                        .getOutputs()
+                        .encode(Tuple.singleton(false))
+                        .array()),
+                result.getOutput());
     }
 }

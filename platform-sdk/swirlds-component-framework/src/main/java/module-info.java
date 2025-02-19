@@ -23,7 +23,6 @@ module com.swirlds.component.framework {
     exports com.swirlds.component.framework.schedulers;
     exports com.swirlds.component.framework.schedulers.builders;
     exports com.swirlds.component.framework.schedulers.internal;
-    exports com.swirlds.component.framework.tasks;
     exports com.swirlds.component.framework.transformers;
     exports com.swirlds.component.framework.wires;
     exports com.swirlds.component.framework.wires.input;

@@ -29,6 +29,7 @@ package proto;
  */
 
 import "basic_types.proto";
+import "custom_fees.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.consensus">>> This comment is special code for setting PBJ Compiler java package
@@ -149,4 +150,45 @@ message Topic {
      * for this topic.
      */
     Key submit_key = 10;
+
+    /**
+     * Access control for update/delete of custom fees.
+     * <p>
+     * If this field is unset, the current custom fees CANNOT be changed.<br/>
+     * If this field is set, that `Key` MUST sign any transaction to update
+     * the custom fee schedule for this topic.
+     */
+    Key fee_schedule_key = 11;
+
+    /**
+     * A set of "privileged payer" keys<br/>
+     * Keys in this list are permitted to submit messages to this topic without
+     * paying custom fees associated with this topic.
+     * <p>
+     * If a submit transaction is signed by _any_ key included in this set,
+     * custom fees SHALL NOT be charged for that transaction.<br/>
+     * A `fee_exempt_key_list` MUST NOT contain more than
+     * `MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST` keys.<br/>
+     * A `fee_exempt_key_list` MUST NOT contain any duplicate keys.<br/>
+     * A `fee_exempt_key_list` MAY contain keys for accounts that are inactive,
+     * deleted, or non-existent.
+     * If not set, there SHALL NOT be any fee-exempt keys.  In particular, the
+     * following keys SHALL NOT be implicitly or automatically added to this
+     * list: `adminKey`, `submitKey`, `fee_schedule_key`.
+     */
+    repeated Key fee_exempt_key_list = 12;
+
+    /**
+     * A set of custom fee definitions.<br/>
+     * These are fees to be assessed for each submit to this topic.
+     * <p>
+     * If this list is empty, the only fees charged for a submit to this
+     * topic SHALL be the network and node fees.<br/>
+     * If this list is not empty, each fee defined in this set SHALL
+     * be evaluated for each message submitted to this topic, and the
+     * resultant total assessed fees SHALL be charged.<br/>
+     * If this list is not empty, custom fees defined here SHALL be
+     * charged _in addition to_ the base network and node fees.
+     */
+    repeated FixedCustomFee custom_fees = 13;
 }

@@ -24,6 +24,7 @@ import static com.swirlds.platform.event.stale.StaleEventDetectorOutput.SELF_EVE
 import static com.swirlds.platform.event.stale.StaleEventDetectorOutput.STALE_SELF_EVENT;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
@@ -107,6 +108,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
+import java.util.function.Function;
 import org.hiero.event.creator.impl.EventCreationConfig;
 
 /**
@@ -135,7 +138,7 @@ public class PlatformWiring {
     private final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring;
     private final ComponentWiring<RoundDurabilityBuffer, List<ConsensusRound>> roundDurabilityBufferWiring;
     private final ComponentWiring<PcesSequencer, PlatformEvent> pcesSequencerWiring;
-    private final ComponentWiring<TransactionPrehandler, List<ScopedSystemTransaction<StateSignatureTransaction>>>
+    private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             applicationTransactionPrehandlerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
     private final GossipWiring gossipWiring;
@@ -161,6 +164,7 @@ public class PlatformWiring {
     private final boolean publishPreconsensusEvents;
     private final boolean publishSnapshotOverrides;
     private final boolean publishStaleEvents;
+    private final ApplicationCallbacks applicationCallbacks;
     private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
             staleEventDetectorWiring;
     private final ComponentWiring<TransactionResubmitter, List<TransactionWrapper>> transactionResubmitterWiring;
@@ -282,6 +286,7 @@ public class PlatformWiring {
         this.publishPreconsensusEvents = applicationCallbacks.preconsensusEventConsumer() != null;
         this.publishSnapshotOverrides = applicationCallbacks.snapshotOverrideConsumer() != null;
         this.publishStaleEvents = applicationCallbacks.staleEventConsumer() != null;
+        this.applicationCallbacks = applicationCallbacks;
 
         final TaskSchedulerConfiguration publisherConfiguration;
         if (publishPreconsensusEvents || publishSnapshotOverrides || publishStaleEvents) {
@@ -480,10 +485,9 @@ public class PlatformWiring {
 
         staleEventsFromStaleEventDetector.solderTo(
                 transactionResubmitterWiring.getInputWire(TransactionResubmitter::resubmitStaleTransactions));
-        final OutputWire<StateSignatureTransaction> splitTransactionResubmitterOutput =
-                transactionResubmitterWiring.getSplitOutput();
-        splitTransactionResubmitterOutput.solderTo(
-                transactionPoolWiring.getInputWire(TransactionPool::submitSystemTransaction));
+
+        final Function<StateSignatureTransaction, Bytes> systemTransactionEncoder =
+                applicationCallbacks.systemTransactionEncoder();
 
         if (publishStaleEvents) {
             staleEventsFromStaleEventDetector.solderTo(
@@ -589,6 +593,7 @@ public class PlatformWiring {
 
         final OutputWire<StateAndRound> transactionHandlerStateAndRoundOutput = transactionHandlerWiring
                 .getOutputWire()
+                .buildFilter("notNullStateFilter", "state and round", ras -> ras.reservedSignedState() != null)
                 .buildAdvancedTransformer(new StateAndRoundReserver("postHandler_stateAndRoundReserver"));
 
         final OutputWire<ReservedSignedState> transactionHandlerRoundOutput =
@@ -633,9 +638,14 @@ public class PlatformWiring {
                 .buildTransformer("postHasher_notifier", "state and round", StateHashedNotification::from)
                 .solderTo(notifierWiring.getInputWire(AppNotifier::sendStateHashedNotification));
 
-        stateSignerWiring
+        final OutputWire<Bytes> systemTransactionEncoderOutputWireForStateSigner = stateSignerWiring
                 .getOutputWire()
-                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::submitSystemTransaction));
+                .buildTransformer(
+                        "postSigner_encode_systemTransactions",
+                        "system transactions from signer",
+                        systemTransactionEncoder);
+        systemTransactionEncoderOutputWireForStateSigner.solderTo(
+                transactionPoolWiring.getInputWire(TransactionPool::submitSystemTransaction));
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.

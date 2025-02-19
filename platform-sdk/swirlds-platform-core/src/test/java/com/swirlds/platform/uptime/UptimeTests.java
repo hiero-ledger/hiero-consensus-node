@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.consensus.GraphGenerations;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.events.ConsensusEvent;
@@ -97,14 +96,7 @@ class UptimeTests {
             @NonNull final List<PlatformEvent> events, @NonNull final Roster roster, final long roundNum) {
         final ConsensusSnapshot snapshot = mock(ConsensusSnapshot.class);
         final ConsensusRound round = new ConsensusRound(
-                roster,
-                events,
-                mock(PlatformEvent.class),
-                mock(GraphGenerations.class),
-                mock(EventWindow.class),
-                snapshot,
-                false,
-                Instant.now());
+                roster, events, mock(PlatformEvent.class), mock(EventWindow.class), snapshot, false, Instant.now());
         final Instant consensusTimestamp = events.get(events.size() - 1).getConsensusTimestamp();
         when(snapshot.consensusTimestamp()).thenReturn(consensusTimestamp);
         when(snapshot.round()).thenReturn(roundNum);

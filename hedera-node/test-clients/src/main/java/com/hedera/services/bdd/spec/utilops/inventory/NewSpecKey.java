@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.KeyGenerator;
 import com.hedera.services.bdd.spec.keys.KeyLabels;
 import com.hedera.services.bdd.spec.keys.SigControl;
@@ -132,7 +133,8 @@ public class NewSpecKey extends UtilOp {
 
             final var exportLoc = immediateExportLoc.get();
             final var exportPass = immediateExportPass.get();
-            exportWithPass(spec, name, exportLoc, exportPass);
+            // Note: we should never try to export any ECDSA key here, because ECDSA doesn't use mnemonics
+            exportEd25519WithPass(spec, name, exportLoc, exportPass);
             final var wordsLoc = exportLoc.replace(".pem", ".words");
             Files.writeString(Paths.get(wordsLoc), mnemonic);
             return false;
@@ -156,7 +158,11 @@ public class NewSpecKey extends UtilOp {
         if (immediateExportLoc.isPresent() && immediateExportPass.isPresent()) {
             final var exportLoc = immediateExportLoc.get();
             final var exportPass = immediateExportPass.get();
-            exportWithPass(spec, name, exportLoc, exportPass);
+            if (shape.get() == SigControl.SECP256K1_ON) {
+                exportEcdsaWithPass(spec, name, exportLoc, exportPass);
+            } else {
+                exportEd25519WithPass(spec, name, exportLoc, exportPass);
+            }
             if (verboseLoggingOn && yahcliLogger) {
                 System.out.println(".i. Exported a newly generated key in PEM format to " + exportLoc);
             }
@@ -174,8 +180,20 @@ public class NewSpecKey extends UtilOp {
         return false;
     }
 
-    static void exportWithPass(HapiSpec spec, String name, String exportLoc, String exportPass) throws IOException {
-        spec.keys().exportEd25519Key(exportLoc, name, exportPass);
+    static void exportEcdsaWithPass(HapiSpec spec, String name, String exportLoc, String exportPass)
+            throws IOException {
+        exportWithPass(spec, name, exportLoc, exportPass, kf -> kf.exportEcdsaKey(name, exportLoc, exportPass));
+    }
+
+    static void exportEd25519WithPass(HapiSpec spec, String name, String exportLoc, String exportPass)
+            throws IOException {
+        exportWithPass(spec, name, exportLoc, exportPass, kf -> kf.exportEd25519Key(exportLoc, name, exportPass));
+    }
+
+    static void exportWithPass(
+            HapiSpec spec, String name, String exportLoc, String exportPass, Consumer<KeyFactory> export)
+            throws IOException {
+        export.accept(spec.keys());
         final var passLoc = exportLoc.replace(".pem", ".pass");
         Files.writeString(Paths.get(passLoc), exportPass);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,6 +62,7 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -95,6 +96,9 @@ class TokenAssociateToAccountHandlerTest {
     @Mock(strictness = LENIENT)
     private ExpiryValidator expiryValidator;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     @BeforeEach
     void setUp() {
         lenient().when(context.expiryValidator()).thenReturn(expiryValidator);
@@ -124,8 +128,9 @@ class TokenAssociateToAccountHandlerTest {
         @Test
         void txnWithRepeatedTokenIdsThrows() throws PreCheckException {
             final var txn = newAssociateTxn(ACCOUNT_888, List.of(TOKEN_300, TOKEN_400, TOKEN_300));
+            given(pureChecksContext.body()).willReturn(txn);
 
-            assertThatThrownBy(() -> subject.pureChecks(txn))
+            assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TOKEN_ID_REPEATED_IN_TOKEN_LIST));
         }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,6 +80,18 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
                 assertTrue(someMatches, "Expected some new rel to match " + newRel + ", but none did");
             });
         }
+        return this;
+    }
+
+    public AccountInfoAsserts withShard(int shard) {
+        registerProvider((spec, o) ->
+                assertEquals(shard, ((AccountInfo) o).getAccountID().getShardNum(), "Bad shard!"));
+        return this;
+    }
+
+    public AccountInfoAsserts withRealm(long realm) {
+        registerProvider((spec, o) ->
+                assertEquals(realm, ((AccountInfo) o).getAccountID().getRealmNum(), "Bad realm!"));
         return this;
     }
 

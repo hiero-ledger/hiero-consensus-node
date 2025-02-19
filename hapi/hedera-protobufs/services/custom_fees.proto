@@ -336,3 +336,87 @@ message AssessedCustomFee {
      */
     repeated AccountID effective_payer_account_id = 4;
 }
+
+/**
+ * A custom fee definition for a consensus topic.
+ * <p>
+ * This fee definition is specific to an Hedera Consensus Service (HCS) topic
+ * and SHOULD NOT be used in any other context.<br/>
+ * All fields for this message are REQUIRED.<br/>
+ * Only "fixed" fee definitions are supported because there is no basis for
+ * a fractional fee on a consensus submit transaction.
+ */
+message FixedCustomFee {
+  /**
+   * A fixed custom fee.
+   * <p>
+   * The amount of HBAR or other token described by this `FixedFee` SHALL
+   * be charged to the transction payer for each message submitted to a
+   * topic that assigns this consensus custom fee.
+   */
+  FixedFee fixed_fee = 1;
+
+  /**
+   * A collection account identifier.
+   * <p>
+   * All amounts collected for this consensus custom fee SHALL be transferred
+   * to the account identified by this field.
+   */
+  AccountID fee_collector_account_id = 2;
+}
+
+/**
+ * A wrapper around a consensus custom fee list.<br/>
+ * This wrapper exists to enable an update transaction to differentiate between
+ *  a field that is not set and an empty list of custom fees.
+ * <p>
+ * An _unset_ field of this type SHALL NOT modify existing values.<br/>
+ * A _set_ field of this type with an empty `fees` list SHALL remove any
+ *  existing values.
+ */
+message FixedCustomFeeList {
+  /**
+   * A set of custom fee definitions.<br/>
+   * These are fees to be assessed for each submit to a topic.
+   */
+  repeated FixedCustomFee fees = 1;
+}
+
+/**
+ * A wrapper for fee exempt key list.<br/>
+ * This wrapper exists to enable an update transaction to differentiate between
+ * a field that is not set and an empty list of keys.
+ * <p>
+ * An _unset_ field of this type SHALL NOT modify existing values.<br/>
+ * A _set_ field of this type with an empty `keys` list SHALL remove any
+ * existing values.
+ */
+message FeeExemptKeyList {
+  /**
+   * A set of keys.<br/>
+   * The keys in this list are permitted to submit messages to the
+   * topic without paying the topic's custom fees.
+   * <p>
+   * If a submit transaction is signed by _any_ key included in this set,
+   * custom fees SHALL NOT be charged for that transaction.
+   */
+   repeated Key keys = 1;
+}
+
+/**
+ * A maximum custom fee that the user is willing to pay.
+ * <p>
+ * This message is used to specify the maximum custom fee that given user is
+ * willing to pay.
+ */
+message CustomFeeLimit {
+    /**
+     * A payer account identifier.
+     */
+    AccountID account_id = 1;
+
+    /**
+     * The maximum fees that the user is willing to pay for the message.
+     */
+    repeated FixedFee fees = 2;
+}

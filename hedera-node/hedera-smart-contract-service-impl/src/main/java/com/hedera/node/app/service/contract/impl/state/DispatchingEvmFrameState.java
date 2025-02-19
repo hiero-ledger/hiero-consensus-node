@@ -150,6 +150,10 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             @Nullable final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         final var oldSlotValue = contractStateStore.getSlotValue(slotKey);
+        if (oldSlotValue == null && value.isZero()) {
+            // Small optimization---don't put zero into an empty slot
+            return;
+        }
         // Ensure we don't change any prev/next keys until the base commit
         final var slotValue = new SlotValue(
                 tuweniToPbjBytes(requireNonNull(value)),
@@ -408,9 +412,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
 
         final var evmAddress = extractEvmAddress(account.alias());
-        return evmAddress == null
-                ? asLongZeroAddress(account.accountIdOrThrow().accountNum())
-                : pbjToBesuAddress(evmAddress);
+        return evmAddress == null ? asLongZeroAddress(accountID) : pbjToBesuAddress(evmAddress);
     }
 
     @Override

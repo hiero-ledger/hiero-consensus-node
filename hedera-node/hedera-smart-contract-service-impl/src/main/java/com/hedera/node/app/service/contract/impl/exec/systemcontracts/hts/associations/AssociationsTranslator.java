@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,25 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations;
 
-import com.esaulpaugh.headlong.abi.Function;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.CallVia;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -40,29 +47,41 @@ public class AssociationsTranslator extends AbstractCallTranslator<HtsCallAttemp
     /**
      * Selector for associate() method.
      */
-    public static final Function HRC_ASSOCIATE = new Function("associate()", ReturnTypes.INT);
+    public static final SystemContractMethod HRC_ASSOCIATE = SystemContractMethod.declare(
+                    "associate()", ReturnTypes.INT)
+            .withVia(CallVia.PROXY)
+            .withCategories(Category.ASSOCIATION);
     /**
      * Selector for associateToken(address,address) method.
      */
-    public static final Function ASSOCIATE_ONE = new Function("associateToken(address,address)", ReturnTypes.INT_64);
+    public static final SystemContractMethod ASSOCIATE_ONE = SystemContractMethod.declare(
+                    "associateToken(address,address)", ReturnTypes.INT_64)
+            .withCategories(Category.ASSOCIATION);
     /**
      * Selector for dissociateToken(address,address) method.
      */
-    public static final Function DISSOCIATE_ONE = new Function("dissociateToken(address,address)", ReturnTypes.INT_64);
+    public static final SystemContractMethod DISSOCIATE_ONE = SystemContractMethod.declare(
+                    "dissociateToken(address,address)", ReturnTypes.INT_64)
+            .withCategories(Category.ASSOCIATION);
     /**
      * Selector for dissociate() method.
      */
-    public static final Function HRC_DISSOCIATE = new Function("dissociate()", ReturnTypes.INT);
+    public static final SystemContractMethod HRC_DISSOCIATE = SystemContractMethod.declare(
+                    "dissociate()", ReturnTypes.INT)
+            .withVia(CallVia.PROXY)
+            .withCategories(Category.ASSOCIATION);
     /**
      * Selector for associateTokens(address,address[]) method.
      */
-    public static final Function ASSOCIATE_MANY =
-            new Function("associateTokens(address,address[])", ReturnTypes.INT_64);
+    public static final SystemContractMethod ASSOCIATE_MANY = SystemContractMethod.declare(
+                    "associateTokens(address,address[])", ReturnTypes.INT_64)
+            .withCategories(Category.ASSOCIATION);
     /**
      * Selector for dissociateTokens(address,address[]) method.
      */
-    public static final Function DISSOCIATE_MANY =
-            new Function("dissociateTokens(address,address[])", ReturnTypes.INT_64);
+    public static final SystemContractMethod DISSOCIATE_MANY = SystemContractMethod.declare(
+                    "dissociateTokens(address,address[])", ReturnTypes.INT_64)
+            .withCategories(Category.ASSOCIATION);
 
     private final AssociationsDecoder decoder;
 
@@ -71,18 +90,22 @@ public class AssociationsTranslator extends AbstractCallTranslator<HtsCallAttemp
      * @param decoder
      */
     @Inject
-    public AssociationsTranslator(@NonNull final AssociationsDecoder decoder) {
+    public AssociationsTranslator(
+            @NonNull final AssociationsDecoder decoder,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
         this.decoder = decoder;
+
+        registerMethods(ASSOCIATE_ONE, ASSOCIATE_MANY, DISSOCIATE_ONE, DISSOCIATE_MANY, HRC_ASSOCIATE, HRC_DISSOCIATE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        requireNonNull(attempt);
         return attempt.isTokenRedirect()
-                ? attempt.isSelector(HRC_ASSOCIATE, HRC_DISSOCIATE)
-                : attempt.isSelector(ASSOCIATE_ONE, ASSOCIATE_MANY, DISSOCIATE_ONE, DISSOCIATE_MANY);
+                ? attempt.isMethod(HRC_ASSOCIATE, HRC_DISSOCIATE)
+                : attempt.isMethod(ASSOCIATE_ONE, ASSOCIATE_MANY, DISSOCIATE_ONE, DISSOCIATE_MANY);
     }
 
     /**

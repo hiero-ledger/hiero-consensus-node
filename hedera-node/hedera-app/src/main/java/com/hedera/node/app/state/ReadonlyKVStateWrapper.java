@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,31 +44,47 @@ public class ReadonlyKVStateWrapper<K, V> implements ReadableKVState<K, V> {
         this.delegate = requireNonNull(delegate, "delegate must not be null");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public String getStateKey() {
         return delegate.getStateKey();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Nullable
     @Override
     public V get(@NonNull K key) {
         return delegate.get(key);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public Iterator<K> keys() {
         return delegate.keys();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public Set<K> readKeys() {
         return delegate.readKeys();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @Deprecated
     public long size() {
         return delegate.size();
     }

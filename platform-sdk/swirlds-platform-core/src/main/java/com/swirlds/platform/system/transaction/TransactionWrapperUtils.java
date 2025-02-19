@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package com.swirlds.platform.system.transaction;
 
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,6 +49,6 @@ public final class TransactionWrapperUtils {
      */
     @NonNull
     public static TransactionWrapper createAppPayloadWrapper(@NonNull final Bytes payload) {
-        return new TransactionWrapper(new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, payload));
+        return new TransactionWrapper(payload);
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hedera.services.bdd.spec.verification.Condition;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
@@ -577,7 +578,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     }
 
     protected byte[] gasLongToBytes(final Long gas) {
-        return Bytes.wrap(LONG_TUPLE.encode(Tuple.of(gas)).array()).toArray();
+        return Bytes.wrap(LONG_TUPLE.encode(Tuple.singleton(gas)).array()).toArray();
     }
 
     /* Fluent builder methods to chain. */
@@ -632,6 +633,11 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T feeUsd(double price) {
         usdFee = OptionalDouble.of(price);
+        return self();
+    }
+
+    public T maxCustomFee(Function<HapiSpec, CustomFeeLimit> f) {
+        maxCustomFeeList.add(f);
         return self();
     }
 

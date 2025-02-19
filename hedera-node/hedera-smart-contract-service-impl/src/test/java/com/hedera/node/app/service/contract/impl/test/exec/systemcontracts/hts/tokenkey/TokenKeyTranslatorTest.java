@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,19 +21,19 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -63,30 +63,47 @@ class TokenKeyTranslatorTest {
     @Mock
     private VerificationStrategies verificationStrategies;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private TokenKeyTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new TokenKeyTranslator();
+        subject = new TokenKeyTranslator(systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
     void matchesTokenKeyTranslatorTest() {
         attempt = prepareHtsAttemptWithSelector(
-                TOKEN_KEY, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertTrue(subject.matches(attempt));
+                TOKEN_KEY,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
         attempt = prepareHtsAttemptWithSelector(
-                BURN_TOKEN_V2, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertFalse(subject.matches(attempt));
+                BURN_TOKEN_V2,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void callFromTest() {
-        final Tuple tuple = new Tuple(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, BigInteger.ZERO);
+        final Tuple tuple = Tuple.of(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, BigInteger.ZERO);
         final var inputBytes = org.apache.tuweni.bytes.Bytes.wrapByteBuffer(TOKEN_KEY.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.enhancement()).willReturn(enhancement);

@@ -46,11 +46,12 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -83,6 +84,8 @@ public class StartupStateUtilsTests {
     private final NodeId selfId = NodeId.of(0);
     private final String mainClassName = "mainClassName";
     private final String swirldName = "swirldName";
+    private BasicSoftwareVersion currentSoftwareVersion;
+    private PlatformStateFacade platformStateFacade;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -91,6 +94,8 @@ public class StartupStateUtilsTests {
                 .withValue("state.savedStateDirectory", testDirectory.toString())
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
+        currentSoftwareVersion = new BasicSoftwareVersion(1);
+        platformStateFacade = new PlatformStateFacade(v -> currentSoftwareVersion);
     }
 
     @AfterEach
@@ -103,9 +108,7 @@ public class StartupStateUtilsTests {
     static void beforeAll() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
         ConstructableRegistry.getInstance()
-                .registerConstructable(new ClassConstructorPair(
-                        PlatformMerkleStateRoot.class,
-                        () -> new PlatformMerkleStateRoot(version -> new BasicSoftwareVersion(version.major()))));
+                .registerConstructable(new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
     }
 
     @NonNull
@@ -148,7 +151,12 @@ public class StartupStateUtilsTests {
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
 
         writeSignedStateToDisk(
-                platformContext, selfId, savedStateDirectory, signedState, StateToDiskReason.PERIODIC_SNAPSHOT);
+                platformContext,
+                selfId,
+                savedStateDirectory,
+                signedState,
+                StateToDiskReason.PERIODIC_SNAPSHOT,
+                platformStateFacade);
 
         if (corrupted) {
             final Path stateFilePath = savedStateDirectory.resolve("SignedState.swh");
@@ -167,13 +175,15 @@ public class StartupStateUtilsTests {
         final PlatformContext platformContext = buildContext(false, TestRecycleBin.getInstance());
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
+
         final SignedState loadedState = StartupStateUtils.loadStateFile(
                         platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        new BasicSoftwareVersion(1))
+                        currentSoftwareVersion,
+                        platformStateFacade)
                 .getNullable();
 
         assertNull(loadedState);
@@ -202,7 +212,8 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        new BasicSoftwareVersion(1))
+                        currentSoftwareVersion,
+                        platformStateFacade)
                 .get();
 
         loadedState.getState().throwIfImmutable();
@@ -235,7 +246,8 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        new BasicSoftwareVersion(1))
+                        currentSoftwareVersion,
+                        platformStateFacade)
                 .get());
     }
 
@@ -280,7 +292,8 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        new BasicSoftwareVersion(1))
+                        currentSoftwareVersion,
+                        platformStateFacade)
                 .getNullable();
 
         if (latestUncorruptedState != null) {

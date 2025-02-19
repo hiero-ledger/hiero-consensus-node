@@ -173,13 +173,12 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             schedulerName = schedulerLabelAnnotation.value();
         }
 
-        this.scheduler = model.schedulerBuilder(schedulerName)
+        this.scheduler = model.<OUTPUT_TYPE>schedulerBuilder(schedulerName)
                 .configure(schedulerConfiguration)
                 // FUTURE WORK: all components not currently in platform core should move there
                 .withHyperlink(platformCoreHyperlink(clazz))
                 .withDataCounter(dataCounter)
-                .build()
-                .cast();
+                .build();
 
         if (!clazz.isInterface()) {
             throw new IllegalArgumentException("Component class " + clazz.getName() + " is not an interface.");

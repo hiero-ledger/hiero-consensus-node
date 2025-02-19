@@ -56,8 +56,8 @@ public class V059HintsSchema extends Schema {
     private static final long MAX_PREPROCESSING_VOTES = 1L << 31;
 
     public static final String HINTS_KEY_SETS_KEY = "HINTS_KEY_SETS";
-    public static final String ACTIVE_CONSTRUCTION_KEY = "ACTIVE_CONSTRUCTION";
-    public static final String NEXT_CONSTRUCTION_KEY = "NEXT_CONSTRUCTION";
+    public static final String ACTIVE_HINT_CONSTRUCTION_KEY = "ACTIVE_HINT_CONSTRUCTION";
+    public static final String NEXT_HINT_CONSTRUCTION_KEY = "NEXT_HINT_CONSTRUCTION";
     public static final String PREPROCESSING_VOTES_KEY = "PREPROCESSING_VOTES";
 
     private final HintsContext signingContext;
@@ -70,8 +70,8 @@ public class V059HintsSchema extends Schema {
     @Override
     public @NonNull Set<StateDefinition> statesToCreate() {
         return Set.of(
-                StateDefinition.singleton(ACTIVE_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
-                StateDefinition.singleton(NEXT_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
+                StateDefinition.singleton(ACTIVE_HINT_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
+                StateDefinition.singleton(NEXT_HINT_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
                 StateDefinition.onDisk(HINTS_KEY_SETS_KEY, HintsPartyId.PROTOBUF, HintsKeySet.PROTOBUF, MAX_HINTS),
                 StateDefinition.onDisk(
                         PREPROCESSING_VOTES_KEY,
@@ -83,15 +83,16 @@ public class V059HintsSchema extends Schema {
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         final var states = ctx.newStates();
-        states.<HintsConstruction>getSingleton(ACTIVE_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
-        states.<HintsConstruction>getSingleton(NEXT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
+        states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
+        states.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
     }
 
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
         final var states = ctx.newStates();
-        final var activeConstruction = requireNonNull(
-                states.<HintsConstruction>getSingleton(ACTIVE_CONSTRUCTION_KEY).get());
+        final var activeConstruction =
+                requireNonNull(states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
+                        .get());
         if (activeConstruction.hasHintsScheme()) {
             signingContext.setConstruction(activeConstruction);
         }

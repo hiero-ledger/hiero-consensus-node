@@ -21,7 +21,7 @@ import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
+import java.util.Queue;
 
 /**
  * Performs the prehandling of transactions
@@ -33,6 +33,6 @@ public interface TransactionPrehandler {
      * @param event the event to prehandle
      */
     @InputWireLabel("PlatformEvent")
-    List<ScopedSystemTransaction<StateSignatureTransaction>> prehandleApplicationTransactions(
+    Queue<ScopedSystemTransaction<StateSignatureTransaction>> prehandleApplicationTransactions(
             @NonNull PlatformEvent event);
 }

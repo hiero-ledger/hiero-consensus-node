@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,6 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "FILE") @NodeProperty BlockStreamWriterMode writerMode,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty String blockFileDir,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean compressFilesOnCreation,
-        @ConfigProperty(defaultValue = "32") @NetworkProperty int serializationBatchSize,
         @ConfigProperty(defaultValue = "32") @NetworkProperty int hashCombineBatchSize,
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
         @ConfigProperty(defaultValue = "localhost") String grpcAddress,

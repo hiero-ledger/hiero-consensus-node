@@ -76,6 +76,8 @@ public record ContractsConfig(
                 boolean precompileAtomicCryptoTransferEnabled,
         @ConfigProperty(value = "precompile.hrcFacade.associate.enabled", defaultValue = "true") @NetworkProperty
                 boolean precompileHrcFacadeAssociateEnabled,
+        @ConfigProperty(value = "precompile.disabled", defaultValue = "") @NetworkProperty
+                Set<Integer> disabledPrecompiles,
         @ConfigProperty(value = "systemContract.accountService.enabled", defaultValue = "true") @NetworkProperty
                 boolean systemContractAccountServiceEnabled,
         @ConfigProperty(value = "systemContract.scheduleService.enabled", defaultValue = "true") @NetworkProperty
@@ -124,6 +126,8 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.setUnlimitedAutoAssociations.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractSetUnlimitedAutoAssociationsEnabled,
+        @ConfigProperty(value = "systemContract.hts.addresses", defaultValue = "359") // 359 = 0x167, 364 = 0x16C
+                Set<Long> callableHTSAddresses,
         @ConfigProperty(value = "evm.ethTransaction.zeroHapiFees.enabled", defaultValue = "false") @NetworkProperty
                 boolean evmEthTransactionZeroHapiFeesEnabled,
         @ConfigProperty(value = "evm.allowCallsToNonContractAccounts", defaultValue = "true") @NetworkProperty

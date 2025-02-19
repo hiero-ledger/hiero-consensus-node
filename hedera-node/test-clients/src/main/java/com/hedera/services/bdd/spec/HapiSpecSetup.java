@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ public class HapiSpecSetup {
      *
      * @return the Ed25519 private key for the default payer in this spec setup
      */
-    public EdDSAPrivateKey payerKey() {
+    public EdDSAPrivateKey payerKeyAsEd25519() {
         if (StringUtils.isNotEmpty(defaultPayerKey())) {
             return Ed25519Utils.keyFrom(com.swirlds.common.utility.CommonUtils.unhex(defaultPayerKey()));
         } else if (StringUtils.isNotEmpty(defaultPayerMnemonic())) {
@@ -503,15 +503,15 @@ public class HapiSpecSetup {
     }
 
     public AccountID nodeRewardAccount() {
-        return asAccount("0.0.801");
+        return asAccount(props.get("default.shard"), props.get("default.realm"), "801");
     }
 
     public AccountID stakingRewardAccount() {
-        return asAccount("0.0.800");
+        return asAccount(props.get("default.shard"), props.get("default.realm"), "800");
     }
 
     public AccountID feeCollectorAccount() {
-        return asAccount("0.0.802");
+        return asAccount(props.get("default.shard"), props.get("default.realm"), "802");
     }
 
     public String nodeRewardAccountName() {

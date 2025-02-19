@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ class LongListValidRangeTest {
     @ParameterizedTest
     @MethodSource("defaultLongListProvider")
     @DisplayName("Update min and max index to -1")
-    void testUpdateMinMaxMinuxOne(AbstractLongList<?> list) {
+    void testUpdateMinMaxMinusOne(AbstractLongList<?> list) {
         this.list = list;
         assertDoesNotThrow(() -> list.updateValidRange(-1, -1));
     }

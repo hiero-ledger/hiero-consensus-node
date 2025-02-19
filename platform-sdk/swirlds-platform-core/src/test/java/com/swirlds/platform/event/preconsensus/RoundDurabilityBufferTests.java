@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.durability.DefaultRoundDurabilityBuffer;
 import com.swirlds.platform.event.preconsensus.durability.RoundDurabilityBuffer;
-import com.swirlds.platform.gossip.shadowgraph.Generations;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -77,7 +76,6 @@ class RoundDurabilityBufferTests {
                 mock(Roster.class),
                 List.of(),
                 keystoneEvent,
-                mock(Generations.class),
                 mock(EventWindow.class),
                 mock(ConsensusSnapshot.class),
                 false,

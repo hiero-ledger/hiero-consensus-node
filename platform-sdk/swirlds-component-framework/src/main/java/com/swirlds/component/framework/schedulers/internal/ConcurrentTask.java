@@ -16,8 +16,8 @@
 
 package com.swirlds.component.framework.schedulers.internal;
 
+import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.component.framework.counters.ObjectCounter;
-import com.swirlds.component.framework.tasks.AbstractTask;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -61,14 +61,20 @@ class ConcurrentTask extends AbstractTask {
      * {@inheritDoc}
      */
     @Override
-    protected boolean exec() {
+    protected boolean onExecute() {
         try {
             handler.accept(data);
-        } catch (final Throwable t) {
-            uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), t);
+            return true;
         } finally {
             offRamp.offRamp();
         }
-        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onException(final Throwable t) {
+        uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), t);
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -87,26 +87,15 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
 
     /** {@inheritDoc} */
     @Override
-    protected void readBodyFromFileChannelOnInit(String sourceFileName, FileChannel fileChannel) throws IOException {
-        if (minValidIndex.get() < 0) {
-            // Empty list, nothing to read
-            return;
-        }
-        final int totalNumberOfChunks = calculateNumberOfChunks(size());
-        final int firstChunkWithDataIndex = toIntExact(minValidIndex.get() / numLongsPerChunk);
-        final int minValidIndexInChunk = toIntExact(minValidIndex.get() % numLongsPerChunk);
-        // read the first chunk
-        final ByteBuffer firstBuffer = createChunk();
-        firstBuffer.position(minValidIndexInChunk * Long.BYTES).limit(firstBuffer.capacity());
-        MerkleDbFileUtils.completelyRead(fileChannel, firstBuffer);
-        chunkList.set(firstChunkWithDataIndex, firstBuffer);
-        // read the rest of the data
-        for (int i = firstChunkWithDataIndex + 1; i < totalNumberOfChunks; i++) {
-            final ByteBuffer directBuffer = createChunk();
-            MerkleDbFileUtils.completelyRead(fileChannel, directBuffer);
-            directBuffer.position(0);
-            chunkList.set(i, directBuffer);
-        }
+    protected ByteBuffer readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex)
+            throws IOException {
+        ByteBuffer chunk = createChunk();
+        readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, chunk);
+        // All chunks (byte buffers) in LongListOffHeap are stored with position == 0 and
+        // limit == capacity. When this list is written to a file, the first and the last
+        // chunk positions and limits are taken care of
+        chunk.clear();
+        return chunk;
     }
 
     /** {@inheritDoc} */
@@ -157,7 +146,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
                 final ByteBuffer nonNullBuffer = requireNonNullElse(byteBuffer, emptyBuffer);
                 // Slice so we don't mess with the byte buffer pointers.
                 // Also, the slice size has to be equal to the size of the buffer
-                final ByteBuffer buf = nonNullBuffer.slice(0, nonNullBuffer.capacity());
+                final ByteBuffer buf = nonNullBuffer.slice(0, nonNullBuffer.limit());
                 if (i == firstChunkWithDataIndex) {
                     // writing starts from the first valid index in the first valid chunk
                     final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % numLongsPerChunk);
@@ -167,8 +156,8 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
                 }
                 if (i == (totalNumOfChunks - 1)) {
                     // last array, so set limit to only the data needed
-                    final long bytesWrittenSoFar = (long) memoryChunkSize * (long) i;
-                    final long remainingBytes = (size() * Long.BYTES) - bytesWrittenSoFar;
+                    final long bytesWrittenSoFar = (long) memoryChunkSize * i;
+                    final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
                     buf.limit(toIntExact(remainingBytes));
                 } else {
                     buf.limit(buf.capacity());

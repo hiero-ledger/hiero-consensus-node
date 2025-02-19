@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,32 +16,42 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval;
 
-import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.CallVia;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 /**
  * Translates setApprovalForAll (including ERC) call to the HTS system contract. There are no special cases for these
  * calls, so the returned {@link Call} is simply an instance of {@link DispatchForResponseCodeHtsCall}.
  */
+@Singleton
 public class SetApprovalForAllTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 
     /** Selector for setApprovalForAll(address,address,bool) method. */
-    public static final Function SET_APPROVAL_FOR_ALL =
-            new Function("setApprovalForAll(address,address,bool)", ReturnTypes.INT);
+    public static final SystemContractMethod SET_APPROVAL_FOR_ALL = SystemContractMethod.declare(
+                    "setApprovalForAll(address,address,bool)", ReturnTypes.INT)
+            .withCategory(Category.APPROVAL);
     /** Selector for setApprovalForAll(address,bool) method. */
-    public static final Function ERC721_SET_APPROVAL_FOR_ALL =
-            new Function("setApprovalForAll(address,bool)", ReturnTypes.INT);
+    public static final SystemContractMethod ERC721_SET_APPROVAL_FOR_ALL = SystemContractMethod.declare(
+                    "setApprovalForAll(address,bool)", ReturnTypes.INT)
+            .withVia(CallVia.PROXY)
+            .withCategories(Category.ERC721, Category.APPROVAL);
 
     private final SetApprovalForAllDecoder decoder;
 
@@ -49,18 +59,21 @@ public class SetApprovalForAllTranslator extends AbstractCallTranslator<HtsCallA
      * @param decoder the decoder to use for approve calls
      */
     @Inject
-    public SetApprovalForAllTranslator(final SetApprovalForAllDecoder decoder) {
+    public SetApprovalForAllTranslator(
+            final SetApprovalForAllDecoder decoder,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
         this.decoder = decoder;
+
+        registerMethods(SET_APPROVAL_FOR_ALL, ERC721_SET_APPROVAL_FOR_ALL);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         return attempt.isTokenRedirect()
-                ? attempt.isSelector(ERC721_SET_APPROVAL_FOR_ALL)
-                : attempt.isSelector(SET_APPROVAL_FOR_ALL);
+                ? attempt.isMethod(ERC721_SET_APPROVAL_FOR_ALL)
+                : attempt.isMethod(SET_APPROVAL_FOR_ALL);
     }
 
     /**

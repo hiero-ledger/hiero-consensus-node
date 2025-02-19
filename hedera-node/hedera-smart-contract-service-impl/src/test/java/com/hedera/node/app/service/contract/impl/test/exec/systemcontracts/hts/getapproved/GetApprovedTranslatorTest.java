@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,20 +24,20 @@ import static com.hedera.node.app.service.contract.impl.test.exec.systemcontract
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirect;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.fromHeadlongAddress;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
@@ -73,11 +73,16 @@ public class GetApprovedTranslatorTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private GetApprovedTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new GetApprovedTranslator();
+        subject = new GetApprovedTranslator(systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
@@ -85,27 +90,45 @@ public class GetApprovedTranslatorTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         attempt = prepareHtsAttemptWithSelectorForRedirect(
-                ERC_GET_APPROVED, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertTrue(subject.matches(attempt));
+                ERC_GET_APPROVED,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesHapiGetApprovedTest() {
         attempt = prepareHtsAttemptWithSelector(
-                HAPI_GET_APPROVED, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertTrue(subject.matches(attempt));
+                HAPI_GET_APPROVED,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsOnIncorrectSelectorTest() {
         attempt = prepareHtsAttemptWithSelector(
-                BURN_TOKEN_V2, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertFalse(subject.matches(attempt));
+                BURN_TOKEN_V2,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void callFromErcGetApprovedTest() {
-        Tuple tuple = new Tuple(BigInteger.valueOf(123L));
+        Tuple tuple = Tuple.singleton(BigInteger.valueOf(123L));
         Bytes inputBytes = Bytes.wrapByteBuffer(GetApprovedTranslator.ERC_GET_APPROVED.encodeCall(tuple));
         given(attempt.isSelector(ERC_GET_APPROVED)).willReturn(true);
         given(attempt.input()).willReturn(inputBytes);
@@ -118,7 +141,7 @@ public class GetApprovedTranslatorTest {
 
     @Test
     void callFromHapiGetApprovedTest() {
-        Tuple tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
+        Tuple tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
         Bytes inputBytes = Bytes.wrapByteBuffer(HAPI_GET_APPROVED.encodeCall(tuple));
         given(attempt.isSelector(ERC_GET_APPROVED)).willReturn(false);
         given(attempt.input()).willReturn(inputBytes);

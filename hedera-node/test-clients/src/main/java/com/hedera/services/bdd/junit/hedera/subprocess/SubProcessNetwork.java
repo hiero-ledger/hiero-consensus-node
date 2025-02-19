@@ -18,7 +18,6 @@ package com.hedera.services.bdd.junit.hedera.subprocess;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.ADDRESS_BOOK;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
@@ -413,19 +412,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * Writes the override <i>config.txt</i> and <i>override-network.json</i> files for each node in the network,
      * as implied by the current {@link SubProcessNetwork#configTxt} field. (Note the weights in this {@code configTxt}
      * field are maintained in very brittle fashion by getting up-to-date values from {@code node0}'s
-     * <i>candidate-roster.json</i> file during the {@link FakeNmt} operations that precede the upgrade; once
-     * the roster lifecycle is on by default in production, we should clean this up.)
+     * <i>candidate-roster.json</i> file during the {@link FakeNmt} operations that precede the upgrade; at some point
+     * we should clean this up.)
      */
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
         nodes.forEach(node -> {
-            // (FUTURE) Remove this once we have enabled roster lifecycle by default
-            final var configTxtLoc = node.getExternalPath(ADDRESS_BOOK);
-            try {
-                Files.writeString(configTxtLoc, configTxt);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
             final var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.YES);
             final var genesisNetworkPath = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
             final var isGenesis = genesisNetworkPath.toFile().exists();

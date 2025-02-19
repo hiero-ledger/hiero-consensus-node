@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import static org.awaitility.Awaitility.await;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.test.network.communication.TestProtocol;
+import com.swirlds.platform.test.network.communication.TestPeerProtocol;
 import com.swirlds.platform.test.sync.ConnectionFactory;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
@@ -34,8 +34,10 @@ class NegotiatorMultithreadedTest {
     @DisplayName("Negotiate and run a protocol on 2 threads talking to each other")
     @Test
     void runProtocol() throws Exception {
-        final NegotiatorPair pair = new NegotiatorPair(
-                new TestProtocol().setShouldAccept(true).setShouldInitiate(true).setAcceptOnSimultaneousInitiate(true));
+        final NegotiatorPair pair = new NegotiatorPair(new TestPeerProtocol()
+                .setShouldAccept(true)
+                .setShouldInitiate(true)
+                .setAcceptOnSimultaneousInitiate(true));
         pair.start();
         await().atMost(5, TimeUnit.SECONDS).until(pair.threadsDone());
         pair.assertTimesRan(1);
@@ -49,7 +51,7 @@ class NegotiatorMultithreadedTest {
         final Pair<Connection, Connection> connections =
                 ConnectionFactory.createLocalConnections(NodeId.of(0L), NodeId.of(1));
         final NegotiatorPair pair = new NegotiatorPair(
-                new TestProtocol().setShouldInitiate(false),
+                new TestPeerProtocol().setShouldInitiate(false),
                 Pair.of(new ExpiringConnection(connections.left(), 1), new ExpiringConnection(connections.right(), 1)));
         pair.start();
         await().atMost(5, TimeUnit.SECONDS).until(pair.threadsDone());

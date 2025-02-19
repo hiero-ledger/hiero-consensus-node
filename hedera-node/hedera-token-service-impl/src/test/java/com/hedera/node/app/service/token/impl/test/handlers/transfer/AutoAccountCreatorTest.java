@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.AutoAccountCreator;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -80,17 +81,19 @@ class AutoAccountCreatorTest extends StepsBase {
                 .will((invocation) -> {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();
-                    writableAccountStore.put(copy);
-                    writableAliases.put(ecKeyAlias, asAccount(hbarReceiver));
+                    writableAccountStore.putAndIncrementCount(copy);
+                    writableAccountStore.putAndIncrementCountAlias(ecKeyAlias.value(), asAccount(0L, 0L, hbarReceiver));
+                    writableAliases.put(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
 
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(2);
         assertThat(writableAccountStore.modifiedAccountsInState()).isEmpty();
-        assertThat(writableAccountStore.get(asAccount(hbarReceiver))).isNull();
-        assertThat(writableAccountStore.get(asAccount(tokenReceiver))).isNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, hbarReceiver))).isNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, tokenReceiver))).isNull();
         assertThat(writableAliases.get(ecKeyAlias)).isNull();
 
         subject.create(ecKeyAlias.value(), 0);
@@ -98,7 +101,7 @@ class AutoAccountCreatorTest extends StepsBase {
         assertThat(writableAccountStore.modifiedAliasesInState()).hasSize(1);
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(1);
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(3);
-        assertThat(writableAccountStore.get(asAccount(hbarReceiver))).isNotNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, hbarReceiver))).isNotNull();
         assertThat(writableAliases.get(ecKeyAlias).accountNum()).isEqualTo(hbarReceiver);
     }
 
@@ -112,17 +115,18 @@ class AutoAccountCreatorTest extends StepsBase {
                 .will((invocation) -> {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();
-                    writableAccountStore.put(copy);
-                    writableAliases.put(edKeyAlias, asAccount(hbarReceiver));
+                    writableAccountStore.putAndIncrementCount(copy);
+                    writableAccountStore.putAndIncrementCountAlias(edKeyAlias.value(), asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
 
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(2);
         assertThat(writableAccountStore.modifiedAccountsInState()).isEmpty();
-        assertThat(writableAccountStore.get(asAccount(hbarReceiver))).isNull();
-        assertThat(writableAccountStore.get(asAccount(tokenReceiver))).isNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, hbarReceiver))).isNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, tokenReceiver))).isNull();
         assertThat(writableAliases.get(edKeyAlias)).isNull();
 
         subject.create(edKeyAlias.value(), 0);
@@ -130,7 +134,7 @@ class AutoAccountCreatorTest extends StepsBase {
         assertThat(writableAccountStore.modifiedAliasesInState()).hasSize(1);
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(1);
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(3);
-        assertThat(writableAccountStore.get(asAccount(hbarReceiver))).isNotNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, hbarReceiver))).isNotNull();
         assertThat(writableAliases.get(edKeyAlias).accountNum()).isEqualTo(hbarReceiver);
     }
 
@@ -145,17 +149,19 @@ class AutoAccountCreatorTest extends StepsBase {
                 .will((invocation) -> {
                     final var copy =
                             account.copyBuilder().accountId(hbarReceiverId).build();
-                    writableAccountStore.put(copy);
-                    writableAliases.put(address, asAccount(hbarReceiver));
+                    writableAccountStore.putAndIncrementCount(copy);
+                    writableAliases.put(address, asAccount(0L, 0L, hbarReceiver));
+                    writableAccountStore.putAndIncrementCountAlias(address.value(), asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
 
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(2);
         assertThat(writableAccountStore.modifiedAccountsInState()).isEmpty();
-        assertThat(writableAccountStore.get(asAccount(hbarReceiver))).isNull();
-        assertThat(writableAccountStore.get(asAccount(tokenReceiver))).isNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, hbarReceiver))).isNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, tokenReceiver))).isNull();
         assertThat(writableAliases.get(address)).isNull();
 
         subject.create(address.value(), 0);
@@ -163,7 +169,7 @@ class AutoAccountCreatorTest extends StepsBase {
         assertThat(writableAccountStore.modifiedAliasesInState()).hasSize(1);
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(1);
         assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(3);
-        assertThat(writableAccountStore.get(asAccount(hbarReceiver))).isNotNull();
+        assertThat(writableAccountStore.get(asAccount(0L, 0L, hbarReceiver))).isNotNull();
         assertThat(writableAliases.get(address).accountNum()).isEqualTo(hbarReceiver);
     }
 }

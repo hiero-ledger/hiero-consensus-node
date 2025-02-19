@@ -1,4 +1,19 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2025 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.node.app.service.addressbook.impl.schemas;
 
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
@@ -9,7 +24,6 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableKVState;
@@ -30,16 +44,17 @@ public interface AddressBookTransplantSchema {
 
     default void restart(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
-        if (ctx.appConfig().getConfigData(AddressBookConfig.class).useRosterLifecycle()) {
-            ctx.startupNetworks().overrideNetworkFor(ctx.roundNumber()).ifPresent(network -> {
-                final var count = setNodeMetadata(network, ctx.newStates());
-                log.info("Adopted {} node metadata entries from startup assets", count);
-            });
-        }
+        ctx.startupNetworks()
+                .overrideNetworkFor(ctx.roundNumber(), ctx.platformConfig())
+                .ifPresent(network -> {
+                    final var count = setNodeMetadata(network, ctx.newStates());
+                    log.info("Adopted {} node metadata entries from startup assets", count);
+                });
     }
 
     /**
      * Set the node metadata in the state from the provided network, for whatever nodes they are available.
+     *
      * @param network the network from which to extract the node metadata
      * @param writableStates the state in which to store the node metadata
      */

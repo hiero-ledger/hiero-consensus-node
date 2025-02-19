@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,12 +36,16 @@ public class ReadableAirdropStoreImpl implements ReadableAirdropStore {
     /** The underlying data storage class that holds the airdrop data. */
     private final ReadableKVState<PendingAirdropId, AccountPendingAirdrop> readableAirdropState;
 
+    private final ReadableEntityCounters entityCounters;
+
     /**
      * Create a new {@link ReadableAirdropStoreImpl} instance.
      *
      * @param states The state to use.
      */
-    public ReadableAirdropStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableAirdropStoreImpl(
+            @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
+        this.entityCounters = entityCounters;
         requireNonNull(states);
         this.readableAirdropState = states.get(AIRDROPS_KEY);
     }
@@ -61,6 +67,6 @@ public class ReadableAirdropStoreImpl implements ReadableAirdropStore {
     /** {@inheritDoc} */
     @Override
     public long sizeOfState() {
-        return readableAirdropState.size();
+        return entityCounters.getCounterFor(EntityType.AIRDROP);
     }
 }

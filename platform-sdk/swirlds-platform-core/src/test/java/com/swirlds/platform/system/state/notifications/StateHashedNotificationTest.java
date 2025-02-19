@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.wiring.components.StateAndRound;
-import java.util.List;
+import java.util.Queue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -39,7 +39,7 @@ class StateHashedNotificationTest {
     private static final Hash HASH = new Hash(new byte[48]);
 
     @Mock
-    private PlatformMerkleStateRoot merkleRoot;
+    private MerkleNodeState merkleRoot;
 
     @Mock
     private SignedState signedState;
@@ -51,7 +51,7 @@ class StateHashedNotificationTest {
     private ReservedSignedState reservedSignedState;
 
     @Mock
-    private List<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions;
+    private Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions;
 
     @Test
     void factoryWorksAsExpected() {

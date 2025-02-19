@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asDuration;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTimestamp;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusUpdateTopic;
 
@@ -32,6 +33,9 @@ import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusUpdateTopicTransactionBody;
+import com.hederahashgraph.api.proto.java.FeeExemptKeyList;
+import com.hederahashgraph.api.proto.java.FixedCustomFee;
+import com.hederahashgraph.api.proto.java.FixedCustomFeeList;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -44,6 +48,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
     private final String topic;
@@ -56,6 +61,14 @@ public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
     private Optional<String> newSubmitKeyName = Optional.empty();
     private Optional<Key> newSubmitKey = Optional.empty();
     private Optional<String> newAutoRenewAccount = Optional.empty();
+    private Optional<Key> feeScheduleKey = Optional.empty();
+    private Optional<String> feeScheduleKeyName = Optional.empty();
+    private final List<Function<HapiSpec, FixedCustomFee>> feeScheduleSuppliers = new ArrayList<>();
+    private Optional<List<Function<HapiSpec, Key>>> feeExemptKeyNamesList = Optional.empty();
+    private Optional<List<Key>> freeMessageKeyList = Optional.empty();
+    private boolean emptyCustomFee = false;
+    private boolean emptyFeeExemptKeyList = false;
+    private boolean emptyFeeScheduleKey = false;
 
     public HapiTopicUpdate(final String topic) {
         this.topic = topic;
@@ -101,6 +114,38 @@ public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
         return this;
     }
 
+    public HapiTopicUpdate feeScheduleKeyName(final String s) {
+        feeScheduleKeyName = Optional.of(s);
+        return this;
+    }
+
+    public HapiTopicUpdate feeExemptKeys(String... keys) {
+        feeExemptKeyNamesList = Optional.of(Stream.of(keys)
+                .<Function<HapiSpec, Key>>map(k -> spec -> spec.registry().getKey(k))
+                .toList());
+        return this;
+    }
+
+    public HapiTopicUpdate withConsensusCustomFee(final Function<HapiSpec, FixedCustomFee> supplier) {
+        feeScheduleSuppliers.add(supplier);
+        return this;
+    }
+
+    public HapiTopicUpdate withEmptyCustomFee() {
+        emptyCustomFee = true;
+        return this;
+    }
+
+    public HapiTopicUpdate withEmptyFeeExemptKeyList() {
+        emptyFeeExemptKeyList = true;
+        return this;
+    }
+
+    public HapiTopicUpdate withEmptyFeeScheduleKey() {
+        emptyFeeScheduleKey = true;
+        return this;
+    }
+
     @Override
     public HederaFunctionality type() {
         return ConsensusUpdateTopic;
@@ -140,10 +185,7 @@ public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
-        newAdminKeyName.ifPresent(
-                name -> newAdminKey = Optional.of(spec.registry().getKey(name)));
-        newSubmitKeyName.ifPresent(
-                name -> newSubmitKey = Optional.of(spec.registry().getKey(name)));
+        genKeysFor(spec);
         final ConsensusUpdateTopicTransactionBody opBody = spec.txns()
                 .<ConsensusUpdateTopicTransactionBody, ConsensusUpdateTopicTransactionBody.Builder>body(
                         ConsensusUpdateTopicTransactionBody.class, b -> {
@@ -154,8 +196,43 @@ public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
                             newExpiry.ifPresent(s -> b.setExpirationTime(asTimestamp(s)));
                             newAutoRenewPeriod.ifPresent(s -> b.setAutoRenewPeriod(asDuration(s)));
                             newAutoRenewAccount.ifPresent(id -> b.setAutoRenewAccount(asId(id, spec)));
+                            if (emptyFeeScheduleKey) {
+                                b.setFeeScheduleKey(EMPTY_KEY);
+                            } else {
+                                feeScheduleKey.ifPresent(b::setFeeScheduleKey);
+                            }
+                            freeMessageKeyList.ifPresent(keys -> b.setFeeExemptKeyList(
+                                    FeeExemptKeyList.newBuilder().addAllKeys(keys)));
+                            if (emptyFeeExemptKeyList) {
+                                b.setFeeExemptKeyList(FeeExemptKeyList.newBuilder());
+                            }
+                            if (!feeScheduleSuppliers.isEmpty()) {
+                                var consensusCustomFeeList = FixedCustomFeeList.newBuilder();
+                                for (final var supplier : feeScheduleSuppliers) {
+                                    consensusCustomFeeList.addFees(supplier.apply(spec));
+                                }
+                                b.setCustomFees(consensusCustomFeeList.build());
+                            } else if (emptyCustomFee) {
+                                b.setCustomFees(FixedCustomFeeList.newBuilder().build());
+                            }
                         });
         return b -> b.setConsensusUpdateTopic(opBody);
+    }
+
+    private void genKeysFor(HapiSpec spec) {
+        newAdminKeyName.ifPresent(
+                name -> newAdminKey = Optional.of(spec.registry().getKey(name)));
+        newSubmitKeyName.ifPresent(
+                name -> newSubmitKey = Optional.of(spec.registry().getKey(name)));
+
+        if (feeScheduleKeyName.isPresent()) {
+            feeScheduleKey = Optional.of(netOf(spec, feeScheduleKeyName, Optional.empty()));
+        }
+
+        feeExemptKeyNamesList.ifPresent(functions -> freeMessageKeyList = Optional.of(functions.stream()
+                .map(f -> f.apply(spec))
+                .filter(k -> k != null && k != Key.getDefaultInstance())
+                .toList()));
     }
 
     @Override
@@ -173,7 +250,8 @@ public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
             }
         });
         newAutoRenewAccount.ifPresent(id -> {
-            if (!id.equalsIgnoreCase("0.0.0")) {
+            var accountNum = id.split("\\.").length == 3 ? id.split("\\.")[2] : null;
+            if (!"0".equals(accountNum)) {
                 signers.add(spec -> spec.registry().getKey(id));
             }
         });

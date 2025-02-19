@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,20 +23,21 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.message
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelectorAndCustomConfig;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.exec.v051.Version051FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -78,12 +79,18 @@ public class IsAuthorizedRawTranslatorTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private IsAuthorizedRawTranslator subject;
 
     @BeforeEach
     void setUp() {
         final var featureFlags = new Version051FeatureFlags();
-        subject = new IsAuthorizedRawTranslator(featureFlags, customGasCalculator);
+        subject = new IsAuthorizedRawTranslator(
+                featureFlags, customGasCalculator, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
@@ -97,8 +104,9 @@ public class IsAuthorizedRawTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 getTestConfiguration(true));
-        assertTrue(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -112,8 +120,9 @@ public class IsAuthorizedRawTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 getTestConfiguration(false));
-        assertFalse(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
@@ -127,8 +136,9 @@ public class IsAuthorizedRawTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 getTestConfiguration(true));
-        assertFalse(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
@@ -144,8 +154,8 @@ public class IsAuthorizedRawTranslatorTest {
 
     private void givenCommonForCall(Bytes inputBytes) {
         given(attempt.inputBytes()).willReturn(inputBytes.toArray());
-        given(attempt.isSelector(any())).willReturn(true);
         given(attempt.enhancement()).willReturn(enhancement);
+        given(attempt.isSelector((SystemContractMethod) any())).willReturn(true);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.signatureVerifier()).willReturn(signatureVerifier);
     }

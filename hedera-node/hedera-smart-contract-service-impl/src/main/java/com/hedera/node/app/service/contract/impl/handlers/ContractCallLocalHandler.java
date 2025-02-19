@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -141,7 +141,8 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         requireNonNull(context);
         requireNonNull(header);
 
-        final var component = provider.get().create(context, instantSource.instant(), CONTRACT_CALL_LOCAL);
+        final var component = getQueryComponent(context);
+
         final var outcome = component.contextQueryProcessor().call();
 
         final var responseHeader = outcome.isSuccess()
@@ -178,5 +179,10 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
                     .setNodedata(feeData.getNodedata().toBuilder().setGas(op.gas()))
                     .build();
         });
+    }
+
+    @NonNull
+    private QueryComponent getQueryComponent(@NonNull final QueryContext context) {
+        return requireNonNull(provider.get().create(context, instantSource.instant(), CONTRACT_CALL_LOCAL));
     }
 }

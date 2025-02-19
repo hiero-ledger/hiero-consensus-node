@@ -58,14 +58,13 @@ import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -82,7 +81,7 @@ import com.swirlds.platform.system.events.DefaultBirthRoundMigrationShim;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -187,7 +186,8 @@ public class SwirldsPlatform implements Platform {
 
         // This method is a no-op if we are not in birth round mode, or if we have already migrated.
         final SoftwareVersion appVersion = blocks.appVersion();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion);
+        PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
+        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
 
         if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
             try {
@@ -196,10 +196,7 @@ public class SwirldsPlatform implements Platform {
                         platformContext,
                         blocks.selfId(),
                         initialState.getRound(),
-                        initialState
-                                .getState()
-                                .getReadablePlatformState()
-                                .getLowestJudgeGenerationBeforeBirthRoundMode());
+                        platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(initialState.getState()));
             } catch (final IOException e) {
                 throw new UncheckedIOException("Birth round migration failed during PCES migration.", e);
             }
@@ -245,7 +242,7 @@ public class SwirldsPlatform implements Platform {
                 () -> latestImmutableStateNexus.getState("PCES replay"),
                 () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
-        initializeState(this, platformContext, initialState, stateLifecycles);
+        initializeState(this, platformContext, initialState, stateLifecycles, platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
         /**
@@ -258,7 +255,8 @@ public class SwirldsPlatform implements Platform {
 
         blocks.isInFreezePeriodReference().set(swirldStateManager::isInFreezePeriod);
 
-        final BirthRoundMigrationShim birthRoundMigrationShim = buildBirthRoundMigrationShim(initialState, ancientMode);
+        final BirthRoundMigrationShim birthRoundMigrationShim =
+                buildBirthRoundMigrationShim(initialState, ancientMode, platformStateFacade);
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
@@ -277,9 +275,9 @@ public class SwirldsPlatform implements Platform {
                 publisher);
 
         final Hash legacyRunningEventHash =
-                initialState.getState().getReadablePlatformState().getLegacyRunningEventHash() == null
+                platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
                         ? platformContext.getCryptography().getNullHash()
-                        : initialState.getState().getReadablePlatformState().getLegacyRunningEventHash();
+                        : platformStateFacade.legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
         platformWiring.updateRunningHash(runningEventHashOverride);
@@ -311,8 +309,7 @@ public class SwirldsPlatform implements Platform {
             startingRound = 0;
             platformWiring.updateEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
         } else {
-            initialAncientThreshold =
-                    initialState.getState().getReadablePlatformState().getAncientThreshold();
+            initialAncientThreshold = platformStateFacade.ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
 
             platformWiring.sendStateToHashLogger(initialState);
@@ -322,8 +319,8 @@ public class SwirldsPlatform implements Platform {
 
             savedStateController.registerSignedStateFromDisk(initialState);
 
-            platformWiring.consensusSnapshotOverride(Objects.requireNonNull(
-                    initialState.getState().getReadablePlatformState().getSnapshot()));
+            platformWiring.consensusSnapshotOverride(
+                    Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(initialState.getState())));
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
@@ -347,7 +344,8 @@ public class SwirldsPlatform implements Platform {
                 latestImmutableStateNexus,
                 savedStateController,
                 currentRoster,
-                stateLifecycles);
+                stateLifecycles,
+                platformStateFacade);
 
         blocks.loadReconnectStateReference().set(reconnectStateLoader::loadReconnectState);
         blocks.clearAllPipelinesForReconnectReference().set(platformWiring::clear);
@@ -363,21 +361,21 @@ public class SwirldsPlatform implements Platform {
      */
     @Nullable
     private BirthRoundMigrationShim buildBirthRoundMigrationShim(
-            @NonNull final SignedState initialState, @NonNull final AncientMode ancientMode) {
+            @NonNull final SignedState initialState,
+            @NonNull final AncientMode ancientMode,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
             // We don't need the shim if we haven't migrated to birth round mode.
             return null;
         }
 
-        final PlatformMerkleStateRoot state = initialState.getState();
-        final PlatformStateAccessor platformState = state.getReadablePlatformState();
-
+        final State state = initialState.getState();
         return new DefaultBirthRoundMigrationShim(
                 platformContext,
-                platformState.getFirstVersionInBirthRoundMode(),
-                platformState.getLastRoundBeforeBirthRoundMode(),
-                platformState.getLowestJudgeGenerationBeforeBirthRoundMode());
+                platformStateFacade.firstVersionInBirthRoundModeOf(state),
+                platformStateFacade.lastRoundBeforeBirthRoundModeOf(state),
+                platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(state));
     }
 
     /**
@@ -516,7 +514,7 @@ public class SwirldsPlatform implements Platform {
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
-    public <T extends MerkleStateRoot> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason) {
+    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason) {
         final ReservedSignedState wrapper = latestImmutableStateNexus.getState(reason);
         return wrapper == null
                 ? AutoCloseableWrapper.empty()

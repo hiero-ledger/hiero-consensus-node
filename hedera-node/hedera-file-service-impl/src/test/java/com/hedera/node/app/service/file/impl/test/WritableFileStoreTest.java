@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,37 +24,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableFileStoreTest extends FileTestBase {
-
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
-
     private File file;
 
     @Test
     void throwsIfNullValuesAsArgs() {
-        assertThrows(NullPointerException.class, () -> new WritableFileStore(null, CONFIGURATION, storeMetricsService));
-        assertThrows(
-                NullPointerException.class, () -> new WritableFileStore(writableStates, null, storeMetricsService));
-        assertThrows(NullPointerException.class, () -> new WritableFileStore(writableStates, CONFIGURATION, null));
+        assertThrows(NullPointerException.class, () -> new WritableFileStore(null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableFileStore(writableStates, null));
         assertThrows(NullPointerException.class, () -> writableStore.put(null));
     }
 
     @Test
     void constructorCreatesFileState() {
-        final var store = new WritableFileStore(writableStates, CONFIGURATION, storeMetricsService);
+        final var store = new WritableFileStore(writableStates, writableEntityCounters);
         assertNotNull(store);
     }
 

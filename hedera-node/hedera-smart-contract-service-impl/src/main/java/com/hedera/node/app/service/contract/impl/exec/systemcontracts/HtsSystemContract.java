@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,13 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
+import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.NOT_SUPPORTED;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -26,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityTyp
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -33,16 +38,35 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 @Singleton
 public class HtsSystemContract extends AbstractNativeSystemContract implements HederaSystemContract {
     public static final String HTS_SYSTEM_CONTRACT_NAME = "HTS";
-    public static final String HTS_EVM_ADDRESS = "0x167";
-    public static final ContractID HTS_CONTRACT_ID = asNumberedContractId(Address.fromHexString(HTS_EVM_ADDRESS));
+    public static final String HTS_167_EVM_ADDRESS = "0x167";
+    public static final String HTS_16C_EVM_ADDRESS = "0x16C";
+    public static final ContractID HTS_167_CONTRACT_ID =
+            asNumberedContractId(Address.fromHexString(HTS_167_EVM_ADDRESS));
+    public static final ContractID HTS_16C_CONTRACT_ID =
+            asNumberedContractId(Address.fromHexString(HTS_16C_EVM_ADDRESS));
 
     @Inject
-    public HtsSystemContract(@NonNull final GasCalculator gasCalculator, @NonNull final HtsCallFactory callFactory) {
-        super(HTS_SYSTEM_CONTRACT_NAME, callFactory, HTS_CONTRACT_ID, gasCalculator);
+    public HtsSystemContract(
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HtsCallFactory callFactory,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(HTS_SYSTEM_CONTRACT_NAME, callFactory, gasCalculator, contractMetrics);
     }
 
     @Override
     protected FrameUtils.CallType callTypeOf(@NonNull MessageFrame frame) {
         return FrameUtils.callTypeOf(frame, EntityType.TOKEN);
+    }
+
+    @Override
+    public FullResult computeFully(
+            @NonNull ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
+
+        // Check if calls to the current contract address are enabled
+        if (!contractsConfigOf(frame).callableHTSAddresses().contains(contractID.contractNum())) {
+            return haltResult(NOT_SUPPORTED, frame.getRemainingGas());
+        }
+
+        return super.computeFully(contractID, input, frame);
     }
 }

@@ -22,6 +22,8 @@ import static com.hedera.hapi.node.freeze.FreezeType.PREPARE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.TELEMETRY_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.UNKNOWN_FREEZE_TYPE;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
@@ -41,8 +43,10 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
@@ -50,6 +54,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.networkadmin.FreezeService;
@@ -59,6 +64,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
@@ -87,6 +93,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
     private AtomicReference<Timestamp> freezeTimeBackingStore;
     private AtomicReference<PlatformState> platformStateBackingStore;
     private AtomicReference<RosterState> rosterStateBackingStore;
+    private AtomicReference<EntityCounts> entityCountsBackingStore;
     private ConcurrentHashMap<ProtoBytes, Roster> rosters = new ConcurrentHashMap<>();
     private ConcurrentHashMap<EntityNumber, Node> nodes = new ConcurrentHashMap<>();
     private ConcurrentHashMap<EntityNumber, StakingNodeInfo> stakingInfo = new ConcurrentHashMap<>();
@@ -102,6 +109,12 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
         freezeTimeBackingStore = new AtomicReference<>(null);
         platformStateBackingStore = new AtomicReference<>(V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE);
         rosterStateBackingStore = new AtomicReference<>(ROSTER_STATE);
+        entityCountsBackingStore = new AtomicReference<>(EntityCounts.DEFAULT);
+
+        when(writableStates.getSingleton(ENTITY_COUNTS_KEY))
+                .then(invocation -> new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, entityCountsBackingStore::get, entityCountsBackingStore::set));
+
         when(writableStates.getSingleton(FREEZE_TIME_KEY))
                 .then(invocation -> new WritableSingletonStateBase<>(
                         FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
@@ -117,7 +130,14 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
                 .addService(
                         PlatformStateService.NAME,
                         Map.of(V0540PlatformStateSchema.PLATFORM_STATE_KEY, platformStateBackingStore))
-                .addService(TokenService.NAME, Map.of(STAKING_INFO_KEY, stakingInfo));
+                .addService(TokenService.NAME, Map.of(STAKING_INFO_KEY, stakingInfo))
+                .addService(
+                        EntityIdService.NAME,
+                        Map.of(
+                                ENTITY_ID_STATE_KEY,
+                                new AtomicReference<>(EntityNumber.newBuilder().build()),
+                                ENTITY_COUNTS_KEY,
+                                entityCountsBackingStore));
 
         subject = new PlatformStateUpdates(rosterExportHelper);
     }
@@ -194,7 +214,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
                 .freeze(FreezeTransactionBody.newBuilder().freezeType(FREEZE_UPGRADE));
 
         // when
-        subject.handleTxBody(state, txBody.build(), configWith(true, false, true));
+        subject.handleTxBody(state, txBody.build(), configWith(false, true));
 
         // then
         final var platformState = platformStateBackingStore.get();
@@ -211,7 +231,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
                 .freeze(FreezeTransactionBody.newBuilder().freezeType(FREEZE_UPGRADE));
 
         // when
-        subject.handleTxBody(state, txBody.build(), configWith(false, false, true));
+        subject.handleTxBody(state, txBody.build(), configWith(false, true));
 
         // then
         final var platformState = platformStateBackingStore.get();
@@ -220,7 +240,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
     }
 
     @Test
-    void putsCandidateRosterWhenNotKeyingButUsingRosterLifecycle() {
+    void putsCandidateRosterWhenRequested() {
         // given
         final var freezeTime = Timestamp.newBuilder().seconds(123L).nanos(456).build();
         freezeTimeBackingStore.set(freezeTime);
@@ -238,7 +258,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
                 StakingNodeInfo.newBuilder().stake(1000).weight(1).build());
 
         // when
-        subject.handleTxBody(state, txBody.build(), configWith(true, true, true));
+        subject.handleTxBody(state, txBody.build(), configWith(true, true));
 
         // then
         final var captor = ArgumentCaptor.forClass(Path.class);
@@ -248,47 +268,50 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
     }
 
     @Test
-    void worksAroundFailureToPutCandidateRoster() {
+    void usesActiveRosterWeightsIfCandidateHasZeroWeight() {
         final var freezeTime = Timestamp.newBuilder().seconds(123L).nanos(456).build();
         freezeTimeBackingStore.set(freezeTime);
         final var txBody = TransactionBody.newBuilder()
                 .freeze(FreezeTransactionBody.newBuilder().freezeType(PREPARE_UPGRADE));
+        final var fakeEndpoint = new ServiceEndpoint(Bytes.EMPTY, 50211, "test.org");
         nodes.put(
                 new EntityNumber(0L),
                 Node.newBuilder()
                         .weight(0)
                         .gossipCaCertificate(Bytes.fromHex("0123"))
-                        .gossipEndpoint(new ServiceEndpoint(Bytes.EMPTY, 50211, "test.org"))
+                        .gossipEndpoint(fakeEndpoint)
                         .build());
+        final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));
+        rosterStore.putActiveRoster(
+                new Roster(List.of(new RosterEntry(0L, 1, Bytes.fromHex("0123"), List.of(fakeEndpoint)))), 123L);
 
-        subject.handleTxBody(state, txBody.build(), configWith(true, true, true));
+        subject.handleTxBody(state, txBody.build(), configWith(true, true));
 
-        verify(rosterExportHelper, never()).accept(any(), any());
+        verify(rosterExportHelper).accept(any(), any());
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void exportsCandidateRosterIfRequestedEvenWhenNotUsingRosterLifecycle() {
+    void worksAroundInvalidCandidate() {
         final var freezeTime = Timestamp.newBuilder().seconds(123L).nanos(456).build();
         freezeTimeBackingStore.set(freezeTime);
+        entityCountsBackingStore.set(EntityCounts.newBuilder().numNodes(1).build());
         final var txBody = TransactionBody.newBuilder()
                 .freeze(FreezeTransactionBody.newBuilder().freezeType(PREPARE_UPGRADE));
+        final var fakeEndpoint = new ServiceEndpoint(Bytes.EMPTY, 50211, "test.org");
         nodes.put(
                 new EntityNumber(0L),
                 Node.newBuilder()
-                        .weight(1)
-                        .gossipCaCertificate(Bytes.fromHex("0123"))
-                        .gossipEndpoint(new ServiceEndpoint(Bytes.EMPTY, 50211, "test.org"))
+                        .weight(0)
+                        .gossipCaCertificate(Bytes.EMPTY)
+                        .gossipEndpoint(fakeEndpoint)
                         .build());
+        final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));
+        rosterStore.putActiveRoster(
+                new Roster(List.of(new RosterEntry(0L, 1, Bytes.fromHex("0123"), List.of(fakeEndpoint)))), 123L);
 
-        // when
-        subject.handleTxBody(state, txBody.build(), configWith(false, true, true));
+        subject.handleTxBody(state, txBody.build(), configWith(true, true));
 
-        // then
-        final var captor = ArgumentCaptor.forClass(Path.class);
-        verify(rosterExportHelper).accept(any(), captor.capture());
-        final var path = captor.getValue();
-        assertEquals("candidate-network.json", path.getFileName().toString());
+        verify(rosterExportHelper, never()).accept(any(), any());
     }
 
     @Test
@@ -328,7 +351,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
                 new EntityNumber(1),
                 StakingNodeInfo.newBuilder().stake(1000).deleted(true).weight(1).build());
 
-        subject.handleTxBody(state, txBody.build(), configWith(true, true, false));
+        subject.handleTxBody(state, txBody.build(), configWith(true, false));
         final var candidateRosterHash = state.getWritableStates(RosterService.NAME)
                 .<RosterState>getSingleton("ROSTER_STATE")
                 .get()
@@ -345,13 +368,9 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
         assertEquals(candidateRoster.rosterEntries().get(2).weight(), 0);
     }
 
-    private Configuration configWith(
-            final boolean useRosterLifecycle,
-            final boolean createCandidateRoster,
-            final boolean exportCandidateRoster) {
+    private Configuration configWith(final boolean createCandidateRoster, final boolean exportCandidateRoster) {
         return HederaTestConfigBuilder.create()
                 .withValue("addressBook.createCandidateRosterOnPrepareUpgrade", "" + createCandidateRoster)
-                .withValue("addressBook.useRosterLifecycle", "" + useRosterLifecycle)
                 .withValue("networkAdmin.exportCandidateRoster", "" + exportCandidateRoster)
                 .withValue("networkAdmin.candidateRosterExportFile", "candidate-network.json")
                 .getOrCreateConfig();

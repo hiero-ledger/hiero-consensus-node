@@ -34,6 +34,7 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 import "basic_types.proto";
+import "custom_fees.proto";
 import "duration.proto";
 
 /**
@@ -135,4 +136,48 @@ message ConsensusCreateTopicTransactionBody {
      * key MAY not have any correlation to this account).
      */
     AccountID autoRenewAccount = 7;
+
+    /**
+     * Access control for update or delete of custom fees.
+     * <p>
+     * If set, subsequent `consensus_update_topic` transactions signed with this
+     * key MAY update or delete the custom fees for this topic.<br/>
+     * If not set, the custom fees for this topic SHALL BE immutable.<br/>
+     * If not set when the topic is created, this field CANNOT be set via
+     * update.<br/>
+     * If set when the topic is created, this field MAY be changed via update.
+     */
+    Key fee_schedule_key = 8;
+
+    /**
+     * A set of keys.<br/>
+     * Keys in this list are permitted to submit messages to this topic without
+     * paying custom fees associated with this topic.
+     * <p>
+     * If a submit transaction is signed by _any_ key included in this set,
+     * custom fees SHALL NOT be charged for that transaction.<br/>
+     * This field MUST NOT contain more than 10 keys.<br/>
+     * fee_exempt_key_list SHALL NOT contain any duplicate keys.<br/>
+     * fee_exempt_key_list MAY contain keys for accounts that are inactive,
+     * deleted, or non-existent.<br/>
+     * If fee_exempt_key_list is unset in this transaction, there SHALL NOT be
+     * any fee-exempt keys.  In particular, the following keys SHALL NOT be
+     * implicitly or automatically added to this list:
+     * `adminKey`, `submitKey`, `fee_schedule_key`.
+     */
+    repeated Key fee_exempt_key_list = 9;
+
+    /**
+     * A set of custom fee definitions.<br/>
+     * These are fees to be assessed for each submit to this topic.
+     * <p>
+     * Each fee defined in this set SHALL be evaluated for
+     * each message submitted to this topic, and the resultant
+     * total assessed fees SHALL be charged.<br/>
+     * Custom fees defined here SHALL be assessed in addition to the base
+     * network and node fees.<br/>
+     * custom_fees list SHALL NOT contain more than
+     * `MAX_CUSTOM_FEE_ENTRIES_FOR_TOPICS` entries.
+     */
+    repeated FixedCustomFee custom_fees = 10;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package com.hedera.services.bdd.junit.support.validators.block;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_BLOCK_STREAM_DIR;
+import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_RECORD_STREAM_DIR;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
 
@@ -67,13 +69,12 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
 
         @Override
         public @NonNull TransactionRecordParityValidator create(@NonNull final HapiSpec spec) {
-            return new TransactionRecordParityValidator(
-                    spec.targetNetworkOrThrow().nodes().size());
+            return new TransactionRecordParityValidator();
         }
     };
 
-    public TransactionRecordParityValidator(final int networkSize) {
-        translator = new BlockTransactionalUnitTranslator(networkSize);
+    public TransactionRecordParityValidator() {
+        translator = new BlockTransactionalUnitTranslator();
     }
 
     /**
@@ -86,14 +87,18 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .resolve(workingDirFor(0, "hapi").resolve("data"))
                 .toAbsolutePath()
                 .normalize();
-        final var blocksLoc =
-                node0Data.resolve("blockStreams/block-0.0.3").toAbsolutePath().normalize();
+        final var blocksLoc = node0Data
+                .resolve("blockStreams/" + NODE_BLOCK_STREAM_DIR)
+                .toAbsolutePath()
+                .normalize();
         final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blocksLoc);
-        final var recordsLoc =
-                node0Data.resolve("recordStreams/record0.0.3").toAbsolutePath().normalize();
+        final var recordsLoc = node0Data
+                .resolve("recordStreams/" + NODE_RECORD_STREAM_DIR)
+                .toAbsolutePath()
+                .normalize();
         final var records = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(recordsLoc.toString(), "sidecar");
 
-        final var validator = new TransactionRecordParityValidator(4);
+        final var validator = new TransactionRecordParityValidator();
         validator.validateBlockVsRecords(blocks, records);
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -51,6 +50,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -102,8 +102,10 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
         try {
+            final var txn = context.body();
             final var ethTxData = populateEthTxData(
                     requireNonNull(txn.ethereumTransactionOrThrow().ethereumData())
                             .toByteArray());
@@ -155,7 +157,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         // Create the transaction-scoped component
-        final var component = provider.get().create(context, ETHEREUM_TRANSACTION);
+        final var component = getTransactionComponent(context, ETHEREUM_TRANSACTION);
 
         // Run its in-scope transaction and get the outcome
         final var outcome = component.contextTransactionProcessor().call();
@@ -180,7 +182,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
      * @param context the handle context
      */
     public void handleThrottled(@NonNull final HandleContext context) {
-        final var component = provider.get().create(context, ETHEREUM_TRANSACTION);
+        final var component = getTransactionComponent(context, ETHEREUM_TRANSACTION);
         final var ethTxData =
                 requireNonNull(requireNonNull(component.hydratedEthTxData()).ethTxData());
         context.savepointStack()

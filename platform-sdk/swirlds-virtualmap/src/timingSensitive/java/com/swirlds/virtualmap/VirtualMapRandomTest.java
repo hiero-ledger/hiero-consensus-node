@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,8 +38,11 @@ class VirtualMapRandomTest {
             v -> v.get(randomKey()), // Fetch key (immutable)
             v -> { // Fetch-Mutate key
                 final TestKey key = randomKey();
-                final TestValue toMutate = v.getForModify(key);
-                randomMutation(toMutate);
+                TestValue toMutate = v.get(key);
+                if (toMutate != null) {
+                    toMutate = new TestValue(randomString());
+                    v.put(key, toMutate);
+                }
             },
             v -> v.remove(randomKey()) // Attempt to delete (including non-existent keys)
             );
@@ -51,14 +54,6 @@ class VirtualMapRandomTest {
 
     private static TestValue randomValue() {
         return new TestValue(RANDOM.nextLong());
-    }
-
-    private static void randomMutation(final TestValue value) {
-        if (value == null) {
-            // Cannot mutate non-existent keys
-            return;
-        }
-        value.setValue(randomString());
     }
 
     private static String randomString() {

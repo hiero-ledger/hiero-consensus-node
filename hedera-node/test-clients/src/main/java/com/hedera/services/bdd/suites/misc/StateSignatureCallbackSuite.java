@@ -28,7 +28,6 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -36,7 +35,6 @@ public class StateSignatureCallbackSuite {
 
     @RepeatableHapiTest(USES_STATE_SIGNATURE_TRANSACTION_CALLBACK)
     @DisplayName("regular transaction does not call StateSignatureTransaction callbacks")
-    @Disabled
     final Stream<DynamicTest> doesNotCallStateSignatureCallback() {
         final var preHandleCallback = new Callback();
         final var handleCallback = new Callback();

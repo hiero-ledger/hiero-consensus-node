@@ -19,15 +19,19 @@ package com.hedera.node.app.hints.impl;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_CONSTRUCTION_KEY;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
@@ -37,6 +41,7 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
@@ -46,25 +51,32 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -86,6 +98,8 @@ class WritableHintsStoreImplTest {
     private static final Bytes C_ROSTER_HASH = Bytes.wrap("C");
     private static final TssConfig TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
+    public static final Configuration WITH_ENABLED_HINTS =
+            HederaTestConfigBuilder.create().withValue("tss.hintsEnabled", true).getOrCreateConfig();
 
     @Mock
     private AppContext appContext;
@@ -101,6 +115,15 @@ class WritableHintsStoreImplTest {
 
     @Mock
     private StartupNetworks startupNetworks;
+
+    @Mock
+    private ConfigProviderImpl configProvider;
+
+    @Mock
+    private StoreMetricsServiceImpl storeMetricsService;
+
+    @Mock
+    private WritableStates writableStates;
 
     private State state;
 
@@ -174,7 +197,7 @@ class WritableHintsStoreImplTest {
         assertEquals(A_ROSTER_HASH, construction.targetRosterHash());
 
         final var activeConstruction = state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(ACTIVE_CONSTRUCTION_KEY)
+                .<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
                 .get();
         requireNonNull(activeConstruction);
         assertSame(construction, activeConstruction);
@@ -213,7 +236,7 @@ class WritableHintsStoreImplTest {
         assertEquals(C_ROSTER_HASH, construction.targetRosterHash());
 
         final var nextConstruction = state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(NEXT_CONSTRUCTION_KEY)
+                .<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY)
                 .get();
         requireNonNull(nextConstruction);
         assertSame(construction, nextConstruction);
@@ -240,25 +263,27 @@ class WritableHintsStoreImplTest {
 
     @Test
     void canSetPreprocessingStartTimeIfConstructionIdExists() {
-        setConstructions(
-                HintsConstruction.newBuilder().constructionId(123L).build(),
-                HintsConstruction.newBuilder().constructionId(456L).build());
+        final var nextConstruction =
+                HintsConstruction.newBuilder().constructionId(456L).build();
+        setConstructions(HintsConstruction.newBuilder().constructionId(123L).build(), nextConstruction);
+        assertSame(nextConstruction, subject.getNextConstruction());
 
         assertThrows(IllegalArgumentException.class, () -> subject.setPreprocessingStartTime(0L, CONSENSUS_NOW));
         subject.setPreprocessingStartTime(123L, CONSENSUS_NOW);
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
-                constructionNow(ACTIVE_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
-        assertFalse(constructionNow(NEXT_CONSTRUCTION_KEY).hasPreprocessingStartTime());
+                constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
+        assertFalse(constructionNow(NEXT_HINT_CONSTRUCTION_KEY).hasPreprocessingStartTime());
 
         subject.setPreprocessingStartTime(123L, CONSENSUS_NOW);
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
-                constructionNow(ACTIVE_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
+                constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
 
         final var then = CONSENSUS_NOW.plusSeconds(1L);
         subject.setPreprocessingStartTime(456L, then);
-        assertEquals(asTimestamp(then), constructionNow(NEXT_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
+        assertEquals(
+                asTimestamp(then), constructionNow(NEXT_HINT_CONSTRUCTION_KEY).preprocessingStartTimeOrThrow());
     }
 
     @Test
@@ -273,7 +298,7 @@ class WritableHintsStoreImplTest {
 
         subject.setHintsScheme(456L, keys, nodePartyIds);
 
-        final var construction = constructionNow(NEXT_CONSTRUCTION_KEY);
+        final var construction = constructionNow(NEXT_HINT_CONSTRUCTION_KEY);
         assertEquals(keys, construction.hintsSchemeOrThrow().preprocessedKeysOrThrow());
         assertEquals(
                 List.of(new NodePartyId(1L, 2), new NodePartyId(3L, 6)),
@@ -285,15 +310,15 @@ class WritableHintsStoreImplTest {
     }
 
     @Test
-    void purgingStateAfterExactlyHandoffIsFalseIfNothingHappened() {
+    void purgingStateThrowsExceptAfterExactlyHandoff() {
         given(activeRosters.phase()).willReturn(TRANSITION);
-        assertThrows(IllegalArgumentException.class, () -> subject.purgeStateAfterHandoff(activeRosters));
+        assertThrows(IllegalArgumentException.class, () -> subject.updateForHandoff(activeRosters));
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
-        assertThrows(IllegalArgumentException.class, () -> subject.purgeStateAfterHandoff(activeRosters));
+        assertThrows(IllegalArgumentException.class, () -> subject.updateForHandoff(activeRosters));
         given(activeRosters.phase()).willReturn(HANDOFF);
         given(activeRosters.currentRosterHash()).willReturn(Bytes.wrap("NA"));
 
-        assertFalse(subject.purgeStateAfterHandoff(activeRosters));
+        assertDoesNotThrow(() -> subject.updateForHandoff(activeRosters));
     }
 
     @Test
@@ -320,12 +345,61 @@ class WritableHintsStoreImplTest {
         final var publicationsBefore = subject.getHintsKeyPublications(Set.of(0L), partySizeForRoster(A_ROSTER));
         assertEquals(1, publicationsBefore.size());
 
-        subject.purgeStateAfterHandoff(activeRosters);
+        subject.updateForHandoff(activeRosters);
 
-        assertSame(nextConstruction, constructionNow(ACTIVE_CONSTRUCTION_KEY));
+        assertSame(nextConstruction, constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY));
 
         assertEquals(0L, votesNow().size());
         assertEquals(0L, keySetsNow().size());
+    }
+
+    @Test
+    void setCrsState() {
+        final var crsState = setInitialCrsState();
+
+        assertEquals(crsState, subject.getCrsState());
+    }
+
+    @Test
+    void movesToNextNode() {
+        setInitialCrsState();
+
+        subject.moveToNextNode(OptionalLong.of(1L), Instant.ofEpochSecond(1_234_567L));
+        assertEquals(1L, subject.getCrsState().nextContributingNodeId());
+        assertEquals(
+                asTimestamp(Instant.ofEpochSecond(1_234_567L)),
+                subject.getCrsState().contributionEndTime());
+    }
+
+    @Test
+    void addsCrsPublications() {
+        subject.addCrsPublication(0L, CrsPublicationTransactionBody.DEFAULT);
+        assertEquals(1, subject.getCrsPublications().size());
+        assertEquals(
+                CrsPublicationTransactionBody.DEFAULT,
+                subject.getCrsPublications().get(0));
+    }
+
+    private CRSState setInitialCrsState() {
+        final var crsState = CRSState.newBuilder()
+                .crs(Bytes.wrap("test"))
+                .nextContributingNodeId(0L)
+                .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                .contributionEndTime(asTimestamp(Instant.ofEpochSecond(1_234_567L)))
+                .build();
+        final AtomicReference<CRSState> crsStateRef = new AtomicReference<>();
+        given(writableStates.<CRSState>getSingleton(CRS_STATE_KEY))
+                .willReturn(new WritableSingletonStateBase<>(CRS_STATE_KEY, crsStateRef::get, crsStateRef::set));
+        given(writableStates.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY))
+                .willReturn(new WritableSingletonStateBase<>(
+                        NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+        given(writableStates.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY))
+                .willReturn(new WritableSingletonStateBase<>(
+                        ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+
+        subject = new WritableHintsStoreImpl(writableStates);
+        subject.setCRSState(crsState);
+        return crsState;
     }
 
     private ReadableKVState<PreprocessingVoteId, PreprocessingVote> votesNow() {
@@ -346,10 +420,10 @@ class WritableHintsStoreImplTest {
     private void setConstructions(@NonNull final HintsConstruction active, @NonNull final HintsConstruction next) {
         final var writableStates = state.getWritableStates(HintsService.NAME);
         state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(ACTIVE_CONSTRUCTION_KEY)
+                .<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
                 .put(active);
         state.getWritableStates(HintsService.NAME)
-                .<HintsConstruction>getSingleton(V059HintsSchema.NEXT_CONSTRUCTION_KEY)
+                .<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY)
                 .put(next);
         ((CommittableWritableStates) writableStates).commit();
     }
@@ -389,7 +463,8 @@ class WritableHintsStoreImplTest {
         final var servicesRegistry = new FakeServicesRegistry();
         Set.of(
                         new EntityIdService(),
-                        new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library))
+                        new HintsServiceImpl(
+                                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, WITH_ENABLED_HINTS))
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
@@ -403,7 +478,10 @@ class WritableHintsStoreImplTest {
                 DEFAULT_CONFIG,
                 networkInfo,
                 NO_OP_METRICS,
-                startupNetworks);
+                startupNetworks,
+                storeMetricsService,
+                configProvider,
+                TEST_PLATFORM_STATE_FACADE);
         return state;
     }
 }

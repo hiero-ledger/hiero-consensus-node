@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenuri.TokenUriCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenuri.TokenUriTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -46,7 +47,8 @@ class TokenUriCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenUriTranslator.TOKEN_URI
                         .getOutputs()
-                        .encodeElements(new String(CIVILIAN_OWNED_NFT.metadata().toByteArray()))
+                        .encode(Tuple.singleton(
+                                new String(CIVILIAN_OWNED_NFT.metadata().toByteArray())))
                         .array()),
                 result.getOutput());
     }
@@ -64,7 +66,7 @@ class TokenUriCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenUriTranslator.TOKEN_URI
                         .getOutputs()
-                        .encodeElements(TokenUriCall.URI_QUERY_NON_EXISTING_TOKEN_ERROR)
+                        .encode(Tuple.singleton(TokenUriCall.URI_QUERY_NON_EXISTING_TOKEN_ERROR))
                         .array()),
                 result.getOutput());
     }

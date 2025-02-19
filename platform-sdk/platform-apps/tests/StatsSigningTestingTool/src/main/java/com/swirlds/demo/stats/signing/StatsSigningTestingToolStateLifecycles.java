@@ -84,17 +84,6 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
         final SttTransactionPool sttTransactionPool = transactionPoolSupplier.get();
         if (sttTransactionPool != null) {
             event.forEachTransaction(transaction -> {
-                // We are not interested in pre-handling any system transactions, as they are
-                // specific for the platform only.We also don't want to consume deprecated
-                // EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in the
-                // callback,since it's intended to be used only for the new form of encoded system
-                // transactions in Bytes.Thus, we can directly skip the current
-                // iteration, if it processes a deprecated system transaction with the
-                // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-                if (transaction.isSystem()) {
-                    return;
-                }
-
                 // We should consume in the callback the new form of system transactions in Bytes
                 if (areTransactionBytesSystemOnes(transaction)) {
                     consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
@@ -119,17 +108,6 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
         state.throwIfImmutable();
 
         round.forEachEventTransaction((event, transaction) -> {
-            // We are not interested in handling any system transactions, as they are
-            // specific for the platform only.We also don't want to consume deprecated
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in the
-            // callback,since it's intended to be used only for the new form of encoded system
-            // transactions in Bytes.Thus, we can directly skip the current
-            // iteration, if it processes a deprecated system transaction with the
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-            if (transaction.isSystem()) {
-                return;
-            }
-
             // We should consume in the callback the new form of system transactions in Bytes
             if (areTransactionBytesSystemOnes(transaction)) {
                 consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
@@ -232,7 +210,10 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
     }
 
     @Override
-    public void onSealConsensusRound(@NonNull Round round, @NonNull StatsSigningTestingToolState state) {}
+    public boolean onSealConsensusRound(@NonNull Round round, @NonNull StatsSigningTestingToolState state) {
+        // No-op
+        return true;
+    }
 
     @Override
     public void onUpdateWeight(

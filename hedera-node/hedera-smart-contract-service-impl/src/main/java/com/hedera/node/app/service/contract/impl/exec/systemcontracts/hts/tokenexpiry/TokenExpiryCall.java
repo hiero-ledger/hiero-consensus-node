@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenexpiry.TokenExpiryTranslator.TOKEN_EXPIRY;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -67,6 +68,7 @@ public class TokenExpiryCall extends AbstractNonRevertibleTokenViewCall {
             return revertResult(status, gasRequirement);
         }
         return successResult(
-                TOKEN_EXPIRY.getOutputs().encodeElements(status.protoOrdinal(), expiryTupleFor(token)), gasRequirement);
+                TOKEN_EXPIRY.getOutputs().encode(Tuple.of(status.protoOrdinal(), expiryTupleFor(token))),
+                gasRequirement);
     }
 }

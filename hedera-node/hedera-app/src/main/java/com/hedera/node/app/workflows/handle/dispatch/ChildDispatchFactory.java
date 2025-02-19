@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,11 @@ package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId.NO;
-import static com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager.CONTRACT_OPERATIONS;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static java.util.Collections.emptyMap;
@@ -35,6 +33,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
@@ -56,16 +55,16 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.key.KeyComparator;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -73,6 +72,7 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
@@ -83,10 +83,12 @@ import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -97,6 +99,7 @@ import java.util.EnumSet;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -118,8 +121,9 @@ public class ChildDispatchFactory {
     private final FeeManager feeManager;
     private final DispatchProcessor dispatchProcessor;
     private final ServiceScopeLookup serviceScopeLookup;
-    private final StoreMetricsService storeMetricsService;
     private final ExchangeRateManager exchangeRateManager;
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final TransactionChecker transactionChecker;
 
     @Inject
     public ChildDispatchFactory(
@@ -129,16 +133,18 @@ public class ChildDispatchFactory {
             @NonNull final FeeManager feeManager,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ServiceScopeLookup serviceScopeLookup,
-            @NonNull final StoreMetricsService storeMetricsService,
-            @NonNull final ExchangeRateManager exchangeRateManager) {
+            @NonNull final ExchangeRateManager exchangeRateManager,
+            @NonNull final TransactionChecker transactionChecker,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.dispatcher = requireNonNull(dispatcher);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
         this.feeManager = requireNonNull(feeManager);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
         this.serviceScopeLookup = requireNonNull(serviceScopeLookup);
-        this.storeMetricsService = requireNonNull(storeMetricsService);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
+        this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
+        this.transactionChecker = requireNonNull(transactionChecker);
     }
 
     /**
@@ -207,6 +213,9 @@ public class ChildDispatchFactory {
                 preHandleResult,
                 childVerifier,
                 consensusNow,
+                options.dispatchMetadata(),
+                options.throttling(),
+                options.customFeeCharging(),
                 creatorInfo,
                 config,
                 topLevelFunction,
@@ -217,10 +226,8 @@ public class ChildDispatchFactory {
                 dispatchProcessor,
                 blockRecordInfo,
                 serviceScopeLookup,
-                storeMetricsService,
                 exchangeRateManager,
-                dispatcher,
-                options.throttling());
+                dispatcher);
     }
 
     private RecordDispatch newChildDispatch(
@@ -233,6 +240,9 @@ public class ChildDispatchFactory {
             @NonNull final PreHandleResult preHandleResult,
             @NonNull final AppKeyVerifier keyVerifier,
             @NonNull final Instant consensusNow,
+            @NonNull final DispatchMetadata dispatchMetadata,
+            @NonNull final ConsensusThrottling consensusThrottling,
+            @Nullable FeeCharging customFeeCharging,
             // @UserTxnScope
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Configuration config,
@@ -245,20 +255,17 @@ public class ChildDispatchFactory {
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final BlockRecordInfo blockRecordInfo,
             @NonNull final ServiceScopeLookup serviceScopeLookup,
-            @NonNull final StoreMetricsService storeMetricsService,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull final TransactionDispatcher dispatcher,
-            @NonNull final HandleContext.ConsensusThrottling throttleStrategy) {
-        final var readableStoreFactory = new ReadableStoreFactory(childStack);
+            @NonNull final TransactionDispatcher dispatcher) {
+        final var readableStoreFactory = new ReadableStoreFactory(childStack, softwareVersionFactory);
+        final var writableEntityIdStore = new WritableEntityIdStore(childStack.getWritableStates(EntityIdService.NAME));
+        final var entityNumGenerator = new EntityNumGeneratorImpl(writableEntityIdStore);
         final var writableStoreFactory = new WritableStoreFactory(
-                childStack, serviceScopeLookup.getServiceName(txnInfo.txBody()), config, storeMetricsService);
-        final var serviceApiFactory = new ServiceApiFactory(childStack, config, storeMetricsService);
+                childStack, serviceScopeLookup.getServiceName(txnInfo.txBody()), writableEntityIdStore);
+        final var serviceApiFactory = new ServiceApiFactory(childStack, config);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
-        final var entityNumGenerator = new EntityNumGeneratorImpl(
-                new WritableStoreFactory(childStack, EntityIdService.NAME, config, storeMetricsService)
-                        .getStore(WritableEntityIdStore.class));
         final var childFeeAccumulator =
                 new FeeAccumulator(serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) builder);
         final var dispatchHandleContext = new DispatchHandleContext(
@@ -283,15 +290,17 @@ public class ChildDispatchFactory {
                 this,
                 dispatchProcessor,
                 throttleAdviser,
-                childFeeAccumulator);
-        final var childFees =
-                computeChildFees(payerId, dispatchHandleContext, category, dispatcher, topLevelFunction, txnInfo);
+                childFeeAccumulator,
+                dispatchMetadata,
+                transactionChecker);
+        final var childFees = dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId);
         final var congestionMultiplier = feeManager.congestionMultiplierFor(
                 txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
         if (congestionMultiplier > 1) {
             builder.congestionMultiplier(congestionMultiplier);
         }
-        final var childTokenContext = new TokenContextImpl(config, storeMetricsService, childStack, consensusNow);
+        final var childTokenContext =
+                new TokenContextImpl(config, childStack, consensusNow, writableEntityIdStore, softwareVersionFactory);
         return new RecordDispatch(
                 builder,
                 config,
@@ -310,29 +319,8 @@ public class ChildDispatchFactory {
                 category,
                 childTokenContext,
                 preHandleResult,
-                throttleStrategy);
-    }
-
-    private static Fees computeChildFees(
-            @NonNull final AccountID payerId,
-            @NonNull final FeeContext feeContext,
-            @NonNull final HandleContext.TransactionCategory childCategory,
-            @NonNull final TransactionDispatcher dispatcher,
-            @NonNull final HederaFunctionality topLevelFunction,
-            @NonNull final TransactionInfo childTxnInfo) {
-        return switch (childCategory) {
-            case SCHEDULED -> dispatcher.dispatchComputeFees(feeContext).onlyServiceComponent();
-            case PRECEDING -> {
-                if (CONTRACT_OPERATIONS.contains(topLevelFunction) || childTxnInfo.functionality() == CRYPTO_UPDATE) {
-                    yield Fees.FREE;
-                } else {
-                    yield feeContext.dispatchComputeFees(childTxnInfo.txBody(), payerId);
-                }
-            }
-            case CHILD -> Fees.FREE;
-            case USER, NODE -> throw new IllegalStateException(
-                    "Should not dispatch child with user transaction category");
-        };
+                consensusThrottling,
+                customFeeCharging);
     }
 
     /**
@@ -351,9 +339,10 @@ public class ChildDispatchFactory {
             @NonNull final Configuration config,
             @NonNull final ReadableStoreFactory readableStoreFactory) {
         try {
-            dispatcher.dispatchPureChecks(txBody);
-            final var preHandleContext =
-                    new PreHandleContextImpl(readableStoreFactory, txBody, syntheticPayerId, config, dispatcher);
+            final var pureChecksContext = new PureChecksContextImpl(txBody, config, dispatcher, transactionChecker);
+            dispatcher.dispatchPureChecks(pureChecksContext);
+            final var preHandleContext = new PreHandleContextImpl(
+                    readableStoreFactory, txBody, syntheticPayerId, config, dispatcher, transactionChecker);
             dispatcher.dispatchPreHandle(preHandleContext);
             return new PreHandleResult(
                     null,

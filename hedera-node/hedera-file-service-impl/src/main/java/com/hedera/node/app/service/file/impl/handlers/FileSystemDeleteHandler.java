@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
@@ -36,6 +35,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -61,10 +61,12 @@ public class FileSystemDeleteHandler implements TransactionHandler {
 
     /**
      * Performs checks independent of state or context.
-     * @param txn the transaction to check
+     * @param context the {@link PureChecksContext} which collects all information
      */
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         final var transactionBody = txn.systemDeleteOrThrow();
 
         if (transactionBody.fileID() == null) {

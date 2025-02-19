@@ -48,10 +48,9 @@ public class WireListSplitter<T> {
             @NonNull final WiringModel model,
             @NonNull final String splitterName,
             @NonNull final String splitterInputName) {
-        final TaskScheduler<T> taskScheduler = model.schedulerBuilder(splitterName)
+        final TaskScheduler<T> taskScheduler = model.<T>schedulerBuilder(splitterName)
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
+                .build();
 
         inputWire = taskScheduler.buildInputWire(splitterInputName);
         outputWire = (StandardOutputWire<T>) taskScheduler.getOutputWire();

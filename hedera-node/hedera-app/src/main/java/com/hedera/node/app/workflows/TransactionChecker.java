@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.workflows;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -40,6 +41,7 @@ import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.CustomFeeLimit;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
@@ -83,6 +85,8 @@ public class TransactionChecker {
     private static final Logger logger = LogManager.getLogger(TransactionChecker.class);
 
     private static final int USER_TRANSACTION_NONCE = 0;
+    private static final List<HederaFunctionality> FUNCTIONALITIES_WITH_MAX_CUSTOM_FEES =
+            List.of(CONSENSUS_SUBMIT_MESSAGE);
 
     // Metric config for keeping track of the number of deprecated transactions received
     private static final String COUNTER_DEPRECATED_TXNS_NAME = "DeprTxnsRcv";
@@ -250,7 +254,7 @@ public class TransactionChecker {
     public TransactionInfo checkParsed(@NonNull final TransactionInfo txInfo) throws PreCheckException {
         try {
             checkPrefixMismatch(txInfo.signatureMap().sigPair());
-            checkTransactionBody(txInfo.txBody());
+            checkTransactionBody(txInfo.txBody(), txInfo.functionality());
             return txInfo;
         } catch (PreCheckException e) {
             throw new DueDiligenceException(e.responseCode(), txInfo);
@@ -310,10 +314,12 @@ public class TransactionChecker {
      * @throws PreCheckException if validation fails
      * @throws NullPointerException if any of the parameters is {@code null}
      */
-    private void checkTransactionBody(@NonNull final TransactionBody txBody) throws PreCheckException {
+    private void checkTransactionBody(@NonNull final TransactionBody txBody, HederaFunctionality functionality)
+            throws PreCheckException {
         final var config = props.getConfiguration().getConfigData(HederaConfig.class);
         checkTransactionID(txBody.transactionIDOrThrow());
         checkMemo(txBody.memo(), config.transactionMaxMemoUtf8Bytes());
+        checkMaxCustomFee(txBody.maxCustomFees(), functionality);
 
         // You cannot have a negative transaction fee!! We're not paying you, buddy.
         if (txBody.transactionFee() < 0) {
@@ -426,6 +432,25 @@ public class TransactionChecker {
         for (final byte b : buffer) {
             if (b == 0) {
                 throw new PreCheckException(INVALID_ZERO_BYTE_IN_STRING);
+            }
+        }
+    }
+
+    private void checkMaxCustomFee(List<CustomFeeLimit> maxCustomFeeList, HederaFunctionality functionality)
+            throws PreCheckException {
+        if (!FUNCTIONALITIES_WITH_MAX_CUSTOM_FEES.contains(functionality) && !maxCustomFeeList.isEmpty()) {
+            throw new PreCheckException(ResponseCodeEnum.MAX_CUSTOM_FEES_IS_NOT_SUPPORTED);
+        }
+
+        // check required fields
+        for (var maxCustomFee : maxCustomFeeList) {
+            if (maxCustomFee.accountId() == null || maxCustomFee.fees().isEmpty()) {
+                throw new PreCheckException(ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES);
+            }
+            for (final var fee : maxCustomFee.fees()) {
+                if (fee.amount() < 0) {
+                    throw new PreCheckException(ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES);
+                }
             }
         }
     }

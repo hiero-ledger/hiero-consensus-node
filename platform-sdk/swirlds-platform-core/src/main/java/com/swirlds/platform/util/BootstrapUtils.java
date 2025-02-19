@@ -49,13 +49,14 @@ import com.swirlds.platform.health.OSHealthChecker;
 import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
 import com.swirlds.platform.health.entropy.OSEntropyChecker;
 import com.swirlds.platform.health.filesystem.OSFileSystemChecker;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.swirldapp.AppLoaderException;
 import com.swirlds.platform.swirldapp.SwirldAppLoader;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.address.Address;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.awt.Dimension;
@@ -227,15 +228,17 @@ public final class BootstrapUtils {
      * @return true if there is a software upgrade, false otherwise
      */
     public static boolean detectSoftwareUpgrade(
-            @NonNull final SoftwareVersion appVersion, @Nullable final SignedState loadedSignedState) {
+            @NonNull final SoftwareVersion appVersion,
+            @Nullable final SignedState loadedSignedState,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(appVersion, "The app version must not be null.");
 
         final SoftwareVersion loadedSoftwareVersion;
         if (loadedSignedState == null) {
             loadedSoftwareVersion = null;
         } else {
-            PlatformMerkleStateRoot state = loadedSignedState.getState();
-            loadedSoftwareVersion = state.getReadablePlatformState().getCreationSoftwareVersion();
+            final State state = loadedSignedState.getState();
+            loadedSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
         }
         final int versionComparison = loadedSoftwareVersion == null ? 1 : appVersion.compareTo(loadedSoftwareVersion);
         final boolean softwareUpgrade;

@@ -58,6 +58,8 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.state.common;
     exports com.hedera.hapi.node.state.contract;
     exports com.hedera.hapi.node.state.file;
+    exports com.hedera.hapi.node.state.hints;
+    exports com.hedera.hapi.node.state.history;
     exports com.hedera.hapi.node.state.recordcache;
     exports com.hedera.hapi.node.state.recordcache.codec;
     exports com.hedera.hapi.node.state.blockrecords;
@@ -85,8 +87,10 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.block.stream.protoc;
     exports com.hedera.hapi.block;
     exports com.hedera.hapi.services.auxiliary.tss.legacy;
+    exports com.hedera.hapi.services.auxiliary.hints;
+    exports com.hedera.hapi.services.auxiliary.history;
     exports com.hedera.hapi.platform.event.legacy;
-    exports com.hedera.hapi.node.state.hints;
+    exports com.hedera.hapi.node.state.entity;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;

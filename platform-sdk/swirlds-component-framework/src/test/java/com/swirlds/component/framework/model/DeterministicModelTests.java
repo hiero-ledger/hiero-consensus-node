@@ -158,23 +158,21 @@ class DeterministicModelTests {
         final ReentrantLock lock = new ReentrantLock();
 
         final TaskScheduler<Long> schedulerA = wiringModel
-                .schedulerBuilder("A")
+                .<Long>schedulerBuilder("A")
                 .withType(SEQUENTIAL)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inA = schedulerA.buildInputWire("inA");
         inA.bind(buildHandler(random, 0.01, lock));
         final OutputWire<Long> outA = schedulerA.getOutputWire();
 
         final TaskScheduler<Long> schedulerB = wiringModel
-                .schedulerBuilder("B")
+                .<Long>schedulerBuilder("B")
                 .withType(CONCURRENT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inB = schedulerB.buildInputWire("inB");
         inB.bind(buildHandler(random, 0.01, lock));
         final BindableInputWire<Instant, Long> schedulerBHeartbeat = schedulerB.buildInputWire("heartbeatB");
@@ -186,100 +184,91 @@ class DeterministicModelTests {
         final OutputWire<Long> outB = schedulerB.getOutputWire();
 
         final TaskScheduler<Long> schedulerC = wiringModel
-                .schedulerBuilder("C")
+                .<Long>schedulerBuilder("C")
                 .withType(SEQUENTIAL_THREAD)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inC = schedulerC.buildInputWire("inC");
         inC.bind(buildHandler(random, 0.01, lock));
         final OutputWire<Long> outC = schedulerC.getOutputWire();
 
         final TaskScheduler<Long> schedulerD = wiringModel
-                .schedulerBuilder("D")
+                .<Long>schedulerBuilder("D")
                 .withType(SEQUENTIAL)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inD = schedulerD.buildInputWire("inD");
         inD.bind(buildHandler(random, 0.6, lock)); // This must be >0.5 else risk infinite loop
         final OutputWire<Long> outD = schedulerD.getOutputWire();
 
         final TaskScheduler<Long> schedulerE = wiringModel
-                .schedulerBuilder("E")
+                .<Long>schedulerBuilder("E")
                 .withType(SEQUENTIAL)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inE = schedulerE.buildInputWire("inE");
         inE.bind(buildHandler(random, 0.01, lock));
         final OutputWire<Long> outE = schedulerE.getOutputWire();
 
         final TaskScheduler<Long> schedulerF = wiringModel
-                .schedulerBuilder("F")
+                .<Long>schedulerBuilder("F")
                 .withType(SEQUENTIAL)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inF = schedulerF.buildInputWire("inF");
         inF.bind(buildHandler(random, 0.01, lock));
         final OutputWire<Long> outF = schedulerF.getOutputWire();
 
         final TaskScheduler<Long> schedulerG = wiringModel
-                .schedulerBuilder("G")
+                .<Long>schedulerBuilder("G")
                 .withType(SEQUENTIAL)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inG = schedulerG.buildInputWire("inG");
         inG.bind(buildHandler(random, 0.01, lock));
         final OutputWire<Long> outG = schedulerG.getOutputWire();
 
         final TaskScheduler<Long> schedulerH = wiringModel
-                .schedulerBuilder("H")
+                .<Long>schedulerBuilder("H")
                 .withType(DIRECT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inH = schedulerH.buildInputWire("inH");
         inH.bind(buildHandler(random, 0.01, lock));
         final OutputWire<Long> outH = schedulerH.getOutputWire();
 
         final TaskScheduler<Long> schedulerI = wiringModel
-                .schedulerBuilder("I")
+                .<Long>schedulerBuilder("I")
                 .withType(DIRECT_THREADSAFE)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inI = schedulerI.buildInputWire("inI");
         inI.bind(buildHandler(random, 0.01, lock));
         final OutputWire<Long> outI = schedulerI.getOutputWire();
 
         final TaskScheduler<Long> schedulerJ = wiringModel
-                .schedulerBuilder("J")
+                .<Long>schedulerBuilder("J")
                 .withType(SEQUENTIAL)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inJ = schedulerJ.buildInputWire("inJ");
         inJ.bind(buildHandler(random, 0.01, lock));
         final OutputWire<Long> outJ = schedulerJ.getOutputWire();
 
         final TaskScheduler<Long> schedulerK = wiringModel
-                .schedulerBuilder("K")
+                .<Long>schedulerBuilder("K")
                 .withType(NO_OP)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .withFlushingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Long, Long> inK = schedulerK.buildInputWire("inK");
         inK.bind(buildHandler(random, 0.01, lock));
 
@@ -462,26 +451,22 @@ class DeterministicModelTests {
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final TaskScheduler<Integer> taskSchedulerToA = model.schedulerBuilder("wireToA")
+        final TaskScheduler<Integer> taskSchedulerToA = model.<Integer>schedulerBuilder("wireToA")
                 .withType(SEQUENTIAL)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
-        final TaskScheduler<Integer> taskSchedulerToB = model.schedulerBuilder("wireToB")
+                .build();
+        final TaskScheduler<Integer> taskSchedulerToB = model.<Integer>schedulerBuilder("wireToB")
                 .withType(SEQUENTIAL_THREAD)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
-        final TaskScheduler<Integer> taskSchedulerToC = model.schedulerBuilder("wireToC")
+                .build();
+        final TaskScheduler<Integer> taskSchedulerToC = model.<Integer>schedulerBuilder("wireToC")
                 .withType(CONCURRENT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
-        final TaskScheduler<Integer> taskSchedulerToD = model.schedulerBuilder("wireToD")
+                .build();
+        final TaskScheduler<Integer> taskSchedulerToD = model.<Integer>schedulerBuilder("wireToD")
                 .withType(DIRECT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<Integer, Integer> channelToA = taskSchedulerToA.buildInputWire("channelToA");
         final BindableInputWire<Integer, Integer> channelToB = taskSchedulerToB.buildInputWire("channelToB");

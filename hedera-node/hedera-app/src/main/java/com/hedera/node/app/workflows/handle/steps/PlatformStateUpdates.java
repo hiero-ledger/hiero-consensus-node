@@ -18,13 +18,13 @@ package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
 import static java.util.Objects.requireNonNull;
-import static java.util.Spliterator.DISTINCT;
 
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
@@ -43,11 +43,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.List;
-import java.util.Spliterators;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.stream.StreamSupport;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -111,11 +110,11 @@ public class PlatformStateUpdates {
                     // Even if using the roster lifecycle, we only set the candidate roster at PREPARE_UPGRADE if
                     // TSS machinery is not creating candidate rosters and keying them at stake period boundaries
                     final var addressBookConfig = config.getConfigData(AddressBookConfig.class);
-                    if (addressBookConfig.useRosterLifecycle()
-                            && addressBookConfig.createCandidateRosterOnPrepareUpgrade()) {
-                        logger.info("Creating candidate roster at PREPARE_UPGRADE");
-                        final var nodeStore =
-                                new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME));
+                    final var entityIdStore =
+                            new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
+                    if (addressBookConfig.createCandidateRosterOnPrepareUpgrade()) {
+                        final var nodeStore = new ReadableNodeStoreImpl(
+                                state.getReadableStates(AddressBookService.NAME), entityIdStore);
                         final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));
                         final var stakingInfoStore =
                                 new ReadableStakingInfoStoreImpl(state.getReadableStates(TokenService.NAME));
@@ -129,7 +128,13 @@ public class PlatformStateUpdates {
                             // Default weight if no staking info is found or the node is deleted
                             return 0L;
                         };
-                        final var candidateRoster = nodeStore.snapshotOfFutureRoster(weightFunction);
+                        var candidateRoster = nodeStore.snapshotOfFutureRoster(weightFunction);
+                        // Ensure we don't have a candidate roster with all zero weights by preserving
+                        // weights from the current roster when no HBAR is staked to any node
+                        if (hasZeroWeight(candidateRoster)) {
+                            candidateRoster =
+                                    assignWeights(candidateRoster, requireNonNull(rosterStore.getActiveRoster()));
+                        }
                         logger.info("Candidate roster with updated weights is {}", candidateRoster);
                         boolean rosterAccepted = false;
                         try {
@@ -144,31 +149,24 @@ public class PlatformStateUpdates {
                                 doExport(candidateRoster, networkAdminConfig);
                             }
                         }
-                    } else if (networkAdminConfig.exportCandidateRoster()) {
-                        // Having the option to export candidate-roster.json even before using the roster
-                        // lifecycle simplifies test automation in the adoption period
-                        final var nodeStore =
-                                new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME));
-                        final var candidateRoster = new Roster(StreamSupport.stream(
-                                        Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT),
-                                        false)
-                                .mapToLong(EntityNumber::number)
-                                .sorted()
-                                .mapToObj(nodeStore::get)
-                                .filter(node -> node != null && !node.deleted())
-                                .map(node -> new RosterEntry(
-                                        node.nodeId(),
-                                        node.weight(),
-                                        node.gossipCaCertificate(),
-                                        List.of(
-                                                node.gossipEndpoint().getLast(),
-                                                node.gossipEndpoint().getFirst())))
-                                .toList());
-                        doExport(candidateRoster, networkAdminConfig);
                     }
                 }
             }
         }
+    }
+
+    private Roster assignWeights(@NonNull final Roster to, @NonNull final Roster from) {
+        final Map<Long, Long> fromWeights =
+                from.rosterEntries().stream().collect(Collectors.toMap(RosterEntry::nodeId, RosterEntry::weight));
+        return new Roster(to.rosterEntries().stream()
+                .map(entry -> entry.copyBuilder()
+                        .weight(fromWeights.getOrDefault(entry.nodeId(), 0L))
+                        .build())
+                .toList());
+    }
+
+    private boolean hasZeroWeight(@NonNull final Roster roster) {
+        return roster.rosterEntries().stream().mapToLong(RosterEntry::weight).sum() == 0L;
     }
 
     private void doExport(@NonNull final Roster candidateRoster, @NonNull final NetworkAdminConfig networkAdminConfig) {

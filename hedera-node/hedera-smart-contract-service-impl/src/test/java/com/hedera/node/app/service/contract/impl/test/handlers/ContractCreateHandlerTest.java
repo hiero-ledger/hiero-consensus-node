@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
@@ -50,6 +51,7 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
@@ -90,6 +92,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private HandleContext.SavepointStack stack;
 
     @Mock
+    private PureChecksContext pureChecksContext;
+
+    @Mock
     private GasCalculator gasCalculator;
 
     @Mock(strictness = Strictness.LENIENT)
@@ -98,14 +103,17 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     @Mock
     private ContractsConfig contractsConfig;
 
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private final Metrics metrics = new NoOpMetrics();
-    private final ContractMetrics contractMetrics = new ContractMetrics(() -> metrics, () -> contractsConfig);
+    private final ContractMetrics contractMetrics =
+            new ContractMetrics(metrics, () -> contractsConfig, systemContractMethodRegistry);
 
     private ContractCreateHandler subject;
 
     @BeforeEach
     void setUp() {
-        contractMetrics.createContractMetrics();
+        contractMetrics.createContractPrimaryMetrics();
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
         subject = new ContractCreateHandler(() -> factory, gasCalculator, contractServiceComponent);
     }
@@ -218,7 +226,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         final var txn1 = contractCreateTransactionWithInsufficientGas();
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(txn1));
+        given(pureChecksContext.body()).willReturn(txn1);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
     private TransactionBody contractCreateTransaction(final Key adminKey, final AccountID autoRenewId) {

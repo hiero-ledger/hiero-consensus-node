@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +24,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
@@ -38,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Dispat
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import java.time.Instant;
 import org.apache.tuweni.bytes.Bytes;
@@ -67,6 +67,11 @@ class UpdateExpiryTranslatorTest {
     @Mock
     private VerificationStrategies verificationStrategies;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private UpdateExpiryTranslator subject;
 
     private final UpdateDecoder decoder = new UpdateDecoder();
@@ -77,7 +82,7 @@ class UpdateExpiryTranslatorTest {
 
     @BeforeEach
     void setUp() {
-        subject = new UpdateExpiryTranslator(decoder);
+        subject = new UpdateExpiryTranslator(decoder, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
@@ -88,8 +93,9 @@ class UpdateExpiryTranslatorTest {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -100,8 +106,9 @@ class UpdateExpiryTranslatorTest {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -112,13 +119,14 @@ class UpdateExpiryTranslatorTest {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertFalse(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void callFromUpdateTest() {
-        Tuple tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, expiry);
+        Tuple tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, expiry);
         Bytes inputBytes = Bytes.wrapByteBuffer(UPDATE_TOKEN_EXPIRY_INFO_V1.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.selector()).willReturn(UPDATE_TOKEN_EXPIRY_INFO_V1.selector());

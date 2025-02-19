@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ public class ValidationScenarios extends HapiSuite {
     public static final long FEE_TO_OFFER_IN_HBAR = 100;
     public static final long TINYBARS_PER_HBAR = 100_000_000L;
     private static final String DEFAULT_CONFIG_LOC = "config.yml";
-    private static final String PATTERN = "0.0.%d";
+    private static final String PATTERN = "%d";
     private static final String DEFAULT_PAYER_KEY = "default.payer.key";
     private static final String TRANSFER_TXN = "transferTxn";
     private static final String FEES_USE_FIXED_OFFER = "fees.useFixedOffer";

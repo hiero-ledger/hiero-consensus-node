@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,17 +21,17 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.customfees.TokenCustomFeesCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.customfees.TokenCustomFeesTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,30 +57,47 @@ class TokenCustomFeesTranslatorTest {
     @Mock
     private VerificationStrategies verificationStrategies;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private TokenCustomFeesTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new TokenCustomFeesTranslator();
+        subject = new TokenCustomFeesTranslator(systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
     void matchesTokenCustomFeesTranslatorTest() {
         attempt = prepareHtsAttemptWithSelector(
-                TOKEN_CUSTOM_FEES, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertTrue(subject.matches(attempt));
+                TOKEN_CUSTOM_FEES,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
         attempt = prepareHtsAttemptWithSelector(
-                BURN_TOKEN_V2, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertFalse(subject.matches(attempt));
+                BURN_TOKEN_V2,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void callFromTest() {
-        final Tuple tuple = new Tuple(FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
+        final Tuple tuple = Tuple.singleton(FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
         final Bytes inputBytes = Bytes.wrapByteBuffer(TOKEN_CUSTOM_FEES.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.enhancement()).willReturn(enhancement);

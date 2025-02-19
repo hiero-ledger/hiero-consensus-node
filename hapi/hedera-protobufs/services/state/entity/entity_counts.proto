@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.entity;
+/*
+ * Copyright (C) 2025 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This proto file contains primitive value messages.
+ * These are intended only for situations where the entire value to be stored in state is a single
+ * primitive.  These should never be used as components of another message; use the protobuf
+ * type instead.
+ */
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.entity">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Representation of a Hedera Entity Service entity counts in the network Merkle tree.
+ *
+ * This message is used to store the counts of various entities in the network.
+ */
+message EntityCounts {
+  /**
+   * The number of accounts in the network.
+   */
+  uint64 num_accounts = 1;
+  /**
+   * The number of aliases in the network.
+   */
+  uint64 num_aliases = 2;
+  /**
+   * The number of tokens in the network.
+   */
+  uint64 num_tokens = 3;
+  /**
+   * The number of token relationships in the network.
+   */
+  uint64 num_token_relations = 4;
+  /**
+   * The number of NFTs in the network.
+   */
+  uint64 num_nfts = 5;
+  /**
+   * The number of airdrops in the network.
+   */
+  uint64 num_airdrops = 6;
+  /**
+   * The number of staking infos in the network.
+   */
+  uint64 num_staking_infos = 7;
+  /**
+   * The number of topics in the network.
+   */
+  uint64 num_topics = 8;
+  /**
+   * The number of files in the network.
+   */
+  uint64 num_files = 9;
+  /**
+   * The number of nodes in the network.
+   */
+  uint64 num_nodes = 10;
+  /**
+   * The number of schedules in the network.
+   */
+  uint64 num_schedules = 11;
+  /**
+   * The number of contract storage slots in the network.
+   */
+  uint64 num_contract_storage_slots = 12;
+  /**
+   * The number of contract bytecodes in the network.
+   */
+  uint64 num_contract_bytecodes = 13;
+}

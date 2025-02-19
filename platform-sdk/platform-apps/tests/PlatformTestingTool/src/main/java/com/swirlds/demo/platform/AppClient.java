@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,8 @@ public class AppClient extends Thread {
             @NonNull final Platform platform,
             @NonNull final NodeId selfId,
             @NonNull final SuperConfig currentConfig,
-            @NonNull final String myName) {
+            @NonNull final String myName,
+            @NonNull final PlatformTestingToolStateLifecycles stateLifecycles) {
         this.platform = Objects.requireNonNull(platform, "platform must not be null");
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
         Objects.requireNonNull(currentConfig, "currentConfig must not be null");
@@ -67,7 +68,7 @@ public class AppClient extends Thread {
         try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
                 UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
             final PlatformTestingToolState state = wrapper.get();
-            submitter = new TransactionSubmitter(submitConfig, state.getControlQuorum());
+            submitter = new TransactionSubmitter(submitConfig, stateLifecycles.getControlQuorum());
             expectedFCMFamily = state.getStateExpectedMap();
         }
 

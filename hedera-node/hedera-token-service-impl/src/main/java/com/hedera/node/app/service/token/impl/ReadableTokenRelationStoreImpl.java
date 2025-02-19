@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,10 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,13 +40,17 @@ public class ReadableTokenRelationStoreImpl implements ReadableTokenRelationStor
     /** The underlying data storage class that holds the token data. */
     private final ReadableKVState<EntityIDPair, TokenRelation> readableTokenRelState;
 
+    private final ReadableEntityCounters entityCounters;
+
     /**
      * Create a new {@link ReadableTokenRelationStoreImpl} instance.
      *
      * @param states The state to use.
      */
-    public ReadableTokenRelationStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableTokenRelationStoreImpl(
+            @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         this.readableTokenRelState = requireNonNull(states).get(V0490TokenSchema.TOKEN_RELS_KEY);
+        this.entityCounters = requireNonNull(entityCounters);
     }
 
     /**
@@ -67,7 +73,7 @@ public class ReadableTokenRelationStoreImpl implements ReadableTokenRelationStor
      */
     @Override
     public long sizeOfState() {
-        return readableTokenRelState.size();
+        return entityCounters.getCounterFor(EntityType.TOKEN_ASSOCIATION);
     }
 
     /**

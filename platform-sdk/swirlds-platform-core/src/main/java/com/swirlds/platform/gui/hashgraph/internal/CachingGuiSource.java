@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package com.swirlds.platform.gui.hashgraph.internal;
 
-import com.swirlds.platform.gossip.shadowgraph.Generations;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.internal.EventImpl;
@@ -32,7 +31,7 @@ public class CachingGuiSource implements HashgraphGuiSource {
     private List<EventImpl> events = null;
     private AddressBook addressBook = null;
     private long maxGeneration = EventConstants.GENERATION_UNDEFINED;
-    private long startGeneration = Generations.FIRST_GENERATION;
+    private long startGeneration = EventConstants.FIRST_GENERATION;
     private int numGenerations = HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
 
     public CachingGuiSource(final HashgraphGuiSource source) {

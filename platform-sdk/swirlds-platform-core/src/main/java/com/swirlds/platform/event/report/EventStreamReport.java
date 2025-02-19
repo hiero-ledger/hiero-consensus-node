@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,18 +55,6 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
 
         sb.append("--- Rounds ---\n");
         new TextHistogram<>(granularInfo, EventStreamInfo::roundCount)
-                .setTimestampExtractor(EventStreamInfo::start)
-                .render(sb);
-        sb.append("\n");
-
-        sb.append("--- Transaction Count ---\n");
-        new TextHistogram<>(granularInfo, EventStreamInfo::transactionCount)
-                .setTimestampExtractor(EventStreamInfo::start)
-                .render(sb);
-        sb.append("\n");
-
-        sb.append("--- System Transaction Count ---\n");
-        new TextHistogram<>(granularInfo, EventStreamInfo::systemTransactionCount)
                 .setTimestampExtractor(EventStreamInfo::start)
                 .render(sb);
         sb.append("\n");
@@ -171,8 +159,6 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
                         commaSeparatedNumber(Duration.between(summary.start(), summary.end())
                                         .toSeconds()) + "s")
                 .addRow("events", commaSeparatedNumber(summary.eventCount()))
-                .addRow("transactions", commaSeparatedNumber(summary.transactionCount()))
-                .addRow("system transactions", commaSeparatedNumber(summary.systemTransactionCount()))
                 .addRow("application transactions", commaSeparatedNumber(summary.applicationTransactionCount()))
                 .addRow("files", commaSeparatedNumber(summary.fileCount()))
                 .addRow("bytes", new UnitFormatter(summary.byteCount(), UNIT_BYTES).render())

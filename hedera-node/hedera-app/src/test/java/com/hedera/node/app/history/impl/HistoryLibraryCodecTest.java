@@ -16,19 +16,18 @@
 
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.history.impl.HistoryLibraryCodecImpl.HISTORY_LIBRARY_CODEC;
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.hapi.node.state.history.History;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class HistoryLibraryCodecTest {
-    private final HistoryLibraryCodec subject = new HistoryLibraryCodec();
-
     @Test
     void nothingSupportedYet() {
-        assertThrows(UnsupportedOperationException.class, () -> subject.encodeHistory(Bytes.EMPTY, Bytes.EMPTY));
-        assertThrows(UnsupportedOperationException.class, () -> subject.encodeAddressBook(Roster.DEFAULT, Map.of()));
+        assertThrows(UnsupportedOperationException.class, () -> HISTORY_LIBRARY_CODEC.encodeHistory(History.DEFAULT));
+        assertThrows(
+                UnsupportedOperationException.class, () -> HISTORY_LIBRARY_CODEC.encodeAddressBook(Map.of(), Map.of()));
     }
 }

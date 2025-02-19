@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ class TokenInfoCallTest extends CallTestBase {
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
 
         final var subject = new TokenInfoCall(
-                gasCalculator, mockEnhancement(), false, FUNGIBLE_EVERYTHING_TOKEN, config, TOKEN_INFO);
+                gasCalculator, mockEnhancement(), false, FUNGIBLE_EVERYTHING_TOKEN, config, TOKEN_INFO.function());
 
         final var result = subject.execute().fullResult().result();
 
@@ -72,10 +72,10 @@ class TokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TOKEN_INFO
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
-                                Tuple.of(
-                                        Tuple.of(
+                                Tuple.from(
+                                        Tuple.from(
                                                 "Fungible Everything Token",
                                                 "FET",
                                                 headlongAddressOf(SENDER_ID),
@@ -93,7 +93,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         EXPECTED_FRACTIONAL_CUSTOM_FEES.toArray(new Tuple[0]),
                                         EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[0]),
                                         Bytes.wrap(expectedLedgerId.toByteArray())
-                                                .toString()))
+                                                .toString())))
                         .array()),
                 result.getOutput());
     }
@@ -105,7 +105,12 @@ class TokenInfoCallTest extends CallTestBase {
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
 
         final var subject = new TokenInfoCall(
-                gasCalculator, mockEnhancement(), false, FUNGIBLE_EVERYTHING_TOKEN_V2, config, TOKEN_INFO_V2);
+                gasCalculator,
+                mockEnhancement(),
+                false,
+                FUNGIBLE_EVERYTHING_TOKEN_V2,
+                config,
+                TOKEN_INFO_V2.function());
 
         final var result = subject.execute().fullResult().result();
 
@@ -113,10 +118,10 @@ class TokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TOKEN_INFO_V2
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
-                                Tuple.of(
-                                        Tuple.of(
+                                Tuple.from(
+                                        Tuple.from(
                                                 "Fungible Everything Token",
                                                 "FET",
                                                 headlongAddressOf(SENDER_ID),
@@ -136,7 +141,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         EXPECTED_FRACTIONAL_CUSTOM_FEES.toArray(new Tuple[0]),
                                         EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[0]),
                                         Bytes.wrap(expectedLedgerId.toByteArray())
-                                                .toString()))
+                                                .toString())))
                         .array()),
                 result.getOutput());
     }
@@ -147,7 +152,8 @@ class TokenInfoCallTest extends CallTestBase {
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
 
-        final var subject = new TokenInfoCall(gasCalculator, mockEnhancement(), false, null, config, TOKEN_INFO);
+        final var subject =
+                new TokenInfoCall(gasCalculator, mockEnhancement(), false, null, config, TOKEN_INFO.function());
 
         final var result = subject.execute().fullResult().result();
 
@@ -155,10 +161,10 @@ class TokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TOKEN_INFO
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 INVALID_TOKEN_ID.protoOrdinal(),
-                                Tuple.of(
-                                        Tuple.of(
+                                Tuple.from(
+                                        Tuple.from(
                                                 "",
                                                 "",
                                                 headlongAddressOf(ZERO_ACCOUNT_ID),
@@ -176,7 +182,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         Collections.emptyList().toArray(new Tuple[0]),
                                         Collections.emptyList().toArray(new Tuple[0]),
                                         Bytes.wrap(expectedLedgerId.toByteArray())
-                                                .toString()))
+                                                .toString())))
                         .array()),
                 result.getOutput());
     }
@@ -186,7 +192,8 @@ class TokenInfoCallTest extends CallTestBase {
         when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
 
-        final var subject = new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO);
+        final var subject =
+                new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO.function());
 
         final var result = subject.execute().fullResult().result();
 
@@ -199,7 +206,8 @@ class TokenInfoCallTest extends CallTestBase {
         when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
 
-        final var subject = new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO_V2);
+        final var subject =
+                new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO_V2.function());
 
         final var result = subject.execute().fullResult().result();
 

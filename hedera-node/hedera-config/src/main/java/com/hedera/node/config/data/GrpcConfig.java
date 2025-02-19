@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ import com.swirlds.config.api.validation.annotation.Min;
 public record GrpcConfig(
         @ConfigProperty(defaultValue = "50211") @Min(0) @Max(65535) @NodeProperty int port,
         @ConfigProperty(defaultValue = "50212") @Min(0) @Max(65535) @NodeProperty int tlsPort,
-        @ConfigProperty(defaultValue = "false") @NodeProperty boolean nodeOperatorPortEnabled,
+        @ConfigProperty(defaultValue = "true") @NodeProperty boolean nodeOperatorPortEnabled,
         @ConfigProperty(defaultValue = "50213") @Min(1) @Max(65535) @NodeProperty int nodeOperatorPort,
         @ConfigProperty(defaultValue = "60211") @Min(0) @Max(65535) @NodeProperty int workflowsPort,
         @ConfigProperty(defaultValue = "60212") @Min(0) @Max(65535) @NodeProperty int workflowsTlsPort,

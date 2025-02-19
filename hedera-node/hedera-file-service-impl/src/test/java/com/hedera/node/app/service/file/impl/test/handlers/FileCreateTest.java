@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,13 +53,13 @@ import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -100,10 +100,10 @@ class FileCreateTest extends FileTestBase {
     private FileOpsUsage fileOpsUsage;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
+    private EntityNumGenerator entityNumGenerator;
 
     @Mock
-    private EntityNumGenerator entityNumGenerator;
+    private PureChecksContext pureChecksContext;
 
     private FilesConfig config;
 
@@ -134,7 +134,7 @@ class FileCreateTest extends FileTestBase {
     @BeforeEach
     void setUp() {
         subject = new FileCreateHandler(fileOpsUsage);
-        fileStore = new WritableFileStore(writableStates, DEFAULT_CONFIG, storeMetricsService);
+        fileStore = new WritableFileStore(writableStates, writableEntityCounters);
         config = HederaTestConfigBuilder.createConfig().getConfigData(FilesConfig.class);
         lenient().when(handleContext.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(FilesConfig.class)).thenReturn(config);
@@ -185,7 +185,8 @@ class FileCreateTest extends FileTestBase {
 
         // then:
         assertThat(context.payerKey()).isEqualTo(payerKey);
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_EXPIRATION_TIME);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_EXPIRATION_TIME);
     }
 
     @Test
@@ -313,9 +314,10 @@ class FileCreateTest extends FileTestBase {
         final var txBody = newCreateTxn(keys, expirationTime);
         given(handleContext.body()).willReturn(txBody);
         final var writableState = writableFileStateWithOneKey();
+        givenEntityCounters(2);
 
         given(writableStates.<FileID, File>get(FILES)).willReturn(writableState);
-        final var fileStore = new WritableFileStore(writableStates, DEFAULT_CONFIG, storeMetricsService);
+        final var fileStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(fileStore);
 
         assertEquals(2, fileStore.sizeOfState());
@@ -333,11 +335,11 @@ class FileCreateTest extends FileTestBase {
         assertEquals(status, ex.responseCode());
     }
 
-    private Key mockPayerLookup() throws PreCheckException {
+    private Key mockPayerLookup() {
         return mockPayerLookup(A_COMPLEX_KEY);
     }
 
-    private Key mockPayerLookup(Key key) throws PreCheckException {
+    private Key mockPayerLookup(final Key key) {
         final var account = mock(Account.class);
         given(account.key()).willReturn(key);
         given(accountStore.getAccountById(ACCOUNT_ID_3)).willReturn(account);

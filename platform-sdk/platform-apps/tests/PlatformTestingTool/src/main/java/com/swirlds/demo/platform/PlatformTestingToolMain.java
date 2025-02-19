@@ -67,7 +67,6 @@ import com.swirlds.demo.platform.fs.stresstest.proto.ControlType;
 import com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction;
 import com.swirlds.demo.platform.fs.stresstest.proto.TestTransactionWrapper;
 import com.swirlds.demo.platform.nft.NftQueryController;
-import com.swirlds.demo.platform.stream.AccountBalanceExport;
 import com.swirlds.demo.virtualmerkle.config.VirtualMerkleConfig;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
@@ -92,6 +91,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -319,10 +319,12 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
     private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
 
+    final PlatformTestingToolStateLifecycles stateLifecycles;
+
     public PlatformTestingToolMain() {
-        super();
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
+        stateLifecycles = new PlatformTestingToolStateLifecycles(new PlatformStateFacade(v -> softwareVersion));
     }
 
     /**
@@ -579,7 +581,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                 UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
             final PlatformTestingToolState state = wrapper.get();
 
-            state.initControlStructures(this::handleMessageQuorum);
+            stateLifecycles.initControlStructures(this::handleMessageQuorum);
 
             // FUTURE WORK implement mirrorNode
             final String myName =
@@ -631,7 +633,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                     progressCfg.setProgressMarker(pConfig.getProgressMarker());
 
                     payloadConfig.display();
-                    state.setPayloadConfig(currentConfig.getFcmConfig());
+                    state.setPayloadConfig(currentConfig.getFcmConfig(), platform.getRoster());
                     if (currentConfig.getFcmConfig().getFcmQueryConfig() != null) {
                         this.queryController = new FCMQueryController(
                                 currentConfig.getFcmConfig().getFcmQueryConfig(), platform);
@@ -641,7 +643,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
                     submitConfig = currentConfig.getSubmitConfig();
 
-                    submitter = new TransactionSubmitter(submitConfig, state.getControlQuorum());
+                    submitter = new TransactionSubmitter(submitConfig, stateLifecycles.getControlQuorum());
 
                     if (currentConfig.getFcmConfig() != null) {
                         state.initChildren();
@@ -708,15 +710,13 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
         initAppStat();
 
-        registerAccountBalanceExportListener();
-
         if (waitForSaveStateDuringFreeze) {
             registerFinishAfterSaveStateDuringFreezeListener();
         }
 
         platform.getNotificationEngine().register(NewSignedStateListener.class, notification -> {
             if (timeToCheckBalances(notification.getConsensusTimestamp())) {
-                checkBalances(notification.getStateRoot());
+                checkBalances(notification.getState());
             }
         });
     }
@@ -759,7 +759,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         final SuperConfig clientConfig = objectMapper.readValue(new File(jsonFileName), SuperConfig.class);
         final String selfName = RosterUtils.formatNodeName(selfId.id());
         for (int k = 0; k < CLIENT_AMOUNT; k++) {
-            appClient[k] = new AppClient(this.platform, this.selfId, clientConfig, selfName);
+            appClient[k] = new AppClient(this.platform, this.selfId, clientConfig, selfName, stateLifecycles);
             appClient[k].start();
         }
     }
@@ -872,9 +872,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      */
     @Override
     @NonNull
-    public PlatformTestingToolState newMerkleStateRoot() {
-        final PlatformTestingToolState state =
-                new PlatformTestingToolState(version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+    public PlatformTestingToolState newStateRoot() {
+        final PlatformTestingToolState state = new PlatformTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }
@@ -885,7 +884,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     @Override
     @NonNull
     public StateLifecycles<PlatformTestingToolState> newStateLifecycles() {
-        return new PlatformTestingToolStateLifecycles();
+        return stateLifecycles;
     }
 
     private void platformStatusChange(final PlatformStatusChangeNotification notification) {
@@ -1002,7 +1001,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
             try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
                     UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
                 final PlatformTestingToolState state = wrapper.get();
-                state.initControlStructures(this::handleMessageQuorum);
+                stateLifecycles.initControlStructures(this::handleMessageQuorum);
                 SyntheticBottleneckConfig.getActiveConfig()
                         .registerReconnect(platform.getSelfId().id());
             }
@@ -1062,26 +1061,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
             return Pair.of(maxAccountIdFromLoadedState.get(), maxSmartContractIdFromLoadedState.get());
         }
-    }
-
-    /**
-     * Register a {@link StateWriteToDiskCompleteListener} that writes an
-     * account balance export to the saved state folder.
-     */
-    private void registerAccountBalanceExportListener() {
-        platform.getNotificationEngine().register(StateWriteToDiskCompleteListener.class, notification -> {
-            if (!(notification.getState() instanceof PlatformTestingToolState)) {
-                return;
-            }
-
-            final PlatformTestingToolState state = (PlatformTestingToolState) notification.getState();
-
-            final AccountBalanceExport export = new AccountBalanceExport(0L);
-            final String balanceFile = export.exportAccountsBalanceCSVFormat(
-                    state, notification.getConsensusTimestamp(), notification.getFolder());
-
-            export.signAccountBalanceFile(platform, balanceFile);
-        });
     }
 
     /**

@@ -17,6 +17,7 @@
 package com.hedera.node.app.state;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.BDDMockito.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -24,7 +25,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.Hedera;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -32,6 +33,7 @@ import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import java.util.function.Consumer;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,7 +58,7 @@ class StateLifecyclesImplTest extends MerkleTestBase {
     private PlatformContext platformContext;
 
     @Mock
-    private PlatformMerkleStateRoot merkleStateRoot;
+    private MerkleNodeState merkleStateRoot;
 
     private StateLifecyclesImpl subject;
 
@@ -83,8 +85,13 @@ class StateLifecyclesImplTest extends MerkleTestBase {
 
     @Test
     void delegatesOnSealConsensusRound() {
-        subject.onSealConsensusRound(round, merkleStateRoot);
+        given(hedera.onSealConsensusRound(round, merkleStateRoot)).willReturn(true);
 
+        // Assert the expected return
+        final boolean result = subject.onSealConsensusRound(round, merkleStateRoot);
+        Assertions.assertThat(result).isTrue();
+
+        // And verify the delegation
         verify(hedera).onSealConsensusRound(round, merkleStateRoot);
     }
 

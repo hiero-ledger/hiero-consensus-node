@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,10 @@ import com.hedera.node.app.workflows.handle.stack.savepoints.FirstChildSavepoint
 import com.hedera.node.app.workflows.handle.stack.savepoints.FirstRootSavepoint;
 import com.hedera.node.app.workflows.handle.stack.savepoints.FollowingSavepoint;
 import com.hedera.node.config.types.StreamMode;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -69,6 +73,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 /**
  * A stack of savepoints scoped to a dispatch. Each savepoint captures the state of the {@link State} at the time
@@ -202,6 +207,11 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         setupFirstSavepoint(category);
         baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, streamMode, true);
         presetIdsAllowed = false;
+    }
+
+    @Override
+    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+        state.init(time, metrics, merkleCryptography, roundSupplier);
     }
 
     @Override
@@ -592,7 +602,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             blockRecordSource = new BlockRecordSource(outputs);
         }
         final var recordSource = streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts) : null;
-        return new HandleOutput(blockRecordSource, recordSource);
+        final var firstAssignedConsensusTime =
+                indexOfTopLevelRecord == 0 ? consensusTime : consensusTime.minusNanos(indexOfTopLevelRecord);
+        return new HandleOutput(blockRecordSource, recordSource, firstAssignedConsensusTime);
     }
 
     private void setupFirstSavepoint(@NonNull final TransactionCategory category) {
@@ -601,5 +613,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         } else {
             stack.push(new FirstRootSavepoint(new WrappedState(state), requireNonNull(builderSink)));
         }
+    }
+
+    @Override
+    public void setHash(Hash hash) {
+        state.setHash(hash);
     }
 }

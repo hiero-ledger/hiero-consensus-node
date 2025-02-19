@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.hash.MerkleHashBuilder;
-import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.logging.legacy.LogMarker;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -52,19 +51,15 @@ public class MerkleCryptoEngine implements MerkleCryptography {
     /**
      * Create a new merkle crypto engine.
      *
-     * @param threadManager
-     * 		responsible for thread lifecycle management
      * @param cryptography
      * 		provides cryptographic primitives
      * @param settings
      * 		provides settings for cryptography
      */
-    public MerkleCryptoEngine(
-            final ThreadManager threadManager, final Cryptography cryptography, final CryptoConfig settings) {
+    public MerkleCryptoEngine(final Cryptography cryptography, final CryptoConfig settings) {
         basicCryptoEngine = cryptography;
         this.merkleInternalDigestProvider = new MerkleInternalDigestProvider();
-        this.merkleHashBuilder =
-                new MerkleHashBuilder(threadManager, this, cryptography, settings.computeCpuDigestThreadCount());
+        this.merkleHashBuilder = new MerkleHashBuilder(this, cryptography, settings.computeCpuDigestThreadCount());
     }
 
     /**

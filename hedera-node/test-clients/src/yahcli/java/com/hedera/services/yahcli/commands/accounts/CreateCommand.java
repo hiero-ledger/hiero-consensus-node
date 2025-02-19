@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.suites.CreateSuite.NOVELTY;
 
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.CreateSuite;
@@ -67,19 +68,41 @@ public class CreateCommand implements Callable<Integer> {
             description = "If receiver signature is required")
     boolean receiverSigRequired;
 
+    @CommandLine.Option(
+            names = {"-k", "--keyType"},
+            paramLabel = "keyType",
+            description = "Type of key to use for the new account: ED25519 or SECP256K1",
+            defaultValue = "ED25519")
+    String keyType;
+
     @Override
     public Integer call() throws Exception {
         final var yahcli = accountsCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
 
         final var noveltyLoc = config.keysLoc() + File.separator + NOVELTY + ".pem";
+        final SigControl sigType;
+        if ("SECP256K1".equalsIgnoreCase(keyType)) {
+            sigType = SigControl.SECP256K1_ON;
+        } else if ("ED25519".equalsIgnoreCase(keyType)) {
+            sigType = SigControl.ED25519_ON;
+        } else {
+            COMMON_MESSAGES.warn("Invalid key type: " + keyType + ". Must be 'ED25519' or 'SECP256K1'");
+            return 1;
+        }
         final var effectiveMemo = memo != null ? memo : "";
         final var amount = SendCommand.validatedTinybars(yahcli, amountRepr, denomination);
         final var retries = boxedRetries != null ? boxedRetries.intValue() : DEFAULT_NUM_RETRIES;
         final var effectiveReceiverSigRequired = receiverSigRequired;
 
         final var delegate = new CreateSuite(
-                config.asSpecConfig(), amount, effectiveMemo, noveltyLoc, retries, effectiveReceiverSigRequired);
+                config.asSpecConfig(),
+                amount,
+                effectiveMemo,
+                noveltyLoc,
+                sigType,
+                retries,
+                effectiveReceiverSigRequired);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {

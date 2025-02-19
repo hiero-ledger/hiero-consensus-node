@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -68,12 +69,16 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private HandleContext handleContext;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private final Bytes metadata1 = Bytes.wrap("memo".getBytes());
     private final Bytes metadata2 = Bytes.wrap("memo2".getBytes());
     private RecordStreamBuilder recordBuilder;
     private TokenMintHandler subject;
 
     @BeforeEach
+    @Override
     public void setUp() {
         super.setUp();
         refreshWritableStores();
@@ -196,8 +201,9 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void rejectsBothAmountAndMetadataFields() throws PreCheckException {
         final var txn = givenMintTxn(fungibleTokenId, List.of(metadata1), 2L);
-        final var context = new FakePreHandleContext(readableAccountStore, txn);
-        assertThatThrownBy(() -> subject.preHandle(context))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_TRANSACTION_BODY));
     }

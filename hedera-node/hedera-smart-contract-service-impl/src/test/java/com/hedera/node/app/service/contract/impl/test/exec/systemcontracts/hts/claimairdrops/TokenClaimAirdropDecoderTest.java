@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.claimairdrops;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropTranslator.CLAIM_AIRDROP;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropTranslator.CLAIM_AIRDROPS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
@@ -99,7 +99,7 @@ public class TokenClaimAirdropDecoderTest {
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
 
-        final var encoded = Bytes.wrapByteBuffer(CLAIM_AIRDROP.encodeCall(Tuple.singleton(new Tuple[] {
+        final var encoded = Bytes.wrapByteBuffer(CLAIM_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
                     asHeadlongAddress(SENDER_ID.accountNum()),
                     OWNER_ACCOUNT_AS_ADDRESS,
@@ -129,7 +129,7 @@ public class TokenClaimAirdropDecoderTest {
         given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
         given(tokensConfig.maxAllowedPendingAirdropsToClaim()).willReturn(10);
 
-        final var encoded = Bytes.wrapByteBuffer(CLAIM_AIRDROP.encodeCall(Tuple.singleton(new Tuple[] {
+        final var encoded = Bytes.wrapByteBuffer(CLAIM_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
                     asHeadlongAddress(SENDER_ID.accountNum()),
                     OWNER_ACCOUNT_AS_ADDRESS,
@@ -204,7 +204,7 @@ public class TokenClaimAirdropDecoderTest {
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
 
-        final var encoded = Bytes.wrapByteBuffer(CLAIM_AIRDROP.encodeCall(Tuple.singleton(new Tuple[] {
+        final var encoded = Bytes.wrapByteBuffer(CLAIM_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
                     asHeadlongAddress(SENDER_ID.accountNum()),
                     OWNER_ACCOUNT_AS_ADDRESS,
@@ -252,7 +252,7 @@ public class TokenClaimAirdropDecoderTest {
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
 
-        final var encoded = Bytes.wrapByteBuffer(CLAIM_AIRDROP.encodeCall(Tuple.singleton(new Tuple[] {
+        final var encoded = Bytes.wrapByteBuffer(CLAIM_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
                     asHeadlongAddress(SENDER_ID.accountNum()),
                     OWNER_ACCOUNT_AS_ADDRESS,

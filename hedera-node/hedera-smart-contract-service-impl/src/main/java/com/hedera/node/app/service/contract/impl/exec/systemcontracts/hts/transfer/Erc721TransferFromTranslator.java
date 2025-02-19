@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,17 @@ import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.SpecialRewardReceivers.SPECIAL_REWARD_RECEIVERS;
 import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Function;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.CallVia;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -38,22 +43,30 @@ public class Erc721TransferFromTranslator extends AbstractCallTranslator<HtsCall
     /**
      * Selector for transferFrom(address,address,uint256) method.
      */
-    public static final Function ERC_721_TRANSFER_FROM = new Function("transferFrom(address,address,uint256)");
+    public static final SystemContractMethod ERC_721_TRANSFER_FROM = SystemContractMethod.declare(
+                    "transferFrom(address,address,uint256)")
+            .withVia(CallVia.PROXY)
+            .withCategories(Category.ERC721, Category.TRANSFER);
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public Erc721TransferFromTranslator() {
+    public Erc721TransferFromTranslator(
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
         // Dagger2
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
+
+        registerMethods(ERC_721_TRANSFER_FROM);
     }
 
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
-        // We only match calls to existing tokens (i.e., with known token type)
-        return attempt.isTokenRedirect()
-                && attempt.isSelector(ERC_721_TRANSFER_FROM)
-                && attempt.redirectTokenType() == NON_FUNGIBLE_UNIQUE;
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        // Here, for ERC-721 == non-fungible tokens, the token type must exist
+        if (!attempt.isTokenRedirect()) return Optional.empty();
+        if (attempt.redirectTokenType() != NON_FUNGIBLE_UNIQUE) return Optional.empty();
+        return attempt.isMethod(ERC_721_TRANSFER_FROM);
     }
 
     @Override

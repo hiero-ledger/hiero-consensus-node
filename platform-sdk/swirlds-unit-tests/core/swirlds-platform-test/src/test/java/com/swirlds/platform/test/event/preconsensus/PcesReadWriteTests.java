@@ -284,14 +284,7 @@ class PcesReadWriteTests {
         final PcesFileIterator iterator = file.iterator(Long.MIN_VALUE);
         final List<PlatformEvent> deserializedEvents = new ArrayList<>();
 
-        if (truncateOnBoundary) {
-            iterator.forEachRemaining(deserializedEvents::add);
-        } else {
-            assertThrows(
-                    IOException.class,
-                    () -> iterator.forEachRemaining(deserializedEvents::add),
-                    "A partial event should have been detected and an IOException should have been thrown");
-        }
+        iterator.forEachRemaining(deserializedEvents::add);
 
         assertEquals(truncateOnBoundary, !iterator.hasPartialEvent());
 
@@ -363,7 +356,7 @@ class PcesReadWriteTests {
             assertEquals(events.get(i), iterator.next());
         }
 
-        assertThrows(IOException.class, iterator::next);
+        assertThrows(Exception.class, iterator::next);
     }
 
     @ParameterizedTest

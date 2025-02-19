@@ -69,10 +69,9 @@ public class PassThroughWiring<DATA_TYPE> {
         this(
                 model,
                 inputLabel,
-                model.schedulerBuilder(Objects.requireNonNull(componentName))
+                model.<DATA_TYPE>schedulerBuilder(Objects.requireNonNull(componentName))
                         .withType(Objects.requireNonNull(schedulerType))
-                        .build()
-                        .cast());
+                        .build());
     }
 
     /**

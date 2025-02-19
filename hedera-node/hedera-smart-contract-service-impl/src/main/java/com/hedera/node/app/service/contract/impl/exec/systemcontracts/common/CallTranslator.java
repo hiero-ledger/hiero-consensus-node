@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,10 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.common;
 
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Optional;
 
 /**
  * Strategy interface for translating {@link HtsCallAttempt}s into {@link Call}s.
@@ -36,12 +38,11 @@ public interface CallTranslator<T> {
     Call translateCallAttempt(@NonNull T attempt);
 
     /**
-     * Returns true if the attempt matches the selector of the call this translator is responsible for.
-     *
-     * @param attempt the selector to match
-     * @return true if the selector matches the selector of the call this translator is responsible for
+     * Returns the SystemContractMethod for this attempt's selector, if the selector is known.
+     * @param attempt the selector to match (in the Attempt)
+     * @return the SystemContractMethod for the attempt (or it can be empty if unknown)
      */
-    boolean matches(@NonNull T attempt);
+    abstract @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final T attempt);
 
     /**
      * Returns a call from the given attempt.
@@ -50,4 +51,16 @@ public interface CallTranslator<T> {
      * @return a call from the given attempt
      */
     Call callFrom(@NonNull T attempt);
+
+    /** Returns a call from the given attempt
+     *
+     * @param attempt the attempt to get the call from
+     * @param systemContractMethod system contract method the attempt is calling
+     * @return a call from the given attempt
+     */
+    default Call callFrom(@NonNull final T attempt, @NonNull final SystemContractMethod systemContractMethod) {
+        final var call = callFrom(attempt);
+        call.setSystemContractMethod(systemContractMethod);
+        return call;
+    }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,7 @@
 
 package com.swirlds.platform.pool;
 
-import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -45,10 +42,9 @@ public class DefaultTransactionPool implements TransactionPool {
      * {@inheritDoc}
      */
     @Override
-    public void submitSystemTransaction(@NonNull final StateSignatureTransaction payload) {
+    public void submitSystemTransaction(@NonNull final Bytes payload) {
         Objects.requireNonNull(payload);
-        transactionPoolNexus.submitTransaction(
-                new EventTransaction(new OneOf<>(TransactionOneOfType.STATE_SIGNATURE_TRANSACTION, payload)), true);
+        transactionPoolNexus.submitTransaction(payload, true);
     }
 
     /**

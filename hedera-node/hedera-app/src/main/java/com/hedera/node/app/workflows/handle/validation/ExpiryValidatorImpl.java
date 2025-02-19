@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,9 +34,9 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hapi.utils.InvalidTransactionException;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -180,7 +180,7 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
             @NonNull final EntityType entityType,
             final boolean isMarkedExpired,
             final long balanceAvailableForSelfRenewal) {
-        final var isSmartContract = entityType.equals(EntityType.CONTRACT);
+        final var isSmartContract = entityType.equals(EntityType.CONTRACT_BYTECODE);
         final var autoRenewConfig = context.configuration().getConfigData(AutoRenewConfig.class);
         if (!autoRenewConfig.isAutoRenewEnabled()
                 || balanceAvailableForSelfRenewal > 0
@@ -218,13 +218,13 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
     private void validateAutoRenewAccount(final AccountID accountID) {
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
 
+        if (isSentinelAccount(accountID)) {
+            // 0.0.0 is a sentinel number that says to remove the current auto-renew account
+            return;
+        }
         validateTrue(
                 accountID.shardNum() == hederaConfig.shard() && accountID.realmNum() == hederaConfig.realm(),
                 INVALID_AUTORENEW_ACCOUNT);
-        if (accountID.hasAccountNum() && accountID.accountNumOrThrow() == 0L) {
-            // 0L is a sentinel number that says to remove the current auto-renew account
-            return;
-        }
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
         try {
             final var account = accountStore.getAccountById(accountID);
@@ -246,5 +246,12 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
         } catch (final ArithmeticException ae) {
             return a > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
         }
+    }
+
+    private boolean isSentinelAccount(@NonNull final AccountID accountID) {
+        return accountID.hasAccountNum()
+                && accountID.shardNum() == 0L
+                && accountID.realmNum() == 0L
+                && accountID.accountNum() == 0L;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
@@ -37,12 +38,15 @@ import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,17 +100,26 @@ class AppThrottleFactoryTest {
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
     private AppThrottleFactory subject;
+    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     @BeforeEach
     void setUp() {
+        softwareVersionFactory = v -> new ServicesSoftwareVersion();
         subject = new AppThrottleFactory(
-                config, () -> state, () -> ThrottleDefinitions.DEFAULT, throttleAccumulatorFactory);
+                config,
+                () -> state,
+                () -> ThrottleDefinitions.DEFAULT,
+                throttleAccumulatorFactory,
+                softwareVersionFactory);
     }
 
     @Test
     void initializesAccumulatorFromCurrentConfigAndGivenDefinitions() {
         given(throttleAccumulatorFactory.newThrottleAccumulator(
-                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                        eq(config),
+                        argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR),
+                        eq(BACKEND_THROTTLE),
+                        eq(softwareVersionFactory)))
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,9 +31,6 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
@@ -57,7 +54,7 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.UnsignedEvent;
-import com.swirlds.platform.system.transaction.Transaction;
+import com.swirlds.platform.system.transaction.TransactionWrapper;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -155,7 +152,7 @@ class TipsetEventCreatorTests {
     private void validateNewEvent(
             @NonNull final Map<Hash, EventImpl> events,
             @NonNull final UnsignedEvent newEvent,
-            @NonNull final List<EventTransaction> expectedTransactions,
+            @NonNull final List<Bytes> expectedTransactions,
             @NonNull final SimulatedNode simulatedNode,
             final boolean slowNode) {
 
@@ -217,17 +214,14 @@ class TipsetEventCreatorTests {
             simulatedNode.tipsetWeightCalculator.addEventAndGetAdvancementWeight(descriptor);
         }
 
-        final List<EventTransaction> convertedTransactions = newEvent.getTransactions().stream()
-                .map(Transaction::getTransaction)
+        final List<Bytes> convertedTransactions = newEvent.getTransactions().stream()
+                .map(TransactionWrapper::getApplicationTransaction)
                 .toList();
         // We should see the expected transactions
         IntStream.range(0, expectedTransactions.size()).forEach(i -> {
-            final OneOf<TransactionOneOfType> expected =
-                    expectedTransactions.get(i).transaction();
-            final OneOf<TransactionOneOfType> actual =
-                    convertedTransactions.get(i).transaction();
-            assertEquals(expected.kind(), actual.kind(), "Transaction kind " + i + " mismatch");
-            assertEquals(expected.value(), actual.value(), "Transaction payload " + i + " mismatch");
+            final Bytes expected = expectedTransactions.get(i);
+            final Bytes actual = convertedTransactions.get(i);
+            assertEquals(expected, actual, "Transaction " + i + " mismatch");
         });
 
         assertDoesNotThrow(simulatedNode.eventCreator::toString);
@@ -288,16 +282,14 @@ class TipsetEventCreatorTests {
      * Generate a small number of random transactions.
      */
     @NonNull
-    private List<EventTransaction> generateRandomTransactions(@NonNull final Random random) {
+    private List<Bytes> generateRandomTransactions(@NonNull final Random random) {
         final int transactionCount = random.nextInt(0, 10);
-        final List<EventTransaction> transactions = new ArrayList<>();
+        final List<Bytes> transactions = new ArrayList<>();
 
         for (int i = 0; i < transactionCount; i++) {
             final byte[] bytes = new byte[32];
             random.nextBytes(bytes);
-            final OneOf<TransactionOneOfType> oneOf =
-                    new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, Bytes.wrap(bytes));
-            transactions.add(new EventTransaction(oneOf));
+            transactions.add(Bytes.wrap(bytes));
         }
 
         return transactions;
@@ -319,7 +311,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
@@ -373,7 +365,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
@@ -440,7 +432,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes =
                 buildSimulatedNodes(random, time, roster, transactionSupplier::get, AncientMode.GENERATION_THRESHOLD);
@@ -514,7 +506,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
@@ -595,7 +587,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
@@ -694,7 +686,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
@@ -791,7 +783,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
@@ -1052,7 +1044,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,

@@ -46,11 +46,11 @@ public record RunningEventHashOverrideWiring(
     @NonNull
     public static RunningEventHashOverrideWiring create(@NonNull final WiringModel model) {
 
-        final TaskScheduler<RunningEventHashOverride> taskScheduler = model.schedulerBuilder("RunningEventHashOverride")
+        final TaskScheduler<RunningEventHashOverride> taskScheduler = model.<RunningEventHashOverride>schedulerBuilder(
+                        "RunningEventHashOverride")
                 .withType(DIRECT_THREADSAFE)
                 .withHyperlink(platformCoreHyperlink(RunningEventHashOverrideWiring.class))
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<RunningEventHashOverride, RunningEventHashOverride> inputWire =
                 taskScheduler.buildInputWire("hash override");

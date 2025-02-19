@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,7 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -36,27 +34,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableTopicStoreTest extends ConsensusTestBase {
-
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
-
     @Mock
-    private StoreMetricsService storeMetricsService;
+    private WritableEntityCounters entityCounters;
 
     private Topic topic;
 
     @Test
     void throwsIfNullValuesAsArgs() {
-        assertThrows(
-                NullPointerException.class, () -> new WritableTopicStore(null, CONFIGURATION, storeMetricsService));
-        assertThrows(
-                NullPointerException.class, () -> new WritableTopicStore(writableStates, null, storeMetricsService));
-        assertThrows(NullPointerException.class, () -> new WritableTopicStore(writableStates, CONFIGURATION, null));
+        assertThrows(NullPointerException.class, () -> new WritableTopicStore(null, entityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableTopicStore(writableStates, null));
         assertThrows(NullPointerException.class, () -> writableStore.put(null));
     }
 
     @Test
     void constructorCreatesTopicState() {
-        final var store = new WritableTopicStore(writableStates, CONFIGURATION, storeMetricsService);
+        final var store = new WritableTopicStore(writableStates, entityCounters);
         assertNotNull(store);
     }
 

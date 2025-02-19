@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,11 +37,11 @@ import static org.mockito.Mock.Strictness.LENIENT;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hapi.utils.InvalidTransactionException;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -346,9 +346,9 @@ class ExpiryValidatorImplTest {
                 .isEqualTo(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL);
         assertThat(subject.isDetached(EntityType.ACCOUNT, true, 0)).isTrue();
 
-        assertThat(subject.expirationStatus(EntityType.CONTRACT, true, 0L))
+        assertThat(subject.expirationStatus(EntityType.CONTRACT_BYTECODE, true, 0L))
                 .isEqualTo(CONTRACT_EXPIRED_AND_PENDING_REMOVAL);
-        assertThat(subject.isDetached(EntityType.CONTRACT, true, 0)).isTrue();
+        assertThat(subject.isDetached(EntityType.CONTRACT_BYTECODE, true, 0)).isTrue();
     }
 
     @Test

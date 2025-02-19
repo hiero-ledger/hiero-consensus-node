@@ -61,11 +61,11 @@ import com.swirlds.platform.network.connectivity.ConnectionServer;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
 import com.swirlds.platform.network.connectivity.SocketFactory;
-import com.swirlds.platform.network.protocol.HeartbeatProtocolFactory;
-import com.swirlds.platform.network.protocol.ProtocolFactory;
+import com.swirlds.platform.network.protocol.HeartbeatProtocol;
+import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import com.swirlds.platform.network.protocol.ReconnectProtocolFactory;
-import com.swirlds.platform.network.protocol.SyncProtocolFactory;
+import com.swirlds.platform.network.protocol.ReconnectProtocol;
+import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.topology.NetworkTopology;
 import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
@@ -77,6 +77,7 @@ import com.swirlds.platform.reconnect.ReconnectLearnerThrottle;
 import com.swirlds.platform.reconnect.ReconnectThrottle;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -158,6 +159,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
      * @param loadReconnectState            a method that should be called when a state from reconnect is obtained
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
+     * @param platformStateFacade           a facade for accessing the platform state
      */
     public SyncGossip(
             @NonNull final PlatformContext platformContext,
@@ -171,7 +173,8 @@ public class SyncGossip implements ConnectionTracker, Gossip {
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final Consumer<SignedState> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         shadowgraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), intakeEventCounter);
 
@@ -202,7 +205,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
         // create an instance that can create new outbound connections
         final OutboundConnectionCreator connectionCreator =
-                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, roster);
+                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, peers);
         connectionManagers = new StaticConnectionManagers(topology, connectionCreator);
         final InboundConnectionHandler inboundConnectionHandler = new InboundConnectionHandler(
                 platformContext,
@@ -244,10 +247,10 @@ public class SyncGossip implements ConnectionTracker, Gossip {
 
         reconnectThrottle = new ReconnectThrottle(reconnectConfig, platformContext.getTime());
 
-        networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId, roster);
+        networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId, peers);
         platformContext.getMetrics().addUpdater(networkMetrics::update);
 
-        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), roster);
+        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), peers);
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 
@@ -272,8 +275,14 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                     syncManager.resetFallenBehind();
                 },
                 new ReconnectLearnerFactory(
-                        platformContext, threadManager, roster, reconnectConfig.asyncStreamTimeout(), reconnectMetrics),
-                stateConfig);
+                        platformContext,
+                        threadManager,
+                        roster,
+                        reconnectConfig.asyncStreamTimeout(),
+                        reconnectMetrics,
+                        platformStateFacade),
+                stateConfig,
+                platformStateFacade);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
@@ -316,7 +325,8 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 currentPlatformStatus::get,
                 hangingThreadDuration,
                 protocolConfig,
-                reconnectConfig);
+                reconnectConfig,
+                platformStateFacade);
 
         thingsToStart.add(() -> syncProtocolThreads.forEach(StoppableThread::start));
     }
@@ -331,9 +341,10 @@ public class SyncGossip implements ConnectionTracker, Gossip {
             final Supplier<PlatformStatus> platformStatusSupplier,
             final Duration hangingThreadDuration,
             final ProtocolConfig protocolConfig,
-            final ReconnectConfig reconnectConfig) {
+            final ReconnectConfig reconnectConfig,
+            final PlatformStateFacade platformStateFacade) {
 
-        final ProtocolFactory syncProtocolFactory = new SyncProtocolFactory(
+        final Protocol syncProtocol = new SyncProtocol(
                 platformContext,
                 syncShadowgraphSynchronizer,
                 fallenBehindManager,
@@ -344,7 +355,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 syncMetrics,
                 platformStatusSupplier);
 
-        final ProtocolFactory reconnectProtocolFactory = new ReconnectProtocolFactory(
+        final Protocol reconnectProtocol = new ReconnectProtocol(
                 platformContext,
                 threadManager,
                 reconnectThrottle,
@@ -352,12 +363,13 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 reconnectConfig.asyncStreamTimeout(),
                 reconnectMetrics,
                 reconnectController,
-                new DefaultSignedStateValidator(platformContext),
+                new DefaultSignedStateValidator(platformContext, platformStateFacade),
                 fallenBehindManager,
                 platformStatusSupplier,
-                platformContext.getConfiguration());
+                platformContext.getConfiguration(),
+                platformStateFacade);
 
-        final ProtocolFactory heartbeatProtocolFactory = new HeartbeatProtocolFactory(
+        final Protocol heartbeatProtocol = new HeartbeatProtocol(
                 Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()), networkMetrics, platformContext.getTime());
         final VersionCompareHandshake versionCompareHandshake =
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
@@ -371,13 +383,13 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                     .setThreadName("SyncProtocolWith" + otherId)
                     .setHangingThreadPeriod(hangingThreadDuration)
                     .setWork(new ProtocolNegotiatorThread(
-                            connectionManagers.getManager(otherId, topology.shouldConnectTo(otherId)),
+                            connectionManagers.getManager(otherId),
                             syncConfig.syncSleepAfterFailedNegotiation(),
                             handshakeProtocols,
                             new NegotiationProtocols(List.of(
-                                    heartbeatProtocolFactory.build(otherId),
-                                    reconnectProtocolFactory.build(otherId),
-                                    syncProtocolFactory.build(otherId))),
+                                    heartbeatProtocol.createPeerInstance(otherId),
+                                    reconnectProtocol.createPeerInstance(otherId),
+                                    syncProtocol.createPeerInstance(otherId))),
                             platformContext.getTime()))
                     .build());
         }

@@ -65,8 +65,8 @@ class V059HintsSchemaTest {
     @Test
     void definesStatesWithExpectedKeys() {
         final var expectedStateNames = Set.of(
-                V059HintsSchema.ACTIVE_CONSTRUCTION_KEY,
-                V059HintsSchema.NEXT_CONSTRUCTION_KEY,
+                V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY,
+                V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY,
                 V059HintsSchema.PREPROCESSING_VOTES_KEY,
                 V059HintsSchema.HINTS_KEY_SETS_KEY);
         final var actualStateNames =
@@ -77,9 +77,9 @@ class V059HintsSchemaTest {
     @Test
     void ensuresNonNullSingletonValues() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
                 .willReturn(activeConstructionState);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY))
                 .willReturn(nextConstructionState);
 
         subject.migrate(migrationContext);
@@ -91,7 +91,7 @@ class V059HintsSchemaTest {
     @Test
     void restartSetsFinishedConstructionInContext() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
                 .willReturn(activeConstructionState);
         final var construction = HintsConstruction.newBuilder()
                 .hintsScheme(new HintsScheme(PreprocessedKeys.DEFAULT, List.of()))
@@ -106,7 +106,7 @@ class V059HintsSchemaTest {
     @Test
     void restartDoesNotSetUnfinishedConstructionInContext() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
                 .willReturn(activeConstructionState);
         given(activeConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
 

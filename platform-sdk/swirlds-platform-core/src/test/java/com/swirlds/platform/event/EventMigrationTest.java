@@ -44,7 +44,7 @@ public class EventMigrationTest {
     }
 
     public static Stream<Arguments> migrationTestArguments() {
-        return Stream.of(Arguments.of("eventFiles/testnet-57/2025-01-10T00_00_00.016538241Z.events", 532, 3));
+        return Stream.of(Arguments.of("eventFiles/testnet-59/2025-02-14T00_00_00.005716199Z.evts", 622, 119));
     }
 
     /**

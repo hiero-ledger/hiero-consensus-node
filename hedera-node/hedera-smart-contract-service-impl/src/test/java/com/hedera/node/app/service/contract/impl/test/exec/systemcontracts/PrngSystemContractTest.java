@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_RANDOM_NUMBER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PRECOMPILE_CONTRACT_FAILED_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PRECOMPILE_CONTRACT_SUCCESS_RESULT;
@@ -124,7 +125,7 @@ class PrngSystemContractTest {
         given(proxyWorldUpdater.entropy()).willReturn(EXPECTED_RANDOM_NUMBER);
 
         // when:
-        var actual = subject.computeFully(PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
 
         // then:
         assertEqualContractResult(PRECOMPILE_CONTRACT_SUCCESS_RESULT, actual, 100L);
@@ -145,7 +146,7 @@ class PrngSystemContractTest {
         when(contractCallRecordBuilder.entropyBytes(any())).thenReturn(contractCallRecordBuilder);
 
         // when:
-        var actual = subject.computeFully(PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
 
         // then:
         assertEqualContractResult(PRECOMPILE_CONTRACT_SUCCESS_RESULT, actual, GAS_REQUIRED);
@@ -164,7 +165,7 @@ class PrngSystemContractTest {
                 .thenReturn(mock(ContractCallStreamBuilder.class));
 
         // when:
-        var actual = subject.computeFully(PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
 
         // then:
         assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);
@@ -182,7 +183,7 @@ class PrngSystemContractTest {
                 .thenReturn(mock(ContractCallStreamBuilder.class));
 
         // when:
-        var actual = subject.computeFully(PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
         // then:
         assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);
     }
@@ -198,7 +199,7 @@ class PrngSystemContractTest {
                 .thenReturn(mock(ContractCallStreamBuilder.class));
 
         // when:
-        var actual = subject.computeFully(EXPECTED_RANDOM_NUMBER, messageFrame);
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, EXPECTED_RANDOM_NUMBER, messageFrame);
 
         // then:
         assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package com.swirlds.platform.test.fixtures.event;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
@@ -92,9 +92,11 @@ public class RandomEventUtils {
                         otherParent.getBaseEvent().getBirthRound(),
                         otherParent.getGeneration()));
 
-        final List<EventTransaction> convertedTransactions = new ArrayList<>();
+        final List<Bytes> convertedTransactions = new ArrayList<>();
         if (transactions != null) {
-            Stream.of(transactions).map(TransactionWrapper::getTransaction).forEach(convertedTransactions::add);
+            Stream.of(transactions)
+                    .map(TransactionWrapper::getApplicationTransaction)
+                    .forEach(convertedTransactions::add);
         }
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
                 new BasicSoftwareVersion(1),

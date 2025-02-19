@@ -62,28 +62,27 @@ class WiringBenchmark {
         // Ensures that we have no more than 10,000 events in the pipeline at any given time
         final ObjectCounter backpressure = new BackpressureObjectCounter("backpressure", 10_000, Duration.ZERO);
 
-        final TaskScheduler<WiringBenchmarkEvent> verificationTaskScheduler = model.schedulerBuilder("verification")
+        final TaskScheduler<WiringBenchmarkEvent> verificationTaskScheduler = model.<WiringBenchmarkEvent>
+                        schedulerBuilder("verification")
                 .withPool(executor)
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withOnRamp(backpressure)
                 .withExternalBackPressure(true)
-                .build()
-                .cast();
+                .build();
 
-        final TaskScheduler<WiringBenchmarkEvent> orphanBufferTaskScheduler = model.schedulerBuilder("orphanBuffer")
+        final TaskScheduler<WiringBenchmarkEvent> orphanBufferTaskScheduler = model.<WiringBenchmarkEvent>
+                        schedulerBuilder("orphanBuffer")
                 .withPool(executor)
                 .withType(TaskSchedulerType.SEQUENTIAL)
                 .withExternalBackPressure(true)
-                .build()
-                .cast();
+                .build();
 
-        final TaskScheduler<Void> eventPoolTaskScheduler = model.schedulerBuilder("eventPool")
+        final TaskScheduler<Void> eventPoolTaskScheduler = model.<Void>schedulerBuilder("eventPool")
                 .withPool(executor)
                 .withType(TaskSchedulerType.SEQUENTIAL)
                 .withOffRamp(backpressure)
                 .withExternalBackPressure(true)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<WiringBenchmarkEvent, WiringBenchmarkEvent> eventsToOrphanBuffer =
                 orphanBufferTaskScheduler.buildInputWire("unordered events");

@@ -98,10 +98,9 @@ class SimulatedGossipTests {
                     .withDeterministicModeEnabled(true)
                     .build();
 
-            final TaskScheduler<Void> eventInputShim = model.schedulerBuilder("eventInputShim")
+            final TaskScheduler<Void> eventInputShim = model.<Void>schedulerBuilder("eventInputShim")
                     .configure(DIRECT_THREADSAFE_CONFIGURATION)
-                    .build()
-                    .cast();
+                    .build();
 
             final List<PlatformEvent> receivedEventsForNode = new ArrayList<>();
             receivedEvents.put(nodeId, receivedEventsForNode);

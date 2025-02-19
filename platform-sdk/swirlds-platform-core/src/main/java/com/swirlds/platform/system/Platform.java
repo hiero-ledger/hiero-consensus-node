@@ -22,7 +22,7 @@ import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -72,7 +72,7 @@ public interface Platform {
      * @return a wrapper around the most recent immutable state
      */
     @NonNull
-    <T extends MerkleStateRoot> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason);
+    <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason);
 
     /**
      * This method can be called to create a new transaction. If accepted by this method, the newly-created transaction

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -139,7 +140,9 @@ class ClassicTransfersCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(asBytesResult(INT64_ENCODER.encodeElements((long) SUCCESS.protoOrdinal())), result.getOutput());
+        assertEquals(
+                asBytesResult(INT64_ENCODER.encode(Tuple.singleton((long) SUCCESS.protoOrdinal()))),
+                result.getOutput());
     }
 
     @Test
@@ -216,7 +219,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                asBytesResult(INT64_ENCODER.encodeElements((long) SPENDER_DOES_NOT_HAVE_ALLOWANCE.protoOrdinal())),
+                asBytesResult(
+                        INT64_ENCODER.encode(Tuple.singleton((long) SPENDER_DOES_NOT_HAVE_ALLOWANCE.protoOrdinal()))),
                 result.getOutput());
     }
 

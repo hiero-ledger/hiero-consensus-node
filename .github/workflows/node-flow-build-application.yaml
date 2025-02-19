@@ -51,7 +51,7 @@ on:
   push:
     branches:
       - main
-      - 'release/*'
+      - "release/*"
 
 defaults:
   run:
@@ -85,12 +85,12 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs: code
     if: ${{ needs.code.result == 'success' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -98,9 +98,9 @@ jobs:
         uses: step-security/workflow-dispatch@4d1049025980f72b1327cbfdeecb07fe7a20f577 # v1.2.4
         with:
           workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
-          repo: hashgraph/hedera-services # ensure we are executing in the hashgraph org
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ github.ref }}"
-          }'
+            }'

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndLog
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -117,9 +116,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                         Objects.requireNonNull(unsignedEvent, "The unsignedEvent must not be null")
                                 .getEventCore(),
                         Objects.requireNonNull(signature, "The signature must not be null"),
-                        unsignedEvent.getEventTransactions(),
-                        // TODO: adapt new transaction format
-                        null),
+                        unsignedEvent.getTransactionsBytes()),
                 unsignedEvent.getMetadata());
     }
 
@@ -338,10 +335,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         Objects.requireNonNull(consensusData.consensusTimestamp(), "consensusData.consensusTimestamp");
         this.consensusData = consensusData;
         this.consensusTimestamp = HapiUtils.asInstant(consensusData.consensusTimestamp());
-    }
-
-    public List<EventTransaction> getEventTransactions() {
-        return gossipEvent.eventTransaction();
     }
 
     /**

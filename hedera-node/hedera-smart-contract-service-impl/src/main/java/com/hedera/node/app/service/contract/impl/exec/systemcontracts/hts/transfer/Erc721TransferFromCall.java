@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -117,7 +118,8 @@ public class Erc721TransferFromCall extends AbstractCall {
                     .get(0);
             logSuccessfulNftTransfer(tokenId, nftTransfer, readableAccountStore(), frame);
             return gasOnly(
-                    successResult(ERC_721_TRANSFER_FROM.getOutputs().encodeElements(), gasRequirement, recordBuilder),
+                    successResult(
+                            ERC_721_TRANSFER_FROM.getOutputs().encode(Tuple.EMPTY), gasRequirement, recordBuilder),
                     status,
                     false);
         }

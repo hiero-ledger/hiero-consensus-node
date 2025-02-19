@@ -48,13 +48,13 @@ tasks.testCodeCoverageReport {
                 componentFilter { id -> id is ProjectComponentIdentifier }
                 attributes.attribute(
                     LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
-                    objects.named(LibraryElements.CLASSES)
+                    objects.named(LibraryElements.CLASSES),
                 )
             }
             .files
             .asFileTree
             .filter { file ->
-                listOf("test-clients", "testFixtures", "statedumpers", "example-apps").none {
+                listOf("test-clients", "testFixtures", "example-apps").none {
                     file.path.contains(it)
                 }
             }

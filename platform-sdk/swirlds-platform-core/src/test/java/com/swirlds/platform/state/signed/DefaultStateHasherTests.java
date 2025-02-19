@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.wiring.components.StateAndRound;
-import java.util.ArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -49,7 +49,7 @@ public class DefaultStateHasherTests {
         when(reservedSignedState.get()).thenReturn(signedState);
 
         final StateAndRound stateAndRound =
-                new StateAndRound(reservedSignedState, mock(ConsensusRound.class), mock(ArrayList.class));
+                new StateAndRound(reservedSignedState, mock(ConsensusRound.class), mock(ConcurrentLinkedQueue.class));
 
         // do the test
         final StateAndRound result = hasher.hashState(stateAndRound);

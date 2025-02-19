@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -221,15 +221,31 @@ public abstract class AbstractLongList<C> implements LongList {
                 }
 
                 maxLongs = headerBuffer.getLong();
+
+                // Compute how many longs are in the file body
+                final long longsInFile = (fileChannel.size() - currentFileHeaderSize) / Long.BYTES;
+
                 if (formatVersion >= MIN_VALID_INDEX_SUPPORT_VERSION) {
-                    minValidIndex.set(headerBuffer.getLong());
-                    // "inflating" the size by number of indices that are to the left of the min valid index
-                    size.set(minValidIndex.get() + (fileChannel.size() - currentFileHeaderSize) / Long.BYTES);
+                    final long readMinValidIndex = headerBuffer.getLong();
+
+                    // If the file is empty or readMinValidIndex < 0, treat it as an empty list
+                    if (longsInFile <= 0 || readMinValidIndex < 0) {
+                        size.set(0);
+                        minValidIndex.set(-1);
+                        maxValidIndex.set(-1);
+                    } else {
+                        // Otherwise, compute the size by "inflating" it to include the number of indices to the left of
+                        // the min valid index.
+                        minValidIndex.set(readMinValidIndex);
+                        size.set(readMinValidIndex + longsInFile);
+                        maxValidIndex.set(size.get() - 1);
+                    }
                 } else {
                     minValidIndex.set(0);
-                    size.set((fileChannel.size() - FILE_HEADER_SIZE_V1) / Long.BYTES);
+                    size.set(longsInFile);
+                    maxValidIndex.set(size.get() - 1);
                 }
-                maxValidIndex.set(size.get() - 1);
+
                 chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(maxLongs));
                 readBodyFromFileChannelOnInit(file.getName(), fileChannel);
             }
@@ -239,12 +255,92 @@ public abstract class AbstractLongList<C> implements LongList {
     /**
      * Initializes the list from the given file channel. At the moment of the call all the class metadata
      * is already initialized from the file header.
+     *
      * @param sourceFileName the name of the file from which the list is initialized
      * @param fileChannel the file channel to read the list body from
      * @throws IOException if there was a problem reading the file
      */
-    protected abstract void readBodyFromFileChannelOnInit(String sourceFileName, FileChannel fileChannel)
+    protected void readBodyFromFileChannelOnInit(String sourceFileName, FileChannel fileChannel) throws IOException {
+        if (minValidIndex.get() < 0) {
+            // Empty list, nothing to read
+            return;
+        }
+
+        final int firstChunkIndex = toIntExact(minValidIndex.get() / numLongsPerChunk);
+        final int lastChunkIndex = toIntExact(maxValidIndex.get() / numLongsPerChunk);
+        final int minValidIndexInChunk = toIntExact(minValidIndex.get() % numLongsPerChunk);
+        final int maxValidIndexInChunk = toIntExact(maxValidIndex.get() % numLongsPerChunk);
+
+        for (int chunkIndex = firstChunkIndex; chunkIndex <= lastChunkIndex; chunkIndex++) {
+            final int startIndexInChunk = (chunkIndex == firstChunkIndex) ? minValidIndexInChunk : 0;
+            final int endIndexInChunk = (chunkIndex == lastChunkIndex) ? (maxValidIndexInChunk + 1) : numLongsPerChunk;
+
+            C chunk = readChunkData(fileChannel, chunkIndex, startIndexInChunk, endIndexInChunk);
+            setChunk(chunkIndex, chunk);
+        }
+    }
+
+    /**
+     * Reads data from the specified {@code fileChannel} and stores it into a chunk.
+     * The data is read from the specified range within the chunk.
+     * Subclasses must implement this method to read data from the provided {@code fileChannel}.
+     *
+     * @param fileChannel the file channel to read from
+     * @param chunkIndex the index of the chunk to store the read data
+     * @param startIndex the starting index (inclusive) within the chunk
+     * @param endIndex the ending index (exclusive) within the chunk
+     * @return a chunk (byte buffer, array or long that represents an offset of the chunk)
+     * @throws IOException if there is an error reading the file
+     */
+    protected abstract C readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex)
             throws IOException;
+
+    /**
+     * Stores the specified chunk at the given {@code chunkIndex}.
+     *
+     * @param chunkIndex the index where the chunk is to be stored
+     * @param chunk      the chunk to store
+     */
+    protected void setChunk(int chunkIndex, C chunk) {
+        chunkList.set(chunkIndex, chunk);
+    }
+
+    /**
+     * Reads a specified range of elements from a file channel into the given buffer, starting from
+     * the given start index (inc) and up to the given end index (exc).
+     * <p>
+     * This method computes the appropriate byte offsets within the buffer and the number of bytes
+     * to read based on the provided {@code startIndex} and {@code endIndex}. It then performs a
+     * complete read of that data from the file channel into the buffer.
+     *
+     * @param fileChannel the file channel to read data from
+     * @param chunkIndex the index of the chunk being read
+     * @param startIndex the starting index (inclusive) within the chunk of the first element to read
+     * @param endIndex the ending index (exclusive) within the chunk of the last element to read
+     * @param buffer the buffer into which data will be read
+     * @throws IOException if an error occurs while reading from the file,
+     * or if the number of bytes read does not match the expected size
+     */
+    protected static void readDataIntoBuffer(
+            final FileChannel fileChannel,
+            final int chunkIndex,
+            final int startIndex,
+            final int endIndex,
+            final ByteBuffer buffer)
+            throws IOException {
+        final int startOffset = startIndex * Long.BYTES;
+        final int endOffset = endIndex * Long.BYTES;
+
+        buffer.position(startOffset);
+        buffer.limit(endOffset);
+
+        final int bytesToRead = endOffset - startOffset;
+        final long bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, buffer);
+        if (bytesRead != bytesToRead) {
+            throw new IOException("Failed to read chunks, chunkIndex=" + chunkIndex + " expected=" + bytesToRead
+                    + " actual=" + bytesRead);
+        }
+    }
 
     /**
      * Called when the list is initialized from an empty or absent source file.

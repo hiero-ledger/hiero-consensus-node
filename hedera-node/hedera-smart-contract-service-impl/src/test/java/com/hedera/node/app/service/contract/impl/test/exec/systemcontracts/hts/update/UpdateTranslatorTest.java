@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,8 +36,6 @@ import static com.hedera.node.app.service.contract.impl.test.exec.systemcontract
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
@@ -46,6 +44,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
@@ -54,6 +53,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -96,11 +96,16 @@ class UpdateTranslatorTest extends CallTestBase {
     @Mock
     Configuration configuration;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private UpdateTranslator subject;
 
     private final UpdateDecoder decoder = new UpdateDecoder();
 
-    private final Tuple hederaToken = Tuple.of(
+    private final Tuple hederaToken = Tuple.from(
             "name",
             "symbol",
             NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
@@ -115,7 +120,7 @@ class UpdateTranslatorTest extends CallTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new UpdateTranslator(decoder);
+        subject = new UpdateTranslator(decoder, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
@@ -187,8 +192,9 @@ class UpdateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -199,8 +205,9 @@ class UpdateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -211,8 +218,9 @@ class UpdateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -226,8 +234,9 @@ class UpdateTranslatorTest extends CallTestBase {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-        assertTrue(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -238,13 +247,14 @@ class UpdateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertFalse(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void callFromUpdateTest() {
-        Tuple tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaToken);
+        Tuple tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaToken);
         Bytes inputBytes = Bytes.wrapByteBuffer(TOKEN_UPDATE_INFO_FUNCTION_V1.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.isSelector(TOKEN_UPDATE_INFO_FUNCTION_V1)).willReturn(true);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,14 +26,21 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * This class contains common functionality needed for crypto handlers.
  */
 public class BaseCryptoHandler {
+
     /**
      * Gets the accountId from the account number provided.
+     * @param shard the account shard
+     * @param realm the account realm
      * @param num the account number
      * @return the accountID
      */
     @NonNull
-    public static AccountID asAccount(final long num) {
-        return AccountID.newBuilder().accountNum(num).build();
+    public static AccountID asAccount(final long shard, final long realm, final long num) {
+        return AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(num)
+                .build();
     }
 
     /**

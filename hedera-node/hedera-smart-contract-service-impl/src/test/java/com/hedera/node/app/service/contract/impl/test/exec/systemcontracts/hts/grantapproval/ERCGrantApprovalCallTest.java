@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenType;
@@ -107,7 +108,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
                 asBytesResult(
-                        GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encodeElements(true)),
+                        GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encode(Tuple.singleton(true))),
                 result.getOutput());
     }
 
@@ -142,7 +143,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         assertEquals(
                 asBytesResult(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                         .getOutputs()
-                        .encodeElements()),
+                        .encode(Tuple.EMPTY)),
                 result.getOutput());
     }
 
@@ -261,7 +262,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         assertEquals(
                 asBytesResult(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                         .getOutputs()
-                        .encodeElements()),
+                        .encode(Tuple.EMPTY)),
                 result.getOutput());
     }
 }

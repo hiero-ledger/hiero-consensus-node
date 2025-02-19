@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 package com.swirlds.platform.system.events;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.AbstractHashable;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
@@ -83,7 +83,7 @@ public class EventMetadata extends AbstractHashable {
             @Nullable final EventDescriptorWrapper selfParent,
             @NonNull final List<EventDescriptorWrapper> otherParents,
             @NonNull final Instant timeCreated,
-            @NonNull final List<EventTransaction> transactions) {
+            @NonNull final List<Bytes> transactions) {
 
         Objects.requireNonNull(transactions, "The transactions must not be null");
         this.creatorId = Objects.requireNonNull(creatorId, "The creatorId must not be null");
@@ -123,9 +123,7 @@ public class EventMetadata extends AbstractHashable {
         this.timeCreated = HapiUtils.asInstant(
                 Objects.requireNonNull(gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null"));
         this.transactions =
-                Objects.requireNonNull(gossipEvent.eventTransaction(), "transactions must not be null").stream()
-                        .map(TransactionWrapper::new)
-                        .toList();
+                gossipEvent.transactions().stream().map(TransactionWrapper::new).toList();
     }
 
     private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {

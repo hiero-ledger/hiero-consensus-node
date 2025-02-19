@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -390,7 +390,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 final var function = com.esaulpaugh.headlong.abi.Function.fromJson(abi.orElse(null));
                 final var result = function.decodeReturn(
                         rcd.getContractCallResult().getContractCallResult().toByteArray());
-                resultObserver.accept(result.toList().toArray());
+                resultObserver.accept(result.toArray());
             });
         }
         if (eventDataObserver != null) {

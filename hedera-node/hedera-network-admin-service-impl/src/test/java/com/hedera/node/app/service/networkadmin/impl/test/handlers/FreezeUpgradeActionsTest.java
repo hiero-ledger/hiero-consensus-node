@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,11 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.NodesConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.config.AddressBookConfig;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -94,9 +97,21 @@ class FreezeUpgradeActionsTest {
     @Mock
     private NetworkAdminConfig adminServiceConfig;
 
+    @Mock
+    private HederaConfig hederaConfig;
+
+    @Mock
+    private NodesConfig nodesConfig;
+
+    @Mock
+    private AddressBookConfig addressBookConfig;
+
     @BeforeEach
     void setUp() throws IOException {
         given(configuration.getConfigData(NetworkAdminConfig.class)).willReturn(adminServiceConfig);
+        given(configuration.getConfigData(AddressBookConfig.class)).willReturn(addressBookConfig);
+        given(configuration.getConfigData(NodesConfig.class)).willReturn(nodesConfig);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
 
         noiseSubFileLoc = zipOutputDir.toPath().resolve("edargpu");
 

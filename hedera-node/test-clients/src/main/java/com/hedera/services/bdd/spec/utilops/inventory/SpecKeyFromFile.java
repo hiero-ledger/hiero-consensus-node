@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.isVa
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.keyFileAt;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.passFileFor;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.promptForPassphrase;
-import static com.hedera.services.bdd.spec.utilops.inventory.NewSpecKey.exportWithPass;
+import static com.hedera.services.bdd.spec.utilops.inventory.NewSpecKey.exportEd25519WithPass;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkFromMnemonic;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkSimpleKey;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromPem.incorporatePem;
@@ -115,7 +115,7 @@ public class SpecKeyFromFile extends UtilOp {
         if (immediateExportLoc.isPresent() && immediateExportPass.isPresent()) {
             final var exportLoc = immediateExportLoc.get();
             final var exportPass = finalPassphrase.orElse(immediateExportPass.get());
-            exportWithPass(spec, name, exportLoc, exportPass);
+            exportEd25519WithPass(spec, name, exportLoc, exportPass);
             if (verboseLoggingOn && yahcliLogger) {
                 System.out.println(".i. Exported key from " + flexLoc + " to " + exportLoc);
             }

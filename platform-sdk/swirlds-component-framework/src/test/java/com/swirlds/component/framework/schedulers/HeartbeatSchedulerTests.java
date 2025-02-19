@@ -41,7 +41,7 @@ class HeartbeatSchedulerTests {
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
         final TaskScheduler<Void> scheduler =
-                model.schedulerBuilder("test").build().cast();
+                model.<Void>schedulerBuilder("test").build();
 
         final BindableInputWire<Instant, Void> heartbeatBindable = scheduler.buildInputWire("heartbeat");
         model.buildHeartbeatWire(100).solderTo(heartbeatBindable);
@@ -70,7 +70,7 @@ class HeartbeatSchedulerTests {
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
         final TaskScheduler<Void> scheduler =
-                model.schedulerBuilder("test").build().cast();
+                model.<Void>schedulerBuilder("test").build();
 
         final BindableInputWire<Instant, Void> heartbeatBindable = scheduler.buildInputWire("heartbeat");
         model.buildHeartbeatWire(Duration.ofMillis(10)).solderTo(heartbeatBindable);
@@ -99,7 +99,7 @@ class HeartbeatSchedulerTests {
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
         final TaskScheduler<Void> scheduler =
-                model.schedulerBuilder("test").build().cast();
+                model.<Void>schedulerBuilder("test").build();
 
         final BindableInputWire<Instant, Void> heartbeatBindableA = scheduler.buildInputWire("heartbeatA");
         final BindableInputWire<Instant, Void> heartbeatBindableB = scheduler.buildInputWire("heartbeatB");

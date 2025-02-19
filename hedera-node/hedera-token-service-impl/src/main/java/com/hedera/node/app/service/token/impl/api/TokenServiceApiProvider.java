@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -44,21 +44,25 @@ public enum TokenServiceApiProvider implements ServiceApiProvider<TokenServiceAp
     @Override
     public TokenServiceApi newInstance(
             @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService,
-            @NonNull final WritableStates writableStates) {
-        return new TokenServiceApiImpl(configuration, storeMetricsService, writableStates, op -> {
-            final var assessor = new CustomFeeAssessmentStep(op);
-            try {
-                final var result = assessor.assessFees(
-                        new ReadableTokenStoreImpl(writableStates),
-                        new ReadableTokenRelationStoreImpl(writableStates),
-                        configuration,
-                        new ReadableAccountStoreImpl(writableStates),
-                        AccountID::hasAlias);
-                return !result.assessedCustomFees().isEmpty();
-            } catch (Exception ignore) {
-                return false;
-            }
-        });
+            @NonNull final WritableStates writableStates,
+            @NonNull final WritableEntityCounters entityCounters) {
+        return new TokenServiceApiImpl(
+                configuration,
+                writableStates,
+                op -> {
+                    final var assessor = new CustomFeeAssessmentStep(op);
+                    try {
+                        final var result = assessor.assessFees(
+                                new ReadableTokenStoreImpl(writableStates, entityCounters),
+                                new ReadableTokenRelationStoreImpl(writableStates, entityCounters),
+                                configuration,
+                                new ReadableAccountStoreImpl(writableStates, entityCounters),
+                                AccountID::hasAlias);
+                        return !result.assessedCustomFees().isEmpty();
+                    } catch (Exception ignore) {
+                        return false;
+                    }
+                },
+                entityCounters);
     }
 }

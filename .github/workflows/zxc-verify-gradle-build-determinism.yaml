@@ -60,7 +60,7 @@ env:
 jobs:
   generate-baseline:
     name: Generate Baseline
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       path: ${{ steps.baseline.outputs.path }}
@@ -68,7 +68,7 @@ jobs:
       name: ${{ steps.baseline.outputs.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -78,13 +78,13 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Setup Java
-        uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6 # v4.2.2
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
         with:
           cache-disabled: true
 
@@ -151,11 +151,11 @@ jobs:
           #- macos-11
           - windows-2022
           - windows-2019
-          - network-node-linux-medium
-          - network-node-linux-large
+          - hiero-network-node-linux-medium
+          - hiero-network-node-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -170,18 +170,18 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Setup Python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: 3.9
 
       - name: Setup Java
-        uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6 # v4.2.2
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
         with:
           cache-disabled: true
 

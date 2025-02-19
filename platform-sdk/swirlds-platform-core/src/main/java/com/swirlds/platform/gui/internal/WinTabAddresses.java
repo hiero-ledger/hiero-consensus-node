@@ -62,10 +62,8 @@ class WinTabAddresses extends PrePaintableJPanel {
                 final String name = RosterUtils.formatNodeName(entry.nodeId());
                 s += "\n" + entry.nodeId() + "   " + name
                         + "   " + name
-                        + "   " + RosterUtils.fetchHostname(entry, 1) // internal hostname
-                        + "   " + RosterUtils.fetchPort(entry, 1) // internal port
-                        + "   " + RosterUtils.fetchHostname(entry, 0) // external hostname
-                        + "   " + RosterUtils.fetchPort(entry, 0); // external port
+                        + "   " + RosterUtils.fetchHostname(entry, 0)
+                        + "   " + RosterUtils.fetchPort(entry, 0);
             }
         }
         s += wrap(

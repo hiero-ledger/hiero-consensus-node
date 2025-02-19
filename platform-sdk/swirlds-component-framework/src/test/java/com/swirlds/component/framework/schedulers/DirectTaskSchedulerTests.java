@@ -48,19 +48,17 @@ class DirectTaskSchedulerTests {
 
         final StandardObjectCounter counter = new StandardObjectCounter(Duration.ofMillis(1));
 
-        final TaskScheduler<Integer> schedulerA = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> schedulerA = model.<Integer>schedulerBuilder("A")
                 .withType(type)
                 .withOnRamp(counter)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Integer> inA = schedulerA.buildInputWire("inA");
         final OutputWire<Integer> outA = schedulerA.getOutputWire();
 
-        final TaskScheduler<Void> schedulerB = model.schedulerBuilder("B")
+        final TaskScheduler<Void> schedulerB = model.<Void>schedulerBuilder("B")
                 .withType(type)
                 .withOffRamp(counter)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Void> inB = schedulerB.buildInputWire("inB");
 
         final SolderType solderType;
@@ -129,11 +127,10 @@ class DirectTaskSchedulerTests {
             assertEquals("intentional", e.getMessage());
         };
 
-        final TaskScheduler<Void> scheduler = model.schedulerBuilder("test")
+        final TaskScheduler<Void> scheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
                 .withUncaughtExceptionHandler(handler)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<Integer, Void> in = scheduler.buildInputWire("in");
 
@@ -173,11 +170,10 @@ class DirectTaskSchedulerTests {
         final Thread mainThread = Thread.currentThread();
         final TaskSchedulerType type = threadsafe ? TaskSchedulerType.DIRECT_THREADSAFE : TaskSchedulerType.DIRECT;
 
-        final TaskScheduler<Integer> scheduler = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> scheduler = model.<Integer>schedulerBuilder("A")
                 .withType(type)
                 .withSquelchingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Integer> inputWire = scheduler.buildInputWire("input");
 
         final AtomicInteger handleCount = new AtomicInteger(0);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,12 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.NOT_SUPPORTED;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
 import static org.mockito.Mockito.when;
 
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -52,6 +54,9 @@ class HasSystemContractTest {
     @Mock
     private GasCalculator gasCalculator;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
     private MockedStatic<FrameUtils> frameUtils;
 
     private HasSystemContract subject;
@@ -60,7 +65,7 @@ class HasSystemContractTest {
     @BeforeEach
     void setUp() {
         frameUtils = Mockito.mockStatic(FrameUtils.class);
-        subject = new HasSystemContract(gasCalculator, attemptFactory);
+        subject = new HasSystemContract(gasCalculator, attemptFactory, contractMetrics);
     }
 
     @AfterEach
@@ -77,7 +82,7 @@ class HasSystemContractTest {
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(contractsConfig);
         when(contractsConfig.systemContractAccountServiceEnabled()).thenReturn(false);
         final var expected = haltResult(NOT_SUPPORTED, frame.getRemainingGas());
-        final var result = subject.computeFully(validInput, frame);
+        final var result = subject.computeFully(HAS_CONTRACT_ID, validInput, frame);
         assertSamePrecompileResult(expected, result);
     }
 }

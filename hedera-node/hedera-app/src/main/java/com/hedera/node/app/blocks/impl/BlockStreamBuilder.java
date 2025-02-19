@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
@@ -28,6 +30,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
+import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.CreateScheduleOutput;
 import com.hedera.hapi.block.stream.output.CryptoTransferOutput;
@@ -35,6 +38,7 @@ import com.hedera.hapi.block.stream.output.EthereumOutput;
 import com.hedera.hapi.block.stream.output.SignScheduleOutput;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.block.stream.output.SubmitMessageOutput;
 import com.hedera.hapi.block.stream.output.TokenAirdropOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -1129,6 +1133,16 @@ public class BlockStreamBuilder
         } else if (functionality == TOKEN_AIRDROP && hasAssessedCustomFees) {
             items.add(
                     itemWith(TransactionOutput.newBuilder().tokenAirdrop(new TokenAirdropOutput(assessedCustomFees))));
+        } else if (functionality == CONSENSUS_SUBMIT_MESSAGE && hasAssessedCustomFees) {
+            items.add(itemWith(
+                    TransactionOutput.newBuilder().submitMessage(new SubmitMessageOutput(assessedCustomFees))));
+        }
+
+        if (functionality == CRYPTO_CREATE && accountId != null) {
+            items.add(itemWith(TransactionOutput.newBuilder()
+                    .accountCreate(CreateAccountOutput.newBuilder()
+                            .createdAccountId(accountId)
+                            .build())));
         }
     }
 

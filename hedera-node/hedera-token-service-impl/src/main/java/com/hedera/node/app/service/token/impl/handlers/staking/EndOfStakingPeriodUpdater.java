@@ -30,7 +30,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transaction
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.NodeStake;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -42,18 +41,16 @@ import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.StakingConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -71,6 +68,7 @@ public class EndOfStakingPeriodUpdater {
     private static final MathContext MATH_CONTEXT = new MathContext(8, RoundingMode.DOWN);
 
     private final AccountsConfig accountsConfig;
+    private final HederaConfig hederaConfig;
     private final StakingRewardsHelper stakeRewardsHelper;
 
     /**
@@ -84,6 +82,7 @@ public class EndOfStakingPeriodUpdater {
         this.stakeRewardsHelper = stakeRewardsHelper;
         final var config = configProvider.getConfiguration();
         this.accountsConfig = config.getConfigData(AccountsConfig.class);
+        this.hederaConfig = config.getConfigData(HederaConfig.class);
     }
 
     /**
@@ -92,13 +91,9 @@ public class EndOfStakingPeriodUpdater {
      *
      * @param context       the context of the transaction used to end the staking period
      * @param exchangeRates the active exchange rate set
-     * @param weightUpdates the callback to use to propagate weight changes
      */
     public @Nullable StreamBuilder updateNodes(
-            @NonNull final TokenContext context,
-            @NonNull final ExchangeRateSet exchangeRates,
-            @NonNull final BiConsumer<Long, Integer> weightUpdates,
-            final boolean useRosterLifecycle) {
+            @NonNull final TokenContext context, @NonNull final ExchangeRateSet exchangeRates) {
         requireNonNull(context);
         requireNonNull(exchangeRates);
         final var consensusTime = context.consensusTime();
@@ -126,20 +121,17 @@ public class EndOfStakingPeriodUpdater {
 
         // Tracks the reward rates for each node for the just-finished period, for later externalization
         final Map<Long, Long> nodeRewardRates = new HashMap<>();
-        // Tracks the maximum stake of any node, used to scale the recomputed consensus weights
-        long newMaxNodeStake = 0;
         // Accumulates the new total hbar staked to all nodes, whether rewarded or not
-        long newTotalStake = 0;
+        long newTotalStake = 0L;
         // Accumulates the new total hbar staked to all nodes that will be rewarded
-        long newStakeToReward = 0;
+        long newStakeToReward = 0L;
         // Records the new staking node info for each node
-        final Map<Long, StakingNodeInfo> newNodeInfos = new LinkedHashMap<>();
         final var stakingInfoStore = context.writableStore(WritableStakingInfoStore.class);
+        final var nodeStakes = new ArrayList<NodeStake>();
         for (final var nodeId : context.knownNodeIds().stream().sorted().toList()) {
             // The node's staking info at the end of the period, non-final because
-            // we iteratively update its reward sum history,
-            var nodeInfo = requireNonNull(stakingInfoStore.getForModify(nodeId));
-
+            // we iteratively update its reward sum history
+            var nodeInfo = requireNonNull(stakingInfoStore.get(nodeId));
             // The return value here includes both the new reward sum history, and the reward rate
             // (tinybars-per-hbar) that will be paid to all accounts who had staked to reward for
             // this node long enough to be eligible in the just-finished period
@@ -162,7 +154,7 @@ public class EndOfStakingPeriodUpdater {
             final var pendingRewards = (nodeInfo.stakeRewardStart() - nodeInfo.unclaimedStakeRewardStart())
                     / HBARS_TO_TINYBARS
                     * nodeRewardRate;
-            final var newStakes = computeNewStakes(nodeInfo);
+            final var newStakes = computeNewStakes(nodeInfo, stakingConfig);
             log.info(
                     "For node{}, the tb/hbar reward rate was {} for {} pending, with stake reward start {} -> {}",
                     nodeId,
@@ -180,52 +172,12 @@ public class EndOfStakingPeriodUpdater {
 
             newStakeToReward += newStakes.stakeRewardStart();
             newTotalStake += nodeInfo.stake();
-            // Update the max stake of all nodes
-            newMaxNodeStake = Math.max(newMaxNodeStake, nodeInfo.stake());
-            // We can't finalize the new node weights until we have the final stake tallies, so just record
-            // the in-progress node info for now
-            newNodeInfos.put(nodeId, nodeInfo);
+            if (!nodeInfo.deleted()) {
+                nodeStakes.add(EndOfStakingPeriodUtils.fromStakingInfo(nodeRewardRates.get(nodeId), nodeInfo));
+            }
+            stakingInfoStore.put(nodeId, nodeInfo);
         }
 
-        // Accumulates the node stakes for externalization
-        final var nodeStakes = new ArrayList<NodeStake>();
-        // Configuration determines the total consensus weight to be distributed among nodes
-        final int totalWeight = stakingConfig.sumOfConsensusWeights();
-        // Final for reference in lambda
-        final long maxStake = newMaxNodeStake;
-        final long totalStake = newTotalStake;
-        newNodeInfos.forEach((nodeId, nodeInfo) -> {
-            var newNodeInfo = nodeInfo;
-            // If the total stake(rewarded + non-rewarded) of a node is less than minStake, stakingInfo's stake field
-            // represents 0, as per calculation done in reviewElectionsAndRecomputeStakes. Similarly, the total
-            // stake(rewarded + non-rewarded) of the node is greater than maxStake, stakingInfo's stake field is set to
-            // maxStake.So, there is no need to clamp the stake value here. Sum of all stakes can be used to calculate
-            // the weight.
-            if (!useRosterLifecycle) {
-                final int newWeight =
-                        nodeInfo.deleted() ? 0 : scaleStakeToWeight(nodeInfo.stake(), totalStake, totalWeight);
-                log.info("Node{} weight changed from {} to {}", nodeId, nodeInfo.weight(), newWeight);
-                newNodeInfo = nodeInfo.copyBuilder().weight(newWeight).build();
-                weightUpdates.accept(nodeId, newWeight);
-                // We rescale the weight range [0, sumOfConsensusWeights] back to [minStake, maxStake] before
-                // externalizing the node stake metadata to stream consumers like mirror nodes
-                final var rescaledWeight =
-                        rescaleWeight(newWeight, nodeInfo.minStake(), maxStake, totalStake, totalWeight);
-                if (!nodeInfo.deleted()) {
-                    nodeStakes.add(EndOfStakingPeriodUtils.fromStakingInfo(
-                            nodeRewardRates.get(nodeId),
-                            nodeInfo.copyBuilder().stake(rescaledWeight).build()));
-                }
-            } else {
-                // When using the roster lifecycle, the weight is deprecated.
-                // Weight is considered as the stake value of the node
-                if (!nodeInfo.deleted()) {
-                    nodeStakes.add(EndOfStakingPeriodUtils.fromStakingInfo(nodeRewardRates.get(nodeId), nodeInfo));
-                }
-            }
-            // Persist the updated staking info
-            stakingInfoStore.put(nodeId, newNodeInfo);
-        });
         // Update the staking reward values for the network
         stakingRewardsStore.put(asStakingRewardBuilder(stakingRewardsStore)
                 .totalStakedRewardStart(newStakeToReward)
@@ -258,94 +210,6 @@ public class EndOfStakingPeriodUpdater {
                 .memo(END_OF_PERIOD_MEMO)
                 .exchangeRate(exchangeRates)
                 .status(SUCCESS);
-    }
-
-    /**
-     * Scales up the weight of the node to the range [minStake, maxStakeOfAllNodes]
-     * from the consensus weight range [0, sumOfConsensusWeights].
-     * When {@code addressbook..userRosterLifeCycle} is enabled, the weight is considered as
-     * the stake value of the node and the weight is not scaled.
-     *
-     * @param weight                weight of the node
-     * @param newMinStake           min stake of the node
-     * @param newMaxStake           real max stake of all nodes computed by taking max(stakeOfNode1, stakeOfNode2, ...)
-     * @param totalStakeOfAllNodes  total stake of all nodes at the start of new period
-     * @param sumOfConsensusWeights sum of consensus weights of all nodes
-     * @return scaled weight of the node
-     */
-    @VisibleForTesting
-    public static long rescaleWeight(
-            final int weight,
-            final long newMinStake,
-            final long newMaxStake,
-            final long totalStakeOfAllNodes,
-            final int sumOfConsensusWeights) {
-        // Don't scale a weight of zero
-        if (weight == 0) {
-            return 0;
-        }
-
-        if (totalStakeOfAllNodes == 0) {
-            // This should never happen, but if it does, return zero
-            log.warn(
-                    "Total stake of all nodes is 0, which shouldn't happen "
-                            + "(weight={}, minStake={}, maxStake={}, sumOfConsensusWeights={})",
-                    weight,
-                    newMinStake,
-                    newMaxStake,
-                    sumOfConsensusWeights);
-            return 0;
-        }
-
-        final var oldMinWeight = 1L;
-        // Since we are calculating weights based on the real stake values, we need to consider the real max Stake and
-        // not theoretical max stake of nodes. Otherwise, on a one node network with a stake < maxStake where we assign
-        // a weight of sumOfConsensusWeights, the scaled stake value will be greater than its real stake.
-        final var oldMaxWeight = BigInteger.valueOf(newMaxStake)
-                .multiply(BigInteger.valueOf(sumOfConsensusWeights))
-                .divide(BigInteger.valueOf(totalStakeOfAllNodes))
-                .longValue();
-        // Otherwise compute the interpolation of the weight in the range [minStake, maxStake]
-        return BigInteger.valueOf(newMaxStake)
-                .subtract(BigInteger.valueOf(newMinStake))
-                .multiply(BigInteger.valueOf(weight - oldMinWeight))
-                .divide(BigInteger.valueOf(oldMaxWeight - oldMinWeight))
-                .add(BigInteger.valueOf(newMinStake))
-                .longValue();
-    }
-
-    /**
-     * Scales a single node's hbar stake in tinybars to a consensus weight based on the total stake of all nodes
-     * and the desired total weight.
-     * <p>
-     * The result are normalized weights whose sum will be approximately the given total weight. That is, any node
-     * with a non-zero amount of stake will have a weight of at least {@code 1}; any node with a stake of at least one
-     * out of every 250 whole hbars staked will have weight at least {@code 2}; and so on.
-     * <p>
-     * When {@code addressbook..userRosterLifeCycle} is enabled, the weight is considered as the stake value of the node.
-     * In this case, the weight is not scaled. The weight field will be deprecated, and the stake field will be used
-     * as the weight of the node in the roster.
-     *
-     * @param nodeStake   the stake of a single node, both rewarded and non-rewarded
-     * @param totalStake  the total stake of all nodes
-     * @param totalWeight the desired approximate total weight of all nodes
-     * @return the scaled consensus weight for the node
-     */
-    @VisibleForTesting
-    public static int scaleStakeToWeight(final long nodeStake, final long totalStake, final int totalWeight) {
-        if (nodeStake == 0) {
-            return 0;
-        }
-        if (totalStake <= 0L) {
-            log.error("Scaling {} to zero weight because total stake is {}", nodeStake, totalStake);
-            return 0;
-        }
-        return Math.max(
-                1,
-                BigInteger.valueOf(nodeStake)
-                        .multiply(BigInteger.valueOf(totalWeight))
-                        .divide(BigInteger.valueOf(totalStake))
-                        .intValueExact());
     }
 
     /**
@@ -415,7 +279,8 @@ public class EndOfStakingPeriodUpdater {
     }
 
     private long getRewardsBalance(@NonNull final ReadableAccountStore accountStore) {
-        return requireNonNull(accountStore.getAccountById(asAccount(accountsConfig.stakingRewardAccount())))
+        return requireNonNull(accountStore.getAccountById(
+                        asAccount(hederaConfig.shard(), hederaConfig.realm(), accountsConfig.stakingRewardAccount())))
                 .tinybarBalance();
     }
 }

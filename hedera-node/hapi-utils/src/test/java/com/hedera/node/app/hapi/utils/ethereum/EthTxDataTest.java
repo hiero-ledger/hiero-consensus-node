@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
+import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.swirlds.common.utility.CommonUtils;
@@ -302,44 +303,42 @@ class EthTxDataTest {
     @Test
     void whiteBoxDecodingErrors() {
         final var oneByte = new byte[] {1};
-        final var sequentiallyEncodeOneByte = RLPEncoder.encodeSequentially(oneByte);
+        final var sequentiallyEncodeOneByte = RLPEncoder.sequence(oneByte);
         final var size_13 = List.of(
                 oneByte, oneByte, oneByte, oneByte, oneByte, oneByte, oneByte, oneByte, oneByte, oneByte, oneByte,
                 oneByte, oneByte);
         final var size_1 = List.of(oneByte);
 
         // legacy TX with too many RLP entries
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeAsList(size_13)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.list(size_13)));
         // legacy TX with too few RLP entries
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeAsList(size_1)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.list(size_1)));
         // type 1 TX with too few RLP entries
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {1}, size_1)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {1}, size_1)));
         // type 1 TX with too many RLP entries
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {1}, size_13)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {1}, size_13)));
         // type 1 TX with not <List> Type RLP Item
-        assertNull(
-                EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {1}, sequentiallyEncodeOneByte)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {1}, sequentiallyEncodeOneByte)));
         // type 2 TX with too many RLP entries
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {2}, size_13)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, size_13)));
         // type 2 TX with too few RLP entries
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {2}, size_1)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, size_1)));
         // type 2 TX with not <List> Type RLP Item
-        assertNull(
-                EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {2}, sequentiallyEncodeOneByte)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, sequentiallyEncodeOneByte)));
         // type 3 TX (blobs) are rejected (just one test case suffices)
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {3}, size_13)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {3}, size_13)));
         {
             final var rawTx3 = Hex.decode(RAW_TX_TYPE_3);
             rawTx3[1] += 1; // now total length is wrong, thus invalid RLP encoding
             assertNull(EthTxData.populateEthTxData(rawTx3));
         }
         // Unsupported Transaction Type
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {127}, size_13)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {127}, size_13)));
         // Trimmed End Bytes
         assertNull(EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_TRIMMED_LAST_BYTES)));
 
         // poorly wrapped typed transaction
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {2}, oneByte, oneByte)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, oneByte, oneByte)));
     }
 
     byte[][] normalRlpData() {
@@ -355,27 +354,35 @@ class EthTxDataTest {
     @Test
     void parsingErrors() {
         final var wrongData = Hex.encode(ByteString.copyFromUtf8("wrong").toByteArray());
+        final var negativeInteger = Integers.toBytes(Long.MIN_VALUE);
 
         // invalid nonce
         var normalData = normalRlpData();
         normalData[1] = wrongData;
         final var invalidNonceData = Arrays.asList(normalData);
 
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {2}, invalidNonceData)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, invalidNonceData)));
 
-        // invalid gasLimit
+        // invalid gasLimit: too large
         normalData = normalRlpData();
         normalData[4] = wrongData;
         final var invalidGasLimitData = Arrays.asList(normalData);
 
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {2}, invalidGasLimitData)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, invalidGasLimitData)));
+
+        // invalid gaslimit: negative
+        normalData = normalRlpData();
+        normalData[4] = negativeInteger;
+        final var invalidGasDataNegative = Arrays.asList(normalData);
+
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, invalidGasDataNegative)));
 
         // invalid recId
         normalData = normalRlpData();
         normalData[9] = wrongData;
         final var invalidRecIdData = Arrays.asList(normalData);
 
-        assertNull(EthTxData.populateEthTxData(RLPEncoder.encodeSequentially(new byte[] {2}, invalidRecIdData)));
+        assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, invalidRecIdData)));
 
         // zero length data
         assertNull(EthTxData.populateEthTxData(new byte[0]));

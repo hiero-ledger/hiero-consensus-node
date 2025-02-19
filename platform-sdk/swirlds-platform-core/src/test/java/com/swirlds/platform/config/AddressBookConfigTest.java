@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2018-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,16 +29,5 @@ class AddressBookConfigTest {
                 ConfigurationBuilder.create().withConfigDataTypes(AddressBookConfig.class);
         // then
         Assertions.assertDoesNotThrow(() -> configurationBuilder.build(), "All default values should be valid");
-    }
-
-    @Test
-    public void testUseRosterLifecycleDefaultValue() {
-        // given
-        final ConfigurationBuilder configurationBuilder =
-                ConfigurationBuilder.create().withConfigDataTypes(AddressBookConfig.class);
-        // when
-        AddressBookConfig config = configurationBuilder.build().getConfigData(AddressBookConfig.class);
-        // then
-        Assertions.assertFalse(config.useRosterLifecycle(), "The default value of useRosterLifecycle should be false");
     }
 }

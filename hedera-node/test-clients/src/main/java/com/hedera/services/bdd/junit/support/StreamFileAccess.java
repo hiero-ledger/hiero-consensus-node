@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStrea
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.parseRecordFileConsensusTime;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.parseSidecarFileConsensusTimeAndSequenceNo;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.TEST_CLIENTS_PREFIX;
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.relocatedIfNotPresentWithCurrentPathPrefix;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.TEST_CLIENTS_PREFIX;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentWithCurrentPathPrefix;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,11 +27,11 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.wiring.components.StateAndRound;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,7 +72,7 @@ class StateGarbageCollectorTests {
                 garbageCollector.registerState(new StateAndRound(
                         signedState.reserve("send state to garbage collector"),
                         mock(ConsensusRound.class),
-                        mock(ArrayList.class)));
+                        mock(ConcurrentLinkedQueue.class)));
             }
 
             // Randomly release some of the states.

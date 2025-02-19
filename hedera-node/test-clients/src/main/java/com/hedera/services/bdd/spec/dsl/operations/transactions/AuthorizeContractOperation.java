@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType.FEE_SCHEDULE_KEY;
@@ -64,7 +65,7 @@ public class AuthorizeContractOperation extends AbstractSpecOperation implements
         });
         this.target = target;
         this.contracts = requireNonNull(contracts);
-        this.managedKeyName = target.name() + "_"
+        managedKeyName = target.name() + "_"
                 + Arrays.stream(contracts).map(SpecContract::name).collect(joining("|")) + "ManagedKey";
     }
 
@@ -85,8 +86,9 @@ public class AuthorizeContractOperation extends AbstractSpecOperation implements
         final var key = spec.keys().generateSubjectTo(spec, controller);
         spec.registry().saveKey(managedKeyName, key);
         return switch (target) {
-            case SpecAccount account -> cryptoUpdate(account.name()).key(managedKeyName);
-            case SpecToken token -> {
+            case final SpecAccount account -> cryptoUpdate(account.name()).key(managedKeyName);
+            case final SpecContract contract -> contractUpdate(contract.name()).newKey(managedKeyName);
+            case final SpecToken token -> {
                 final var op = tokenUpdate(token.name()).adminKey(managedKeyName);
                 if (extraTokenAuthorizations.contains(TokenKeyType.KYC_KEY)) {
                     op.kycKey(managedKeyName);
@@ -118,11 +120,12 @@ public class AuthorizeContractOperation extends AbstractSpecOperation implements
     @Override
     protected void onSuccess(@NonNull final HapiSpec spec) {
         switch (target) {
-            case SpecAccount account -> account.updateKeyFrom(
+            case final SpecAccount account -> account.updateKeyFrom(
                     toPbj(spec.registry().getKey(managedKeyName)), spec);
-            case SpecToken token -> {
+            case final SpecToken token -> {
                 // (FUTURE) - update the admin key on the token model
             }
+            case final SpecContract contract -> {}
             default -> throw new IllegalStateException("Cannot authorize contract for " + target);
         }
     }

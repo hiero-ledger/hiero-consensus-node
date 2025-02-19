@@ -192,6 +192,7 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.test.fixtures.MapReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.time.Duration;
@@ -1802,11 +1803,11 @@ public class RepeatableHip423Tests {
 
     private interface ScheduleStateConsumer {
         void accept(
-                @NonNull ReadableKVState<ScheduleID, Schedule> schedulesById,
-                @NonNull ReadableKVState<TimestampSeconds, ScheduledCounts> scheduledCounts,
-                @NonNull ReadableKVState<TimestampSeconds, ThrottleUsageSnapshots> scheduledUsages,
-                @NonNull ReadableKVState<ScheduledOrder, ScheduleID> scheduledOrders,
-                @NonNull ReadableKVState<ProtoBytes, ScheduleID> scheduleIdByEquality);
+                @NonNull MapReadableKVState<ScheduleID, Schedule> schedulesById,
+                @NonNull MapReadableKVState<TimestampSeconds, ScheduledCounts> scheduledCounts,
+                @NonNull MapReadableKVState<TimestampSeconds, ThrottleUsageSnapshots> scheduledUsages,
+                @NonNull MapReadableKVState<ScheduledOrder, ScheduleID> scheduledOrders,
+                @NonNull MapReadableKVState<ProtoBytes, ScheduleID> scheduleIdByEquality);
     }
 
     private static SpecOperation viewScheduleStateSizes(@NonNull final Consumer<ScheduleStateSizes> consumer) {
@@ -1820,11 +1821,16 @@ public class RepeatableHip423Tests {
             final var state = spec.embeddedStateOrThrow();
             final var readableStates = state.getReadableStates(ScheduleService.NAME);
             consumer.accept(
-                    readableStates.get(SCHEDULES_BY_ID_KEY),
-                    readableStates.get(SCHEDULED_COUNTS_KEY),
-                    readableStates.get(SCHEDULED_USAGES_KEY),
-                    readableStates.get(SCHEDULED_ORDERS_KEY),
-                    readableStates.get(SCHEDULE_ID_BY_EQUALITY_KEY));
+                    (MapReadableKVState<ScheduleID, Schedule>)
+                            readableStates.<ScheduleID, Schedule>get(SCHEDULES_BY_ID_KEY),
+                    (MapReadableKVState<TimestampSeconds, ScheduledCounts>)
+                            readableStates.<TimestampSeconds, ScheduledCounts>get(SCHEDULED_COUNTS_KEY),
+                    (MapReadableKVState<TimestampSeconds, ThrottleUsageSnapshots>)
+                            readableStates.<TimestampSeconds, ThrottleUsageSnapshots>get(SCHEDULED_USAGES_KEY),
+                    (MapReadableKVState<ScheduledOrder, ScheduleID>)
+                            readableStates.<ScheduledOrder, ScheduleID>get(SCHEDULED_ORDERS_KEY),
+                    (MapReadableKVState<ProtoBytes, ScheduleID>)
+                            readableStates.<ProtoBytes, ScheduleID>get(SCHEDULE_ID_BY_EQUALITY_KEY));
         });
     }
 

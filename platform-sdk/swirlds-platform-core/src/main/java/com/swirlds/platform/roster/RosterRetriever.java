@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,7 @@ import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
@@ -70,15 +69,14 @@ public final class RosterRetriever {
      * @return an active Roster for the round of the state, or a Roster that represents the current AddressBook in PlatformState
      */
     @Nullable
-    public static Roster retrieveActiveOrGenesisRoster(@NonNull final State state) {
-        final var roster = retrieveActive(state, getRound(state));
+    public static Roster retrieveActiveOrGenesisRoster(
+            @NonNull final State state, @NonNull final PlatformStateFacade platformStateFacade) {
+        final var roster = retrieveActive(state, platformStateFacade.roundOf(state));
         if (roster != null) {
             return roster;
         }
         // We are currently in bootstrap for the genesis roster, which is set in the address book
-        final var readablePlatformStateStore =
-                new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        return buildRoster(readablePlatformStateStore.getAddressBook());
+        return buildRoster(platformStateFacade.addressBookOf(state));
     }
 
     /**
@@ -91,16 +89,15 @@ public final class RosterRetriever {
      * @return the previous roster, or null
      */
     @Nullable
-    public static Roster retrievePreviousRoster(@NonNull final State state) {
+    public static Roster retrievePreviousRoster(
+            @NonNull final State state, @NonNull final PlatformStateFacade platformStateFacade) {
         final ReadableSingletonState<RosterState> rosterState =
                 state.getReadableStates(ROSTER_SERVICE).getSingleton(ROSTER_STATES_KEY);
         final List<RoundRosterPair> roundRosterPairs =
                 requireNonNull(rosterState.get()).roundRosterPairs();
 
         if (roundRosterPairs.isEmpty()) {
-            final var readablePlatformStateStore =
-                    new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            return buildRoster(readablePlatformStateStore.getPreviousAddressBook());
+            return buildRoster(platformStateFacade.previousAddressBookOf(state));
         }
 
         if (roundRosterPairs.size() < 2) {
@@ -165,18 +162,6 @@ public final class RosterRetriever {
     public static @NonNull Bytes getCandidateRosterHash(@NonNull final State state) {
         final var rosterState = state.getReadableStates(ROSTER_SERVICE).<RosterState>getSingleton(ROSTER_STATES_KEY);
         return requireNonNull(rosterState.get()).candidateRosterHash();
-    }
-
-    /**
-     * Get the current round of the given state.
-     *
-     * @param state a state
-     * @return the round of the state
-     */
-    public static long getRound(@NonNull final State state) {
-        final ReadablePlatformStateStore readablePlatformStateStore =
-                new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        return readablePlatformStateStore.getRound();
     }
 
     /**

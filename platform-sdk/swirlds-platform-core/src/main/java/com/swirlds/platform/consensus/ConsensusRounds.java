@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -47,14 +48,14 @@ public class ConsensusRounds {
     private long maxRoundCreated = ConsensusConstants.ROUND_UNDEFINED;
     /** The round we are currently voting on */
     private final RoundElections roundElections = new RoundElections();
+    /** the minimum generation of all the judges that are not ancient */
+    private long minGenNonAncient = EventConstants.FIRST_GENERATION;
 
     /** Constructs an empty object */
-    public ConsensusRounds(
-            @NonNull final ConsensusConfig config,
-            @NonNull final SequentialRingBuffer<MinimumJudgeInfo> minimumJudgeStorage,
-            @NonNull final Roster roster) {
+    public ConsensusRounds(@NonNull final ConsensusConfig config, @NonNull final Roster roster) {
         this.config = Objects.requireNonNull(config);
-        this.minimumJudgeStorage = Objects.requireNonNull(minimumJudgeStorage);
+        this.minimumJudgeStorage =
+                new SequentialRingBuffer<>(ConsensusConstants.ROUND_FIRST, config.roundsExpired() * 2);
         this.rosterEntryMap = RosterUtils.toMap(Objects.requireNonNull(roster));
         reset();
     }
@@ -64,6 +65,7 @@ public class ConsensusRounds {
         minimumJudgeStorage.reset(ConsensusConstants.ROUND_FIRST);
         maxRoundCreated = ConsensusConstants.ROUND_UNDEFINED;
         roundElections.reset();
+        updateMinGenNonAncient();
     }
 
     /**
@@ -138,6 +140,7 @@ public class ConsensusRounds {
         roundElections.startNextElection();
         // Delete the oldest rounds with round number which is expired
         minimumJudgeStorage.removeOlderThan(getFameDecidedBelow() - config.roundsExpired());
+        updateMinGenNonAncient();
     }
 
     /**
@@ -186,11 +189,12 @@ public class ConsensusRounds {
      * @param minimumJudgeInfos a list of round numbers and round ancient indicator pairs, in ascending round numbers
      */
     public void loadFromMinimumJudge(@NonNull final List<MinimumJudgeInfo> minimumJudgeInfos) {
-        minimumJudgeStorage.reset(minimumJudgeInfos.get(0).round());
+        minimumJudgeStorage.reset(minimumJudgeInfos.getFirst().round());
         for (final MinimumJudgeInfo minimumJudgeInfo : minimumJudgeInfos) {
             minimumJudgeStorage.add(minimumJudgeInfo.round(), minimumJudgeInfo);
         }
         roundElections.setRound(minimumJudgeStorage.getLatest().round() + 1);
+        updateMinGenNonAncient();
     }
 
     /**
@@ -217,5 +221,72 @@ public class ConsensusRounds {
             return null;
         }
         return minimumJudgeInfo;
+    }
+
+    /**
+     * @return the max round created, or {@link ConsensusConstants#ROUND_UNDEFINED} if none.
+     */
+    public long getMaxRound() {
+        return maxRoundCreated;
+    }
+
+    /**
+     * @return The minimum judge generation number from the oldest non-expired round, if we have expired any rounds.
+     * Else this returns {@link EventConstants#FIRST_GENERATION}.
+     */
+    public long getMinRoundGeneration() {
+        final MinimumJudgeInfo info = minimumJudgeStorage.get(minimumJudgeStorage.minIndex());
+        return info == null ? EventConstants.FIRST_GENERATION : info.minimumJudgeAncientThreshold();
+    }
+
+    /**
+     * Update the oldest non-ancient round generation
+     *
+     * <p>Executed only on consensus thread.
+     */
+    private void updateMinGenNonAncient() {
+        if (getFameDecidedBelow() == ConsensusConstants.ROUND_FIRST) {
+            // if no round has been decided, no events are ancient yet
+            minGenNonAncient = EventConstants.FIRST_GENERATION;
+            return;
+        }
+        final long nonAncientRound =
+                RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), getLastRoundDecided());
+        final MinimumJudgeInfo info = minimumJudgeStorage.get(nonAncientRound);
+        minGenNonAncient = info.minimumJudgeAncientThreshold();
+    }
+
+    /**
+     * Return the minimum generation of all the famous witnesses that are not in ancient rounds.
+     *
+     * <p>Define gen(R) to be the minimum generation of all the events that were famous witnesses in
+     * round R.
+     *
+     * <p>If round R is the most recent round for which we have decided the fame of all the
+     * witnesses, then any event with a generation less than gen(R - {@code Settings.state.roundsExpired}) is called an
+     * “expired” event. And any non-expired event with a generation less than gen(R -
+     * {@code Settings.state.roundsNonAncient} + 1) is an “ancient” event. If the event failed to achieve consensus
+     * before becoming ancient, then it is “stale”. So every non-expired event with a generation before gen(R -
+     * {@code Settings.state.roundsNonAncient} + 1) is either stale or consensus, not both.
+     *
+     * <p>Expired events can be removed from memory unless they are needed for an old signed state
+     * that is still being used for something (such as still in the process of being written to disk).
+     *
+     * @return The minimum generation of all the judges that are not ancient. If no judges are ancient, returns
+     * {@link EventConstants#FIRST_GENERATION}.
+     */
+    public long getMinGenerationNonAncient() {
+        return minGenNonAncient;
+    }
+
+    /**
+     * Checks if the supplied event is ancient or not. An event is ancient if its generation is smaller than the round
+     * generation of the oldest non-ancient round.
+     *
+     * @param event the event to check
+     * @return true if the event is ancient, false otherwise
+     */
+    public boolean isAncient(@NonNull final EventImpl event) {
+        return event.getGeneration() < getMinGenerationNonAncient();
     }
 }

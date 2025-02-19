@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -89,6 +90,9 @@ class PreHandleContextImplTest implements Scenarios {
     @Mock
     TransactionDispatcher dispatcher;
 
+    @Mock
+    private TransactionChecker transactionChecker;
+
     private PreHandleContextImpl subject;
 
     @BeforeEach
@@ -98,7 +102,7 @@ class PreHandleContextImplTest implements Scenarios {
         given(account.keyOrThrow()).willReturn(payerKey);
 
         final var txn = createAccountTransaction();
-        subject = new PreHandleContextImpl(storeFactory, txn, configuration, dispatcher);
+        subject = new PreHandleContextImpl(storeFactory, txn, configuration, dispatcher, transactionChecker);
     }
 
     @Test

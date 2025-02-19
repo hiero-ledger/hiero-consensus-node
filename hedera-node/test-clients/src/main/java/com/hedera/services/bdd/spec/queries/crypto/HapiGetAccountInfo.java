@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -252,8 +252,7 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
                 || !absentRelationships.isEmpty()
                 || (expectations.isPresent() && expectations.get().hasTokenAssociationExpectation())
                 || registryEntry.isPresent()) {
-            final var detailsLookup = QueryVerbs.getAccountDetails(
-                            "0.0." + actualInfo.getAccountID().getAccountNum())
+            final var detailsLookup = QueryVerbs.getAccountDetails(toEntityId(actualInfo.getAccountID()))
                     .payingWith(GENESIS);
             CustomSpecAssert.allRunFor(spec, detailsLookup);
             final var response = detailsLookup.getResponse();
@@ -390,5 +389,9 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
         } else {
             observer.accept(key);
         }
+    }
+
+    private String toEntityId(AccountID accountID) {
+        return accountID.getShardNum() + "." + accountID.getRealmNum() + "." + accountID.getAccountNum();
     }
 }

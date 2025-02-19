@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_SCHEDULE_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -31,6 +32,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAddressChecks;
@@ -40,6 +42,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.signsc
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.SyntheticIds;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -80,7 +83,7 @@ class HssCallFactoryTest extends CallTestBase {
     @Mock
     private MessageFrame initialFrame;
 
-    private Deque<MessageFrame> stack = new ArrayDeque<>();
+    private final Deque<MessageFrame> stack = new ArrayDeque<>();
 
     @Mock
     private ProxyWorldUpdater updater;
@@ -91,6 +94,11 @@ class HssCallFactoryTest extends CallTestBase {
     @Mock
     private Key maybeEthSenderKey;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private HssCallFactory subject;
 
     @BeforeEach
@@ -100,7 +108,8 @@ class HssCallFactoryTest extends CallTestBase {
                 addressChecks,
                 verificationStrategies,
                 signatureVerifier,
-                List.of(new SignScheduleTranslator()));
+                List.of(new SignScheduleTranslator(systemContractMethodRegistry, contractMetrics)),
+                systemContractMethodRegistry);
     }
 
     @Test
@@ -127,7 +136,8 @@ class HssCallFactoryTest extends CallTestBase {
         final var input = bytesForRedirectScheduleTxn(
                 SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(),
                 asLongZeroAddress(CALLED_SCHEDULE_ID.scheduleNum()));
-        final var attempt = subject.createCallAttemptFrom(input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
+        final var attempt = subject.createCallAttemptFrom(
+                HSS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
 
         assertInstanceOf(DispatchForResponseCodeHssCall.class, call);
@@ -158,7 +168,8 @@ class HssCallFactoryTest extends CallTestBase {
         final var input = bytesForRedirectScheduleTxn(
                 SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(),
                 asLongZeroAddress(CALLED_SCHEDULE_ID.scheduleNum()));
-        final var attempt = subject.createCallAttemptFrom(input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
+        final var attempt = subject.createCallAttemptFrom(
+                HSS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
 
         assertInstanceOf(DispatchForResponseCodeHssCall.class, call);

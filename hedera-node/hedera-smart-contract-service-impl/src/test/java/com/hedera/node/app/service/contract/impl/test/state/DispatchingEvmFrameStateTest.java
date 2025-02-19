@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -270,6 +271,14 @@ class DispatchingEvmFrameStateTest {
         subject.setStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), pbjToTuweniUInt256(A_STORAGE_VALUE));
 
         verify(contractStateStore).putSlot(A_SLOT_KEY, newSlotValue);
+    }
+
+    @Test
+    void skipsSettingZeroInAnUnusedSLot() {
+        subject.setStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), UInt256.ZERO);
+
+        verify(contractStateStore).getSlotValue(A_SLOT_KEY);
+        verifyNoMoreInteractions(contractStateStore);
     }
 
     @Test

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,9 +21,10 @@ import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.createSelectorsMap;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.createMethodsMap;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.acquiredSenderAuthorizationViaDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.alreadyHalted;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isPrecompileEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isTopLevelTransaction;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.recordBuilderFor;
@@ -31,6 +32,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.transfersValue;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.RESULT_CANNOT_BE_EXTERNALIZED;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
@@ -136,11 +138,16 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                     return;
                 }
             }
-            doExecuteSystemContract(systemContracts.get(codeAddress), frame, tracer);
+            doExecuteSystemContract(systemContracts.get(codeAddress), codeAddress, frame, tracer);
             return;
         }
 
-        final var evmPrecompile = precompiles.get(codeAddress);
+        var evmPrecompile = precompiles.get(codeAddress);
+        if (evmPrecompile != null && !isPrecompileEnabled(codeAddress, frame)) {
+            // disable precompile if so configured.
+            evmPrecompile = null;
+        }
+
         // Check to see if the code address is a system account and possibly halt
         if (addressChecks.isSystemAccount(codeAddress)) {
             doHaltIfInvalidSystemCall(frame, tracer);
@@ -195,7 +202,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             return false;
         }
         var selector = frame.getInputData().slice(0, 4).toArray();
-        return createSelectorsMap.keySet().stream().anyMatch(s -> Arrays.equals(s.selector(), selector));
+        return createMethodsMap.keySet().stream().anyMatch(s -> Arrays.equals(s.selector(), selector));
     }
 
     /**
@@ -246,9 +253,11 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
      */
     private void doExecuteSystemContract(
             @NonNull final HederaSystemContract systemContract,
+            @NonNull final Address systemContractAddress,
             @NonNull final MessageFrame frame,
             @NonNull final OperationTracer tracer) {
-        final var fullResult = systemContract.computeFully(frame.getInputData(), frame);
+        final var fullResult =
+                systemContract.computeFully(asNumberedContractId(systemContractAddress), frame.getInputData(), frame);
         final var gasRequirement = fullResult.gasRequirement();
         final PrecompileContractResult result;
         if (frame.getRemainingGas() < gasRequirement) {

@@ -38,7 +38,6 @@ import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.token.TokenCancelAirdropTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
@@ -48,6 +47,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -83,7 +83,9 @@ public class TokenCancelAirdropHandler extends BaseTokenHandler implements Trans
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn, "Transaction body cannot be null");
         final var op = txn.tokenCancelAirdropOrThrow();
 

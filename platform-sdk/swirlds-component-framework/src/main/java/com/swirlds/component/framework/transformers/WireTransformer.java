@@ -55,10 +55,9 @@ public class WireTransformer<A, B> {
             @NonNull final Function<A, B> transformer) {
         Objects.requireNonNull(transformer);
 
-        final TaskScheduler<B> taskScheduler = model.schedulerBuilder(transformerName)
+        final TaskScheduler<B> taskScheduler = model.<B>schedulerBuilder(transformerName)
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
+                .build();
 
         inputWire = taskScheduler.buildInputWire(transformerInputName);
         inputWire.bind(transformer);
@@ -77,10 +76,9 @@ public class WireTransformer<A, B> {
             @NonNull final String transformerName,
             @NonNull final String transformerInputName) {
 
-        final TaskScheduler<B> taskScheduler = model.schedulerBuilder(transformerName)
+        final TaskScheduler<B> taskScheduler = model.<B>schedulerBuilder(transformerName)
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
+                .build();
 
         inputWire = taskScheduler.buildInputWire(transformerInputName);
         outputWire = taskScheduler.getOutputWire();

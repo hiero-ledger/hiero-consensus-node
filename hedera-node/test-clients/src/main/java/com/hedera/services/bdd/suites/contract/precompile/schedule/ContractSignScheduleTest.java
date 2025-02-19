@@ -41,10 +41,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
+import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
+import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.SENDER;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.ECDSA_KEY;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.ED25519KEY;
-import static com.hedera.services.bdd.suites.leaky.LeakyContractTestsSuite.RECEIVER;
-import static com.hedera.services.bdd.suites.leaky.LeakyContractTestsSuite.SENDER;
 
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;

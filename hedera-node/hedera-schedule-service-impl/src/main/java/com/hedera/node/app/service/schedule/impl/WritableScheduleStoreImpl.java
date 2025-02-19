@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,13 +26,11 @@ import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.config.data.SchedulingConfig;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -54,31 +52,23 @@ public class WritableScheduleStoreImpl extends ReadableScheduleStoreImpl impleme
     private final WritableKVState<TimestampSeconds, ThrottleUsageSnapshots> scheduleUsagesMutable;
     private final WritableKVState<ScheduledOrder, ScheduleID> scheduleOrdersMutable;
 
+    private final WritableEntityCounters entityCounters;
+
     /**
      * Create a new {@link WritableScheduleStoreImpl} instance.
      *
      * @param states The state to use.
-     * @param configuration The configuration used to read the maximum capacity.
-     * @param storeMetricsService Service that provides utilization metrics.
      */
     public WritableScheduleStoreImpl(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService) {
-        super(states);
-        requireNonNull(configuration);
-        requireNonNull(storeMetricsService);
+            @NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
+        super(states, entityCounters);
 
         schedulesByIdMutable = states.get(V0490ScheduleSchema.SCHEDULES_BY_ID_KEY);
         scheduleCountsMutable = states.get(V0570ScheduleSchema.SCHEDULED_COUNTS_KEY);
         scheduleOrdersMutable = states.get(V0570ScheduleSchema.SCHEDULED_ORDERS_KEY);
         scheduleUsagesMutable = states.get(V0570ScheduleSchema.SCHEDULED_USAGES_KEY);
         scheduleIdByEqualityMutable = states.get(V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_KEY);
-
-        final long maxCapacity =
-                configuration.getConfigData(SchedulingConfig.class).maxNumber();
-        final var storeMetrics = storeMetricsService.get(StoreType.SCHEDULE, maxCapacity);
-        schedulesByIdMutable.setMetrics(storeMetrics);
+        this.entityCounters = entityCounters;
     }
 
     /**
@@ -94,24 +84,13 @@ public class WritableScheduleStoreImpl extends ReadableScheduleStoreImpl impleme
     public @NonNull Schedule delete(@Nullable final ScheduleID scheduleId, @NonNull final Instant consensusTime) {
         requireNonNull(consensusTime);
         requireNonNull(scheduleId);
-        final var schedule = schedulesByIdMutable.getForModify(scheduleId);
+        final var schedule = schedulesByIdMutable.get(scheduleId);
         if (schedule == null) {
             throw new IllegalStateException("Schedule to be deleted, %1$s, not found in state.".formatted(scheduleId));
         }
         final var deletedSchedule = markDeleted(schedule, consensusTime);
         schedulesByIdMutable.put(scheduleId, deletedSchedule);
         return deletedSchedule;
-    }
-
-    @Override
-    public Schedule getForModify(@Nullable final ScheduleID scheduleId) {
-        final Schedule result;
-        if (scheduleId != null) {
-            result = schedulesByIdMutable.getForModify(scheduleId);
-        } else {
-            result = null;
-        }
-        return result;
     }
 
     @Override
@@ -135,6 +114,12 @@ public class WritableScheduleStoreImpl extends ReadableScheduleStoreImpl impleme
         scheduleCountsMutable.put(countsKey, counts);
         final var orderKey = new ScheduledOrder(second, counts.numberScheduled() - 1);
         scheduleOrdersMutable.put(orderKey, schedule.scheduleIdOrThrow());
+    }
+
+    @Override
+    public void putAndIncrementCount(@NonNull final Schedule schedule) {
+        put(schedule);
+        entityCounters.incrementEntityTypeCount(EntityType.SCHEDULE);
     }
 
     @Override
@@ -190,7 +175,7 @@ public class WritableScheduleStoreImpl extends ReadableScheduleStoreImpl impleme
     /**
      * Purge a schedule from the store.
      *
-     * @param scheduleId The ID of the schedule to purge
+     * @param scheduleId             The ID of the schedule to purge
      */
     private void purge(@NonNull final ScheduleID scheduleId) {
         final var schedule = schedulesByIdMutable.get(scheduleId);
@@ -201,6 +186,7 @@ public class WritableScheduleStoreImpl extends ReadableScheduleStoreImpl impleme
             logger.error("Schedule {} not found in state schedulesByIdMutable.", scheduleId);
         }
         schedulesByIdMutable.remove(scheduleId);
+        entityCounters.decrementEntityTypeCounter(EntityType.SCHEDULE);
         logger.debug("Purging expired schedule {} from state.", scheduleId);
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,8 +72,8 @@ public class CryptoTransferLoadTestWithStakedAccounts extends LoadTest {
                 do {
                     re = r.nextInt(settings.getTotalAccounts());
                 } while (re == s);
-                sender = String.format("0.0.%d", TEST_ACCOUNT_STARTS_FROM + s);
-                receiver = String.format("0.0.%d", TEST_ACCOUNT_STARTS_FROM + re);
+                sender = String.format("%d", TEST_ACCOUNT_STARTS_FROM + s);
+                receiver = String.format("%d", TEST_ACCOUNT_STARTS_FROM + re);
             }
 
             return new HapiSpecOperation[] {

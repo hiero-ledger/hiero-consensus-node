@@ -1,11 +1,23 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2025 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.services.bdd.spec.utilops.lifecycle.ops;
 
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.UPGRADE_ARTIFACTS_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CANDIDATE_ROSTER_JSON;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CONFIG_TXT;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.loadAddressBook;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.hapi.node.freeze.FreezeType;
@@ -15,13 +27,10 @@ import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.lifecycle.AbstractLifecycleOp;
-import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,53 +53,18 @@ public class CandidateRosterValidationOp extends AbstractLifecycleOp {
 
     @Override
     protected void run(@NonNull final HederaNode node, @NonNull final HapiSpec spec) {
-        final var rosterLifecycleEnabled = spec.startupProperties().getBoolean("addressBook.useRosterLifecycle");
         final Roster candidateRoster;
-        if (rosterLifecycleEnabled) {
-            final var candidateRosterPath = node.metadata().workingDirOrThrow().resolve(CANDIDATE_ROSTER_JSON);
-            try {
-                conditionFuture(() -> candidateRosterPath.toFile().exists())
-                        .get(CANDIDATE_ROSTER_EXPORT_TIMEOUT.toMillis(), MILLISECONDS);
-            } catch (Exception e) {
-                log.error("Unable to locate candidate roster at '{}')", candidateRosterPath.toAbsolutePath(), e);
-                throw new IllegalStateException(e);
-            }
-            final var candidateNetwork =
-                    DiskStartupNetworks.loadNetworkFrom(candidateRosterPath).orElseThrow();
-            candidateRoster = RosterUtils.rosterFrom(candidateNetwork);
-        } else {
-            final var configTxtPath =
-                    node.getExternalPath(UPGRADE_ARTIFACTS_DIR).resolve(CONFIG_TXT);
-            final AtomicReference<String> lastFailure = new AtomicReference<>();
-            log.info("Loading legacy address book at {}", configTxtPath);
-            try {
-                conditionFuture(() -> containsLoadableAddressBook(configTxtPath, lastFailure::set))
-                        .get(CANDIDATE_ROSTER_EXPORT_TIMEOUT.toMillis(), MILLISECONDS);
-            } catch (Exception e) {
-                log.error(
-                        "Unable to validate address book from {} (last error='{}')",
-                        configTxtPath,
-                        lastFailure.get(),
-                        e);
-                throw new IllegalStateException(e);
-            }
-            final var addressBook = loadAddressBook(configTxtPath);
-            candidateRoster = RosterRetriever.buildRoster(addressBook);
-        }
-        rosterValidator.accept(candidateRoster);
-    }
-
-    private boolean containsLoadableAddressBook(
-            @NonNull final Path configTxtPath, @NonNull final Consumer<String> lastError) {
+        final var candidateRosterPath = node.metadata().workingDirOrThrow().resolve(CANDIDATE_ROSTER_JSON);
         try {
-            log.info("Attempting to load address book from {}", configTxtPath);
-            final var addressBook = loadAddressBook(configTxtPath);
-            log.info("  -> Loaded book from {} with {} entries", configTxtPath, addressBook.getSize());
-            return true;
-        } catch (Throwable t) {
-            lastError.accept(t.getClass().getSimpleName() + " - '" + t.getMessage() + "'");
-            log.warn("Unable to load address book from {}", configTxtPath, t);
-            return false;
+            conditionFuture(() -> candidateRosterPath.toFile().exists())
+                    .get(CANDIDATE_ROSTER_EXPORT_TIMEOUT.toMillis(), MILLISECONDS);
+        } catch (Exception e) {
+            log.error("Unable to locate candidate roster at '{}')", candidateRosterPath.toAbsolutePath(), e);
+            throw new IllegalStateException(e);
         }
+        final var candidateNetwork =
+                DiskStartupNetworks.loadNetworkFrom(candidateRosterPath).orElseThrow();
+        candidateRoster = RosterUtils.rosterFrom(candidateNetwork);
+        rosterValidator.accept(candidateRoster);
     }
 }

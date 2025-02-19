@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
@@ -84,7 +85,7 @@ public class IsApprovedForAllCall extends AbstractRevertibleTokenViewCall {
         if (isErcRedirect) {
             return gasOnly(
                     successResult(
-                            ERC_IS_APPROVED_FOR_ALL.getOutputs().encodeElements(verdict),
+                            ERC_IS_APPROVED_FOR_ALL.getOutputs().encode(Tuple.singleton(verdict)),
                             gasCalculator.viewGasRequirement()),
                     SUCCESS,
                     true);
@@ -93,7 +94,7 @@ public class IsApprovedForAllCall extends AbstractRevertibleTokenViewCall {
                     successResult(
                             CLASSIC_IS_APPROVED_FOR_ALL
                                     .getOutputs()
-                                    .encodeElements((long) SUCCESS.protoOrdinal(), verdict),
+                                    .encode(Tuple.of((long) SUCCESS.protoOrdinal(), verdict)),
                             gasCalculator.viewGasRequirement()),
                     SUCCESS,
                     true);

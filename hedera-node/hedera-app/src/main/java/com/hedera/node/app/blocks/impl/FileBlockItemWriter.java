@@ -49,10 +49,10 @@ public class FileBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(FileBlockItemWriter.class);
 
     /** The file extension for block files. */
-    public static final String RECORD_EXTENSION = "blk";
+    private static final String RECORD_EXTENSION = "blk";
 
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
-    public static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
+    private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
 
     /** Whether to compress the block files. */
     private final boolean compressFiles;

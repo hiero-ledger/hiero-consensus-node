@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,8 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirectWithConfig;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.BDDMockito.given;
@@ -32,6 +31,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
@@ -41,6 +41,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
@@ -89,37 +90,36 @@ class TokenClaimAirdropTranslatorTest {
     @Mock
     private AccountID payerId;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private TokenClaimAirdropTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new TokenClaimAirdropTranslator(decoder);
+        subject = new TokenClaimAirdropTranslator(decoder, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
     void testMatchesWhenClaimAirdropEnabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(true);
         attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TokenClaimAirdropTranslator.CLAIM_AIRDROP,
+                TokenClaimAirdropTranslator.CLAIM_AIRDROPS,
                 subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertTrue(matches);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void testMatchesFailsOnRandomSelector() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(true);
         attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
@@ -129,40 +129,29 @@ class TokenClaimAirdropTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertFalse(matches);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void testMatchesWhenClaimAirdropDisabled() {
-        // given:
-
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(false);
         attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TokenClaimAirdropTranslator.CLAIM_AIRDROP,
+                TokenClaimAirdropTranslator.CLAIM_AIRDROPS,
                 subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertFalse(matches);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void testMatchesHRCClaimFT() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(true);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
@@ -173,18 +162,13 @@ class TokenClaimAirdropTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertTrue(matches);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void testMatchesHRCClaimNFT() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(true);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
@@ -195,18 +179,13 @@ class TokenClaimAirdropTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertTrue(matches);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void testMatchesHRCClaimFTDisabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(false);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
@@ -217,18 +196,13 @@ class TokenClaimAirdropTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertFalse(matches);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void testMatchesHRCClaimNFTDisabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(false);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
@@ -239,13 +213,9 @@ class TokenClaimAirdropTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertFalse(matches);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
@@ -255,12 +225,13 @@ class TokenClaimAirdropTranslatorTest {
         given(verificationStrategies.activatingOnlyContractKeysFor(any(), anyBoolean(), any()))
                 .willReturn(verificationStrategy);
         attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TokenClaimAirdropTranslator.CLAIM_AIRDROP,
+                TokenClaimAirdropTranslator.CLAIM_AIRDROPS,
                 subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
 
         // when:
@@ -284,6 +255,7 @@ class TokenClaimAirdropTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
 
         // when:
@@ -307,6 +279,7 @@ class TokenClaimAirdropTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
 
         // when:

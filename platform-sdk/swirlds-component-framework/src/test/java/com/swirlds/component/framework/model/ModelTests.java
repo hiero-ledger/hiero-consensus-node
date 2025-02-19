@@ -84,10 +84,9 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Void> taskSchedulerA = model.schedulerBuilder("A")
+        final TaskScheduler<Void> taskSchedulerA = model.<Void>schedulerBuilder("A")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
 
         validateModel(model, false, false);
     }
@@ -104,15 +103,17 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
         final TaskScheduler<Void> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+                model.<Void>schedulerBuilder("C").withUnhandledTaskCapacity(1).build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -135,8 +136,9 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
         taskSchedulerA.getOutputWire().solderTo(inputA);
@@ -158,8 +160,9 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
         taskSchedulerA.getOutputWire().solderTo(inputA, SolderType.INJECT);
@@ -181,12 +184,14 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -209,12 +214,14 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -237,14 +244,14 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -267,16 +274,19 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -300,16 +310,19 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -333,18 +346,19 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC = model.schedulerBuilder("C")
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -369,20 +383,24 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -408,22 +426,24 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD = model.schedulerBuilder("D")
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -449,20 +469,24 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -497,44 +521,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -576,44 +610,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -655,46 +699,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD = model.schedulerBuilder("D")
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -736,44 +788,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -819,44 +881,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -902,48 +974,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE = model.schedulerBuilder("E")
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ = model.schedulerBuilder("J")
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -991,44 +1069,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -1075,44 +1163,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -1159,44 +1257,54 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<List<Integer>> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<List<Integer>> taskSchedulerD = model.<List<Integer>>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -1244,46 +1352,56 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB =
-                model.schedulerBuilder("B").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD =
-                model.schedulerBuilder("D").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE =
-                model.schedulerBuilder("E").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF =
-                model.schedulerBuilder("F").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG =
-                model.schedulerBuilder("G").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH =
-                model.schedulerBuilder("H").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI =
-                model.schedulerBuilder("I").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final OutputWire<Integer> secondaryOutputI = taskSchedulerI.buildSecondaryOutputWire();
         final OutputWire<Integer> tertiaryOutputI = taskSchedulerI.buildSecondaryOutputWire();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ =
-                model.schedulerBuilder("J").withUnhandledTaskCapacity(1).build().cast();
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
+                .withUnhandledTaskCapacity(1)
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
         final InputWire<Integer> inputJ2 = taskSchedulerJ.buildInputWire("inputJ2");
 
@@ -1337,66 +1455,56 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB = model.schedulerBuilder("B")
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC = model.schedulerBuilder("C")
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD = model.schedulerBuilder("D")
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE = model.schedulerBuilder("E")
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
                 .withType(TaskSchedulerType.DIRECT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF = model.schedulerBuilder("F")
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG = model.schedulerBuilder("G")
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH = model.schedulerBuilder("H")
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI = model.schedulerBuilder("I")
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ = model.schedulerBuilder("J")
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -1445,67 +1553,57 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB = model.schedulerBuilder("B")
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC = model.schedulerBuilder("C")
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD = model.schedulerBuilder("D")
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE = model.schedulerBuilder("E")
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
                 .withType(TaskSchedulerType.DIRECT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF = model.schedulerBuilder("F")
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
                 .withType(TaskSchedulerType.DIRECT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG = model.schedulerBuilder("G")
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH = model.schedulerBuilder("H")
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI = model.schedulerBuilder("I")
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ = model.schedulerBuilder("J")
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -1556,66 +1654,57 @@ class ModelTests {
 
         */
 
-        final TaskScheduler<Integer> taskSchedulerA = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB = model.schedulerBuilder("B")
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
         final TaskScheduler<Integer> taskSchedulerC =
-                model.schedulerBuilder("C").build().cast();
+                model.<Integer>schedulerBuilder("C").build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD = model.schedulerBuilder("D")
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE = model.schedulerBuilder("E")
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF = model.schedulerBuilder("F")
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG = model.schedulerBuilder("G")
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
                 .withType(TaskSchedulerType.DIRECT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH = model.schedulerBuilder("H")
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI = model.schedulerBuilder("I")
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ = model.schedulerBuilder("J")
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -1665,64 +1754,55 @@ class ModelTests {
         */
 
         final TaskScheduler<Integer> taskSchedulerA =
-                model.schedulerBuilder("A").build().cast();
+                model.<Integer>schedulerBuilder("A").build();
         final InputWire<Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
-        final TaskScheduler<Integer> taskSchedulerB = model.schedulerBuilder("B")
+        final TaskScheduler<Integer> taskSchedulerB = model.<Integer>schedulerBuilder("B")
                 .withType(TaskSchedulerType.SEQUENTIAL_THREAD)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputB = taskSchedulerB.buildInputWire("inputB");
 
-        final TaskScheduler<Integer> taskSchedulerC = model.schedulerBuilder("C")
+        final TaskScheduler<Integer> taskSchedulerC = model.<Integer>schedulerBuilder("C")
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputC = taskSchedulerC.buildInputWire("inputC");
 
-        final TaskScheduler<Integer> taskSchedulerD = model.schedulerBuilder("D")
+        final TaskScheduler<Integer> taskSchedulerD = model.<Integer>schedulerBuilder("D")
                 .withType(TaskSchedulerType.DIRECT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputD = taskSchedulerD.buildInputWire("inputD");
 
-        final TaskScheduler<Integer> taskSchedulerE = model.schedulerBuilder("E")
+        final TaskScheduler<Integer> taskSchedulerE = model.<Integer>schedulerBuilder("E")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputE = taskSchedulerE.buildInputWire("inputE");
 
-        final TaskScheduler<Integer> taskSchedulerF = model.schedulerBuilder("F")
+        final TaskScheduler<Integer> taskSchedulerF = model.<Integer>schedulerBuilder("F")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputF = taskSchedulerF.buildInputWire("inputF");
 
-        final TaskScheduler<Integer> taskSchedulerG = model.schedulerBuilder("G")
+        final TaskScheduler<Integer> taskSchedulerG = model.<Integer>schedulerBuilder("G")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputG = taskSchedulerG.buildInputWire("inputG");
 
-        final TaskScheduler<Integer> taskSchedulerH = model.schedulerBuilder("H")
+        final TaskScheduler<Integer> taskSchedulerH = model.<Integer>schedulerBuilder("H")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputH = taskSchedulerH.buildInputWire("inputH");
 
-        final TaskScheduler<Integer> taskSchedulerI = model.schedulerBuilder("I")
+        final TaskScheduler<Integer> taskSchedulerI = model.<Integer>schedulerBuilder("I")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputI = taskSchedulerI.buildInputWire("inputI");
 
-        final TaskScheduler<Integer> taskSchedulerJ = model.schedulerBuilder("J")
+        final TaskScheduler<Integer> taskSchedulerJ = model.<Integer>schedulerBuilder("J")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final InputWire<Integer> inputJ = taskSchedulerJ.buildInputWire("inputJ");
 
         taskSchedulerA.getOutputWire().solderTo(inputB);
@@ -1746,10 +1826,9 @@ class ModelTests {
                         TestPlatformContextBuilder.create().build())
                 .build();
 
-        final TaskScheduler<Integer> taskSchedulerA = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Integer> inputA = taskSchedulerA.buildInputWire("inputA");
 
         assertTrue(model.checkForUnboundInputWires());

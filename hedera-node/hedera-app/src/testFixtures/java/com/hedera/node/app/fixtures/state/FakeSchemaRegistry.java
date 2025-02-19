@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -140,7 +142,8 @@ public class FakeSchemaRegistry implements SchemaRegistry {
                     networkInfo,
                     nextEntityNum,
                     sharedValues,
-                    startupNetworks);
+                    startupNetworks,
+                    new AppEntityIdFactory(appConfig));
             if (applications.contains(MIGRATION)) {
                 schema.migrate(context);
             }
@@ -199,7 +202,8 @@ public class FakeSchemaRegistry implements SchemaRegistry {
             @NonNull final NetworkInfo networkInfo,
             @NonNull final AtomicLong nextEntityNum,
             @NonNull final Map<String, Object> sharedValues,
-            @NonNull final StartupNetworks startupNetworks) {
+            @NonNull final StartupNetworks startupNetworks,
+            @NonNull final EntityIdFactory entityIdFactory) {
         return new MigrationContext() {
             @Override
             public void copyAndReleaseOnDiskState(String stateKey) {
@@ -251,8 +255,14 @@ public class FakeSchemaRegistry implements SchemaRegistry {
                 return networkInfo;
             }
 
+            @NonNull
             @Override
-            public long newEntityNum() {
+            public EntityIdFactory entityIdFactory() {
+                return entityIdFactory;
+            }
+
+            @Override
+            public long newEntityNumForAccount() {
                 return nextEntityNum.getAndIncrement();
             }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.com
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Nft;
@@ -62,7 +63,8 @@ public class OwnerOfCall extends AbstractNftViewCall {
         if (owner == null) {
             return gasOnly(revertResult(INVALID_ACCOUNT_ID, gasRequirement), INVALID_ACCOUNT_ID, true);
         } else {
-            final var output = OwnerOfTranslator.OWNER_OF.getOutputs().encodeElements(headlongAddressOf(owner));
+            final var output =
+                    OwnerOfTranslator.OWNER_OF.getOutputs().encode(Tuple.singleton(headlongAddressOf(owner)));
             return gasOnly(successResult(output, gasRequirement), SUCCESS, true);
         }
     }

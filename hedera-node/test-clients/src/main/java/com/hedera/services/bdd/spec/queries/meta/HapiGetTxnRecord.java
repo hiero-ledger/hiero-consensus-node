@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -164,7 +164,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     @Nullable
     private Consumer<List<AccountAmount>> stakingRewardsObserver = null;
 
-    private Consumer<List<?>> eventDataObserver;
+    private Consumer<Object[]> eventDataObserver;
     private String eventName;
     private String contractResultAbi = null;
 
@@ -231,7 +231,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     }
 
     public HapiGetTxnRecord exposingFilteredCallResultVia(
-            final String abi, final String eventName, final Consumer<List<?>> dataObserver) {
+            final String abi, final String eventName, final Consumer<Object[]> dataObserver) {
         this.contractResultAbi = abi;
         this.eventName = eventName;
         this.eventDataObserver = dataObserver;
@@ -1010,7 +1010,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
             }
             if (event.isPresent()) {
                 final var decodedLog = event.get().decodeArgs(topics, data);
-                eventDataObserver.accept(decodedLog.toList());
+                eventDataObserver.accept(decodedLog.toArray());
             }
         }
     }

@@ -407,7 +407,7 @@ expiration event, we then [consistently update](https://github.com/hashgraph/hed
 FCM and the `txnHistories` map.
 
 :information_desk_person:&nbsp;Note that here we depend on the "invariance"
-of the FCM root hash to the order of `getForModify()` calls made within
+of the FCM root hash to the order of `get()` and 'put()' calls made within
 a single `handleTransaction()`, since the order that expiration events with
 the same consensus time appear in a rebuilt `payerRecordExpiries` may _not_
 be the same as the order they appear in a constantly maintained queue.

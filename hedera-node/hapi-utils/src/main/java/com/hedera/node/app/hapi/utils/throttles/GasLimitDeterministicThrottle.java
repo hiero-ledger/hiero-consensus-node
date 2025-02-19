@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,6 +60,9 @@ public class GasLimitDeterministicThrottle implements CongestibleThrottle {
         if (elapsedNanos < 0L) {
             throw new IllegalArgumentException("Throttle timeline must advance, but " + now + " is not after "
                     + Instant.ofEpochSecond(lastDecisionTime.seconds(), lastDecisionTime.nanos()));
+        }
+        if (txGasLimit < 0) {
+            throw new IllegalArgumentException("Gas limit must be non-negative, but was " + txGasLimit);
         }
         lastDecisionTime = new Timestamp(now.getEpochSecond(), now.getNano());
         return delegate.allow(txGasLimit, elapsedNanos);

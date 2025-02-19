@@ -26,26 +26,24 @@ package com.swirlds.demo.stress;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.Function;
 
 /**
  * This testing tool simulates configurable processing times for both preHandling and handling for stress testing
  * purposes.
  */
 @ConstructableIgnored
-public class StressTestingToolState extends PlatformMerkleStateRoot {
+public class StressTestingToolState extends MerkleStateRoot<StressTestingToolState> implements MerkleNodeState {
     private static final long CLASS_ID = 0x79900efa3127b6eL;
 
     /** A running sum of transaction contents */
     private long runningSum = 0;
 
-    public StressTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public StressTestingToolState() {
+        // empty constructor
     }
 
     private StressTestingToolState(@NonNull final StressTestingToolState sourceState) {
@@ -62,6 +60,7 @@ public class StressTestingToolState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized StressTestingToolState copy() {
         throwIfImmutable();
@@ -91,6 +90,11 @@ public class StressTestingToolState extends PlatformMerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.NO_ADDRESS_BOOK_IN_STATE;
+    }
+
+    @Override
+    protected StressTestingToolState copyingConstructor() {
+        return new StressTestingToolState(this);
     }
 
     /**

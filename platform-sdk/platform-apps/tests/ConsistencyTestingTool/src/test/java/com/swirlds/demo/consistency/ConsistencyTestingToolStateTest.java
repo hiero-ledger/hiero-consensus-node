@@ -16,6 +16,7 @@
 
 package com.swirlds.demo.consistency;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,8 +71,8 @@ public class ConsistencyTestingToolStateTest {
 
     @BeforeAll
     static void initState() {
-        state = new ConsistencyTestingToolState(mock(Function.class));
-        stateLifecycle = new ConsistencyTestingToolStateLifecycles();
+        state = new ConsistencyTestingToolState();
+        stateLifecycle = new ConsistencyTestingToolStateLifecycles(DEFAULT_PLATFORM_STATE_FACADE);
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
     }
 
@@ -181,24 +181,6 @@ public class ConsistencyTestingToolStateTest {
     }
 
     @Test
-    void handleConsensusRoundWithDeprecatedSystemTransaction() {
-        when(consensusTransaction.getApplicationTransaction()).thenReturn(Bytes.EMPTY);
-        when(consensusTransaction.isSystem()).thenReturn(true);
-
-        doAnswer(invocation -> {
-                    BiConsumer<ConsensusEvent, Transaction> consumer = invocation.getArgument(0);
-                    consumer.accept(event, consensusTransaction);
-                    return null;
-                })
-                .when(round)
-                .forEachEventTransaction(any());
-
-        stateLifecycle.onHandleConsensusRound(round, state, consumer);
-
-        assertThat(consumedTransactions).isEmpty();
-    }
-
-    @Test
     void preHandleEventWithMultipleSystemTransactions() {
         final var secondConsensusTransaction = mock(TransactionWrapper.class);
         final var thirdConsensusTransaction = mock(TransactionWrapper.class);
@@ -260,19 +242,9 @@ public class ConsistencyTestingToolStateTest {
     }
 
     @Test
-    void preHandleEventWithDeprecatedSystemTransaction() {
-        when(consensusTransaction.isSystem()).thenReturn(true);
+    void onSealDefaultsToTrue() {
+        final boolean result = stateLifecycle.onSealConsensusRound(round, state);
 
-        doAnswer(invocation -> {
-                    Consumer<Transaction> consumer = invocation.getArgument(0);
-                    consumer.accept(consensusTransaction);
-                    return null;
-                })
-                .when(event)
-                .forEachTransaction(any());
-
-        stateLifecycle.onPreHandle(event, state, consumer);
-
-        assertThat(consumedTransactions).isEmpty();
+        assertThat(result).isTrue();
     }
 }

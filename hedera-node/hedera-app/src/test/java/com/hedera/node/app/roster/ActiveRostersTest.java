@@ -38,7 +38,8 @@ class ActiveRostersTest {
     private static final List<RosterTransitionWeights.NodeWeight> A_ROSTER_NODE_WEIGHTS = List.of(
             new RosterTransitionWeights.NodeWeight(1L, 1L),
             new RosterTransitionWeights.NodeWeight(2L, 2L),
-            new RosterTransitionWeights.NodeWeight(3L, 3L));
+            new RosterTransitionWeights.NodeWeight(3L, 3L),
+            new RosterTransitionWeights.NodeWeight(4L, 0L));
     private static final List<RosterTransitionWeights.NodeWeight> B_ROSTER_NODE_WEIGHTS = List.of(
             new RosterTransitionWeights.NodeWeight(1L, 2L),
             new RosterTransitionWeights.NodeWeight(2L, 4L),
@@ -125,6 +126,8 @@ class ActiveRostersTest {
 
         final var activeRosters = ActiveRosters.from(rosterStore);
 
+        final var removedNodeIds = activeRosters.removedNodeIds().stream().toList();
+        assertEquals(List.of(4L), removedNodeIds);
         assertEquals(ActiveRosters.Phase.TRANSITION, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());

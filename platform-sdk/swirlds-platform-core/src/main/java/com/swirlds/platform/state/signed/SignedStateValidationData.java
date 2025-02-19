@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,8 @@ package com.swirlds.platform.state.signed;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -42,12 +43,15 @@ public record SignedStateValidationData(
         @Nullable Hash rosterHash,
         @NonNull Hash consensusEventsRunningHash) {
 
-    public SignedStateValidationData(@NonNull final PlatformStateAccessor that, @Nullable final Roster roster) {
+    public SignedStateValidationData(
+            @NonNull final State that,
+            @Nullable final Roster roster,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this(
-                that.getRound(),
-                that.getConsensusTimestamp(),
+                platformStateFacade.roundOf(that),
+                platformStateFacade.consensusTimestampOf(that),
                 roster == null ? null : RosterUtils.hash(roster),
-                that.getLegacyRunningEventHash());
+                platformStateFacade.legacyRunningEventHashOf(that));
     }
 
     /**

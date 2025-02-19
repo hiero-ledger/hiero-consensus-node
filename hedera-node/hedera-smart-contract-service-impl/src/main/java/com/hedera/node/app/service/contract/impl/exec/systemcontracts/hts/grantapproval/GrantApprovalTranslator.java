@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,21 +19,27 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grant
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.CallVia;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Variant;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -44,14 +50,27 @@ import javax.inject.Singleton;
 public class GrantApprovalTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 
     /** Selector for approve(address,uint256) method. */
-    public static final Function ERC_GRANT_APPROVAL = new Function("approve(address,uint256)", ReturnTypes.BOOL);
+    public static final SystemContractMethod ERC_GRANT_APPROVAL = SystemContractMethod.declare(
+                    "approve(address,uint256)", ReturnTypes.BOOL)
+            .withVia(CallVia.PROXY)
+            .withVariant(Variant.FT)
+            .withCategories(Category.ERC20, Category.APPROVAL);
     /** Selector for approve(address,uint256) method. */
-    public static final Function ERC_GRANT_APPROVAL_NFT = new Function("approve(address,uint256)");
+    public static final SystemContractMethod ERC_GRANT_APPROVAL_NFT = SystemContractMethod.declare(
+                    "approve(address,uint256)")
+            .withVia(CallVia.PROXY)
+            .withVariant(Variant.NFT)
+            .withCategories(Category.ERC721, Category.APPROVAL);
     /** Selector for approve(address,address,uint256) method. */
-    public static final Function GRANT_APPROVAL = new Function("approve(address,address,uint256)", "(int32,bool)");
+    public static final SystemContractMethod GRANT_APPROVAL = SystemContractMethod.declare(
+                    "approve(address,address,uint256)", "(int32,bool)")
+            .withVariant(Variant.FT)
+            .withCategories(Category.ERC721, Category.APPROVAL);
     /** Selector for approveNFT(address,address,uint256) method. */
-    public static final Function GRANT_APPROVAL_NFT =
-            new Function("approveNFT(address,address,uint256)", ReturnTypes.INT_64);
+    public static final SystemContractMethod GRANT_APPROVAL_NFT = SystemContractMethod.declare(
+                    "approveNFT(address,address,uint256)", ReturnTypes.INT_64)
+            .withVariant(Variant.NFT)
+            .withCategories(Category.APPROVAL);
 
     private final GrantApprovalDecoder decoder;
 
@@ -60,16 +79,20 @@ public class GrantApprovalTranslator extends AbstractCallTranslator<HtsCallAttem
      * @param decoder the decoder used to decode transfer calls
      */
     @Inject
-    public GrantApprovalTranslator(@NonNull final GrantApprovalDecoder decoder) {
+    public GrantApprovalTranslator(
+            @NonNull final GrantApprovalDecoder decoder,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
         this.decoder = decoder;
+
+        registerMethods(ERC_GRANT_APPROVAL, ERC_GRANT_APPROVAL_NFT, GRANT_APPROVAL, GRANT_APPROVAL_NFT);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isSelector(GRANT_APPROVAL, GRANT_APPROVAL_NFT) || attempt.isSelector(ERC_GRANT_APPROVAL);
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        requireNonNull(attempt);
+        return attempt.isMethod(GRANT_APPROVAL, GRANT_APPROVAL_NFT, ERC_GRANT_APPROVAL);
     }
 
     /**

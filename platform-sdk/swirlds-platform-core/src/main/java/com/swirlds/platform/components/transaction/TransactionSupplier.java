@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package com.swirlds.platform.components.transaction;
 
-import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
@@ -32,5 +32,5 @@ public interface TransactionSupplier {
      * @return an list with 0 or more transactions
      */
     @NonNull
-    List<EventTransaction> getTransactions();
+    List<Bytes> getTransactions();
 }

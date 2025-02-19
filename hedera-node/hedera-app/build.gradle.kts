@@ -37,6 +37,7 @@ mainModuleInfo {
 
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
+    requires("com.google.protobuf")
     requires("com.google.common.jimfs")
     requires("com.hedera.node.app")
     requires("com.hedera.node.app.spi.test.fixtures")
@@ -58,23 +59,16 @@ testModuleInfo {
     requires("uk.org.webcompere.systemstubs.core")
     requires("uk.org.webcompere.systemstubs.jupiter")
     requiresStatic("com.github.spotbugs.annotations")
-    requires("awaitility")
 }
 
 jmhModuleInfo {
     requires("com.hedera.node.app")
     requires("com.hedera.node.app.hapi.utils")
-    requires("com.hedera.node.app.spi")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.app.test.fixtures")
-    requires("com.hedera.node.config")
     requires("com.hedera.node.hapi")
     requires("com.hedera.pbj.runtime")
     requires("com.swirlds.common")
-    requires("com.swirlds.config.api")
-    requires("com.swirlds.metrics.api")
-    requires("com.swirlds.platform.core")
-    requires("com.swirlds.state.api")
     requires("jmh.core")
 }
 

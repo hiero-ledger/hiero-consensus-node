@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,6 +165,9 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
             if (!isEmpty(meta.submitKey())) info.submitKey(meta.submitKey());
             info.autoRenewPeriod(Duration.newBuilder().seconds(meta.autoRenewPeriod()));
             if (meta.hasAutoRenewAccountId()) info.autoRenewAccount(meta.autoRenewAccountId());
+            if (meta.hasFeeScheduleKey()) info.feeScheduleKey(meta.feeScheduleKey());
+            if (!meta.feeExemptKeyList().isEmpty()) info.feeExemptKeyList(meta.feeExemptKeyList());
+            if (!meta.customFees().isEmpty()) info.customFees(meta.customFees());
 
             info.ledgerId(config.id());
             return Optional.of(info.build());

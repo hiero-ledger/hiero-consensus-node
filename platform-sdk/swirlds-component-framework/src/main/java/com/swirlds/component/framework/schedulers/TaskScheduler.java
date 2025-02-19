@@ -183,23 +183,6 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     }
 
     /**
-     * Cast this scheduler into whatever a variable is expecting. Sometimes the compiler gets confused with generics,
-     * and path of least resistance is to just cast to the proper data type.
-     *
-     * <p>
-     * Warning: this will appease the compiler, but it is possible to cast a scheduler into a data type that will cause
-     * runtime exceptions. Use with appropriate caution.
-     *
-     * @param <X> the type to cast to
-     * @return this, cast into whatever type is requested
-     */
-    @NonNull
-    @SuppressWarnings("unchecked")
-    public final <X> TaskScheduler<X> cast() {
-        return (TaskScheduler<X>) this;
-    }
-
-    /**
      * Get the number of unprocessed tasks. A task is considered to be unprocessed until the data has been passed to the
      * handler method (i.e. the one given to {@link BindableInputWire#bind(Function)} or
      * {@link BindableInputWire#bindConsumer(Consumer)}) and that handler method has returned.

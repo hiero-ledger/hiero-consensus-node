@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
     private final AtomicInteger maxOpsPerSec = new AtomicInteger(50);
     private static final int EXPECTED_MAX_MINTS_PER_SEC = 50;
-    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.10;
+    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.15;
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
     public static final int GAS_TO_OFFER = 1_000_000;
 

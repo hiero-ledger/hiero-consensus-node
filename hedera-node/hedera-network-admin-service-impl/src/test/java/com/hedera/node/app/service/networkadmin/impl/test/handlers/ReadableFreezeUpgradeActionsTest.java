@@ -42,6 +42,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
@@ -54,6 +55,8 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -161,6 +164,12 @@ class ReadableFreezeUpgradeActionsTest {
     @Mock
     private AddressBookConfig addressBookConfig;
 
+    @Mock
+    private ReadableEntityCounters readableEntityCounters;
+
+    @Mock
+    private HederaConfig hederaConfig;
+
     private ReadableNodeStore nodeStore;
 
     private Executor freezeExecutor;
@@ -172,6 +181,9 @@ class ReadableFreezeUpgradeActionsTest {
         given(configuration.getConfigData(NetworkAdminConfig.class)).willReturn(adminServiceConfig);
         given(configuration.getConfigData(NodesConfig.class)).willReturn(nodesConfig);
         given(configuration.getConfigData(AddressBookConfig.class)).willReturn(addressBookConfig);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(hederaConfig.shard()).willReturn(1L);
+        given(hederaConfig.realm()).willReturn(2L);
 
         noiseFileLoc = zipOutputDir.toPath().resolve("forgotten.cfg");
         noiseSubFileLoc = zipOutputDir.toPath().resolve("edargpu");
@@ -179,7 +191,7 @@ class ReadableFreezeUpgradeActionsTest {
         final var readableNodeState =
                 MapReadableKVState.<EntityNumber, Node>builder(NODES_KEY).build();
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
-        nodeStore = new ReadableNodeStoreImpl(readableStates);
+        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
 
         freezeExecutor = new ForkJoinPool(
                 1, ForkJoinPool.defaultForkJoinWorkerThreadFactory, Thread.getDefaultUncaughtExceptionHandler(), true);
@@ -225,6 +237,7 @@ class ReadableFreezeUpgradeActionsTest {
 
         given(adminServiceConfig.upgradeArtifactsPath()).willReturn(zipOutputDir.toString());
         given(adminServiceConfig.keysPath()).willReturn(keysDir.toString());
+        given(adminServiceConfig.exportCandidateRoster()).willReturn(true);
         given(nodesConfig.enableDAB()).willReturn(true);
 
         final Bytes realArchive = Bytes.wrap(Files.readAllBytes(zipArchivePath));
@@ -242,6 +255,7 @@ class ReadableFreezeUpgradeActionsTest {
 
         given(adminServiceConfig.upgradeArtifactsPath()).willReturn(zipOutputDir.toString());
         given(adminServiceConfig.keysPath()).willReturn(keysDir.toString());
+        given(adminServiceConfig.exportCandidateRoster()).willReturn(true);
         given(nodesConfig.enableDAB()).willReturn(true);
 
         final Bytes realArchive = Bytes.wrap(Files.readAllBytes(zipArchivePath));
@@ -259,6 +273,7 @@ class ReadableFreezeUpgradeActionsTest {
 
         given(adminServiceConfig.upgradeArtifactsPath()).willReturn(zipOutputDir.toString());
         given(adminServiceConfig.keysPath()).willReturn(keysDir.toString());
+        given(adminServiceConfig.exportCandidateRoster()).willReturn(true);
         given(nodesConfig.enableDAB()).willReturn(true);
 
         final Bytes realArchive = Bytes.wrap(Files.readAllBytes(zipArchivePath));
@@ -423,7 +438,7 @@ class ReadableFreezeUpgradeActionsTest {
 
         final var node1 = new Node(
                 1,
-                asAccount(3),
+                asAccount(0L, 0L, 3),
                 "node2",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.1", 1234),
@@ -436,7 +451,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node2 = new Node(
                 2,
-                asAccount(4),
+                asAccount(0L, 0L, 4),
                 "node3",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.2", 1245),
@@ -449,7 +464,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node3 = new Node(
                 3,
-                asAccount(6),
+                asAccount(0L, 0L, 6),
                 "node4",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.3", 1245),
@@ -462,7 +477,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node4 = new Node(
                 4,
-                asAccount(8),
+                asAccount(0L, 0L, 8),
                 "node5",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.4", 1445),
@@ -481,15 +496,16 @@ class ReadableFreezeUpgradeActionsTest {
                 .value(new EntityNumber(1), node1)
                 .build();
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
-        nodeStore = new ReadableNodeStoreImpl(readableStates);
+        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
+        given(readableEntityCounters.getCounterFor(EntityType.NODE)).willReturn(4L);
         subject = new FreezeUpgradeActions(
                 configuration, writableFreezeStore, freezeExecutor, upgradeFileStore, nodeStore, stakingInfoStore);
         var stakingNodeInfo1 = mock(StakingNodeInfo.class);
         var stakingNodeInfo2 = mock(StakingNodeInfo.class);
         var stakingNodeInfo4 = mock(StakingNodeInfo.class);
-        given(stakingNodeInfo1.weight()).willReturn(5);
-        given(stakingNodeInfo2.weight()).willReturn(10);
-        given(stakingNodeInfo4.weight()).willReturn(20);
+        given(stakingNodeInfo1.stake()).willReturn(5L);
+        given(stakingNodeInfo2.stake()).willReturn(10L);
+        given(stakingNodeInfo4.stake()).willReturn(20L);
         given(stakingInfoStore.get(1)).willReturn(stakingNodeInfo1);
         given(stakingInfoStore.get(2)).willReturn(stakingNodeInfo2);
         given(stakingInfoStore.get(4)).willReturn(stakingNodeInfo4);
@@ -547,7 +563,7 @@ class ReadableFreezeUpgradeActionsTest {
 
         final var node1 = new Node(
                 0,
-                asAccount(3),
+                asAccount(0L, 0L, 3),
                 "node2",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.1", 1234),
@@ -560,7 +576,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node2 = new Node(
                 1,
-                asAccount(4),
+                asAccount(0L, 0L, 4),
                 "node3",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.2", 1245),
@@ -573,7 +589,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node3 = new Node(
                 2,
-                asAccount(6),
+                asAccount(0L, 0L, 6),
                 "node4",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.3", 1245),
@@ -586,7 +602,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node4 = new Node(
                 3,
-                asAccount(8),
+                asAccount(0L, 0L, 8),
                 "node5",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.4", 1445),
@@ -605,15 +621,16 @@ class ReadableFreezeUpgradeActionsTest {
                 .value(new EntityNumber(0), node1)
                 .build();
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
-        nodeStore = new ReadableNodeStoreImpl(readableStates);
+        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
+        given(readableEntityCounters.getCounterFor(EntityType.NODE)).willReturn(4L);
         subject = new FreezeUpgradeActions(
                 configuration, writableFreezeStore, freezeExecutor, upgradeFileStore, nodeStore, stakingInfoStore);
         var stakingNodeInfo1 = mock(StakingNodeInfo.class);
         var stakingNodeInfo2 = mock(StakingNodeInfo.class);
         var stakingNodeInfo3 = mock(StakingNodeInfo.class);
-        given(stakingNodeInfo1.weight()).willReturn(5);
-        given(stakingNodeInfo2.weight()).willReturn(10);
-        given(stakingNodeInfo3.weight()).willReturn(20);
+        given(stakingNodeInfo1.stake()).willReturn(5L);
+        given(stakingNodeInfo2.stake()).willReturn(10L);
+        given(stakingNodeInfo3.stake()).willReturn(20L);
         given(stakingInfoStore.get(0)).willReturn(stakingNodeInfo1);
         given(stakingInfoStore.get(1)).willReturn(stakingNodeInfo2);
         given(stakingInfoStore.get(2)).willReturn(stakingNodeInfo3);

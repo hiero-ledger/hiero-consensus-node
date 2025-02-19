@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,11 @@ import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,14 +50,17 @@ public class ReadableScheduleStoreImpl implements ReadableScheduleStore {
     private final ReadableKVState<TimestampSeconds, ThrottleUsageSnapshots> scheduledUsages;
     private final ReadableKVState<ScheduledOrder, ScheduleID> scheduledOrders;
     private final ReadableKVState<ProtoBytes, ScheduleID> scheduleIdByStringHash;
+    private final ReadableEntityCounters entityCounters;
 
     /**
      * Create a new {@link ReadableScheduleStore} instance.
      *
      * @param states The state to use.
      */
-    public ReadableScheduleStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableScheduleStoreImpl(
+            @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states, NULL_STATE_IN_CONSTRUCTOR_MESSAGE);
+        this.entityCounters = requireNonNull(entityCounters);
         schedulesById = states.get(V0490ScheduleSchema.SCHEDULES_BY_ID_KEY);
         scheduledCounts = states.get(V0570ScheduleSchema.SCHEDULED_COUNTS_KEY);
         scheduledOrders = states.get(V0570ScheduleSchema.SCHEDULED_ORDERS_KEY);
@@ -94,7 +99,7 @@ public class ReadableScheduleStoreImpl implements ReadableScheduleStore {
 
     @Override
     public long numSchedulesInState() {
-        return schedulesById.size();
+        return entityCounters.getCounterFor(EntityType.SCHEDULE);
     }
 
     @Override

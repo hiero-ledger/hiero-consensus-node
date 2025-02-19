@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,18 +25,18 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_A
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelector;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import org.apache.tuweni.bytes.Bytes;
@@ -69,11 +69,16 @@ public class HbarAllowanceTranslatorTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private HbarAllowanceTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new HbarAllowanceTranslator();
+        subject = new HbarAllowanceTranslator(systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
@@ -86,8 +91,9 @@ public class HbarAllowanceTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 signatureVerifier,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
 
         attempt = prepareHasAttemptWithSelector(
                 HBAR_ALLOWANCE_PROXY,
@@ -96,8 +102,9 @@ public class HbarAllowanceTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 signatureVerifier,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -110,8 +117,9 @@ public class HbarAllowanceTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 signatureVerifier,
-                gasCalculator);
-        assertFalse(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
@@ -129,7 +137,7 @@ public class HbarAllowanceTranslatorTest {
     @Test
     void callFromHbarAllowanceProxyTest() {
         final Bytes inputBytes = Bytes.wrapByteBuffer(
-                HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY.encodeCall(Tuple.of(APPROVED_HEADLONG_ADDRESS)));
+                HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY.encodeCall(Tuple.singleton(APPROVED_HEADLONG_ADDRESS)));
         givenCommonForCall(inputBytes);
         given(attempt.isSelector(HBAR_ALLOWANCE_PROXY)).willReturn(true);
         given(attempt.isSelector(HBAR_ALLOWANCE)).willReturn(false);

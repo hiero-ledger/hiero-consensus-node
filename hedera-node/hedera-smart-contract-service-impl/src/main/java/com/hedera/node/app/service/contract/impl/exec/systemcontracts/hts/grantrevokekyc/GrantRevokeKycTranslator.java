@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,17 +17,22 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantrevokekyc;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall.FailureCustomizer.NOOP_CUSTOMIZER;
+import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.*;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -40,11 +45,15 @@ public class GrantRevokeKycTranslator extends AbstractCallTranslator<HtsCallAtte
     /**
      * Selector for grantTokenKyc(address,address) method.
      */
-    public static final Function GRANT_KYC = new Function("grantTokenKyc(address,address)", ReturnTypes.INT_64);
+    public static final SystemContractMethod GRANT_KYC = SystemContractMethod.declare(
+                    "grantTokenKyc(address,address)", ReturnTypes.INT_64)
+            .withCategories(Category.KYC);
     /**
      * Selector for revokeTokenKyc(address,address) method.
      */
-    public static final Function REVOKE_KYC = new Function("revokeTokenKyc(address,address)", ReturnTypes.INT_64);
+    public static final SystemContractMethod REVOKE_KYC = SystemContractMethod.declare(
+                    "revokeTokenKyc(address,address)", ReturnTypes.INT_64)
+            .withCategories(Category.KYC);
 
     private final GrantRevokeKycDecoder decoder;
 
@@ -52,16 +61,20 @@ public class GrantRevokeKycTranslator extends AbstractCallTranslator<HtsCallAtte
      * @param decoder the decoder to be used for grand / revoke kyc
      */
     @Inject
-    public GrantRevokeKycTranslator(@NonNull GrantRevokeKycDecoder decoder) {
+    public GrantRevokeKycTranslator(
+            @NonNull GrantRevokeKycDecoder decoder,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
         this.decoder = decoder;
+
+        registerMethods(GRANT_KYC, REVOKE_KYC);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public boolean matches(@NonNull HtsCallAttempt attempt) {
-        return attempt.isSelector(GRANT_KYC, REVOKE_KYC);
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull HtsCallAttempt attempt) {
+        requireNonNull(attempt);
+        return attempt.isMethod(GRANT_KYC, REVOKE_KYC);
     }
 
     /**

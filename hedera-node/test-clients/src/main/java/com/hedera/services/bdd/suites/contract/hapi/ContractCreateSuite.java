@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
@@ -499,6 +500,20 @@ public class ContractCreateSuite {
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .gas(0L)
                         .hasPrecheck(INSUFFICIENT_GAS)
+                        .refusingEthConversion());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> rejectsNegativeGas() {
+        return hapiTest(
+                uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
+                cryptoCreate(PAYER), // need to use a payer that is not throttle_exempt
+                // refuse eth conversion because ethereum transaction fails in IngestChecker with precheck status
+                // INSUFFICIENT_GAS
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .gas(-50L)
+                        .payingWith(PAYER)
+                        .hasPrecheck(BUSY)
                         .refusingEthConversion());
     }
 

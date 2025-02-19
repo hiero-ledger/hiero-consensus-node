@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
@@ -63,6 +64,7 @@ import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -101,6 +103,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     /**
      * Indicates if the QueryWorkflow should charge for handling queries.
@@ -144,7 +147,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            final boolean shouldCharge) {
+            final boolean shouldCharge,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.stateAccessor = requireNonNull(stateAccessor, "stateAccessor must not be null");
         this.submissionManager = requireNonNull(submissionManager, "submissionManager must not be null");
         this.ingestChecker = requireNonNull(ingestChecker, "ingestChecker must not be null");
@@ -161,6 +165,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         this.instantSource = requireNonNull(instantSource);
         this.workflowMetrics = requireNonNull(workflowMetrics);
         this.shouldCharge = shouldCharge;
+        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     @Override
@@ -190,13 +195,13 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
             try (final var wrappedState = stateAccessor.apply(responseType)) {
                 // 2. Do some general pre-checks
-                ingestChecker.checkNodeState();
+                ingestChecker.verifyPlatformActive();
                 if (UNSUPPORTED_RESPONSE_TYPES.contains(responseType)) {
                     throw new PreCheckException(NOT_SUPPORTED);
                 }
 
                 final var state = wrappedState.get();
-                final var storeFactory = new ReadableStoreFactory(state);
+                final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
                 final var paymentRequired = handler.requiresNodePayment(responseType);
                 final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
                 final QueryContext context;
@@ -225,8 +230,11 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                     // A super-user does not have to pay for a query and has all permissions
                     if (!authorizer.isSuperUser(payerID)) {
+                        // But if payment is required, we must be able to submit a transaction
+                        ingestChecker.verifyReadyForTransactions();
+
                         // 3.ii Validate CryptoTransfer
-                        queryChecker.validateCryptoTransfer(transactionInfo);
+                        queryChecker.validateCryptoTransfer(transactionInfo, configuration);
 
                         // 3.iii Check permissions
                         queryChecker.checkPermissions(payerID, function);

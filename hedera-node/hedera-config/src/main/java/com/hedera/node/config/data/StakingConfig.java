@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ public record StakingConfig(
         // from all production 0.0.121 system files
         @ConfigProperty(defaultValue = "6849") @NetworkProperty long perHbarRewardRate,
         @ConfigProperty(defaultValue = "25000000000000000") @NetworkProperty long startThreshold,
-        @ConfigProperty(defaultValue = "500") @NetworkProperty int sumOfConsensusWeights,
         @ConfigProperty(defaultValue = "8500000000000000") @NetworkProperty long rewardBalanceThreshold,
-        @ConfigProperty(defaultValue = "650000000000000000") @NetworkProperty long maxStakeRewarded) {}
+        @ConfigProperty(defaultValue = "650000000000000000") @NetworkProperty long maxStakeRewarded,
+        @ConfigProperty(defaultValue = "0") @NetworkProperty long minStake,
+        @ConfigProperty(defaultValue = "45000000000000000") @NetworkProperty long maxStake) {}

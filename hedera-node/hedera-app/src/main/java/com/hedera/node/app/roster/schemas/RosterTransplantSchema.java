@@ -24,7 +24,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.config.data.NetworkAdminConfig;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -48,6 +47,7 @@ public interface RosterTransplantSchema {
 
     /**
      * Restart the {@link RosterService} by copying any roster overrides from the startup assets into the state.
+     *
      * @param ctx the migration context
      * @param rosterStoreFactory the factory to use to create the writable roster store
      */
@@ -55,30 +55,28 @@ public interface RosterTransplantSchema {
             @NonNull final MigrationContext ctx,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
         requireNonNull(ctx);
-        if (ctx.appConfig().getConfigData(AddressBookConfig.class).useRosterLifecycle()) {
-            final long roundNumber = ctx.roundNumber();
-            final var startupNetworks = ctx.startupNetworks();
-            final var overrideNetwork = startupNetworks.overrideNetworkFor(roundNumber);
-            overrideNetwork.ifPresent(network -> {
-                final long activeRoundNumber = roundNumber + 1;
-                log.info("Adopting roster from override network in round {}", activeRoundNumber);
-                final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
-                final var overrideRoster = RosterUtils.rosterFrom(network);
-                final var networkAdminConfig = ctx.appConfig().getConfigData(NetworkAdminConfig.class);
-                final var roster = networkAdminConfig.preserveStateWeightsDuringOverride()
-                        ? withExtantNodeWeights(overrideRoster, rosterStore.getActiveRoster())
-                        : overrideRoster;
-                rosterStore.putActiveRoster(roster, activeRoundNumber);
-                startupNetworks.setOverrideRound(roundNumber);
-            });
-            return overrideNetwork.isPresent();
-        }
-        return false;
+        final long roundNumber = ctx.roundNumber();
+        final var startupNetworks = ctx.startupNetworks();
+        final var overrideNetwork = startupNetworks.overrideNetworkFor(roundNumber, ctx.platformConfig());
+        overrideNetwork.ifPresent(network -> {
+            final long activeRoundNumber = roundNumber + 1;
+            log.info("Adopting roster from override network in round {}", activeRoundNumber);
+            final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
+            final var overrideRoster = RosterUtils.rosterFrom(network);
+            final var networkAdminConfig = ctx.appConfig().getConfigData(NetworkAdminConfig.class);
+            final var roster = networkAdminConfig.preserveStateWeightsDuringOverride()
+                    ? withExtantNodeWeights(overrideRoster, rosterStore.getActiveRoster())
+                    : overrideRoster;
+            rosterStore.putActiveRoster(roster, activeRoundNumber);
+            startupNetworks.setOverrideRound(roundNumber);
+        });
+        return overrideNetwork.isPresent();
     }
 
     /**
      * If there are weights to copy to the first roster from the (possibly null) second roster, then does so and
      * returns a new roster with the result.
+     *
      * @param to the roster to copy weights to
      * @param from the roster to copy weights from
      * @return a roster with any weights copied by matching node id

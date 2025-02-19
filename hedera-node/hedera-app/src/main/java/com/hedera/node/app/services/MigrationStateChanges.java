@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -37,7 +38,7 @@ import java.util.List;
 public class MigrationStateChanges {
     private final List<List<StateChange>> stateChanges = new ArrayList<>();
     private final KVStateChangeListener kvStateChangeListener = new KVStateChangeListener();
-    private final BoundaryStateChangeListener roundStateChangeListener = new BoundaryStateChangeListener();
+    private final BoundaryStateChangeListener roundStateChangeListener;
     private final State state;
 
     /**
@@ -47,9 +48,15 @@ public class MigrationStateChanges {
      * @param state  The state to track changes on
      * @param config The configuration for the state
      */
-    public MigrationStateChanges(@NonNull final State state, final Configuration config) {
+    public MigrationStateChanges(
+            @NonNull final State state,
+            @NonNull final Configuration config,
+            @NonNull final StoreMetricsService storeMetricsService) {
         requireNonNull(config);
+        requireNonNull(storeMetricsService);
+
         this.state = requireNonNull(state);
+        this.roundStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, () -> config);
         if (config.getConfigData(BlockStreamConfig.class).streamMode() != RECORDS) {
             state.registerCommitListener(kvStateChangeListener);
             state.registerCommitListener(roundStateChangeListener);

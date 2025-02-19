@@ -1,0 +1,222 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.history;
+
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import "timestamp.proto";
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.history">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A set of proof keys for a node; that is, the key the node is
+ * currently using and the key it wants to use in assembling the
+ * next address book in the ledger id's chain of trust.
+ */
+message ProofKeySet {
+  /**
+   * The consensus time when the network adopted the active
+   * proof key in this set. An adoption time that is sufficiently
+   * tardy relative to the latest assembly start time may result
+   * in the node's key being omitted from the address book.
+   */
+  proto.Timestamp adoption_time = 2;
+  /**
+   * The proof key the node is using.
+   */
+  bytes key = 3;
+  /**
+   * If set, the proof key the node wants to start using in the
+   * address book.
+   */
+  bytes next_key = 4;
+}
+
+/**
+ * A record of the proof key a node had in a particular address
+ * book. Necessary to keep at each point history so that nodes
+ * can verify the correct key was used to sign in transitions
+ * starting from the current address book; no matter how keys
+ * have been rotated from the time the address book was created.
+ */
+message ProofKey {
+  /**
+   * The node id.
+   */
+  uint64 node_id = 1;
+  /**
+   * The key.
+   */
+  bytes key = 2;
+}
+
+/**
+ * A piece of new history in the form of an address book hash and
+ * associated metadata.
+ */
+message History {
+  /**
+   * The address book hash of the new history.
+   */
+  bytes address_book_hash = 1;
+  /**
+   * The metadata associated to the address book.
+   */
+  bytes metadata = 2;
+}
+
+/**
+ * A proof that some address book history belongs to the ledger id's
+ * chain of trust.
+ */
+message HistoryProof {
+  /**
+   * The hash of the source address book.
+   */
+  bytes source_address_book_hash = 1;
+  /**
+   * The proof keys for the target address book, needed to keep
+   * constructing proofs after adopting the target address book's
+   * roster at a handoff.
+   */
+  repeated ProofKey target_proof_keys = 2;
+  /**
+   * The target history of the proof.
+   */
+  History target_history = 3;
+  /**
+   * The proof of chain of trust from the ledger id.
+   */
+  bytes proof = 4;
+}
+
+/**
+ * Summary of the status of constructing a metadata proof, necessary to
+ * ensure deterministic construction ending in a roster with sufficient
+ * weight to enact its own constructions.
+ */
+message HistoryProofConstruction {
+  /**
+   * The construction id.
+   */
+  uint64 construction_id = 1;
+  /**
+   * The hash of the roster whose weights are used to determine when
+   * certain thresholds are during construction.
+   */
+  bytes source_roster_hash = 2;
+  /**
+   * If set, the proof that the address book of the source roster belongs
+   * to the the ledger id's chain of trust; if not set, the source roster's
+   * address book must *be* the ledger id.
+   */
+  HistoryProof source_proof = 3;
+  /**
+   * The hash of the roster whose weights are used to assess progress
+   * toward obtaining proof keys for parties that hold at least a
+   * strong minority of the stake in that roster.
+   */
+  bytes target_roster_hash = 4;
+
+  oneof proof_state {
+    /**
+     * If the network is still gathering proof keys for this
+     * construction, the next time at which nodes should stop waiting
+     * for tardy proof keys and assembly the history to be proven as
+     * soon as it has the associated metadata and proof keys for nodes
+     * with >2/3 weight in the target roster.
+     */
+    proto.Timestamp grace_period_end_time = 5;
+    /**
+     * If the network has gathered enough proof keys to assemble the
+     * history for this construction, the cutoff time at which those
+     * keys must have been adopted to be included in the final history.
+     */
+    proto.Timestamp assembly_start_time = 6;
+    /**
+     * When this construction is complete, the recursive proof that
+     * the target roster's address book and associated metadata belong
+     * to the ledger id's chain of trust.
+     */
+    HistoryProof target_proof = 7;
+  }
+}
+
+/**
+ * A construction-scoped node id.
+ */
+message ConstructionNodeId {
+  /**
+   * The unique id of a history proof construction.
+   */
+  uint64 construction_id = 1;
+  /**
+   * The unique id of a node.
+   */
+  uint64 node_id = 2;
+}
+
+/**
+ * A node's vote for a particular history proof; either by explicitly
+ * giving the proof, or by identifying a node that already voted for it.
+ */
+message HistoryProofVote {
+  oneof vote {
+    /**
+     * The history proof the submitting node is voting for.
+     */
+    HistoryProof proof = 1;
+    /**
+     * The id of another node that already voted for the exact proof
+     * the submitting node is voting for.
+     */
+    uint64 congruent_node_id = 2;
+  }
+}
+
+/**
+ * A node's signature blessing some new history.
+ */
+message HistorySignature {
+  /**
+   * The new history the node is signing.
+   */
+  History history = 1;
+  /**
+   * The node's signature on the canonical serialization of
+   * the new history.
+   */
+  bytes signature = 2;
+}
+
+/**
+ * A signature on some new history recorded at a certain time.
+ */
+message RecordedHistorySignature {
+  /**
+   * The time at which the signature was recorded.
+   */
+  proto.Timestamp signing_time = 1;
+
+  /**
+   * The signature on some new history.
+   */
+  HistorySignature history_signature = 2;
+}
+

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package com.swirlds.platform.event.hashing;
 
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -71,9 +70,8 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
     /**
      * Hashes the given event and returns the hash.
      *
-     * @param eventCore the event to hash
-     * @param transactions the transactions to hash
-     *
+     * @param eventCore         the event to hash
+     * @param transactions      the transactions to hash
      * @return the hash of the event
      */
     @NonNull
@@ -81,15 +79,19 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
             for (final TransactionWrapper transaction : transactions) {
-                EventTransaction.PROTOBUF.write(transaction.getTransaction(), transactionStream);
-                byte[] hash = transactionDigest.digest();
-                transaction.setHash(Bytes.wrap(hash));
-                eventStream.writeBytes(hash);
+                transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
+                processTransactionHash(transaction);
             }
         } catch (final IOException e) {
             throw new RuntimeException("An exception occurred while trying to hash an event!", e);
         }
 
         return new Hash(eventDigest.digest(), DigestType.SHA_384);
+    }
+
+    private void processTransactionHash(final TransactionWrapper transaction) {
+        final byte[] hash = transactionDigest.digest();
+        transaction.setHash(Bytes.wrap(hash));
+        eventStream.writeBytes(hash);
     }
 }

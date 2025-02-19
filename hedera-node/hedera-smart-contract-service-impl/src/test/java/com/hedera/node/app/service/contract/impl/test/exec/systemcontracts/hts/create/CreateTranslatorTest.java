@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,11 +53,10 @@ import static com.hedera.node.app.service.contract.impl.test.exec.systemcontract
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_NON_FUNGIBLE_WITH_META_AND_FEES_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_NON_FUNGIBLE_WITH_META_TUPLE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
@@ -65,6 +64,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.ClassicCreatesCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.config.data.ContractsConfig;
@@ -106,13 +106,18 @@ public class CreateTranslatorTest extends CallTestBase {
     @Mock
     Configuration configuration;
 
-    private CreateDecoder decoder = new CreateDecoder();
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
+    private final CreateDecoder decoder = new CreateDecoder();
 
     private CreateTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new CreateTranslator(decoder);
+        subject = new CreateTranslator(decoder, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
@@ -123,8 +128,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -135,8 +141,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -147,8 +154,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -161,8 +169,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-        assertTrue(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -173,8 +182,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -185,8 +195,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -197,8 +208,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -211,8 +223,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-        assertTrue(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -223,8 +236,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -235,8 +249,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -247,8 +262,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -261,8 +277,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-        assertTrue(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -273,8 +290,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -285,8 +303,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -297,8 +316,9 @@ public class CreateTranslatorTest extends CallTestBase {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -311,15 +331,22 @@ public class CreateTranslatorTest extends CallTestBase {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-        assertTrue(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void falseOnInvalidSelector() {
         attempt = prepareHtsAttemptWithSelector(
-                BURN_TOKEN_V2, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertFalse(subject.matches(attempt));
+                BURN_TOKEN_V2,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test

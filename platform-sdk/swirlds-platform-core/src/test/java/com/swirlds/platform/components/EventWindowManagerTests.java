@@ -42,10 +42,9 @@ public class EventWindowManagerTests {
         final ComponentWiring<EventWindowManager, EventWindow> wiring = new ComponentWiring<>(
                 model,
                 EventWindowManager.class,
-                model.schedulerBuilder("eventWindowManager")
+                model.<EventWindow>schedulerBuilder("eventWindowManager")
                         .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                        .build()
-                        .cast());
+                        .build());
         wiring.bind(eventWindowManager);
 
         final AtomicReference<EventWindow> output = new AtomicReference<>(null);

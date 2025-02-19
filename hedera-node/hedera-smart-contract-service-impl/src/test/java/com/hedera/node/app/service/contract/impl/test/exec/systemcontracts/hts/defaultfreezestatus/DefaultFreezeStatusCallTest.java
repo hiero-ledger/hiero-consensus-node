@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.defaultfreezestatus.DefaultFreezeStatusCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.defaultfreezestatus.DefaultFreezeStatusTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -43,7 +44,7 @@ class DefaultFreezeStatusCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(DefaultFreezeStatusTranslator.DEFAULT_FREEZE_STATUS
                         .getOutputs()
-                        .encodeElements(SUCCESS.protoOrdinal(), false)
+                        .encode(Tuple.of(SUCCESS.protoOrdinal(), false))
                         .array()),
                 result.getOutput());
     }
@@ -58,7 +59,7 @@ class DefaultFreezeStatusCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(DefaultFreezeStatusTranslator.DEFAULT_FREEZE_STATUS
                         .getOutputs()
-                        .encodeElements(INVALID_TOKEN_ID.protoOrdinal(), false)
+                        .encode(Tuple.of(INVALID_TOKEN_ID.protoOrdinal(), false))
                         .array()),
                 result.getOutput());
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,38 +18,51 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.setun
 
 import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @Singleton
 public class SetUnlimitedAutoAssociationsTranslator extends AbstractCallTranslator<HasCallAttempt> {
 
-    public static final Function SET_UNLIMITED_AUTO_ASSOC =
-            new Function("setUnlimitedAutomaticAssociations(bool)", ReturnTypes.INT_64);
+    public static final SystemContractMethod SET_UNLIMITED_AUTO_ASSOC = SystemContractMethod.declare(
+                    "setUnlimitedAutomaticAssociations(bool)", ReturnTypes.INT_64)
+            .withCategories(Category.ASSOCIATION);
 
     private static final int UNLIMITED_AUTO_ASSOCIATIONS = -1;
     private static final int NO_AUTO_ASSOCIATIONS = 0;
 
     @Inject
-    public SetUnlimitedAutoAssociationsTranslator() {
+    public SetUnlimitedAutoAssociationsTranslator(
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
         // Dagger2
+        super(SystemContractMethod.SystemContract.HAS, systemContractMethodRegistry, contractMetrics);
+
+        registerMethods(SET_UNLIMITED_AUTO_ASSOC);
     }
 
     @Override
-    public boolean matches(@NonNull final HasCallAttempt attempt) {
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HasCallAttempt attempt) {
         final var setUnlimitedAutoAssocEnabled = attempt.configuration()
                 .getConfigData(ContractsConfig.class)
                 .systemContractSetUnlimitedAutoAssociationsEnabled();
-        return attempt.isSelectorIfConfigEnabled(setUnlimitedAutoAssocEnabled, SET_UNLIMITED_AUTO_ASSOC);
+
+        if (attempt.isSelectorIfConfigEnabled(setUnlimitedAutoAssocEnabled, SET_UNLIMITED_AUTO_ASSOC))
+            return Optional.of(SET_UNLIMITED_AUTO_ASSOC);
+        return Optional.empty();
     }
 
     @Override

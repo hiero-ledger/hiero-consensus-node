@@ -55,10 +55,9 @@ public class WireRouter<ROUTER_TYPE extends Enum<ROUTER_TYPE>> {
             @NonNull final String routerName,
             @NonNull final String routerInputName,
             @NonNull final Class<ROUTER_TYPE> clazz) {
-        final TaskScheduler<Void> scheduler = model.schedulerBuilder(routerName)
+        final TaskScheduler<Void> scheduler = model.<Void>schedulerBuilder(routerName)
                 .withType(DIRECT_THREADSAFE)
-                .build()
-                .cast();
+                .build();
 
         outputWires = new ArrayList<>(clazz.getEnumConstants().length);
         for (int index = 0; index < clazz.getEnumConstants().length; index++) {

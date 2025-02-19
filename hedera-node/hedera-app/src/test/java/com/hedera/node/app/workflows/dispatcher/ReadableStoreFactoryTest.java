@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -71,7 +72,7 @@ class ReadableStoreFactoryTest {
         // given
         given(readableStates.get(anyString())).willReturn(readableKVState);
         given(state.getReadableStates(anyString())).willReturn(readableStates);
-        final ReadableStoreFactory subject = new ReadableStoreFactory(state);
+        final ReadableStoreFactory subject = new ReadableStoreFactory(state, ServicesSoftwareVersion::new);
 
         // when
         final var store = subject.getStore(storeClass);

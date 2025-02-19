@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalcu
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -43,6 +44,7 @@ public abstract class AbstractCall implements Call {
     protected final SystemContractGasCalculator gasCalculator;
     protected final HederaWorldUpdater.Enhancement enhancement;
     private final boolean isViewCall;
+    private SystemContractMethod systemContractMethod;
 
     protected AbstractCall(
             @NonNull final SystemContractGasCalculator gasCalculator,
@@ -51,6 +53,14 @@ public abstract class AbstractCall implements Call {
         this.gasCalculator = requireNonNull(gasCalculator);
         this.enhancement = requireNonNull(enhancement);
         this.isViewCall = isViewCall;
+    }
+
+    public void setSystemContractMethod(@NonNull final SystemContractMethod systemContractMethod) {
+        this.systemContractMethod = systemContractMethod;
+    }
+
+    public SystemContractMethod getSystemContractMethod() {
+        return systemContractMethod;
     }
 
     protected HederaOperations operations() {

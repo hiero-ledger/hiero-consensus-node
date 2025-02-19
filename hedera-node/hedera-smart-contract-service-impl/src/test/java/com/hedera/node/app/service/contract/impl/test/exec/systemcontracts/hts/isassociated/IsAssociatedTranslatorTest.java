@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,8 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isassociated.IsAssociatedTranslator.IS_ASSOCIATED;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirect;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
@@ -30,12 +29,14 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isassociated.IsAssociatedCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isassociated.IsAssociatedTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,11 +65,16 @@ class IsAssociatedTranslatorTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private IsAssociatedTranslator translator;
 
     @BeforeEach
     void setUp() {
-        translator = new IsAssociatedTranslator();
+        translator = new IsAssociatedTranslator(systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
@@ -76,8 +82,14 @@ class IsAssociatedTranslatorTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         mockAttempt = prepareHtsAttemptWithSelectorForRedirect(
-                IS_ASSOCIATED, translator, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertTrue(translator.matches(mockAttempt));
+                IS_ASSOCIATED,
+                translator,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(translator.identifyMethod(mockAttempt)).isPresent();
     }
 
     @Test
@@ -85,14 +97,20 @@ class IsAssociatedTranslatorTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         mockAttempt = prepareHtsAttemptWithSelectorForRedirect(
-                BURN_TOKEN_V2, translator, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertFalse(translator.matches(mockAttempt));
+                BURN_TOKEN_V2,
+                translator,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(translator.identifyMethod(mockAttempt)).isEmpty();
     }
 
     @Test
     void matchesWithTokenRedirectFalseReturnsFalse() {
         when(mockAttempt.isTokenRedirect()).thenReturn(false);
-        assertFalse(translator.matches(mockAttempt));
+        assertThat(translator.identifyMethod(mockAttempt)).isEmpty();
     }
 
     @Test

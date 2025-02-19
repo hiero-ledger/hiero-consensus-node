@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,14 @@ public interface CryptoTransferStreamBuilder extends StreamBuilder {
      */
     @NonNull
     CryptoTransferStreamBuilder tokenTransferLists(@NonNull List<TokenTransferList> tokenTransferLists);
+
+    /**
+     * Returns all assessed custom fees for this call.
+     *
+     * @return the assessed custom fees
+     */
+    @NonNull
+    List<AssessedCustomFee> getAssessedCustomFees();
 
     /**
      * Tracks the total custom fees assessed in the transaction.

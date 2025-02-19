@@ -35,6 +35,7 @@ option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";
 import "basic_types.proto";
+import "custom_fees.proto";
 import "duration.proto";
 import "timestamp.proto";
 
@@ -129,4 +130,56 @@ message ConsensusUpdateTopicTransactionBody {
      * `autoRenewAccount` SHALL be removed from the topic.
      */
     AccountID autoRenewAccount = 9;
+
+    /**
+     * Access control for update/delete of custom fees.
+     * <p>
+     * If set, subsequent consensus_update_topic transactions signed with this
+     * key MAY update or delete the custom fees for this topic.<br/>
+     * If this field is set, the admin key MUST sign this transaction.<br/>
+     * If this field is set, the previous value SHALL be replaced.<br/>
+     * If set to a 'Key' containing an empty 'KeyList', the previous value
+     * SHALL be cleared.<br/>
+     * If not set, the current key SHALL NOT change.<br/>
+     * If unset in state, this field MUST NOT be set in this transaction.<br/>
+     * If not set when the topic is created, this field CANNOT be set via
+     * update.<br/>
+     */
+    Key fee_schedule_key = 10;
+
+    /**
+     * A set of keys<br/>
+     * Keys in this list are permitted to submit messages to this topic without
+     * paying custom fees associated with this topic.
+     * <p>
+     * If a submit transaction is signed by _any_ key included in this set,
+     * custom fees SHALL NOT be charged for that transaction.<br/>
+     * If this field is not set, the current set of keys SHALL NOT change.<br/>
+     * If this field is set, but contains an empty list, any existing fee-exempt
+     * keys SHALL be removed.<br/>
+     * A `fee_exempt_key_list` MUST NOT contain more than
+     * `MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST` keys.<br/>
+     * A `fee_exempt_key_list` MUST NOT contain any duplicate keys.<br/>
+     * A `fee_exempt_key_list` MAY contain keys for accounts that are inactive,
+     * deleted, or non-existent.
+     */
+    FeeExemptKeyList fee_exempt_key_list = 11;
+
+    /**
+     * A set of custom fee definitions.<br/>
+     * These are fees to be assessed for each submit to this topic.
+     * <p>
+     * Each fee defined in this set SHALL be evaluated for
+     * each message submitted to this topic, and the resultant
+     * total assessed fees SHALL be charged.<br/>
+     * Custom fees defined here SHALL be assessed in addition to the base
+     * network and node fees.<br/>
+     * If this field is not set, the current set of custom fees
+     * SHALL NOT change.<br/>
+     * If this field is set, but contains an empty list, all current custom fees
+     * SHALL be removed.
+     * custom_fees list SHALL NOT contain more than
+     * `MAX_CUSTOM_FEE_ENTRIES_FOR_TOPICS` entries.
+     */
+    FixedCustomFeeList custom_fees = 12;
 }

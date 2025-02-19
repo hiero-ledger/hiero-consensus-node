@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
@@ -56,6 +57,7 @@ import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -128,6 +130,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected Map<Key, SigControl> overrides = Collections.EMPTY_MAP;
 
     protected Optional<Long> fee = Optional.empty();
+    protected List<Function<HapiSpec, CustomFeeLimit>> maxCustomFeeList = new ArrayList<>();
     protected Optional<Long> validDurationSecs = Optional.empty();
     protected Optional<String> customTxnId = Optional.empty();
     protected Optional<String> memo = Optional.empty();
@@ -317,6 +320,10 @@ public abstract class HapiSpecOperation implements SpecOperation {
         Consumer<TransactionBody.Builder> netDef = fee.map(amount -> minDef.andThen(b -> b.setTransactionFee(amount)))
                 .orElse(minDef)
                 .andThen(opDef);
+
+        for (final var supplier : maxCustomFeeList) {
+            netDef = netDef.andThen(b -> b.addMaxCustomFees(supplier.apply(spec)));
+        }
 
         setKeyControlOverrides(spec);
         List<Key> keys = signersToUseFor(spec);

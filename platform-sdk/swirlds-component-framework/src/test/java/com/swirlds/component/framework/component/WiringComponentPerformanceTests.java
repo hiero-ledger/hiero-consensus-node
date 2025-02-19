@@ -72,10 +72,9 @@ class WiringComponentPerformanceTests {
                         TestPlatformContextBuilder.create().build())
                 .build();
 
-        final TaskScheduler<Void> scheduler = model.schedulerBuilder("test")
+        final TaskScheduler<Void> scheduler = model.<Void>schedulerBuilder("test")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
 
         final ComponentWiring<SimpleComponent, Void> componentWiring =
                 new ComponentWiring<>(model, SimpleComponent.class, scheduler);

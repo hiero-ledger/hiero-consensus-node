@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.ReadableAirdropStoreImpl;
 import com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import java.util.Objects;
@@ -46,11 +48,14 @@ class ReadableAirdropStoreImplTest extends StateBuilderUtil {
 
     private ReadableAirdropStoreImpl subject;
 
+    @Mock
+    private ReadableEntityCounters entityCounters;
+
     @BeforeEach
     public void setUp() {
         given(readableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
                 .willReturn(airdrops);
-        subject = new ReadableAirdropStoreImpl(readableStates);
+        subject = new ReadableAirdropStoreImpl(readableStates, entityCounters);
     }
 
     @Test
@@ -64,7 +69,7 @@ class ReadableAirdropStoreImplTest extends StateBuilderUtil {
                 .build();
         given(readableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
                 .willReturn(airdrops);
-        subject = new ReadableAirdropStoreImpl(readableStates);
+        subject = new ReadableAirdropStoreImpl(readableStates, entityCounters);
 
         assertThat(subject.get(fungibleAirdrop)).isNotNull();
         assertThat(Objects.requireNonNull(subject.get(fungibleAirdrop)).pendingAirdropValue())
@@ -78,7 +83,7 @@ class ReadableAirdropStoreImplTest extends StateBuilderUtil {
         airdrops = emptyReadableAirdropStateBuilder().build();
         given(readableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
                 .willReturn(airdrops);
-        subject = new ReadableAirdropStoreImpl(readableStates);
+        subject = new ReadableAirdropStoreImpl(readableStates, entityCounters);
 
         assertThat(subject.get(fungibleAirdrop)).isNull();
         assertThat(subject.get(fungibleAirdrop)).isNull();
@@ -93,7 +98,8 @@ class ReadableAirdropStoreImplTest extends StateBuilderUtil {
     @SuppressWarnings("ConstantConditions")
     @Test
     void testConstructorCallWithNull() {
-        assertThatThrownBy(() -> subject = new ReadableAirdropStoreImpl(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> subject = new ReadableAirdropStoreImpl(null, null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -103,8 +109,9 @@ class ReadableAirdropStoreImplTest extends StateBuilderUtil {
                 .build();
         given(readableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
                 .willReturn(airdrops);
-        subject = new ReadableAirdropStoreImpl(readableStates);
-        assertThat(readableStates.get(StateBuilderUtil.AIRDROPS).size()).isEqualTo(subject.sizeOfState());
+        given(entityCounters.getCounterFor(EntityType.AIRDROP)).willReturn(10L);
+        subject = new ReadableAirdropStoreImpl(readableStates, entityCounters);
+        assertThat(entityCounters.getCounterFor(EntityType.AIRDROP)).isEqualTo(subject.sizeOfState());
     }
 
     @Test
@@ -118,9 +125,9 @@ class ReadableAirdropStoreImplTest extends StateBuilderUtil {
                 .build();
         given(readableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
                 .willReturn(airdrops);
-        subject = new ReadableAirdropStoreImpl(readableStates);
+        subject = new ReadableAirdropStoreImpl(readableStates, entityCounters);
 
-        final var store = new ReadableAirdropStoreImpl(readableStates);
+        final var store = new ReadableAirdropStoreImpl(readableStates, entityCounters);
         assertThat(readableStates.get(StateBuilderUtil.AIRDROPS).contains(fungibleAirdrop))
                 .isEqualTo(store.exists(fungibleAirdrop));
     }
@@ -132,9 +139,9 @@ class ReadableAirdropStoreImplTest extends StateBuilderUtil {
         airdrops = emptyReadableAirdropStateBuilder().build();
         given(readableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
                 .willReturn(airdrops);
-        subject = new ReadableAirdropStoreImpl(readableStates);
+        subject = new ReadableAirdropStoreImpl(readableStates, entityCounters);
 
-        final var store = new ReadableAirdropStoreImpl(readableStates);
+        final var store = new ReadableAirdropStoreImpl(readableStates, entityCounters);
         assertThat(readableStates.get(StateBuilderUtil.AIRDROPS).contains(fungibleAirdrop))
                 .isEqualTo(store.exists(fungibleAirdrop));
     }

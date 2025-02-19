@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package com.hedera.services.bdd.spec.queries;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_NONE;
 import static com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal.fromDetails;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -42,6 +43,7 @@ import com.hedera.services.bdd.spec.queries.schedule.HapiGetScheduleInfo;
 import com.hedera.services.bdd.spec.queries.token.HapiGetTokenInfo;
 import com.hedera.services.bdd.spec.queries.token.HapiGetTokenNftInfo;
 import com.hederahashgraph.api.proto.java.TransactionID;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -137,7 +139,21 @@ public class QueryVerbs {
      */
     public static HapiContractCallLocal contractCallLocal(
             final String contract, final String functionName, final Object... params) {
-        final var abi = getABIFor(FUNCTION, functionName, contract);
+        return contractCallLocal(Optional.empty(), contract, functionName, params);
+    }
+
+    /**
+     * This method allows the developer to invoke a contract function by the name of the called
+     * contract and the name of the desired function.  This version allows for a variant contract root folder
+     *
+     * @param variant variant contract root folder
+     * @param contract the name of the contract
+     * @param functionName the name of the function
+     * @param params the arguments (if any) passed to the contract's function
+     */
+    public static HapiContractCallLocal contractCallLocal(
+            final Optional<String> variant, final String contract, final String functionName, final Object... params) {
+        final var abi = getABIFor(variant.orElse(VARIANT_NONE), FUNCTION, functionName, contract);
         return new HapiContractCallLocal(abi, contract, params);
     }
 

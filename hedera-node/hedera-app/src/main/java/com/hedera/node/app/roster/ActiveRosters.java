@@ -17,7 +17,9 @@
 package com.hedera.node.app.roster;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -27,6 +29,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 /**
@@ -182,6 +186,25 @@ public class ActiveRosters {
         return switch (phase) {
             case BOOTSTRAP, TRANSITION -> new RosterTransitionWeights(
                     weightsFrom(lookup.apply(sourceRosterHash)), weightsFrom(lookup.apply(targetRosterHash)));
+            case HANDOFF -> throw new IllegalStateException("No target roster in handoff phase");
+        };
+    }
+
+    /**
+     * Assuming the {@link RosterService} is in a transition phase, returns the possibly empty set of
+     * node IDs that were removed from the source roster in the target roster.
+     */
+    public SortedSet<Long> removedNodeIds() {
+        return switch (phase) {
+            case BOOTSTRAP, TRANSITION -> {
+                final var targetNodeIds = lookup.apply(targetRosterHash).rosterEntries().stream()
+                        .map(RosterEntry::nodeId)
+                        .collect(toSet());
+                yield lookup.apply(sourceRosterHash).rosterEntries().stream()
+                        .map(RosterEntry::nodeId)
+                        .filter(o -> !targetNodeIds.contains(o))
+                        .collect(toCollection(TreeSet::new));
+            }
             case HANDOFF -> throw new IllegalStateException("No target roster in handoff phase");
         };
     }

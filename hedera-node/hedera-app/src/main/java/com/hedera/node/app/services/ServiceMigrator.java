@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@
 package com.hedera.node.app.services;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.config.ConfigProviderImpl;
+import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -37,15 +39,18 @@ public interface ServiceMigrator {
     /**
      * Perform the migrations on the given state.
      *
-     * @param state The state to migrate
-     * @param servicesRegistry The services registry to use for the migrations
-     * @param previousVersion The previous version of the state
-     * @param currentVersion The current version of the state
-     * @param appConfig The app configuration to use for the migrations
-     * @param platformConfig The platform configuration to use for subsequent object initializations
-     * @param genesisNetworkInfo The network information to use for the migrations
-     * @param metrics The metrics to use for the migrations
-     * @param startupNetworks The startup networks to use for the migrations
+     * @param state               The state to migrate
+     * @param servicesRegistry    The services registry to use for the migrations
+     * @param previousVersion     The previous version of the state
+     * @param currentVersion      The current version of the state
+     * @param appConfig           The app configuration to use for the migrations
+     * @param platformConfig      The platform configuration to use for subsequent object initializations
+     * @param genesisNetworkInfo  The network information to use for the migrations
+     * @param metrics             The metrics to use for the migrations
+     * @param startupNetworks     The startup networks to use for the migrations
+     * @param storeMetricsService The store metrics service to use for the migrations
+     * @param configProvider     The config provider to use for the migrations
+     * @param platformStateFacade  The facade object to access platform state properties
      * @return The list of builders for state changes that occurred during the migrations
      */
     List<StateChanges.Builder> doMigrations(
@@ -57,13 +62,8 @@ public interface ServiceMigrator {
             @NonNull Configuration platformConfig,
             @Nullable NetworkInfo genesisNetworkInfo,
             @NonNull Metrics metrics,
-            @NonNull StartupNetworks startupNetworks);
-
-    /**
-     * Given a {@link State}, returns the creation version of the state if it was deserialized, or null otherwise.
-     * @param state the state
-     * @return the version of the state if it was deserialized, otherwise null
-     */
-    @Nullable
-    SemanticVersion creationVersionOf(@NonNull State state);
+            @NonNull StartupNetworks startupNetworks,
+            @NonNull StoreMetricsServiceImpl storeMetricsService,
+            @NonNull ConfigProviderImpl configProvider,
+            @NonNull PlatformStateFacade platformStateFacade);
 }

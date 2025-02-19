@@ -21,7 +21,8 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
@@ -35,6 +36,7 @@ public class ReconnectLearnerFactory {
     private final ReconnectMetrics statistics;
     private final ThreadManager threadManager;
     private final PlatformContext platformContext;
+    private final PlatformStateFacade platformStateFacade;
 
     /**
      * @param platformContext the platform context
@@ -42,18 +44,21 @@ public class ReconnectLearnerFactory {
      * @param roster                 the current roster
      * @param reconnectSocketTimeout the socket timeout to use during the reconnect
      * @param statistics             reconnect metrics
+     * @param platformStateFacade    the facade to access the platform state
      */
     public ReconnectLearnerFactory(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final Roster roster,
             @NonNull final Duration reconnectSocketTimeout,
-            @NonNull final ReconnectMetrics statistics) {
+            @NonNull final ReconnectMetrics statistics,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.roster = Objects.requireNonNull(roster);
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.statistics = Objects.requireNonNull(statistics);
+        this.platformStateFacade = platformStateFacade;
     }
 
     /**
@@ -63,8 +68,15 @@ public class ReconnectLearnerFactory {
      * @param workingState the state to use to perform a delta based reconnect
      * @return a new instance
      */
-    public ReconnectLearner create(final Connection conn, final PlatformMerkleStateRoot workingState) {
+    public ReconnectLearner create(final Connection conn, final MerkleNodeState workingState) {
         return new ReconnectLearner(
-                platformContext, threadManager, conn, roster, workingState, reconnectSocketTimeout, statistics);
+                platformContext,
+                threadManager,
+                conn,
+                roster,
+                workingState,
+                reconnectSocketTimeout,
+                statistics,
+                platformStateFacade);
     }
 }

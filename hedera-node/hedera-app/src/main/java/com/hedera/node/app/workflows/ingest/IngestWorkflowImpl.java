@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
         // Grab (and reference count) the state, so we have a consistent view of things
         try (final var wrappedState = stateAccessor.get()) {
             // 0. Node state pre-checks
-            ingestChecker.checkNodeState();
+            ingestChecker.verifyReadyForTransactions();
 
             // 1.-6. Parse and check the transaction
             final var tx = transactionChecker.parse(requestBuffer);

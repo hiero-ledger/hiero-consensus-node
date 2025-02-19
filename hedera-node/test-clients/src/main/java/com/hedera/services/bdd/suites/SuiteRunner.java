@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ public class SuiteRunner {
     private static final HapiSpecSetup.TxnProtoStructure DEFAULT_TXN_CONFIG = HapiSpecSetup.TxnProtoStructure.ALTERNATE;
     private static final HapiSpecSetup.NodeSelection DEFAULT_NODE_SELECTOR = FIXED;
     private static final int EXPECTED_CI_NETWORK_SIZE = 4;
-    private static final String DEFAULT_PAYER_ID = "0.0.2";
+    private static final String DEFAULT_PAYER_ID = "2";
 
     private static final List<HapiSuite> SUITES_TO_DETAIL = new ArrayList<>();
 

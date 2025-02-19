@@ -52,11 +52,10 @@ public record PcesReplayerWiring(
      */
     @NonNull
     public static PcesReplayerWiring create(@NonNull final WiringModel model) {
-        final TaskScheduler<NoInput> taskScheduler = model.schedulerBuilder("pcesReplayer")
+        final TaskScheduler<NoInput> taskScheduler = model.<NoInput>schedulerBuilder("pcesReplayer")
                 .withType(DIRECT)
                 .withHyperlink(platformCoreHyperlink(PcesReplayer.class))
-                .build()
-                .cast();
+                .build();
 
         return new PcesReplayerWiring(
                 taskScheduler.buildInputWire("event files to replay"),

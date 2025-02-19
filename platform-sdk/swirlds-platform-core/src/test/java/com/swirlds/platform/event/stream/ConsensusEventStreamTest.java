@@ -63,10 +63,9 @@ class ConsensusEventStreamTest {
         final ComponentWiring<ConsensusEventStream, Void> wiring = new ComponentWiring<>(
                 model,
                 ConsensusEventStream.class,
-                model.schedulerBuilder("eventStreamManager")
+                model.<Void>schedulerBuilder("eventStreamManager")
                         .withType(TaskSchedulerType.DIRECT)
-                        .build()
-                        .cast());
+                        .build());
         wiring.bind(CONSENSUS_EVENT_STREAM);
 
         wiring.getInputWire(ConsensusEventStream::addEvents).inject(List.of(freezeEvent));
@@ -92,10 +91,9 @@ class ConsensusEventStreamTest {
         final ComponentWiring<ConsensusEventStream, Void> wiring = new ComponentWiring<>(
                 model,
                 ConsensusEventStream.class,
-                model.schedulerBuilder("eventStreamManager")
+                model.<Void>schedulerBuilder("eventStreamManager")
                         .withType(TaskSchedulerType.DIRECT)
-                        .build()
-                        .cast());
+                        .build());
         wiring.bind(CONSENSUS_EVENT_STREAM);
 
         wiring.getInputWire(ConsensusEventStream::legacyHashOverride)

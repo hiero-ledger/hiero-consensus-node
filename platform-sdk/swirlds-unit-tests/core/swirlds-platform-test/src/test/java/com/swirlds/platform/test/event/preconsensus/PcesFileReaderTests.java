@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -485,8 +485,18 @@ class PcesFileReaderTests {
     }
 
     /**
-     * In this test, a discontinuity is placed in the middle of the stream. We begin iterating at the first file in the
-     * stream.
+     *  Given that allowing gaps or discontinuities in the origin block of the PcesFile is likely to either lead to ISSes or, more likely, cause
+     *  events to be added to the hashgraph without their parents being added,
+     * the aim of the test is asserting that readFilesFromDisk is able to detect gaps or discontinuities exist in the existing PcesFiles.
+     * </br>
+     * This test, generates a list of files PcesFiles and places a discontinuity in the origin block randomly in the list.
+     * The sequence numbers are intentionally picked close to wrapping around the 3 digit to 4 digit, to cause the files not to line up
+     * alphabetically, and test the code support for that.
+     * The scenarios under test are:
+     *  * readFilesFromDisk is asked to read at the discontinuity origin block
+     *  * readFilesFromDisk is asked to read after the discontinuity origin block
+     *  * readFilesFromDisk is asked to read before the discontinuity origin block
+     *  * readFilesFromDisk is asked to read a non-existent origin block
      */
     @ParameterizedTest
     @MethodSource("buildArguments")
@@ -506,47 +516,37 @@ class PcesFileReaderTests {
         long lowerBound = random.nextLong(0, 1000);
         long upperBound = random.nextLong(lowerBound, lowerBound + maxDelta);
         Instant timestamp = Instant.now();
-
-        final long discontinuitySequenceNumber =
-                random.nextLong(firstSequenceNumber + 1, firstSequenceNumber + fileCount - 1);
-
         final long startingOrigin = random.nextLong(1, 1000);
-        long origin = startingOrigin;
+        final long discontinuity = startingOrigin + random.nextLong(1, 1000);
+        final int n = random.nextInt(2, fileCount); // The index of the fileCount where the
+        // discontinuity will be placed
 
-        for (long sequenceNumber = firstSequenceNumber;
-                sequenceNumber < firstSequenceNumber + fileCount;
-                sequenceNumber++) {
-
-            if (sequenceNumber == discontinuitySequenceNumber) {
-                origin = random.nextLong(origin + 1, origin + 1000);
-            }
-
-            final PcesFile file =
-                    PcesFile.of(ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, origin, fileDirectory);
-
-            lowerBound = random.nextLong(lowerBound, upperBound + 1);
-            upperBound = max(upperBound, random.nextLong(lowerBound, lowerBound + maxDelta));
-            timestamp = timestamp.plusMillis(random.nextInt(1, 100_000));
-
-            files.add(file);
-            if (sequenceNumber < discontinuitySequenceNumber) {
+        for (int index = 0; index < fileCount; index++) {
+            final long sequenceNumber = firstSequenceNumber + index;
+            final var isPreDiscontinuity = index < n;
+            final var org = isPreDiscontinuity ? startingOrigin : discontinuity;
+            final var file =
+                    PcesFile.of(ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, org, fileDirectory);
+            createDummyFile(file);
+            if (isPreDiscontinuity) {
                 filesBeforeDiscontinuity.add(file);
             } else {
                 filesAfterDiscontinuity.add(file);
             }
-            createDummyFile(file);
+            lowerBound = random.nextLong(lowerBound, upperBound + 1);
+            upperBound = max(upperBound, random.nextLong(lowerBound, lowerBound + maxDelta));
+            timestamp = timestamp.plusMillis(random.nextInt(1, 100_000));
         }
 
         final PlatformContext platformContext = buildContext(false, ancientMode, recycleBinPath);
         // Scenario 1: choose an origin that lands on the discontinuity exactly.
-        final long startingRound1 = origin;
         final PcesFileTracker fileTracker1 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
+                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, discontinuity, false, ancientMode);
         assertIteratorEquality(
-                filesAfterDiscontinuity.iterator(), fileTracker1.getFileIterator(NO_LOWER_BOUND, startingRound1));
+                filesAfterDiscontinuity.iterator(), fileTracker1.getFileIterator(NO_LOWER_BOUND, discontinuity));
 
         // Scenario 2: choose an origin that lands after the discontinuity.
-        final long startingRound2 = random.nextLong(origin + 1, origin + 1000);
+        final long startingRound2 = random.nextLong(discontinuity + 1, discontinuity + 1000);
         final PcesFileTracker fileTracker2 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
         assertIteratorEquality(
@@ -554,7 +554,7 @@ class PcesFileReaderTests {
 
         // Scenario 3: choose an origin that comes before the discontinuity. This will cause the files
         // after the discontinuity to be deleted.
-        final long startingRound3 = random.nextLong(startingOrigin, origin - 1);
+        final long startingRound3 = random.nextLong(startingOrigin, discontinuity);
         final PcesFileTracker fileTracker3 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
 

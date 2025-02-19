@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,9 +30,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHO
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirect;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -40,6 +39,7 @@ import static org.mockito.BDDMockito.given;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
@@ -49,6 +49,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.granta
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.ERCGrantApprovalCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.GrantApprovalDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.GrantApprovalTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
@@ -82,19 +83,30 @@ class GrantApprovalTranslatorTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private final GrantApprovalDecoder decoder = new GrantApprovalDecoder();
     private GrantApprovalTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new GrantApprovalTranslator(decoder);
+        subject = new GrantApprovalTranslator(decoder, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
     void grantApprovalMatches() {
         attempt = prepareHtsAttemptWithSelector(
-                GRANT_APPROVAL, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertTrue(subject.matches(attempt));
+                GRANT_APPROVAL,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -102,8 +114,14 @@ class GrantApprovalTranslatorTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         attempt = prepareHtsAttemptWithSelectorForRedirect(
-                ERC_GRANT_APPROVAL, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertTrue(subject.matches(attempt));
+                ERC_GRANT_APPROVAL,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -116,27 +134,40 @@ class GrantApprovalTranslatorTest {
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
-                gasCalculator);
-        assertTrue(subject.matches(attempt));
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void grantApprovalNFTMatches() {
         attempt = prepareHtsAttemptWithSelector(
-                GRANT_APPROVAL_NFT, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertTrue(subject.matches(attempt));
+                GRANT_APPROVAL_NFT,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void falseOnInvalidSelector() {
         attempt = prepareHtsAttemptWithSelector(
-                BURN_TOKEN_V2, subject, enhancement, addressIdConverter, verificationStrategies, gasCalculator);
-        assertFalse(subject.matches(attempt));
+                BURN_TOKEN_V2,
+                subject,
+                enhancement,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void callFromHapiFungible() {
-        final Tuple tuple = new Tuple(
+        final Tuple tuple = Tuple.of(
                 FUNGIBLE_TOKEN_HEADLONG_ADDRESS, UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
         final byte[] inputBytes = Bytes.wrapByteBuffer(GrantApprovalTranslator.GRANT_APPROVAL.encodeCall(tuple))
                 .toArray();
@@ -156,7 +187,7 @@ class GrantApprovalTranslatorTest {
 
     @Test
     void callFromHapiNonFungible() {
-        final Tuple tuple = new Tuple(
+        final Tuple tuple = Tuple.of(
                 NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
         final byte[] inputBytes = Bytes.wrapByteBuffer(GrantApprovalTranslator.GRANT_APPROVAL_NFT.encodeCall(tuple))
                 .toArray();
@@ -176,7 +207,7 @@ class GrantApprovalTranslatorTest {
 
     @Test
     void callFromERCFungible() {
-        final Tuple tuple = new Tuple(UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
+        final Tuple tuple = Tuple.of(UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
         final byte[] inputBytes =
                 Bytes.wrapByteBuffer(ERC_GRANT_APPROVAL.encodeCall(tuple)).toArray();
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
@@ -195,7 +226,7 @@ class GrantApprovalTranslatorTest {
 
     @Test
     void callFromERCNonFungible() {
-        final Tuple tuple = new Tuple(UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
+        final Tuple tuple = Tuple.of(UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS, BigInteger.valueOf(123L));
         final byte[] inputBytes = Bytes.wrapByteBuffer(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT.encodeCall(tuple))
                 .toArray();
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 package com.swirlds.platform.network;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
@@ -26,11 +24,7 @@ import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -83,20 +77,21 @@ public class NetworkMetrics {
      *
      * @param metrics         a reference to the metrics-system
      * @param selfId          this node's id
-     * @param roster          the roster
+     * @param peerList        list of peers to connect to
      * @throws IllegalArgumentException if {@code platform} is {@code null}
      */
-    public NetworkMetrics(@NonNull final Metrics metrics, @NonNull final NodeId selfId, @NonNull final Roster roster) {
+    public NetworkMetrics(
+            @NonNull final Metrics metrics, @NonNull final NodeId selfId, @NonNull final List<PeerInfo> peerList) {
         Objects.requireNonNull(metrics, "The metrics must not be null.");
         this.selfId = Objects.requireNonNull(selfId, "The selfId must not be null.");
-        Objects.requireNonNull(roster, "The roster must not be null.");
+        Objects.requireNonNull(peerList, "The peerList must not be null.");
 
         avgPing = metrics.getOrCreate(AVG_PING_CONFIG);
         bytesPerSecondSent = metrics.getOrCreate(BYTES_PER_SECOND_SENT_CONFIG);
         avgConnsCreated = metrics.getOrCreate(AVG_CONNS_CREATED_CONFIG);
 
-        for (final RosterEntry entry : roster.rosterEntries()) {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+        for (final PeerInfo entry : peerList) {
+            final NodeId nodeId = NodeId.of(entry.nodeId().id());
             avgPingMilliseconds.put(
                     nodeId,
                     metrics.getOrCreate(

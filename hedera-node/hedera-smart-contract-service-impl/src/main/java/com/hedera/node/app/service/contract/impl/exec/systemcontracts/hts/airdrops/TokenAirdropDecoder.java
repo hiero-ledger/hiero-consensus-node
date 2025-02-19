@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,18 +99,22 @@ public class TokenAirdropDecoder {
                 tokenTransferList.transfers(aaList);
             }
             if (nftAmountsTuple.length > 0) {
-                final var nftAmount = nftAmountsTuple[0];
-                final var serial = (long) nftAmount.get(NFT_SERIAL);
-                final var sender = addressIdConverter.convert(nftAmount.get(NFT_SENDER));
-                final var receiver = addressIdConverter.convert(nftAmount.get(NFT_RECEIVER));
-                checkForSystemAccount(receiver);
-                final var isApproval = (boolean) nftAmount.get(NFT_IS_APPROVAL);
-                tokenTransferList.nftTransfers(NftTransfer.newBuilder()
-                        .senderAccountID(sender)
-                        .receiverAccountID(receiver)
-                        .serialNumber(serial)
-                        .isApproval(isApproval)
-                        .build());
+                final var nftTransfersList = new ArrayList<NftTransfer>();
+                Arrays.stream(nftAmountsTuple).forEach(nftAmount -> {
+                    final var serial = (long) nftAmount.get(NFT_SERIAL);
+                    final var sender = addressIdConverter.convert(nftAmount.get(NFT_SENDER));
+                    final var receiver = addressIdConverter.convert(nftAmount.get(NFT_RECEIVER));
+                    checkForSystemAccount(receiver);
+                    final var isApproval = (boolean) nftAmount.get(NFT_IS_APPROVAL);
+                    final var nftTransfer = NftTransfer.newBuilder()
+                            .senderAccountID(sender)
+                            .receiverAccountID(receiver)
+                            .serialNumber(serial)
+                            .isApproval(isApproval)
+                            .build();
+                    nftTransfersList.add(nftTransfer);
+                });
+                tokenTransferList.nftTransfers(nftTransfersList);
             }
             transferBuilderList.add(tokenTransferList.build());
         });

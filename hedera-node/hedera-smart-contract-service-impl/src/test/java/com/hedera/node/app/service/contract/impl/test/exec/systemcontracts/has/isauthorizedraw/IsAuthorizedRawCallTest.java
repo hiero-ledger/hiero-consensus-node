@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,9 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall.EC_SIGNATURE_MAX_LENGTH;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall.EC_SIGNATURE_MIN_LENGTH;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall.ED_SIGNATURE_LENGTH;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT_NUM;
@@ -41,6 +44,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauth
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,10 +66,20 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
     @BeforeEach
     void setup() {
-        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(attempt.signatureVerifier()).willReturn(signatureVerifier);
+        lenient().when(attempt.systemContractGasCalculator()).thenReturn(gasCalculator);
+        lenient().when(attempt.enhancement()).thenReturn(mockEnhancement());
+        lenient().when(attempt.signatureVerifier()).thenReturn(signatureVerifier);
         lenient().when(frame.getRemainingGas()).thenReturn(10_000_000L);
+    }
+
+    @Test
+    void sanityCheckSignatureLengths() {
+        // Sadly, though AssertJ has `.isBetween` it does _not_ have `.isNotBetween`, or a general
+        // way to negate assertions ...
+
+        final var tooShortForEC = ED_SIGNATURE_LENGTH < EC_SIGNATURE_MIN_LENGTH;
+        final var tooLongForEC = ED_SIGNATURE_LENGTH > EC_SIGNATURE_MAX_LENGTH;
+        assertTrue(tooShortForEC || tooLongForEC);
     }
 
     @Test
@@ -106,10 +120,26 @@ class IsAuthorizedRawCallTest extends CallTestBase {
     }
 
     @ParameterizedTest
-    @CsvSource({"0,27", "1,28", "27,27", "28,28", "45,27", "46,28", "18,"})
-    void reverseVTest(final byte fromV, final Byte expectedV) {
+    @CsvSource({
+        "0,27",
+        "1,28",
+        "27,27",
+        "28,28",
+        "45,27",
+        "46,28",
+        "1000,28",
+        "1001,27",
+        "10000000,28",
+        "10000003,27",
+        "18,"
+    })
+    void reverseVTest(final long fromV, final Byte expectedV) {
         subject = getSubject(APPROVED_HEADLONG_ADDRESS);
-        final var v = subject.reverseV(fromV);
+
+        final var r = asBytes(fromV);
+        final var ecSig = new byte[64 + r.length];
+        System.arraycopy(r, 0, ecSig, 64, r.length);
+        final var v = subject.reverseV(ecSig);
         if (expectedV == null) assertTrue(v.isEmpty());
         else assertEquals(expectedV, v.get());
     }
@@ -117,5 +147,10 @@ class IsAuthorizedRawCallTest extends CallTestBase {
     @NonNull
     IsAuthorizedRawCall getSubject(@NonNull final Address address) {
         return new IsAuthorizedRawCall(attempt, address, messageHash, signature, customGasCalculator);
+    }
+
+    @NonNull
+    byte[] asBytes(final long n) {
+        return BigInteger.valueOf(n).toByteArray();
     }
 }

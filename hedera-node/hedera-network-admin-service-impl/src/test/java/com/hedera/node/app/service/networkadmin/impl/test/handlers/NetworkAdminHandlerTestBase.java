@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.WorkingStateAccessor;
@@ -199,6 +200,9 @@ public class NetworkAdminHandlerTestBase {
     @Mock
     protected FeeCalculator feeCalculator;
 
+    @Mock
+    protected ReadableEntityCounters readableEntityCounters;
+
     private final InstantSource instantSource = InstantSource.system();
 
     @BeforeEach
@@ -240,13 +244,13 @@ public class NetworkAdminHandlerTestBase {
     private void givenAccountsInReadableStore() {
         readableAccounts = readableAccountState();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
-        readableAccountStore = new ReadableAccountStoreImpl(readableStates);
+        readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
     }
 
     private void givenTokensInReadableStore() {
         readableTokenState = readableTokenState();
         given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
-        readableTokenStore = new ReadableTokenStoreImpl(readableStates);
+        readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
     }
 
     private void givenReadableTokenRelsStore() {
@@ -255,7 +259,7 @@ public class NetworkAdminHandlerTestBase {
                 .value(nonFungiblePair, nonFungibleTokenRelation)
                 .build();
         given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS)).willReturn(readableTokenRelState);
-        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates);
+        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
     }
 
     private void givenRecordCacheState() {
@@ -483,7 +487,7 @@ public class NetworkAdminHandlerTestBase {
     protected void givenNonFungibleTokenRelation() {
         nonFungibleTokenRelation = TokenRelation.newBuilder()
                 .tokenId(nonFungibleTokenId)
-                .accountId(asAccount(accountNum))
+                .accountId(asAccount(0L, 0L, accountNum))
                 .balance(1000L)
                 .frozen(false)
                 .kycGranted(false)

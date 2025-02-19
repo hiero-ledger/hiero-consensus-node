@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.ReplaceAliasesWi
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +63,7 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         refreshWritableStores();
 
         givenStoresAndConfig(handleContext);
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         givenTxn();
         given(handleContext.body()).willReturn(txn);
         given(stack.getBaseBuilder(CryptoTransferStreamBuilder.class)).willReturn(xferRecordBuilder);
@@ -83,8 +85,8 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         // fungible token transfer with custom hbar fixed fee
         // and a fractional fee with netOfTransfers false
         // NFT transfer with royalty fee (fraction 1/2), fallbackFee with fixed hbar fee
-        final var hbarsReceiver = asAccount(hbarReceiver);
-        final var tokensReceiver = asAccount(tokenReceiver);
+        final var hbarsReceiver = asAccount(0L, 0L, hbarReceiver);
+        final var tokensReceiver = asAccount(0L, 0L, tokenReceiver);
 
         givenTxn();
 
@@ -121,8 +123,8 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         // fungible token transfer with custom hts fixed fee
         // and a fractional fee with netOfTransfers false
         // NFT transfer with royalty fee (fraction 1/2), fallbackFee with fixed hts fee
-        final var hbarsReceiver = asAccount(hbarReceiver);
-        final var tokensReceiver = asAccount(tokenReceiver);
+        final var hbarsReceiver = asAccount(0L, 0L, hbarReceiver);
+        final var tokensReceiver = asAccount(0L, 0L, tokenReceiver);
         final var customfees = List.of(withFixedFee(htsFixedFee));
         writableTokenStore.put(
                 fungibleWithNoKyc.copyBuilder().customFees(customfees).build());
@@ -174,8 +176,8 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
         given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
 
-        final var hbarsReceiver = asAccount(hbarReceiver);
-        final var tokensReceiver = asAccount(tokenReceiver);
+        final var hbarsReceiver = asAccount(0L, 0L, hbarReceiver);
+        final var tokensReceiver = asAccount(0L, 0L, tokenReceiver);
 
         givenTxn();
 
@@ -206,8 +208,8 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         // fungible token transfer with custom hts fixed fee
         // and a fractional fee with netOfTransfers false
         // NFT transfer with royalty fee (fraction 1/2), no fallbackFee
-        final var hbarsReceiver = asAccount(hbarReceiver);
-        final var tokensReceiver = asAccount(tokenReceiver);
+        final var hbarsReceiver = asAccount(0L, 0L, hbarReceiver);
+        final var tokensReceiver = asAccount(0L, 0L, tokenReceiver);
         final var customfees = List.of(withFixedFee(htsFixedFee));
         writableTokenStore.put(
                 fungibleToken.copyBuilder().customFees(customfees).build());
@@ -255,8 +257,8 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
         given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
 
-        final var hbarsReceiver = asAccount(hbarReceiver);
-        final var tokensReceiver = asAccount(tokenReceiver);
+        final var hbarsReceiver = asAccount(0L, 0L, hbarReceiver);
+        final var tokensReceiver = asAccount(0L, 0L, tokenReceiver);
 
         givenTxn();
 
@@ -300,8 +302,8 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         // fungible token transfer with custom hts fixed fee
         // and a fractional fee with netOfTransfers true
         // NFT transfer with royalty fee (fraction 1/2), fallbackFee with fixed hts fee
-        final var hbarsReceiver = asAccount(hbarReceiver);
-        final var tokensReceiver = asAccount(tokenReceiver);
+        final var hbarsReceiver = asAccount(0L, 0L, hbarReceiver);
+        final var tokensReceiver = asAccount(0L, 0L, tokenReceiver);
         final var customfees = List.of(
                 withFixedFee(htsFixedFee),
                 withFractionalFee(
@@ -461,7 +463,7 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         ensureAliasesStep.doIn(transferContext);
         associateTokenRecepientsStep.doIn(transferContext);
 
-        final var tokenRel = writableTokenRelStore.get(asAccount(tokenReceiver), fungibleWithNoKyc.tokenId());
+        final var tokenRel = writableTokenRelStore.get(asAccount(0L, 0L, tokenReceiver), fungibleWithNoKyc.tokenId());
         readableTokenRelStore = TestStoreFactory.newReadableStoreWithTokenRels(
                 tokenRel.copyBuilder().balance(1000).build(),
                 tokenRel.copyBuilder()

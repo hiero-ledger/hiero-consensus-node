@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanceof.BalanceOfTranslator.BALANCE_OF;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
@@ -71,6 +73,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transf
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.swirlds.common.utility.CommonUtils;
@@ -103,24 +106,29 @@ class HtsCallAttemptTest extends CallTestBase {
     @Mock
     private MintDecoder mintDecoder;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
     private List<CallTranslator<HtsCallAttempt>> callTranslators;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     @BeforeEach
     void setUp() {
         callTranslators = List.of(
-                new AssociationsTranslator(associationsDecoder),
-                new Erc20TransfersTranslator(),
-                new Erc721TransferFromTranslator(),
-                new MintTranslator(mintDecoder),
-                new ClassicTransfersTranslator(classicTransfersDecoder),
-                new BalanceOfTranslator(),
-                new IsApprovedForAllTranslator(),
-                new NameTranslator(),
-                new TotalSupplyTranslator(),
-                new SymbolTranslator(),
-                new TokenUriTranslator(),
-                new OwnerOfTranslator(),
-                new DecimalsTranslator());
+                new AssociationsTranslator(associationsDecoder, systemContractMethodRegistry, contractMetrics),
+                new Erc20TransfersTranslator(systemContractMethodRegistry, contractMetrics),
+                new Erc721TransferFromTranslator(systemContractMethodRegistry, contractMetrics),
+                new MintTranslator(mintDecoder, systemContractMethodRegistry, contractMetrics),
+                new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics),
+                new BalanceOfTranslator(systemContractMethodRegistry, contractMetrics),
+                new IsApprovedForAllTranslator(systemContractMethodRegistry, contractMetrics),
+                new NameTranslator(systemContractMethodRegistry, contractMetrics),
+                new TotalSupplyTranslator(systemContractMethodRegistry, contractMetrics),
+                new SymbolTranslator(systemContractMethodRegistry, contractMetrics),
+                new TokenUriTranslator(systemContractMethodRegistry, contractMetrics),
+                new OwnerOfTranslator(systemContractMethodRegistry, contractMetrics),
+                new DecimalsTranslator(systemContractMethodRegistry, contractMetrics));
     }
 
     @Test
@@ -128,6 +136,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input =
                 TestHelpers.bytesForRedirect(Erc20TransfersTranslator.ERC_20_TRANSFER.selector(), EIP_1014_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -138,6 +147,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertNull(subject.redirectToken());
         verifyNoInteractions(nativeOperations);
@@ -149,6 +159,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 .willReturn(FUNGIBLE_TOKEN);
         final var input = TestHelpers.bytesForRedirect(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -159,6 +170,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertNull(subject.asExecutableCall());
     }
@@ -168,6 +180,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 DecimalsTranslator.DECIMALS.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -178,6 +191,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(DecimalsCall.class, subject.asExecutableCall());
     }
@@ -187,6 +201,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 TokenUriTranslator.TOKEN_URI.encodeCallWithArgs(BigInteger.ONE).array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -197,6 +212,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(TokenUriCall.class, subject.asExecutableCall());
     }
@@ -206,6 +222,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 OwnerOfTranslator.OWNER_OF.encodeCallWithArgs(BigInteger.ONE).array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -216,6 +233,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(OwnerOfCall.class, subject.asExecutableCall());
     }
@@ -228,6 +246,7 @@ class HtsCallAttemptTest extends CallTestBase {
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -238,6 +257,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(BalanceOfCall.class, subject.asExecutableCall());
     }
@@ -251,6 +271,7 @@ class HtsCallAttemptTest extends CallTestBase {
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -261,6 +282,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(IsApprovedForAllCall.class, subject.asExecutableCall());
     }
@@ -272,6 +294,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 .encodeCallWithArgs(address, address, address)
                 .array());
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -282,6 +305,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(IsApprovedForAllCall.class, subject.asExecutableCall());
     }
@@ -291,6 +315,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 TotalSupplyTranslator.TOTAL_SUPPLY.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -301,6 +326,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(TotalSupplyCall.class, subject.asExecutableCall());
     }
@@ -310,6 +336,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 NameTranslator.NAME.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -320,6 +347,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(NameCall.class, subject.asExecutableCall());
     }
@@ -329,6 +357,7 @@ class HtsCallAttemptTest extends CallTestBase {
         final var input = TestHelpers.bytesForRedirect(
                 SymbolTranslator.SYMBOL.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -339,6 +368,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(SymbolCall.class, subject.asExecutableCall());
     }
@@ -359,6 +389,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -369,6 +400,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(Erc721TransferFromCall.class, subject.asExecutableCall());
     }
@@ -389,6 +421,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -399,6 +432,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(Erc20TransfersCall.class, subject.asExecutableCall());
     }
@@ -416,6 +450,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -426,6 +461,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(Erc20TransfersCall.class, subject.asExecutableCall());
     }
@@ -469,6 +505,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -479,6 +516,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
 
         assertInstanceOf(DispatchForResponseCodeHtsCall.class, subject.asExecutableCall());
@@ -532,6 +570,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -542,6 +581,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
 
         assertInstanceOf(ClassicTransfersCall.class, subject.asExecutableCall());
@@ -603,6 +643,7 @@ class HtsCallAttemptTest extends CallTestBase {
         }
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -613,6 +654,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
 
         assertInstanceOf(DispatchForResponseCodeHtsCall.class, subject.asExecutableCall());

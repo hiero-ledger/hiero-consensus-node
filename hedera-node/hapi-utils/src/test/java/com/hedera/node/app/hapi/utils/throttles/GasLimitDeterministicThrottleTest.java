@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -94,10 +94,17 @@ class GasLimitDeterministicThrottleTest {
 
     @Test
     void leaksUntilNowBeforeEstimatingFreeToUsed() {
-        final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
         final var subject = new GasLimitDeterministicThrottle(capacity);
         assertEquals(Long.MAX_VALUE, subject.instantaneousFreeToUsedRatio());
+    }
+
+    @Test
+    void throwsOnNegativeGasLimit() {
+        final long gasLimitForTX = -1;
+        final Instant now = Instant.ofEpochSecond(1_234_567L);
+        assertThrows(
+                IllegalArgumentException.class, () -> subject.allow(now, gasLimitForTX), "Negative gas should throw");
     }
 
     @Test

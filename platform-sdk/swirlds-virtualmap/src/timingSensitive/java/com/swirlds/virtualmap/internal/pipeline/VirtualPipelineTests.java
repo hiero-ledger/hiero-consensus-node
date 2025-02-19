@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -616,7 +616,7 @@ class VirtualPipelineTests {
         }
 
         @Override
-        public boolean flush() {
+        public void flush() {
             try {
                 if (!flushFinishedLatch.await(30, TimeUnit.SECONDS)) {
                     throw new RuntimeException("Wait exceeded");
@@ -625,7 +625,7 @@ class VirtualPipelineTests {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException(ex);
             }
-            return super.flush();
+            super.flush();
         }
 
         @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirectWithConfig;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.BDDMockito.given;
@@ -34,6 +33,7 @@ import com.hedera.hapi.node.token.TokenRejectTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
@@ -43,6 +43,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.rejecttokens.RejectTokensDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.rejecttokens.RejectTokensTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
@@ -91,37 +92,36 @@ public class RejectTokensTranslatorTest {
     @Mock
     private AccountID payerId;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private RejectTokensTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new RejectTokensTranslator(decoder);
+        subject = new RejectTokensTranslator(decoder, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
     void matchesHTSWithInvalidSig() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                BurnTranslator.BURN_TOKEN_V1,
+                BurnTranslator.BURN_TOKEN_V1, // obvs wrong selector
                 subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertFalse(matches);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void matchesHTSWithConfigEnabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
@@ -131,18 +131,13 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertTrue(matches);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesHTSWithConfigDisabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
@@ -152,18 +147,13 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertFalse(matches);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void matchesFungibleHRCWithConfigEnabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
@@ -174,18 +164,13 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertTrue(matches);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFungibleHRCWithConfigDisabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
@@ -196,18 +181,13 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertFalse(matches);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void matchesNftHRCWithConfigEnabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
@@ -218,18 +198,13 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertTrue(matches);
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesNftHRCWithConfigDisabled() {
-        // given:
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
@@ -240,13 +215,9 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
-
-        // when:
-        boolean matches = subject.matches(attempt);
-
-        // then:
-        assertFalse(matches);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
@@ -302,6 +273,7 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
 
         // when:
@@ -325,6 +297,7 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
 
         // when:
@@ -348,6 +321,7 @@ public class RejectTokensTranslatorTest {
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
+                systemContractMethodRegistry,
                 configuration);
 
         // when:

@@ -95,7 +95,9 @@ class PlatformWiringTests {
     @MethodSource("testContexts")
     @DisplayName("Assert that all input wires are bound to something")
     void testBindings(final PlatformContext platformContext) {
-        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
+        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {}, x -> {
+            return null;
+        });
 
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 

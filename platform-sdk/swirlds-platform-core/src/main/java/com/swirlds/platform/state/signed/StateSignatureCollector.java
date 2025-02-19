@@ -22,6 +22,7 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Queue;
 
 /**
  * Collects signatures for signed states. This class ensures that all the non-ancient states that are not fully signed
@@ -53,7 +54,7 @@ public interface StateSignatureCollector {
     @InputWireLabel("preconsensus state signatures")
     @Nullable
     List<ReservedSignedState> handlePreconsensusSignatures(
-            @NonNull List<ScopedSystemTransaction<StateSignatureTransaction>> transactions);
+            @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions);
 
     /**
      * Handle postconsensus state signatures.
@@ -64,7 +65,7 @@ public interface StateSignatureCollector {
     @InputWireLabel("post consensus state signatures")
     @Nullable
     List<ReservedSignedState> handlePostconsensusSignatures(
-            @NonNull List<ScopedSystemTransaction<StateSignatureTransaction>> transactions);
+            @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions);
 
     /**
      * Clear the internal state of this collector.

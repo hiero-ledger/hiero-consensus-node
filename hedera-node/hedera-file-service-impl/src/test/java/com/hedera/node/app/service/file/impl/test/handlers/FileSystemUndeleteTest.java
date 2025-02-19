@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
@@ -51,11 +50,12 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -98,11 +98,11 @@ class FileSystemUndeleteTest extends FileTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     protected ReadableStoreFactory mockStoreFactory;
 
-    @Mock(strictness = Mock.Strictness.LENIENT)
-    protected Account payerAccount;
+    @Mock
+    private PureChecksContext context;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
+    private TransactionChecker transactionChecker;
 
     protected Configuration testConfig;
 
@@ -114,7 +114,7 @@ class FileSystemUndeleteTest extends FileTestBase {
         writableFileState = writableFileStateWithOneKey();
         given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
         testConfig = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableFileStore(writableStates, testConfig, storeMetricsService);
+        writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         lenient().when(preHandleContext.configuration()).thenReturn(testConfig);
         lenient().when(handleContext.configuration()).thenReturn(testConfig);
         when(mockStoreFactory.getStore(ReadableFileStore.class)).thenReturn(mockStore);
@@ -123,27 +123,27 @@ class FileSystemUndeleteTest extends FileTestBase {
 
     @Test
     @DisplayName("pureChecks throws exception when file id is null")
-    public void testPureChecksThrowsExceptionWhenFileIdIsNull() {
+    void testPureChecksThrowsExceptionWhenFileIdIsNull() {
         SystemUndeleteTransactionBody transactionBody = mock(SystemUndeleteTransactionBody.class);
         TransactionBody transaction = mock(TransactionBody.class);
-        given(handleContext.body()).willReturn(transaction);
         given(transaction.systemUndeleteOrThrow()).willReturn(transactionBody);
         given(transactionBody.fileID()).willReturn(null);
+        given(context.body()).willReturn(transaction);
 
-        assertThatThrownBy(() -> subject.pureChecks(handleContext.body())).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.pureChecks(context)).isInstanceOf(PreCheckException.class);
     }
 
     @Test
     @DisplayName("pureChecks does not throw exception when file id is not null")
-    public void testPureChecksDoesNotThrowExceptionWhenFileIdIsNotNull() {
-        given(handleContext.body()).willReturn(newFileUnDeleteTxn());
+    void testPureChecksDoesNotThrowExceptionWhenFileIdIsNotNull() {
+        given(context.body()).willReturn(newFileUnDeleteTxn());
 
-        assertThatCode(() -> subject.pureChecks(handleContext.body())).doesNotThrowAnyException();
+        assertThatCode(() -> subject.pureChecks(context)).doesNotThrowAnyException();
     }
 
     @Test
     @DisplayName("calculateFees method invocations")
-    public void testCalculateFeesInvocations() {
+    void testCalculateFeesInvocations() {
         FeeContext feeContext = mock(FeeContext.class);
         FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
@@ -164,8 +164,8 @@ class FileSystemUndeleteTest extends FileTestBase {
         // given:
         mockPayerLookup();
         given(mockStore.getFileMetadata(notNull())).willReturn(null);
-        final var context =
-                new PreHandleContextImpl(mockStoreFactory, newFileUnDeleteTxn(), testConfig, mockDispatcher);
+        final var context = new PreHandleContextImpl(
+                mockStoreFactory, newFileUnDeleteTxn(), testConfig, mockDispatcher, transactionChecker);
 
         // when:
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_FILE_ID);
@@ -178,7 +178,7 @@ class FileSystemUndeleteTest extends FileTestBase {
 
         writableFileState = emptyWritableFileState();
         given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
-        writableStore = new WritableFileStore(writableStates, testConfig, storeMetricsService);
+        writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
         HandleException thrown = (HandleException) catchThrowable(() -> subject.handle(handleContext));
@@ -191,7 +191,7 @@ class FileSystemUndeleteTest extends FileTestBase {
         given(handleContext.body()).willReturn(newSystemDeleteTxn());
 
         final var existingFile = writableStore.get(fileId);
-        assertThat(existingFile.isPresent()).isTrue();
+        assertThat(existingFile).isPresent();
         assertThat(existingFile.get().deleted()).isFalse();
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
@@ -207,7 +207,7 @@ class FileSystemUndeleteTest extends FileTestBase {
 
         writableFileState = writableFileStateWithOneKey();
         given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
-        writableStore = new WritableFileStore(writableStates, testConfig, storeMetricsService);
+        writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
         HandleException thrown = (HandleException) catchThrowable(() -> subject.handle(handleContext));
@@ -220,7 +220,7 @@ class FileSystemUndeleteTest extends FileTestBase {
         given(handleContext.body()).willReturn(newFileUnDeleteTxn());
 
         final var existingFile = writableStore.get(fileId);
-        assertThat(existingFile.isPresent()).isTrue();
+        assertThat(existingFile).isPresent();
         assertThat(existingFile.get().deleted()).isFalse();
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
@@ -239,7 +239,7 @@ class FileSystemUndeleteTest extends FileTestBase {
         given(handleContext.body()).willReturn(newFileUnDeleteTxn());
 
         final var existingFile = writableStore.get(fileSystemFileId);
-        assertThat(existingFile.isPresent()).isTrue();
+        assertThat(existingFile).isPresent();
         assertThat(existingFile.get().deleted()).isFalse();
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
@@ -249,7 +249,7 @@ class FileSystemUndeleteTest extends FileTestBase {
 
         final var changedFile = writableStore.get(fileSystemFileId);
 
-        assertThat(changedFile.isPresent()).isTrue();
+        assertThat(changedFile).isPresent();
         assertThat(changedFile.get().deleted()).isFalse();
     }
 

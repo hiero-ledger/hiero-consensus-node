@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.types.LongPair;
@@ -109,17 +110,12 @@ public class FreezeHandler implements TransactionHandler {
     // it is necessary to check startHour, startMin, endHour, endMin, all of which are deprecated
     // because if any are present then we set a status of INVALID_FREEZE_TRANSACTION_BODY
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
-        FreezeTransactionBody freezeTxn = txn.freezeOrThrow();
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final TransactionBody txn = context.body();
 
-        // freeze.proto properties startHour, startMin, endHour, endMin are deprecated in the protobuf
-        // reject any freeze transactions that set these properties
-        if (freezeTxn.startHour() != 0
-                || freezeTxn.startMin() != 0
-                || freezeTxn.endHour() != 0
-                || freezeTxn.endMin() != 0) {
-            throw new PreCheckException(ResponseCodeEnum.INVALID_FREEZE_TRANSACTION_BODY);
-        }
+        requireNonNull(txn);
+        final FreezeTransactionBody freezeTxn = getFreezeTransactionBody(txn);
 
         final FreezeType freezeType = freezeTxn.freezeType();
         if (freezeType == UNKNOWN_FREEZE_TYPE) {
@@ -145,6 +141,21 @@ public class FreezeHandler implements TransactionHandler {
                 throw new PreCheckException(ResponseCodeEnum.FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH);
             }
         }
+    }
+
+    private static @NonNull FreezeTransactionBody getFreezeTransactionBody(final TransactionBody txn)
+            throws PreCheckException {
+        final FreezeTransactionBody freezeTxn = txn.freezeOrThrow();
+
+        // freeze.proto properties startHour, startMin, endHour, endMin are deprecated in the protobuf
+        // reject any freeze transactions that set these properties
+        if (freezeTxn.startHour() != 0
+                || freezeTxn.startMin() != 0
+                || freezeTxn.endHour() != 0
+                || freezeTxn.endMin() != 0) {
+            throw new PreCheckException(ResponseCodeEnum.INVALID_FREEZE_TRANSACTION_BODY);
+        }
+        return freezeTxn;
     }
 
     @Override

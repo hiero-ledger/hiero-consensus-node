@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.wipe.WipeTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.config.MetricsConfig;
@@ -33,7 +35,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.Executors;
-import java.util.function.Supplier;
+import org.hyperledger.besu.evm.frame.MessageFrame.State;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -42,14 +44,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class ContractMetricsTest {
 
-    private final Supplier<Metrics> metricsSupplier = () -> fakeMetrics();
+    private final Metrics metrics = fakeMetrics();
 
     @Mock
     private ContractsConfig contractsConfig;
 
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     public @NonNull ContractMetrics getSubject() {
-        final var contractMetrics = new ContractMetrics(metricsSupplier, () -> contractsConfig);
-        contractMetrics.createContractMetrics();
+        final var contractMetrics = new ContractMetrics(metrics, () -> contractsConfig, systemContractMethodRegistry);
+        contractMetrics.createContractPrimaryMetrics();
+        contractMetrics.createContractSecondaryMetrics();
         return contractMetrics;
     }
 
@@ -69,7 +74,7 @@ public class ContractMetricsTest {
 
         subject.bumpRejectedType3EthTx(20);
 
-        assertThat(subject.getAllCounterNames())
+        assertThat(subject.getAllP1CounterNames())
                 .containsExactlyInAnyOrder(
                         "SmartContractService:Rejected_ethereumTxDueToIntrinsicGas_total",
                         "SmartContractService:Rejected_ethereumTx_total",
@@ -78,7 +83,7 @@ public class ContractMetricsTest {
                         "SmartContractService:Rejected_contractCreateTxDueToIntrinsicGas_total",
                         "SmartContractService:Rejected_contractCreateTx_total",
                         "SmartContractService:Rejected_ethType3BlobTransaction_total");
-        assertThat(subject.getAllCounters())
+        assertThat(subject.getAllP1CounterValues())
                 .containsExactlyInAnyOrderEntriesOf(Map.of(
                         "SmartContractService:Rejected_ethereumTxDueToIntrinsicGas_total",
                         14L,
@@ -102,8 +107,9 @@ public class ContractMetricsTest {
     }
 
     @Test
-    public void rejectedTxCountersGetIgnoredWhenDisabled() {
+    public void countersGetIgnoredWhenDisabled() {
         given(contractsConfig.metricsSmartContractPrimaryEnabled()).willReturn(false);
+        given(contractsConfig.metricsSmartContractSecondaryEnabled()).willReturn(false);
 
         final var subject = getSubject();
 
@@ -117,8 +123,10 @@ public class ContractMetricsTest {
 
         subject.bumpRejectedType3EthTx(20);
 
+        subject.incrementSystemMethodCall(WipeTranslator.WIPE_FUNGIBLE_V1, State.EXCEPTIONAL_HALT);
+
         assertThat(subject.getAllCounterNames()).isEmpty();
-        assertThat(subject.getAllCounters()).isEmpty();
+        assertThat(subject.getAllCounterValues()).isEmpty();
     }
 
     private static final long DEFAULT_NODE_ID = 3;

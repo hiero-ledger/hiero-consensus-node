@@ -58,6 +58,11 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     }
 
     /**
+     * Returns whether the ledger ID has been set.
+     */
+    boolean hasLedgerId();
+
+    /**
      * Initializes the block stream manager after a restart or during reconnect with the hash of the last block
      * incorporated in the state used in the restart or reconnect. (At genesis, this hash should be the
      * {@link #ZERO_BLOCK_HASH}.)
@@ -73,6 +78,13 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the last block hash was not explicitly initialized
      */
     void startRound(@NonNull Round round, @NonNull State state);
+
+    /**
+     * Notifies the block stream manager of the first user transaction time in the
+     * last-started round.
+     * @param at the consensus time of the first user transaction
+     */
+    void setRoundFirstUserTransactionTime(@NonNull Instant at);
 
     /**
      * Confirms that the post-upgrade work has been completed.

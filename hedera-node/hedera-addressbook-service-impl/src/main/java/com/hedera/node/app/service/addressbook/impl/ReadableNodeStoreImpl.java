@@ -23,7 +23,9 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -44,14 +46,17 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     /** The underlying data storage class that holds the node data. */
     private final ReadableKVState<EntityNumber, Node> nodesState;
 
+    private final ReadableEntityCounters entityCounters;
+
     /**
      * Create a new {@link ReadableNodeStoreImpl} instance.
      *
      * @param states The state to use.
      */
-    public ReadableNodeStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableNodeStoreImpl(
+            @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
-
+        this.entityCounters = requireNonNull(entityCounters);
         this.nodesState = states.get(NODES_KEY);
     }
 
@@ -77,7 +82,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
      * @return the number of topics in the state
      */
     public long sizeOfState() {
-        return nodesState.size();
+        return entityCounters.getCounterFor(EntityType.NODE);
     }
 
     protected <T extends ReadableKVState<EntityNumber, Node>> T nodesState() {

@@ -347,8 +347,7 @@ public class PttTransactionPool implements FastCopyable {
             payloadPair = Triple.of(appendSignature(payload, invalidSig), payloadPair.middle(), payloadPair.right());
         }
 
-        final byte[] payloadToModify = payloadPair.left();
-        return Triple.of(payloadToModify, payloadPair.middle(), payloadPair.right());
+        return payloadPair;
     }
 
     /**

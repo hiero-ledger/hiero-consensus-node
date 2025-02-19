@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * A StateSignatureCollector that is used for unit testing. In the future, these unit tests should become small
@@ -84,24 +86,30 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
 
     @Override
     public List<ReservedSignedState> handlePreconsensusSignatures(
-            @NonNull final List<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         return processStates(super.handlePreconsensusSignatures(transactions));
     }
 
     public void handlePreconsensusSignatureTransaction(
             @NonNull final NodeId signerId, @NonNull final StateSignatureTransaction signatureTransaction) {
-        handlePreconsensusSignatures(List.of(new ScopedSystemTransaction<>(signerId, null, signatureTransaction)));
+        final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions =
+                new ConcurrentLinkedQueue<>();
+        systemTransactions.add(new ScopedSystemTransaction<>(signerId, null, signatureTransaction));
+        handlePreconsensusSignatures(systemTransactions);
     }
 
     @Override
     public List<ReservedSignedState> handlePostconsensusSignatures(
-            @NonNull final List<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         return processStates(super.handlePostconsensusSignatures(transactions));
     }
 
     public void handlePostconsensusSignatureTransaction(
             @NonNull final NodeId signerId, @NonNull final StateSignatureTransaction transaction) {
-        handlePostconsensusSignatures(List.of(new ScopedSystemTransaction<>(signerId, null, transaction)));
+        final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions =
+                new ConcurrentLinkedQueue<>();
+        systemTransactions.add(new ScopedSystemTransaction<>(signerId, null, transaction));
+        handlePostconsensusSignatures(systemTransactions);
     }
 
     private List<ReservedSignedState> processStates(@Nullable final List<ReservedSignedState> states) {

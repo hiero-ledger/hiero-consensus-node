@@ -23,6 +23,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -34,9 +36,11 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.roster.RosterRetriever;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -100,7 +104,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     }
 
     @Override
-    public Optional<Network> overrideNetworkFor(final long roundNumber) {
+    public Optional<Network> overrideNetworkFor(final long roundNumber, @NonNull final Configuration platformConfig) {
         if (roundNumber == 0) {
             return Optional.empty();
         }
@@ -109,7 +113,13 @@ public class DiskStartupNetworks implements StartupNetworks {
         if (unscopedNetwork.isPresent()) {
             return unscopedNetwork;
         }
-        return loadNetwork(AssetUse.OVERRIDE, config, "" + roundNumber, OVERRIDE_NETWORK_JSON);
+        final var scopedNetwork = loadNetwork(AssetUse.OVERRIDE, config, "" + roundNumber, OVERRIDE_NETWORK_JSON);
+        if (scopedNetwork.isPresent()) {
+            return scopedNetwork;
+        }
+        return platformConfig.getConfigData(AddressBookConfig.class).forceUseOfConfigAddressBook()
+                ? networkFromConfigTxt(platformConfig)
+                : Optional.empty();
     }
 
     @Override
@@ -163,9 +173,10 @@ public class DiskStartupNetworks implements StartupNetworks {
     }
 
     @Override
-    public Network migrationNetworkOrThrow() {
+    public Network migrationNetworkOrThrow(@NonNull final Configuration platformConfig) {
+        requireNonNull(platformConfig);
         return loadNetwork(AssetUse.MIGRATION, configProvider.getConfiguration(), OVERRIDE_NETWORK_JSON)
-                .or(() -> networkFromConfigTxt(configProvider.getConfiguration()))
+                .or(() -> networkFromConfigTxt(platformConfig))
                 .orElseThrow(() -> new IllegalStateException("Transplant network not found"));
     }
 
@@ -176,10 +187,15 @@ public class DiskStartupNetworks implements StartupNetworks {
      * @param path the path to write the JSON network information to.
      */
     public static void writeNetworkInfo(
-            @NonNull final State state, @NonNull final Path path, @NonNull final Set<InfoType> infoTypes) {
+            @NonNull final State state,
+            @NonNull final Path path,
+            @NonNull final Set<InfoType> infoTypes,
+            @NonNull PlatformStateFacade platformStateFacade) {
         requireNonNull(state);
-        final var nodeStore = new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME));
-        Optional.ofNullable(RosterRetriever.retrieveActiveOrGenesisRoster(state))
+        final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
+        final var nodeStore =
+                new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityIdStore);
+        Optional.ofNullable(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
                 .ifPresent(activeRoster -> {
                     final var network = Network.newBuilder();
                     final List<NodeMetadata> nodeMetadata = new ArrayList<>();

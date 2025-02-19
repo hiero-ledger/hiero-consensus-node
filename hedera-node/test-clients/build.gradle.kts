@@ -269,6 +269,9 @@ tasks.register<Test>("testRepeatable") {
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 
+// allow shadow Jar files to have more than 64k entries
+tasks.withType<ShadowJar>().configureEach { isZip64 = true }
+
 tasks.shadowJar { archiveFileName.set("SuiteRunner.jar") }
 
 val yahCliJar =

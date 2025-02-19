@@ -1002,7 +1002,7 @@ public class HapiSpec implements Runnable, Executable {
         txnFromCi = envTxn;
         dynamicNodes = nodes;
         defaultPayer = payer;
-        defaultNodeAccount = String.format("0.0.%s", suggestedNode);
+        defaultNodeAccount = suggestedNode;
         nodeSelectorFromCi = envNodeSelector;
         otherOverrides = overrides;
         ciPropsSource = null;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.accountIdFromHexed
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -572,7 +574,8 @@ public class CryptoTransferSuite {
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
-                                .addNftTransfers(ocWith(accountId(partyAliasAddr.get()), counterId.get(), 1L))))
+                                .addNftTransfers(
+                                        ocWith(accountId(shard, realm, partyAliasAddr.get()), counterId.get(), 1L))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
@@ -590,7 +593,9 @@ public class CryptoTransferSuite {
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
                                 .addNftTransfers(ocWith(
-                                        accountId(partyAliasAddr.get()), accountId(counterAliasAddr.get()), 1L))))
+                                        accountId(shard, realm, partyAliasAddr.get()),
+                                        accountId(shard, realm, counterAliasAddr.get()),
+                                        1L))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .via(NFT_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
@@ -1569,7 +1574,7 @@ public class CryptoTransferSuite {
     final Stream<DynamicTest> transferWithMissingAccountGetsInvalidAccountId() {
         return hapiTest(
                 cryptoCreate(PAYEE_SIG_REQ).receiverSigRequired(true),
-                cryptoTransfer(tinyBarsFromTo("1.2.3", PAYEE_SIG_REQ, 1_000L))
+                cryptoTransfer(tinyBarsFromTo("5.5.3", PAYEE_SIG_REQ, 1_000L))
                         .signedBy(DEFAULT_PAYER, PAYEE_SIG_REQ)
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
     }

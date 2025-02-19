@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,43 +22,70 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.CallVia;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Variant;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
+@Singleton
 public class RejectTokensTranslator extends AbstractCallTranslator<HtsCallAttempt> {
-    public static final Function TOKEN_REJECT =
-            new Function("rejectTokens(address,address[],(address,int64)[])", ReturnTypes.INT_64);
-    public static final Function HRC_TOKEN_REJECT_FT = new Function("rejectTokenFT()", ReturnTypes.INT_64);
-    public static final Function HRC_TOKEN_REJECT_NFT = new Function("rejectTokenNFTs(int64[])", ReturnTypes.INT_64);
+    public static final SystemContractMethod TOKEN_REJECT = SystemContractMethod.declare(
+                    "rejectTokens(address,address[],(address,int64)[])", ReturnTypes.INT_64)
+            .withCategories(Category.REJECT);
+    public static final SystemContractMethod HRC_TOKEN_REJECT_FT = SystemContractMethod.declare(
+                    "rejectTokenFT()", ReturnTypes.INT_64)
+            .withVia(CallVia.PROXY)
+            .withVariant(Variant.FT)
+            .withCategories(Category.REJECT);
+    public static final SystemContractMethod HRC_TOKEN_REJECT_NFT = SystemContractMethod.declare(
+                    "rejectTokenNFTs(int64[])", ReturnTypes.INT_64)
+            .withVia(CallVia.PROXY)
+            .withVariant(Variant.NFT)
+            .withCategories(Category.REJECT);
 
     private final RejectTokensDecoder decoder;
     private final Map<Function, DispatchGasCalculator> gasCalculators = new HashMap<>();
 
     @Inject
-    public RejectTokensTranslator(@NonNull final RejectTokensDecoder decoder) {
+    public RejectTokensTranslator(
+            @NonNull final RejectTokensDecoder decoder,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
         this.decoder = decoder;
-        gasCalculators.put(TOKEN_REJECT, RejectTokensTranslator::gasRequirement);
-        gasCalculators.put(HRC_TOKEN_REJECT_FT, RejectTokensTranslator::gasRequirementHRCFungible);
-        gasCalculators.put(HRC_TOKEN_REJECT_NFT, RejectTokensTranslator::gasRequirementHRCNft);
+
+        registerMethods(TOKEN_REJECT, HRC_TOKEN_REJECT_FT, HRC_TOKEN_REJECT_NFT);
+
+        gasCalculators.put(TOKEN_REJECT.function(), RejectTokensTranslator::gasRequirement);
+        gasCalculators.put(HRC_TOKEN_REJECT_FT.function(), RejectTokensTranslator::gasRequirementHRCFungible);
+        gasCalculators.put(HRC_TOKEN_REJECT_NFT.function(), RejectTokensTranslator::gasRequirementHRCNft);
     }
 
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         final var rejectEnabled =
                 attempt.configuration().getConfigData(ContractsConfig.class).systemContractRejectTokensEnabled();
+
+        if (!rejectEnabled) return Optional.empty();
         return attempt.isTokenRedirect()
-                ? attempt.isSelectorIfConfigEnabled(rejectEnabled, HRC_TOKEN_REJECT_FT, HRC_TOKEN_REJECT_NFT)
-                : attempt.isSelectorIfConfigEnabled(rejectEnabled, TOKEN_REJECT);
+                ? attempt.isMethod(HRC_TOKEN_REJECT_FT, HRC_TOKEN_REJECT_NFT)
+                : attempt.isMethod(TOKEN_REJECT);
     }
 
     @Override

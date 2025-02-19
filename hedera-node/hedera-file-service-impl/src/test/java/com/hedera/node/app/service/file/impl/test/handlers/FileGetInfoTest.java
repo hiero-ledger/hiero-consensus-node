@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ class FileGetInfoTest extends FileTestBase {
         givenValidFile(true);
         readableFileState = readableFileState();
         given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
-        readableStore = new ReadableFileStoreImpl(readableStates);
+        readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createGetFileInfoQuery(fileId.fileNum());
         when(context.query()).thenReturn(query);

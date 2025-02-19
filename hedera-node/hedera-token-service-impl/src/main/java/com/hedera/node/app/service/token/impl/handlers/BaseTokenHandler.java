@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -222,7 +222,7 @@ public class BaseTokenHandler {
 
             // Save the results
             accountStore.put(updatedAcct);
-            newTokenRels.forEach(tokenRelStore::put);
+            newTokenRels.forEach(tokenRelStore::putAndIncrementCount);
         }
     }
 
@@ -389,7 +389,7 @@ public class BaseTokenHandler {
             }
         }
         accountStore.put(copyAccount);
-        tokenRelStore.put(newTokenRel);
+        tokenRelStore.putAndIncrementCount(newTokenRel);
         return newTokenRel;
     }
 

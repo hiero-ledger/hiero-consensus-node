@@ -37,13 +37,13 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.service.addressbook.impl.helpers.AddressBookHelper;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.SystemSetup;
@@ -57,6 +57,7 @@ import com.hedera.node.config.types.StreamMode;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Round;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -64,6 +65,7 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -88,9 +90,6 @@ class HandleWorkflowTest {
 
     @Mock
     private ConfigProvider configProvider;
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
 
     @Mock
     private BlockRecordManager blockRecordManager;
@@ -152,10 +151,17 @@ class HandleWorkflowTest {
     @Mock
     private HistoryService historyService;
 
+    @Mock
+    private CongestionMetrics congestionMetrics;
+
     private HandleWorkflow subject;
 
+    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+
     @BeforeEach
-    void setUp() {}
+    void setUp() {
+        softwareVersionFactory = ServicesSoftwareVersion::new;
+    }
 
     @Test
     void onlySkipsEventWithMissingCreator() {
@@ -211,7 +217,6 @@ class HandleWorkflowTest {
                 stakePeriodChanges,
                 dispatchProcessor,
                 configProvider,
-                storeMetricsService,
                 blockRecordManager,
                 blockStreamManager,
                 cacheWarmer,
@@ -227,11 +232,12 @@ class HandleWorkflowTest {
                 stakePeriodManager,
                 migrationStateChanges,
                 userTxnFactory,
-                new AddressBookHelper(),
                 kvStateChangeListener,
                 boundaryStateChangeListener,
                 scheduleService,
                 hintsService,
-                historyService);
+                historyService,
+                congestionMetrics,
+                softwareVersionFactory);
     }
 }

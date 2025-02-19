@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -466,8 +466,14 @@ public class ERCPrecompileSuite {
                                                     .contract(idOfToken)
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getAccountNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .longValue(2)))))
                             .andAllChildRecords();
                     allRunFor(spec, txnRecord);
@@ -589,8 +595,14 @@ public class ERCPrecompileSuite {
                                             .logs(inOrder(logWith()
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getContractNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getContractNum())))
                                                     .longValue(2)))))
                             .andAllChildRecords()
                             .logged();
@@ -2713,9 +2725,18 @@ public class ERCPrecompileSuite {
                                                     .contract(idOfToken)
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
-                                                            parsedToByteString(sender.getAccountNum()),
-                                                            parsedToByteString(receiver.getAccountNum()),
-                                                            parsedToByteString(1L)))))))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getAccountNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum()),
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    1L)))))))
                             .andAllChildRecords()
                             .logged();
                     allRunFor(spec, txnRecord);

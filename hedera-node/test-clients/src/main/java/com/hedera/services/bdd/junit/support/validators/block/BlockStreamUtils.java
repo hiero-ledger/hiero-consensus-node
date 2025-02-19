@@ -49,6 +49,7 @@ public class BlockStreamUtils {
             case STATE_ID_PLATFORM_STATE -> "PlatformStateService.PLATFORM_STATE";
             case STATE_ID_ROSTER_STATE -> "RosterService.ROSTER_STATE";
             case STATE_ID_ROSTERS -> "RosterService.ROSTERS";
+            case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
             case STATE_ID_TRANSACTION_RECEIPTS_QUEUE -> "RecordCache.TransactionReceiptQueue";
             case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
             case STATE_ID_SCHEDULES_BY_EXPIRY -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
@@ -70,9 +71,17 @@ public class BlockStreamUtils {
             case STATE_ID_TSS_ENCRYPTION_KEYS -> "TssBaseService.TSS_ENCRYPTION_KEY";
             case STATE_ID_TSS_STATUS -> "TssBaseService.TSS_STATUS";
             case STATE_ID_HINTS_KEY_SETS -> "HintsService.HINTS_KEY_SETS";
-            case STATE_ID_ACTIVE_CONSTRUCTION -> "HintsService.ACTIVE_CONSTRUCTION";
-            case STATE_ID_NEXT_CONSTRUCTION -> "HintsService.NEXT_CONSTRUCTION";
+            case STATE_ID_ACTIVE_HINTS_CONSTRUCTION -> "HintsService.ACTIVE_HINTS_CONSTRUCTION";
+            case STATE_ID_NEXT_HINTS_CONSTRUCTION -> "HintsService.NEXT_HINTS_CONSTRUCTION";
             case STATE_ID_PREPROCESSING_VOTES -> "HintsService.PREPROCESSING_VOTES";
+            case STATE_ID_LEDGER_ID -> "HistoryService.LEDGER_ID";
+            case STATE_ID_PROOF_KEY_SETS -> "HistoryService.PROOF_KEY_SETS";
+            case STATE_ID_ACTIVE_PROOF_CONSTRUCTION -> "HistoryService.ACTIVE_PROOF_CONSTRUCTION";
+            case STATE_ID_NEXT_PROOF_CONSTRUCTION -> "HistoryService.NEXT_PROOF_CONSTRUCTION";
+            case STATE_ID_HISTORY_SIGNATURES -> "HistoryService.HISTORY_SIGNATURES";
+            case STATE_ID_PROOF_VOTES -> "HistoryService.PROOF_VOTES";
+            case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
+            case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
         };
     }
 }

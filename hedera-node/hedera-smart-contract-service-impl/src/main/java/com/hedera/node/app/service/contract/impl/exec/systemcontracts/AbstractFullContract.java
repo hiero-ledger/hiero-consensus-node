@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,11 +34,14 @@ public abstract class AbstractFullContract extends AbstractPrecompiledContract {
 
     @Override
     public long gasRequirement(final Bytes bytes) {
-        throw new UnsupportedOperationException(getName() + " requires a MessageFrame to compute gas");
+        throw new UnsupportedOperationException(
+                getName()
+                        + " requires a MessageFrame to compute gas.  Gas requirement using the input bytes is not supported on Hedera.");
     }
 
     @Override
     public @NonNull PrecompileContractResult computePrecompile(final Bytes input, @NonNull final MessageFrame frame) {
-        throw new UnsupportedOperationException(getName() + " only supports full results");
+        throw new UnsupportedOperationException(
+                getName() + " only supports full results.  This operation is not supported on Hedera.");
     }
 }

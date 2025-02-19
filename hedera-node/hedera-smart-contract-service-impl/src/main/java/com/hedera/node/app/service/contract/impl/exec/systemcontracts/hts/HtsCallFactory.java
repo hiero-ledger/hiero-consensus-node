@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,11 +22,13 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallFactory;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import javax.inject.Inject;
@@ -44,17 +46,20 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
     private final CallAddressChecks addressChecks;
     private final VerificationStrategies verificationStrategies;
     private final List<CallTranslator<HtsCallAttempt>> callTranslators;
+    private final SystemContractMethodRegistry systemContractMethodRegistry;
 
     @Inject
     public HtsCallFactory(
             @NonNull final SyntheticIds syntheticIds,
             @NonNull final CallAddressChecks addressChecks,
             @NonNull final VerificationStrategies verificationStrategies,
-            @NonNull @Named("HtsTranslators") final List<CallTranslator<HtsCallAttempt>> callTranslators) {
+            @NonNull @Named("HtsTranslators") final List<CallTranslator<HtsCallAttempt>> callTranslators,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry) {
         this.syntheticIds = requireNonNull(syntheticIds);
         this.addressChecks = requireNonNull(addressChecks);
         this.verificationStrategies = requireNonNull(verificationStrategies);
         this.callTranslators = requireNonNull(callTranslators);
+        this.systemContractMethodRegistry = requireNonNull(systemContractMethodRegistry);
     }
 
     /**
@@ -68,11 +73,15 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
      */
     @Override
     public @NonNull HtsCallAttempt createCallAttemptFrom(
-            @NonNull final Bytes input, @NonNull final CallType callType, @NonNull final MessageFrame frame) {
+            @NonNull ContractID contractID,
+            @NonNull final Bytes input,
+            @NonNull final CallType callType,
+            @NonNull final MessageFrame frame) {
         requireNonNull(input);
         requireNonNull(frame);
         final var enhancement = proxyUpdaterFor(frame).enhancement();
         return new HtsCallAttempt(
+                contractID,
                 input,
                 frame.getSenderAddress(),
                 // We only need to distinguish between the EVM sender id and the
@@ -93,6 +102,7 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
                 verificationStrategies,
                 systemContractGasCalculatorOf(frame),
                 callTranslators,
+                systemContractMethodRegistry,
                 frame.isStatic());
     }
 }

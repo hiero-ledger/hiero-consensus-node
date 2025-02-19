@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,12 +25,10 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,23 +46,17 @@ import java.util.Set;
  * class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableAccountStore extends ReadableAccountStoreImpl {
+    private final WritableEntityCounters entityCounters;
+
     /**
      * Create a new {@link WritableAccountStore} instance.
      *
      * @param states The state to use.
-     * @param configuration The configuration used to read the maximum capacity.
-     * @param storeMetricsService Service that provides utilization metrics.
      */
     public WritableAccountStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService) {
-        super(states);
-
-        final long maxCapacity =
-                configuration.getConfigData(AccountsConfig.class).maxNumber();
-        final var storeMetrics = storeMetricsService.get(StoreType.ACCOUNT, maxCapacity);
-        accountState().setMetrics(storeMetrics);
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
+        super(states, entityCounters);
+        this.entityCounters = entityCounters;
     }
 
     @Override
@@ -78,8 +70,7 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     }
 
     /**
-     * Persists a new {@link Account} into the state, as well as exporting its ID to the transaction
-     * receipt.
+     * Persists an updated {@link Account} into the state. If an account with the same ID already exists, it will be overwritten.
      *
      * @param account - the account to be added to modifications in state.
      */
@@ -90,9 +81,18 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     }
 
     /**
+     * Persists a new {@link Account} into the state. Also increments the entity count for {@link EntityType#ACCOUNT}.
+     * @param account - the account to be added in state.
+     */
+    public void putAndIncrementCount(@NonNull final Account account) {
+        put(account);
+        entityCounters.incrementEntityTypeCount(EntityType.ACCOUNT);
+    }
+
+    /**
      * Persists a new alias linked to the account persisted to state.
      *
-     * @param alias - the alias to be added to modifications in state.
+     * @param alias     - the alias to be added to modifications in state.
      * @param accountId - the account number to be added to modifications in state.
      */
     public void putAlias(@NonNull final Bytes alias, final AccountID accountId) {
@@ -116,7 +116,18 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     }
 
     /**
+     * Persists a new alias linked to the account persisted to state. Also increments the entity count for {@link EntityType#ALIAS}.
+     * @param alias    - the alias to be added in state.
+     * @param accountId - the account number to be added in state.
+     */
+    public void putAndIncrementCountAlias(@NonNull final Bytes alias, final AccountID accountId) {
+        putAlias(alias, accountId);
+        entityCounters.incrementEntityTypeCount(EntityType.ALIAS);
+    }
+
+    /**
      * Removes an alias from the cache. This should only ever happen as the result of a delete operation.
+     *
      * @param alias The alias of the account to remove.
      */
     public void removeAlias(@NonNull final Bytes alias) {
@@ -127,6 +138,7 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
         // FUTURE: It might be worth adding a log statement here if we see an empty alias, but maybe not.
         if (alias.length() > 0) {
             aliases().remove(new ProtoBytes(alias));
+            entityCounters.decrementEntityTypeCounter(EntityType.ALIAS);
         }
     }
 
@@ -143,21 +155,6 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     }
 
     /**
-     * Returns the {@link Account} with the given {@link AccountID}.It uses the getForModify method
-     * to get the account. If no such account exists, returns {@code null}
-     *
-     * @param id - the number of the account to be retrieved.
-     * @return the account with the given account number, or null if no such account exists
-     */
-    @Nullable
-    public Account getForModify(@NonNull final AccountID id) {
-        requireNonNull(id);
-        // Get the account number based on the account identifier. It may be null.
-        final var accountId = id.account().kind() == ACCOUNT_NUM ? id : null;
-        return accountId == null ? null : accountState().getForModify(accountId);
-    }
-
-    /**
      * Gets the original value associated with the given accountId before any modifications were made to
      * it. The returned value will be {@code null} if the accountId does not exist.
      *
@@ -171,35 +168,6 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
         // Get the account number based on the account identifier. It may be null.
         final var accountId = id.account().kind() == ACCOUNT_NUM ? id : null;
         return accountId == null ? null : accountState().getOriginalValue(accountId);
-    }
-
-    /**
-     * Removes the {@link Account} with the given {@link AccountID} from the state.
-     * This will add value of the accountId to num in the modifications in state.
-     * @param accountID - the account id of the account to be removed.
-     */
-    public void remove(@NonNull final AccountID accountID) {
-        accountState().remove(accountID);
-    }
-
-    /**
-     * Returns the number of accounts in the state. It also includes modifications in the {@link
-     * WritableKVState}.
-     *
-     * @return the number of accounts in the state
-     */
-    public long sizeOfAccountState() {
-        return accountState().size();
-    }
-
-    /**
-     * Returns the number of aliases in the state. It also includes modifications in the {@link
-     * WritableKVState}.
-     *
-     * @return the number of aliases in the state
-     */
-    public long sizeOfAliasesState() {
-        return aliases().size();
     }
 
     /**
@@ -255,6 +223,7 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
 
     /**
      * Checks if the given accountId is not the default accountId. If it is, throws an {@link IllegalArgumentException}.
+     *
      * @param accountId The accountId to check.
      */
     public static void requireNotDefault(@NonNull final AccountID accountId) {

@@ -59,11 +59,10 @@ class ConcurrentTaskSchedulerTests {
             }
         };
 
-        final TaskScheduler<Void> taskScheduler = model.schedulerBuilder("test")
+        final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
 
@@ -109,11 +108,10 @@ class ConcurrentTaskSchedulerTests {
             count.addAndGet(x.value);
         };
 
-        final TaskScheduler<Void> taskScheduler = model.schedulerBuilder("test")
+        final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Operation, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
 
@@ -163,13 +161,12 @@ class ConcurrentTaskSchedulerTests {
             handleCount.incrementAndGet();
         };
 
-        final TaskScheduler<Void> taskScheduler = model.schedulerBuilder("test")
+        final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withUnhandledTaskCapacity(100)
                 .withFlushingEnabled(true)
                 .withSquelchingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Void> inputWire = taskScheduler.buildInputWire("channel");
         inputWire.bindConsumer(handler);
 

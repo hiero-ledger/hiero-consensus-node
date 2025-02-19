@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -60,7 +60,7 @@ public final class ReconnectUtils {
     /**
      * Hash the working state to prepare for reconnect
      */
-    static void hashStateForReconnect(final PlatformMerkleStateRoot workingState) {
+    static void hashStateForReconnect(final MerkleNodeState workingState) {
         try {
             MerkleCryptoFactory.getInstance().digestTreeAsync(workingState).get();
         } catch (final ExecutionException e) {

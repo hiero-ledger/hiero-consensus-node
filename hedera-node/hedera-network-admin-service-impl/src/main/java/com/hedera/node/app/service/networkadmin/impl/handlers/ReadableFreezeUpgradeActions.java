@@ -24,6 +24,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.Spliterator.DISTINCT;
 import static java.util.concurrent.CompletableFuture.runAsync;
 
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -33,6 +34,7 @@ import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -62,14 +64,13 @@ import org.apache.logging.log4j.Logger;
 public class ReadableFreezeUpgradeActions {
     private static final Logger log = LogManager.getLogger(ReadableFreezeUpgradeActions.class);
 
-    private static final com.hedera.hapi.node.base.FileID UPGRADE_FILE_ID =
-            com.hedera.hapi.node.base.FileID.newBuilder().fileNum(150L).build();
-
     private final NodesConfig nodesConfig;
     private final AddressBookConfig addressBookConfig;
     private final NetworkAdminConfig networkAdminConfig;
     private final ReadableFreezeStore freezeStore;
     private final ReadableUpgradeFileStore upgradeFileStore;
+    private final HederaConfig hederaConfig;
+    private final FileID upgradeFileId;
 
     private final ReadableNodeStore nodeStore;
 
@@ -86,6 +87,8 @@ public class ReadableFreezeUpgradeActions {
     public static final String EXEC_TELEMETRY_MARKER = "execute_telemetry.mf";
     public static final String FREEZE_SCHEDULED_MARKER = "freeze_scheduled.mf";
     public static final String FREEZE_ABORTED_MARKER = "freeze_aborted.mf";
+
+    public static final long UPGRADE_FILE_ID = 150L;
 
     public static final String MARK = "✓";
 
@@ -106,11 +109,17 @@ public class ReadableFreezeUpgradeActions {
         this.networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
         this.nodesConfig = configuration.getConfigData(NodesConfig.class);
         this.addressBookConfig = configuration.getConfigData(AddressBookConfig.class);
+        this.hederaConfig = configuration.getConfigData(HederaConfig.class);
         this.freezeStore = freezeStore;
         this.executor = executor;
         this.upgradeFileStore = upgradeFileStore;
         this.nodeStore = nodeStore;
         this.stakingInfoStore = stakingInfoStore;
+        this.upgradeFileId = FileID.newBuilder()
+                .shardNum(hederaConfig.shard())
+                .realmNum(hederaConfig.realm())
+                .fileNum(UPGRADE_FILE_ID)
+                .build();
     }
 
     /**
@@ -281,11 +290,8 @@ public class ReadableFreezeUpgradeActions {
             FileUtils.cleanDirectory(keysDir);
             UnzipUtility.unzip(archiveData.toByteArray(), artifactsLoc);
             log.info("Finished unzipping {} bytes for {} update into {}", size, desc, artifactsLoc);
-            final var useRosterLifecycle = addressBookConfig.useRosterLifecycle();
-            if (nodes != null
-                    && nodesConfig.enableDAB()
-                    && (!useRosterLifecycle || networkAdminConfig.exportCandidateRoster())) {
-                generateConfigPem(artifactsLoc, keysLoc, nodes, useRosterLifecycle);
+            if (nodes != null && nodesConfig.enableDAB() && networkAdminConfig.exportCandidateRoster()) {
+                generateConfigPem(artifactsLoc, keysLoc, nodes);
                 log.info("Finished generating config.txt and pem files into {}", artifactsLoc);
             }
             writeSecondMarker(marker, now);
@@ -301,8 +307,7 @@ public class ReadableFreezeUpgradeActions {
     private void generateConfigPem(
             @NonNull final Path artifactsLoc,
             @NonNull final Path keysLoc,
-            @NonNull final List<ActiveNode> activeNodes,
-            final boolean useRosterLifecycle) {
+            @NonNull final List<ActiveNode> activeNodes) {
         requireNonNull(artifactsLoc, "Cannot generate config.txt without a valid artifacts location");
         requireNonNull(keysLoc, "Cannot generate pem files without a valid keys location");
         requireNonNull(activeNodes, "Cannot generate config.txt without a valid list of active nodes");
@@ -315,7 +320,7 @@ public class ReadableFreezeUpgradeActions {
 
         try (final var fw = new FileWriter(configTxt.toFile());
                 final var bw = new BufferedWriter(fw)) {
-            activeNodes.forEach(node -> writeConfigLineAndPem(node, bw, keysLoc, useRosterLifecycle));
+            activeNodes.forEach(node -> writeConfigLineAndPem(node, bw, keysLoc));
             bw.flush();
         } catch (final IOException e) {
             log.error("Failed to generate {} with exception : {}", configTxt, e);
@@ -323,10 +328,7 @@ public class ReadableFreezeUpgradeActions {
     }
 
     private void writeConfigLineAndPem(
-            @NonNull final ActiveNode activeNode,
-            @NonNull final BufferedWriter bw,
-            @NonNull final Path keysLoc,
-            final boolean useRosterLifecycle) {
+            @NonNull final ActiveNode activeNode, @NonNull final BufferedWriter bw, @NonNull final Path keysLoc) {
         requireNonNull(activeNode);
         requireNonNull(bw);
         requireNonNull(keysLoc);
@@ -342,11 +344,7 @@ public class ReadableFreezeUpgradeActions {
 
         final var stakingNodeInfo = activeNode.stakingInfo();
         if (stakingNodeInfo != null) {
-            if (useRosterLifecycle) {
-                weight = stakingNodeInfo.stake();
-            } else {
-                weight = stakingNodeInfo.weight();
-            }
+            weight = stakingNodeInfo.stake();
         }
 
         final var gossipEndpoints = node.gossipEndpoint();
@@ -423,22 +421,29 @@ public class ReadableFreezeUpgradeActions {
             return;
         }
 
+        var shard = hederaConfig.shard();
+        var realm = hederaConfig.realm();
+
         try {
-            final var curSpecialFileContents = upgradeFileStore.getFull(UPGRADE_FILE_ID);
+            final var curSpecialFileContents = upgradeFileStore.getFull(upgradeFileId);
             if (!isPreparedFileHashValidGiven(
                     noThrowSha384HashOf(curSpecialFileContents.toByteArray()),
                     freezeStore.updateFileHash().toByteArray())) {
                 log.error(
-                        "Cannot redo NMT upgrade prep, file 0.0.{} changed since FREEZE_UPGRADE",
-                        UPGRADE_FILE_ID.fileNum());
+                        "Cannot redo NMT upgrade prep, file {}.{}.{} changed since FREEZE_UPGRADE",
+                        shard,
+                        realm,
+                        upgradeFileId.fileNum());
                 log.error(MANUAL_REMEDIATION_ALERT);
                 return;
             }
             extractSoftwareUpgrade(curSpecialFileContents).join();
         } catch (final IOException e) {
             log.error(
-                    "Cannot redo NMT upgrade prep, file 0.0.{} changed since FREEZE_UPGRADE",
-                    UPGRADE_FILE_ID.fileNum(),
+                    "Cannot redo NMT upgrade prep, file {}.{}.{} changed since FREEZE_UPGRADE",
+                    shard,
+                    realm,
+                    upgradeFileId.fileNum(),
                     e);
             log.error(MANUAL_REMEDIATION_ALERT);
         }

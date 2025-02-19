@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.TokenTypeTranslator.TOKEN_TYPE;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.address_0x167.TokenTypeTranslator.TOKEN_TYPE;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -71,6 +72,7 @@ public class TokenTypeCall extends AbstractNonRevertibleTokenViewCall {
         if (isStaticCall && status != SUCCESS) {
             return revertResult(status, gasRequirement);
         }
-        return successResult(TOKEN_TYPE.getOutputs().encodeElements(status.protoOrdinal(), tokenType), gasRequirement);
+        return successResult(
+                TOKEN_TYPE.getOutputs().encode(Tuple.of(status.protoOrdinal(), tokenType)), gasRequirement);
     }
 }

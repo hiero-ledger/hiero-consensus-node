@@ -165,10 +165,9 @@ public abstract class OutputWire<OUT> {
             @NonNull final String inputWireLabel,
             @NonNull final Consumer<OUT> handler) {
 
-        final TaskScheduler<Void> directScheduler = model.schedulerBuilder(handlerName)
+        final TaskScheduler<Void> directScheduler = model.<Void>schedulerBuilder(handlerName)
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<OUT, Void> directSchedulerInputWire = directScheduler.buildInputWire(inputWireLabel);
         directSchedulerInputWire.bindConsumer(handler);

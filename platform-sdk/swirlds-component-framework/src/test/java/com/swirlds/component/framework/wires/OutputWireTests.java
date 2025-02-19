@@ -50,18 +50,15 @@ public class OutputWireTests {
                 TestPlatformContextBuilder.create().build();
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
-        final TaskScheduler<Integer> intForwarder = model.schedulerBuilder("intForwarder")
+        final TaskScheduler<Integer> intForwarder = model.<Integer>schedulerBuilder("intForwarder")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
-        final TaskScheduler<Void> firstComponent = model.schedulerBuilder("firstComponent")
+                .build();
+        final TaskScheduler<Void> firstComponent = model.<Void>schedulerBuilder("firstComponent")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
-        final TaskScheduler<Void> secondComponent = model.schedulerBuilder("secondComponent")
+                .build();
+        final TaskScheduler<Void> secondComponent = model.<Void>schedulerBuilder("secondComponent")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<Integer, Integer> intInput = intForwarder.buildInputWire("intInput");
         final BindableInputWire<Integer, Void> firstComponentInput = firstComponent.buildInputWire("ints");
@@ -106,14 +103,12 @@ public class OutputWireTests {
                 TestPlatformContextBuilder.create().build();
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
-        final TaskScheduler<Integer> schedulerA = model.schedulerBuilder("schedulerA")
+        final TaskScheduler<Integer> schedulerA = model.<Integer>schedulerBuilder("schedulerA")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
-        final TaskScheduler<Integer> schedulerB = model.schedulerBuilder("schedulerB")
+                .build();
+        final TaskScheduler<Integer> schedulerB = model.<Integer>schedulerBuilder("schedulerB")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
 
         InputWire<Integer> inputWire = schedulerB.buildInputWire("inputWire");
         assertThrows(

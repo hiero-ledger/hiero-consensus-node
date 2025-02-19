@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -298,7 +299,7 @@ public class DefaultIssDetector implements IssDetector {
      */
     @NonNull
     private List<IssNotification> handlePostconsensusSignatures(
-            final List<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactions) {
+            final Queue<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactions) {
         if (stateSignatureTransactions == null) {
             return List.of();
         }

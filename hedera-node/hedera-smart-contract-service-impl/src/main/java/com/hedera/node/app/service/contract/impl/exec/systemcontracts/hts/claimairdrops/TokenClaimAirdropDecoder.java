@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ public class TokenClaimAirdropDecoder {
     }
 
     public TransactionBody decodeTokenClaimAirdrop(@NonNull final HtsCallAttempt attempt) {
-        final var call = TokenClaimAirdropTranslator.CLAIM_AIRDROP.decodeCall(attempt.inputBytes());
+        final var call = TokenClaimAirdropTranslator.CLAIM_AIRDROPS.decodeCall(attempt.inputBytes());
         final var maxPendingAirdropsToClaim =
                 attempt.configuration().getConfigData(TokensConfig.class).maxAllowedPendingAirdropsToClaim();
         final var transferList = (Tuple[]) call.get(TRANSFER_LIST);

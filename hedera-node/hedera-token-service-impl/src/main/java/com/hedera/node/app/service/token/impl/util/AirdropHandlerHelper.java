@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,15 +62,15 @@ public class AirdropHandlerHelper {
      * @param accountStore the account store to look up aliases in
      * @param airdropIds the list of pending airdrop ids to standardize
      * @param knownExtantIdTypes the set of id types that are known to exist in the system
-     * @return a list of standardized pending airdrop ids
+     * @return a set of standardized pending airdrop ids
      * @throws HandleException with INVALID_PENDING_AIRDROP_ID if any of the pending airdrop ids are invalid
      */
-    public static List<PendingAirdropId> standardizeAirdropIds(
+    public static Set<PendingAirdropId> standardizeAirdropIds(
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ReadableAirdropStore airdropStore,
             @NonNull final List<PendingAirdropId> airdropIds,
             @NonNull final Set<IdType> knownExtantIdTypes) {
-        final List<PendingAirdropId> standardAirdropIds = new ArrayList<>();
+        final Set<PendingAirdropId> standardAirdropIds = new LinkedHashSet<>();
         for (final var airdropId : airdropIds) {
             final var sender = knownExtantIdTypes.contains(IdType.SENDER)
                     ? requireNonNull(accountStore.getAliasedAccountById(airdropId.senderIdOrThrow()))
@@ -87,6 +87,7 @@ public class AirdropHandlerHelper {
                     .receiverId(receiver.accountIdOrThrow())
                     .build();
             validateTrue(airdropStore.exists(validatedId), INVALID_PENDING_AIRDROP_ID);
+            validateFalse(standardAirdropIds.contains(validatedId), PENDING_AIRDROP_ID_REPEATED);
             standardAirdropIds.add(validatedId);
         }
         final var uniqueAirdropIds = Set.copyOf(standardAirdropIds);

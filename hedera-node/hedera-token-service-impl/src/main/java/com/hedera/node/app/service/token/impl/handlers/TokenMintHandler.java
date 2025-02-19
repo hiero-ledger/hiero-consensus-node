@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -62,6 +61,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -93,7 +93,6 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
         final var txn = context.body();
-        pureChecks(txn);
         final var op = txn.tokenMintOrThrow();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
@@ -104,7 +103,9 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn);
         final var op = txn.tokenMintOrThrow();
         validateTruePreCheck(op.hasToken(), INVALID_TOKEN_ID);
@@ -245,7 +246,7 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
             currentSerialNumber++;
             // The default sentinel account is used (0.0.0) to represent unique tokens owned by the treasury
             final var uniqueToken = buildNewlyMintedNft(consensusTime, tokenId, meta, currentSerialNumber);
-            nftStore.put(uniqueToken);
+            nftStore.putAndIncrementCount(uniqueToken);
             // all minted serials should be added to the receipt
             mintedSerials.add(currentSerialNumber);
         }

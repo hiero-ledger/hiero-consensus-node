@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.node.app.state.listeners;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
@@ -28,9 +29,11 @@ import com.hedera.node.config.ConfigProvider;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -47,11 +50,17 @@ public class ReconnectListener implements ReconnectCompleteListener {
     private final Executor executor;
     private final ConfigProvider configProvider;
 
+    @NonNull
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+
     @Inject
     public ReconnectListener(
-            @NonNull @Named("FreezeService") final Executor executor, @NonNull final ConfigProvider configProvider) {
+            @NonNull @Named("FreezeService") final Executor executor,
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.executor = requireNonNull(executor);
         this.configProvider = requireNonNull(configProvider);
+        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     @Override
@@ -63,8 +72,8 @@ public class ReconnectListener implements ReconnectCompleteListener {
                 notification.getConsensusTimestamp(),
                 notification.getRoundNumber(),
                 notification.getSequence());
-        final State state = notification.getState().cast();
-        final var readableStoreFactory = new ReadableStoreFactory(state);
+        final State state = notification.getState();
+        final var readableStoreFactory = new ReadableStoreFactory(state, softwareVersionFactory);
         final var freezeStore = readableStoreFactory.getStore(ReadableFreezeStore.class);
         final var upgradeFileStore = readableStoreFactory.getStore(ReadableUpgradeFileStore.class);
         final var upgradeNodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);

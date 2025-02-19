@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.consensus.GraphGenerations;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.Round;
@@ -65,17 +62,15 @@ class ConsistencyTestingToolRoundTests {
         final List<PlatformEvent> mockEvents = new ArrayList<>();
 
         eventContents.forEach(eventContent -> {
-            final List<OneOf<TransactionOneOfType>> transactions = new ArrayList<>();
+            final List<Bytes> transactions = new ArrayList<>();
 
             eventContent.forEach(transactionContent -> {
                 final Bytes bytes = Bytes.wrap(longToByteArray(transactionContent));
-                final OneOf<TransactionOneOfType> transaction =
-                        new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, bytes);
-                transactions.add(transaction);
+                transactions.add(bytes);
             });
 
             final PlatformEvent e = new TestingEventBuilder(randotron)
-                    .setOneOfTransactions(transactions)
+                    .setTransactionBytes(transactions)
                     .build();
             mockEvents.add(e);
         });
@@ -86,7 +81,6 @@ class ConsistencyTestingToolRoundTests {
                 mock(Roster.class),
                 mockEvents,
                 mock(PlatformEvent.class),
-                mock(GraphGenerations.class),
                 mock(EventWindow.class),
                 mockSnapshot,
                 false,

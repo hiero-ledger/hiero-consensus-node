@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,19 +24,19 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signatu
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelectorAndCustomConfig;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelectorAndInputAndCustomConfig;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorized.IsAuthorizedCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorized.IsAuthorizedTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.exec.v051.Version051FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -78,12 +78,18 @@ public class IsAuthorizedTranslatorTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private IsAuthorizedTranslator subject;
 
     @BeforeEach
     void setUp() {
         final var featureFlags = new Version051FeatureFlags();
-        subject = new IsAuthorizedTranslator(featureFlags, customGasCalculator);
+        subject = new IsAuthorizedTranslator(
+                featureFlags, customGasCalculator, systemContractMethodRegistry, contractMetrics);
 
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
     }
@@ -98,8 +104,9 @@ public class IsAuthorizedTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 getTestConfiguration(true));
-        assertTrue(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
@@ -112,8 +119,9 @@ public class IsAuthorizedTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 getTestConfiguration(false));
-        assertFalse(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
@@ -126,8 +134,9 @@ public class IsAuthorizedTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 getTestConfiguration(true));
-        assertFalse(subject.matches(attempt));
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
@@ -144,6 +153,7 @@ public class IsAuthorizedTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 getTestConfiguration(true));
 
         final var call = subject.callFrom(attempt);

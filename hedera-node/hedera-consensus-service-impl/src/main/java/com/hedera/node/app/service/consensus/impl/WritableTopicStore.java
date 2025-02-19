@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.config.data.TopicsConfig;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,22 +35,16 @@ import java.util.Set;
  * This class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableTopicStore extends ReadableTopicStoreImpl {
+    private final WritableEntityCounters entityCounters;
     /**
      * Create a new {@link WritableTopicStore} instance.
      *
      * @param states The state to use.
-     * @param configuration The configuration used to read the maximum capacity.
-     * @param storeMetricsService Service that provides utilization metrics.
      */
     public WritableTopicStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService) {
-        super(states);
-
-        final long maxCapacity = configuration.getConfigData(TopicsConfig.class).maxNumber();
-        final var storeMetrics = storeMetricsService.get(StoreType.TOPIC, maxCapacity);
-        topicState().setMetrics(storeMetrics);
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
+        super(states, entityCounters);
+        this.entityCounters = entityCounters;
     }
 
     @Override
@@ -61,8 +53,8 @@ public class WritableTopicStore extends ReadableTopicStoreImpl {
     }
 
     /**
-     * Persists a new {@link Topic} into the state, as well as exporting its ID to the transaction
-     * receipt.
+     * Persists an updated {@link Topic} into the state, as well as exporting its ID to the transaction
+     * receipt. If a topic with the same ID already exists, it will be overwritten.
      *
      * @param topic - the topic to be persisted.
      */
@@ -73,22 +65,26 @@ public class WritableTopicStore extends ReadableTopicStoreImpl {
     }
 
     /**
-     * Returns the {@link Topic} with the given number using {@link WritableKVState#getForModify}.
-     * If no such topic exists, returns {@code Optional.empty()}
-     * @param topicID - the id of the topic to be retrieved.
-     * @return the retrieved topic
+     * Persists a new {@link Topic} into the state, as well as exporting its ID to the transaction
+     * receipt. It also increments the entity count for {@link EntityType#TOPIC}.
+     *
+     * @param topic - the topic to be persisted.
      */
-    public Topic getForModify(@NonNull final TopicID topicID) {
-        requireNonNull(topicID);
-        return topicState().getForModify(topicID);
+    public void putAndIncrementCount(@NonNull final Topic topic) {
+        put(topic);
+        entityCounters.incrementEntityTypeCount(EntityType.TOPIC);
     }
 
     /**
-     * Returns the number of topics in the state.
-     * @return the number of topics in the state
+     * Returns the {@link Topic} with the given number using {@link WritableKVState#get}.
+     * If no such topic exists, returns {@code null}
+     *
+     * @param topicID - the id of the topic to be retrieved.
+     * @return the retrieved topic
      */
-    public long sizeOfState() {
-        return topicState().size();
+    public Topic get(@NonNull final TopicID topicID) {
+        requireNonNull(topicID);
+        return topicState().get(topicID);
     }
 
     /**

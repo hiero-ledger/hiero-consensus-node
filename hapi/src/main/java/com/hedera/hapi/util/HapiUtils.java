@@ -233,6 +233,13 @@ public class HapiUtils {
             case TOKEN_CANCEL_AIRDROP -> HederaFunctionality.TOKEN_CANCEL_AIRDROP;
             case TOKEN_CLAIM_AIRDROP -> HederaFunctionality.TOKEN_CLAIM_AIRDROP;
             case STATE_SIGNATURE_TRANSACTION -> HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+            case HINTS_PREPROCESSING_VOTE -> HederaFunctionality.HINTS_PREPROCESSING_VOTE;
+            case HINTS_KEY_PUBLICATION -> HederaFunctionality.HINTS_KEY_PUBLICATION;
+            case HINTS_PARTIAL_SIGNATURE -> HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
+            case HISTORY_PROOF_SIGNATURE -> HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
+            case HISTORY_PROOF_KEY_PUBLICATION -> HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
+            case HISTORY_PROOF_VOTE -> HederaFunctionality.HISTORY_PROOF_VOTE;
+            case CRS_PUBLICATION -> HederaFunctionality.CRS_PUBLICATION;
             case UNSET -> throw new UnknownHederaFunctionality();
         };
     }

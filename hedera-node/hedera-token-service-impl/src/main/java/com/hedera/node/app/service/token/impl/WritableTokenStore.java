@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,17 +20,14 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.config.data.TokensConfig;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -44,27 +41,22 @@ public class WritableTokenStore extends ReadableTokenStoreImpl {
     /** The underlying data storage class that holds the token data. */
     private final WritableKVState<TokenID, Token> tokenState;
 
+    private final WritableEntityCounters entityCounters;
+
     /**
      * Create a new {@link WritableTokenStore} instance.
      *
      * @param states The state to use.
-     * @param configuration The configuration used to read the maximum capacity.
-     * @param storeMetricsService Service that provides utilization metrics.
      */
     public WritableTokenStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService) {
-        super(states);
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
+        super(states, entityCounters);
         this.tokenState = states.get(V0490TokenSchema.TOKENS_KEY);
-
-        final long maxCapacity = configuration.getConfigData(TokensConfig.class).maxNumber();
-        final var storeMetrics = storeMetricsService.get(StoreType.TOKEN, maxCapacity);
-        tokenState.setMetrics(storeMetrics);
+        this.entityCounters = entityCounters;
     }
 
     /**
-     * Persists a new {@link Token} into the state, as well as exporting its ID to the transaction
+     * Persists an updated {@link Token} into the state, as well as exporting its ID to the transaction
      * receipt.
      *
      * @param token - the token persisted
@@ -76,16 +68,13 @@ public class WritableTokenStore extends ReadableTokenStoreImpl {
     }
 
     /**
-     * Returns the {@link Token} with the given number using {@link WritableKVState#getForModify}.
-     * If no such token exists, returns {@code Optional.empty()}
-     * @param tokenId - the id of the token to be retrieved.
-     * @return the token with the given tokenId, or {@code Optional.empty()} if no such token exists
+     * Persists a new {@link Token} into the state. It also increments the entity counts for
+     * {@link EntityType#TOKEN}.
+     * @param token
      */
-    @NonNull
-    public Optional<Token> getForModify(final TokenID tokenId) {
-        requireNonNull(tokenId);
-        final var token = tokenState.getForModify(tokenId);
-        return Optional.ofNullable(token);
+    public void putAndIncrementCount(@NonNull final Token token) {
+        put(token);
+        entityCounters.incrementEntityTypeCount(EntityType.TOKEN);
     }
 
     /**
@@ -93,7 +82,7 @@ public class WritableTokenStore extends ReadableTokenStoreImpl {
      * @return the number of tokens in the state
      */
     public long sizeOfState() {
-        return tokenState.size();
+        return entityCounters.getCounterFor(EntityType.TOKEN);
     }
 
     /**

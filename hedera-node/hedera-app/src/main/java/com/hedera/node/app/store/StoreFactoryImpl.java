@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,14 @@ package com.hedera.node.app.store;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Function;
 
 /**
  * Factory for creating stores and service APIs. Default implementation of {@link StoreFactory}.
@@ -36,23 +39,24 @@ public class StoreFactoryImpl implements StoreFactory {
     /**
      * Returns a {@link StoreFactory} based on the given state, configuration, and store metrics for the given service.
      *
-     * @param state the state to create stores from
-     * @param serviceName the name of the service to scope the stores to
-     * @param configuration the configuration for the service
-     * @param storeMetricsService the metrics service to use for the stores
+     * @param state                 the state to create stores from
+     * @param serviceName           the name of the service to scope the stores to
+     * @param configuration         the configuration for the service
+     * @param writableEntityIdStore the writable entity id store
      * @return a new {@link StoreFactory} instance
      */
     public static StoreFactory from(
             @NonNull final State state,
             @NonNull final String serviceName,
             @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService) {
+            @NonNull final WritableEntityIdStore writableEntityIdStore,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         requireNonNull(state);
         requireNonNull(serviceName);
         return new StoreFactoryImpl(
-                new ReadableStoreFactory(state),
-                new WritableStoreFactory(state, serviceName, configuration, storeMetricsService),
-                new ServiceApiFactory(state, configuration, storeMetricsService));
+                new ReadableStoreFactory(state, softwareVersionFactory),
+                new WritableStoreFactory(state, serviceName, writableEntityIdStore),
+                new ServiceApiFactory(state, configuration));
     }
 
     public StoreFactoryImpl(

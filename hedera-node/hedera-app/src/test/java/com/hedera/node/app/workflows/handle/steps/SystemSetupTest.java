@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,12 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.endpointFor;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseFeeSchedules;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
+import static com.hedera.node.app.workflows.handle.record.SystemSetup.NODE_COMPARATOR;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,19 +35,25 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.networkadmin.impl.schemas.SyntheticNodeCreator;
 import com.hedera.node.app.service.token.impl.comparator.TokenComparators;
 import com.hedera.node.app.service.token.impl.schemas.SyntheticAccountCreator;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
@@ -66,6 +77,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -90,6 +102,23 @@ class SystemSetupTest {
             .build();
     private static final Account ACCOUNT_2 =
             Account.newBuilder().accountId(ACCOUNT_ID_2).build();
+    private static final byte[] gossipCaCertificate = "gossipCaCertificate".getBytes();
+    private static final byte[] grpcCertificateHash = "grpcCertificateHash".getBytes();
+    private static final Key NODE1_ADMIN_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
+            .build();
+
+    private static final Node NODE_1 = Node.newBuilder()
+            .nodeId(1)
+            .accountId(ACCOUNT_ID_1)
+            .description("node1")
+            .gossipEndpoint(List.of(endpointFor("23.45.34.240", 23), endpointFor("127.0.0.2", 123)))
+            .serviceEndpoint(List.of(endpointFor("127.0.0.2", 123)))
+            .gossipCaCertificate(Bytes.wrap(gossipCaCertificate))
+            .grpcCertificateHash(Bytes.wrap(grpcCertificateHash))
+            .adminKey(NODE1_ADMIN_KEY)
+            .build();
+
     private static final Instant CONSENSUS_NOW = Instant.parse("2023-08-10T00:00:00Z");
 
     private static final String EXPECTED_SYSTEM_ACCOUNT_CREATION_MEMO = "Synthetic system creation";
@@ -103,6 +132,9 @@ class SystemSetupTest {
     private SyntheticAccountCreator syntheticAccountCreator;
 
     @Mock
+    private SyntheticNodeCreator syntheticNodeCreator;
+
+    @Mock
     private FileServiceImpl fileService;
 
     @Mock
@@ -110,6 +142,9 @@ class SystemSetupTest {
 
     @Mock
     private GenesisAccountStreamBuilder genesisAccountRecordBuilder;
+
+    @Mock
+    private NodeCreateStreamBuilder genesisNodeRecordBuilder;
 
     @Mock
     private StoreFactory storeFactory;
@@ -140,8 +175,10 @@ class SystemSetupTest {
         given(context.consensusTime()).willReturn(CONSENSUS_NOW);
         given(context.addPrecedingChildRecordBuilder(GenesisAccountStreamBuilder.class, CRYPTO_CREATE))
                 .willReturn(genesisAccountRecordBuilder);
+        given(context.addPrecedingChildRecordBuilder(NodeCreateStreamBuilder.class, NODE_CREATE))
+                .willReturn(genesisNodeRecordBuilder);
 
-        subject = new SystemSetup(fileService, syntheticAccountCreator);
+        subject = new SystemSetup(fileService, syntheticAccountCreator, syntheticNodeCreator);
     }
 
     @Test
@@ -249,6 +286,9 @@ class SystemSetupTest {
         treasuryAccts.add(acct4);
         final var blocklistAccts = new TreeSet<>(TokenComparators.ACCOUNT_COMPARATOR);
         blocklistAccts.add(acct5);
+        final var nodes = new TreeSet<>(NODE_COMPARATOR);
+        nodes.add(NODE_1);
+
         doAnswer(invocationOnMock -> {
                     ((Consumer<SortedSet<Account>>) invocationOnMock.getArgument(1)).accept(sysAccts);
                     ((Consumer<SortedSet<Account>>) invocationOnMock.getArgument(2)).accept(stakingAccts);
@@ -261,6 +301,14 @@ class SystemSetupTest {
                 .generateSyntheticAccounts(any(), any(), any(), any(), any(), any());
         given(genesisAccountRecordBuilder.accountID(any())).willReturn(genesisAccountRecordBuilder);
 
+        doAnswer(invocationOnMock -> {
+                    ((Consumer<SortedSet<Node>>) invocationOnMock.getArgument(1)).accept(nodes);
+                    return null;
+                })
+                .when(syntheticNodeCreator)
+                .generateSyntheticNodes(any(), any());
+        given(genesisNodeRecordBuilder.nodeID(any(Long.class))).willReturn(genesisNodeRecordBuilder);
+
         // Call the first time to make sure records are generated
         subject.externalizeInitSideEffects(context, ExchangeRateSet.DEFAULT);
 
@@ -270,17 +318,35 @@ class SystemSetupTest {
         verifyBuilderInvoked(acctId4, EXPECTED_TREASURY_CLONE_MEMO);
         verifyBuilderInvoked(acctId5, null);
 
+        verify(genesisNodeRecordBuilder).nodeID(NODE_1.nodeId());
+        verify(genesisNodeRecordBuilder)
+                .transaction(transactionWith(TransactionBody.newBuilder()
+                        .nodeCreate(NodeCreateTransactionBody.newBuilder()
+                                .accountId(NODE_1.accountId())
+                                .description(NODE_1.description())
+                                .gossipEndpoint(NODE_1.gossipEndpoint())
+                                .serviceEndpoint(NODE_1.serviceEndpoint())
+                                .gossipCaCertificate(NODE_1.gossipCaCertificate())
+                                .grpcCertificateHash(NODE_1.grpcCertificateHash())
+                                .adminKey(NODE_1.adminKey())
+                                .build())
+                        .build()));
+        verify(genesisNodeRecordBuilder).status(SUCCESS);
+
         // Call externalizeInitSideEffects() a second time to make sure no other records are created
         Mockito.clearInvocations(genesisAccountRecordBuilder);
+        Mockito.clearInvocations(genesisNodeRecordBuilder);
         assertThatThrownBy(() -> subject.externalizeInitSideEffects(context, ExchangeRateSet.DEFAULT))
                 .isInstanceOf(NullPointerException.class);
         verifyNoInteractions(genesisAccountRecordBuilder);
+        verifyNoInteractions(genesisNodeRecordBuilder);
     }
 
     @Test
     void externalizeInitSideEffectsCreatesNoRecordsWhenEmpty() {
         subject.externalizeInitSideEffects(context, ExchangeRateSet.DEFAULT);
         verifyNoInteractions(genesisAccountRecordBuilder);
+        verifyNoInteractions(genesisNodeRecordBuilder);
     }
 
     private void verifyBuilderInvoked(final AccountID acctId, final String expectedMemo) {

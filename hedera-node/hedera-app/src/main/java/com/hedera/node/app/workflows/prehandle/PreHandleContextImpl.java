@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -103,12 +105,14 @@ public class PreHandleContextImpl implements PreHandleContext {
 
     private final TransactionDispatcher dispatcher;
     private final boolean isUserTx;
+    private final TransactionChecker transactionChecker;
 
     public PreHandleContextImpl(
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final TransactionBody txn,
             @NonNull final Configuration configuration,
-            @NonNull final TransactionDispatcher dispatcher)
+            @NonNull final TransactionDispatcher dispatcher,
+            @NonNull final TransactionChecker transactionChecker)
             throws PreCheckException {
         this(
                 storeFactory,
@@ -116,7 +120,8 @@ public class PreHandleContextImpl implements PreHandleContext {
                 txn.transactionIDOrElse(TransactionID.DEFAULT).accountIDOrElse(AccountID.DEFAULT),
                 configuration,
                 dispatcher,
-                true);
+                true,
+                transactionChecker);
     }
 
     public PreHandleContextImpl(
@@ -124,9 +129,10 @@ public class PreHandleContextImpl implements PreHandleContext {
             @NonNull final TransactionBody txn,
             @NonNull final AccountID payer,
             @NonNull final Configuration configuration,
-            @NonNull final TransactionDispatcher dispatcher)
+            @NonNull final TransactionDispatcher dispatcher,
+            @NonNull final TransactionChecker transactionChecker)
             throws PreCheckException {
-        this(storeFactory, txn, payer, configuration, dispatcher, false);
+        this(storeFactory, txn, payer, configuration, dispatcher, false, transactionChecker);
     }
 
     /**
@@ -139,7 +145,8 @@ public class PreHandleContextImpl implements PreHandleContext {
             @NonNull final AccountID payerId,
             @NonNull final Configuration configuration,
             @NonNull final TransactionDispatcher dispatcher,
-            final boolean isUserTx)
+            final boolean isUserTx,
+            @NonNull final TransactionChecker transactionChecker)
             throws PreCheckException {
         this.storeFactory = requireNonNull(storeFactory, "storeFactory must not be null.");
         this.txn = requireNonNull(txn, "txn must not be null!");
@@ -152,6 +159,7 @@ public class PreHandleContextImpl implements PreHandleContext {
         final var payer = mustExist(accountStore.getAccountById(payerId), INVALID_PAYER_ACCOUNT_ID);
         // It would be a catastrophic invariant failure if an account in state didn't have a key
         payerKey = payer.keyOrThrow();
+        this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null!");
     }
 
     @Override
@@ -479,9 +487,11 @@ public class PreHandleContextImpl implements PreHandleContext {
     public TransactionKeys allKeysForTransaction(@NonNull TransactionBody body, @NonNull final AccountID payerId)
             throws PreCheckException {
         // Throws PreCheckException if the transaction body is structurally invalid
-        dispatcher.dispatchPureChecks(body);
+        final var pureChecksContext = new PureChecksContextImpl(body, configuration, dispatcher, transactionChecker);
+        dispatcher.dispatchPureChecks(pureChecksContext);
         // Throws PreCheckException if the payer account does not exist
-        final var context = new PreHandleContextImpl(storeFactory, body, payerId, configuration, dispatcher);
+        final var context =
+                new PreHandleContextImpl(storeFactory, body, payerId, configuration, dispatcher, transactionChecker);
         try {
             // Accumulate all required keys in the context
             dispatcher.dispatchPreHandle(context);

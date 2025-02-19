@@ -58,28 +58,23 @@ public final class DiagramLegendCommand extends AbstractCommand {
 
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
-        final TaskScheduler<Integer> sequentialScheduler = model.schedulerBuilder("SequentialScheduler")
+        final TaskScheduler<Integer> sequentialScheduler = model.<Integer>schedulerBuilder("SequentialScheduler")
                 .withType(TaskSchedulerType.SEQUENTIAL)
                 .withUnhandledTaskCapacity(1)
-                .build()
-                .cast();
-        final TaskScheduler<Void> sequentialThreadScheduler = model.schedulerBuilder("SequentialThreadScheduler")
+                .build();
+        final TaskScheduler<Void> sequentialThreadScheduler = model.<Void>schedulerBuilder("SequentialThreadScheduler")
                 .withType(TaskSchedulerType.SEQUENTIAL_THREAD)
                 .withUnhandledTaskCapacity(1)
-                .build()
-                .cast();
-        final TaskScheduler<Void> directScheduler = model.schedulerBuilder("DirectScheduler")
+                .build();
+        final TaskScheduler<Void> directScheduler = model.<Void>schedulerBuilder("DirectScheduler")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
-        final TaskScheduler<Void> directThreadsafeScheduler = model.schedulerBuilder("DirectThreadsafeScheduler")
+                .build();
+        final TaskScheduler<Void> directThreadsafeScheduler = model.<Void>schedulerBuilder("DirectThreadsafeScheduler")
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
-        final TaskScheduler<Void> concurrentScheduler = model.schedulerBuilder("ConcurrentScheduler")
+                .build();
+        final TaskScheduler<Void> concurrentScheduler = model.<Void>schedulerBuilder("ConcurrentScheduler")
                 .withType(TaskSchedulerType.CONCURRENT)
-                .build()
-                .cast();
+                .build();
 
         final String wireSubstitutionString = "wire substitution (for readability)";
         sequentialScheduler.getOutputWire().solderTo(sequentialThreadScheduler.buildInputWire(wireSubstitutionString));

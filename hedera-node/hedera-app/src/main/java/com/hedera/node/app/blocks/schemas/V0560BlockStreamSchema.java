@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,13 @@ import java.util.function.Consumer;
  * </ol>
  */
 public class V0560BlockStreamSchema extends Schema {
+    /**
+     * The block stream manager increments the previous number when starting a block; so to start
+     * the genesis block number at {@code 0}, we set the "previous" number to {@code -1}.
+     */
+    private static final BlockStreamInfo GENESIS_INFO =
+            BlockStreamInfo.newBuilder().blockNumber(-1).build();
+
     private static final String SHARED_BLOCK_RECORD_INFO = "SHARED_BLOCK_RECORD_INFO";
     private static final String SHARED_RUNNING_HASHES = "SHARED_RUNNING_HASHES";
 
@@ -86,7 +93,7 @@ public class V0560BlockStreamSchema extends Schema {
         requireNonNull(ctx);
         final var state = ctx.newStates().getSingleton(BLOCK_STREAM_INFO_KEY);
         if (ctx.isGenesis()) {
-            state.put(BlockStreamInfo.DEFAULT);
+            state.put(GENESIS_INFO);
         } else {
             final var blockStreamInfo = state.get();
             // This will be null if the previous version is before 0.56.0

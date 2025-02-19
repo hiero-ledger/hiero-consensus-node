@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -62,13 +63,13 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
@@ -106,7 +107,10 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     private HandleContext.SavepointStack stack;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
+    private WritableEntityCounters entityCounters;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     private Configuration configuration;
 
@@ -237,10 +241,9 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Test
     void pureChecksFailWhenTargetSameAsBeneficiary() throws PreCheckException {
         final var txn = deleteAccountTransaction(deleteAccountId, deleteAccountId);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        final var context = new FakePreHandleContext(readableStore, txn);
-
-        assertThatThrownBy(() -> subject.preHandle(context))
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT));
     }
@@ -248,8 +251,9 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Test
     void pureChecksPassForValidTxn() {
         final var txn = deleteAccountTransaction(deleteAccountId, transferAccountId);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        assertThatNoException().isThrownBy(() -> subject.pureChecks(txn));
+        assertThatNoException().isThrownBy(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test
@@ -374,20 +378,20 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Test
     void failsIfEitherDeleteOrTransferAccountDoesntExist() throws PreCheckException {
         var txn = deleteAccountTransaction(null, transferAccountId);
-        final var context = new FakePreHandleContext(readableStore, txn);
-        assertThatThrownBy(() -> subject.preHandle(context))
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
 
         txn = deleteAccountTransaction(deleteAccountId, null);
-        final var context1 = new FakePreHandleContext(readableStore, txn);
-        assertThatThrownBy(() -> subject.preHandle(context1))
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
 
         txn = deleteAccountTransaction(null, null);
-        final var context2 = new FakePreHandleContext(readableStore, txn);
-        assertThatThrownBy(() -> subject.preHandle(context2))
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
     }
@@ -425,7 +429,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         }
         readableAccounts = emptyStateBuilder.build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
-        readableStore = new ReadableAccountStoreImpl(readableStates);
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
     }
 
     private void updateWritableStore(Map<Long, Account> accountsToAdd) {
@@ -435,14 +439,14 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         }
         writableAccounts = emptyStateBuilder.build();
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
-        writableStore = new WritableAccountStore(writableStates, configuration, storeMetricsService);
+        writableStore = new WritableAccountStore(writableStates, entityCounters);
     }
 
     private void givenTxnWith(AccountID deleteAccountId, AccountID transferAccountId) {
         final var txn = deleteAccountTransaction(deleteAccountId, transferAccountId);
         given(handleContext.body()).willReturn(txn);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
-        final var impl = new TokenServiceApiImpl(configuration, storeMetricsService, writableStates, op -> false);
+        final var impl = new TokenServiceApiImpl(configuration, writableStates, op -> false, entityCounters);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(impl);
     }
 }

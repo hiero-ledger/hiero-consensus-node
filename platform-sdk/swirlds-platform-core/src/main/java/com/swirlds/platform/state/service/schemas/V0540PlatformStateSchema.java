@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
@@ -55,28 +54,20 @@ public class V0540PlatformStateSchema extends Schema {
      * A platform state to be used as the non-null platform state under any circumstance a genesis state
      * is encountered before initializing the States API.
      */
-    public static final PlatformState UNINITIALIZED_PLATFORM_STATE = new PlatformState(
-            SemanticVersion.DEFAULT, 0, ConsensusSnapshot.DEFAULT, null, null, Bytes.EMPTY, 0L, 0L, null, null, null);
+    public static final PlatformState UNINITIALIZED_PLATFORM_STATE =
+            new PlatformState(null, 0, ConsensusSnapshot.DEFAULT, null, null, Bytes.EMPTY, 0L, 0L, null, null, null);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();
 
-    private final Supplier<AddressBook> addressBook;
     private final Function<Configuration, SoftwareVersion> versionFn;
 
     public V0540PlatformStateSchema() {
-        this(UNAVAILABLE_DISK_ADDRESS_BOOK, UNAVAILABLE_VERSION_FN);
+        this(UNAVAILABLE_VERSION_FN);
     }
 
     public V0540PlatformStateSchema(@NonNull final Function<Configuration, SoftwareVersion> versionFn) {
-        this(UNAVAILABLE_DISK_ADDRESS_BOOK, versionFn);
-    }
-
-    public V0540PlatformStateSchema(
-            @NonNull final Supplier<AddressBook> addressBook,
-            @NonNull final Function<Configuration, SoftwareVersion> versionFn) {
         super(VERSION);
-        this.addressBook = requireNonNull(addressBook);
         this.versionFn = requireNonNull(versionFn);
     }
 
@@ -91,20 +82,8 @@ public class V0540PlatformStateSchema extends Schema {
         final var stateSingleton = ctx.newStates().<PlatformState>getSingleton(PLATFORM_STATE_KEY);
         if (ctx.isGenesis()) {
             stateSingleton.put(UNINITIALIZED_PLATFORM_STATE);
-            final var genesisStateSpec = genesisStateSpec(ctx);
             final var platformStateStore = new WritablePlatformStateStore(ctx.newStates());
-            if (ctx.appConfig().getConfigData(AddressBookConfig.class).useRosterLifecycle()) {
-                // When using the roster lifecycle at genesis, platform code will never
-                // use the legacy previous/current AddressBook fields, so omit them
-                platformStateStore.bulkUpdate(genesisStateSpec);
-            } else {
-                final var book = addressBook.get();
-                requireNonNull(book);
-                platformStateStore.bulkUpdate(genesisStateSpec.andThen(v -> {
-                    v.setPreviousAddressBook(null);
-                    v.setAddressBook(book.copy());
-                }));
-            }
+            platformStateStore.bulkUpdate(genesisStateSpec(ctx));
         } else {
             // (FUTURE) Delete this code path, it is only reached through the Browser entrypoint
             if (stateSingleton.get() == null) {

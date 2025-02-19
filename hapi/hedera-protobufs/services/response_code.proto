@@ -1640,4 +1640,75 @@ enum ResponseCodeEnum {
      * approximately four million times with typical network configuration.)
      */
     RECURSIVE_SCHEDULING_LIMIT_REACHED = 374;
+
+    /**
+     * The target network is waiting for the ledger ID to be set, which is a
+     * side effect of finishing the network's TSS construction.
+     */
+    WAITING_FOR_LEDGER_ID = 375;
+
+    /**
+     * The provided fee exempt key list size exceeded the limit.
+     */
+    MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST_EXCEEDED = 376;
+
+    /**
+     * The provided fee exempt key list contains duplicated keys.
+     */
+    FEE_EXEMPT_KEY_LIST_CONTAINS_DUPLICATED_KEYS = 377;
+
+    /**
+     * The provided fee exempt key list contains an invalid key.
+     */
+    INVALID_KEY_IN_FEE_EXEMPT_KEY_LIST = 378;
+
+    /**
+     * The provided fee schedule key contains an invalid key.
+     */
+    INVALID_FEE_SCHEDULE_KEY = 379;
+
+    /**
+     * If a fee schedule key is not set when we create a topic
+     * we cannot add it on update.
+     */
+    FEE_SCHEDULE_KEY_CANNOT_BE_UPDATED = 380;
+
+    /**
+     * If the topic's custom fees are updated the topic SHOULD have a
+     * fee schedule key
+     */
+    FEE_SCHEDULE_KEY_NOT_SET = 381;
+
+    /**
+     * The fee amount is exceeding the amount that the payer
+     * is willing to pay.
+     */
+    MAX_CUSTOM_FEE_LIMIT_EXCEEDED = 382;
+
+    /**
+     * There are no corresponding custom fees.
+     */
+    NO_VALID_MAX_CUSTOM_FEE = 383;
+
+    /**
+     * The provided list contains invalid max custom fee.
+     */
+    INVALID_MAX_CUSTOM_FEES = 384;
+
+    /**
+     * The provided max custom fee list contains fees with
+     * duplicate denominations.
+     */
+    DUPLICATE_DENOMINATION_IN_MAX_CUSTOM_FEE_LIST = 385;
+
+    /**
+     * The provided max custom fee list contains fees with
+     * duplicate account id.
+     */
+    DUPLICATE_ACCOUNT_ID_IN_MAX_CUSTOM_FEE_LIST = 386;
+
+    /**
+     * Max custom fees list is not supported for this operation.
+     */
+    MAX_CUSTOM_FEES_IS_NOT_SUPPORTED = 387;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,12 @@
 
 package com.hedera.node.app.service.consensus.impl.records;
 
+import com.hedera.hapi.node.transaction.AssessedCustomFee;
+import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 
 /**
  * A {@code StreamBuilder} specialization for tracking the side effects of a {@code ConsensusSubmitMessage}
@@ -51,4 +54,12 @@ public interface ConsensusSubmitMessageStreamBuilder extends StreamBuilder {
      */
     @NonNull
     ConsensusSubmitMessageStreamBuilder topicRunningHashVersion(long topicRunningHashVersion);
+
+    /**
+     * Tracks the total custom fees assessed in the transaction.
+     * @param assessedCustomFees the total custom fees assessed in the transaction
+     * @return this builder
+     */
+    @NonNull
+    CryptoTransferStreamBuilder assessedCustomFees(@NonNull List<AssessedCustomFee> assessedCustomFees);
 }

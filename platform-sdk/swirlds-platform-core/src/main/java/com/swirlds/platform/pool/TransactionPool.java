@@ -16,7 +16,7 @@
 
 package com.swirlds.platform.pool;
 
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +34,7 @@ public interface TransactionPool {
      * @param transaction the system transaction to submit
      */
     @InputWireLabel("submit transaction")
-    void submitSystemTransaction(@NonNull StateSignatureTransaction transaction);
+    void submitSystemTransaction(@NonNull Bytes transaction);
 
     /**
      * Update the platform status.

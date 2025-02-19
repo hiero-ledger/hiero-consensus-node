@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -180,6 +180,13 @@ public class BlockItemsTranslator {
                                 outputs);
                         if (cryptoOutput != null) {
                             recordBuilder.assessedCustomFees(cryptoOutput.assessedCustomFees());
+                        }
+                    }
+                    case CONSENSUS_SUBMIT_MESSAGE -> {
+                        final var submitMessageOutput = outputValueIfPresent(
+                                TransactionOutput::hasSubmitMessage, TransactionOutput::submitMessageOrThrow, outputs);
+                        if (submitMessageOutput != null) {
+                            recordBuilder.assessedCustomFees(submitMessageOutput.assessedCustomFees());
                         }
                     }
                     case CRYPTO_CREATE, CRYPTO_UPDATE -> recordBuilder.evmAddress(

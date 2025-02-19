@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isfrozen.IsFrozenCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isfrozen.IsFrozenTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -56,7 +57,7 @@ class IsFrozenCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(IsFrozenTranslator.IS_FROZEN
                         .getOutputs()
-                        .encodeElements(SUCCESS.protoOrdinal(), false)
+                        .encode(Tuple.of(SUCCESS.protoOrdinal(), false))
                         .array()),
                 result.getOutput());
     }
@@ -78,7 +79,7 @@ class IsFrozenCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(IsFrozenTranslator.IS_FROZEN
                         .getOutputs()
-                        .encodeElements(INVALID_TOKEN_ID.protoOrdinal(), false)
+                        .encode(Tuple.of(INVALID_TOKEN_ID.protoOrdinal(), false))
                         .array()),
                 result.getOutput());
     }
@@ -100,7 +101,7 @@ class IsFrozenCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(IsFrozenTranslator.IS_FROZEN
                         .getOutputs()
-                        .encodeElements(INVALID_ACCOUNT_ID.protoOrdinal(), false)
+                        .encode(Tuple.of(INVALID_ACCOUNT_ID.protoOrdinal(), false))
                         .array()),
                 result.getOutput());
     }

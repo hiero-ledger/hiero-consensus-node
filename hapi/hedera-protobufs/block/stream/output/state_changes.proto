@@ -70,6 +70,9 @@ import "state/tss/tss_encryption_keys.proto";
 import "state/tss/tss_message_map_key.proto";
 import "state/tss/tss_vote_map_key.proto";
 import "state/hints/hints_types.proto";
+import "state/history/history_types.proto";
+import "state/entity/entity_counts.proto";
+import "auxiliary/hints/crs_publication.proto";
 
 /**
  * A set of state changes.
@@ -408,17 +411,62 @@ enum StateIdentifier {
     /**
      * A state identifier for the active hinTS construction.
      */
-    STATE_ID_ACTIVE_CONSTRUCTION = 38;
+    STATE_ID_ACTIVE_HINTS_CONSTRUCTION = 38;
 
     /**
      * A state identifier for the next hinTS construction.
      */
-    STATE_ID_NEXT_CONSTRUCTION = 39;
+    STATE_ID_NEXT_HINTS_CONSTRUCTION = 39;
 
     /**
      * A state identifier for hinTS preprocessing output votes.
      */
     STATE_ID_PREPROCESSING_VOTES = 40;
+
+    /**
+     * A state identifier for the entity counts.
+     */
+    STATE_ID_ENTITY_COUNTS = 41;
+
+    /**
+     * A state identifier for the ledger id.
+     */
+    STATE_ID_LEDGER_ID = 42;
+
+    /**
+     * A state identifier for history proof key sets.
+     */
+    STATE_ID_PROOF_KEY_SETS = 43;
+
+    /**
+     * A state identifier for the active proof construction.
+     */
+    STATE_ID_ACTIVE_PROOF_CONSTRUCTION = 44;
+
+    /**
+     * A state identifier for the next proof construction.
+     */
+    STATE_ID_NEXT_PROOF_CONSTRUCTION = 45;
+
+    /**
+     * A state identifier for signatures on roster transition histories.
+     */
+    STATE_ID_HISTORY_SIGNATURES = 46;
+
+    /**
+     * A state identifier for votes on history proofs.
+     */
+    STATE_ID_PROOF_VOTES = 47;
+
+    /**
+     * A state identifier for the CRS state.
+     */
+    STATE_ID_CRS_STATE = 48;
+
+    /**
+     * A state identifier for the CRS publications.
+     */
+    STATE_ID_CRS_PUBLICATIONS = 49;
 
     /**
      * A state identifier for the round receipts queue.
@@ -634,6 +682,21 @@ message SingletonUpdateChange {
          * A change to a hinTS construction singleton.
          */
         com.hedera.hapi.node.state.hints.HintsConstruction hints_construction_value = 14;
+
+        /**
+         * A change to the Entity counts singleton.
+         */
+        com.hedera.hapi.node.state.entity.EntityCounts entity_counts_value = 15;
+
+        /**
+         * A change to a hinTS construction singleton.
+         */
+        com.hedera.hapi.node.state.history.HistoryProofConstruction history_proof_construction_value = 16;
+
+        /**
+         * A change to the CRS State singleton.
+         */
+        com.hedera.hapi.node.state.hints.CRSState crs_state_value = 17;
     }
 }
 
@@ -798,6 +861,16 @@ message MapChangeKey {
          * A hinTS preprocessing vote id key.
          */
         com.hedera.hapi.node.state.hints.PreprocessingVoteId preprocessing_vote_id_key = 20;
+
+        /**
+         * An unscoped node id key.
+         */
+        com.hedera.hapi.platform.state.NodeId node_id_key = 21;
+
+        /**
+         * A construction-scoped node id key.
+         */
+        com.hedera.hapi.node.state.history.ConstructionNodeId construction_node_id_key = 22;
     }
 }
 
@@ -943,6 +1016,11 @@ message MapChangeValue {
          * A hinTS preprocessing vote.
          */
         com.hedera.hapi.node.state.hints.PreprocessingVote preprocessing_vote_value = 24;
+
+        /**
+         * A CRS publication submission.
+         */
+        com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication_value = 25;
     }
 }
 

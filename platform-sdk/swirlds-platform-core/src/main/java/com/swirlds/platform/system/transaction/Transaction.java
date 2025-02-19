@@ -16,11 +16,8 @@
 
 package com.swirlds.platform.system.transaction;
 
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.platform.util.TransactionUtils;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.locks.ReadWriteLock;
 
 /**
@@ -32,22 +29,11 @@ import java.util.concurrent.locks.ReadWriteLock;
 public sealed interface Transaction permits ConsensusTransaction {
 
     /**
-     * Returns the transaction as a PBJ record
-     * @return the transaction
-     */
-    @NonNull
-    @Deprecated
-    EventTransaction getTransaction();
-
-    /**
-     * A convenience method for retrieving the application transaction {@link Bytes} object. Before calling this method,
-     * ensure that the transaction is not a system transaction by calling {@link #isSystem()}.
+     * A convenience method for retrieving the application transaction {@link Bytes} object.
      *
-     * @return the application transaction Bytes or {@code Bytes.EMPTY} if the transaction is a system transaction
+     * @return the application transaction Bytes
      */
-    default @NonNull Bytes getApplicationTransaction() {
-        return !isSystem() ? getTransaction().transaction().as() : Bytes.EMPTY;
-    }
+    Bytes getApplicationTransaction();
 
     /**
      * Get the size of the transaction
@@ -55,17 +41,6 @@ public sealed interface Transaction permits ConsensusTransaction {
      * @return the size of the transaction in the unit of byte
      */
     int getSize();
-
-    /**
-     * Internal use accessor that returns a flag indicating whether this is a system transaction.
-     *
-     * @return {@code true} if this is a system transaction; otherwise {@code false} if this is an application
-     * 		transaction
-     */
-    @Deprecated
-    default boolean isSystem() {
-        return TransactionUtils.isSystemTransaction(getTransaction());
-    }
 
     /**
      * Returns the custom metadata object set via {@link #setMetadata(Object)}.

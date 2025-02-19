@@ -20,20 +20,18 @@ import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLA
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamilyImpl;
-import com.swirlds.demo.platform.actions.Action;
 import com.swirlds.demo.platform.actions.QuorumResult;
-import com.swirlds.demo.platform.actions.QuorumTriggeredAction;
 import com.swirlds.demo.platform.expiration.ExpirationRecordEntry;
 import com.swirlds.demo.platform.expiration.ExpirationUtils;
-import com.swirlds.demo.platform.fs.stresstest.proto.ControlTransaction;
 import com.swirlds.demo.platform.iss.IssLeaf;
 import com.swirlds.demo.platform.nft.NftId;
 import com.swirlds.demo.platform.nft.NftLedger;
@@ -46,11 +44,9 @@ import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKe
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -61,7 +57,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -73,7 +68,7 @@ import org.apache.logging.log4j.MarkerManager;
  * consists of an optional sequence number and random bytes.
  */
 @ConstructableIgnored
-public class PlatformTestingToolState extends PlatformMerkleStateRoot {
+public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToolState> implements MerkleNodeState {
 
     static final long CLASS_ID = 0xc0900cfa7a24db76L;
     private static final Logger logger = LogManager.getLogger(PlatformTestingToolState.class);
@@ -94,9 +89,6 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
      */
     private final ReferenceNftLedger referenceNftLedger;
     ///////////////////////////////////////////
-    // Non copyable shared variables
-    private Platform platform;
-    ///////////////////////////////////////////
     // Copyable variables
     private long lastTranTimeStamp = 0;
     private ThresholdLimitingHandler<Throwable> exceptionRateLimiter;
@@ -113,17 +105,13 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
     private BlockingQueue<ExpirationRecordEntry> expirationQueue;
     // contains MapKeys which has an entry in ExpirationQueue
     private Set<MapKey> accountsWithExpiringRecords;
+
     /**
-     * Handles quorum determinations for all {@link ControlTransaction} processed by the handle method.
+     * NodeId of the node that this state belongs to.
      */
-    private QuorumTriggeredAction<ControlAction> controlQuorum;
+    private NodeId selfId;
 
     public PlatformTestingToolState() {
-        this(version -> new BasicSoftwareVersion(version.major()));
-    }
-
-    public PlatformTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
         expectedFCMFamily = new ExpectedFCMFamilyImpl();
         referenceNftLedger = new ReferenceNftLedger(NFT_TRACKING_FRACTION);
     }
@@ -131,7 +119,6 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
     protected PlatformTestingToolState(final PlatformTestingToolState sourceState) {
         super(sourceState);
         this.initialized.set(sourceState.initialized.get());
-        this.platform = sourceState.platform;
         this.lastFileTranFinishTimeStamp = sourceState.lastFileTranFinishTimeStamp;
         this.lastTranTimeStamp = sourceState.lastTranTimeStamp;
 
@@ -142,14 +129,13 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
         this.expectedFCMFamily = sourceState.expectedFCMFamily;
         this.expirationQueue = sourceState.expirationQueue;
         this.accountsWithExpiringRecords = sourceState.accountsWithExpiringRecords;
-
-        // begin enhanced control structures - not part of state but required to be passed by reference
-        this.controlQuorum = sourceState.controlQuorum;
         this.exceptionRateLimiter = sourceState.exceptionRateLimiter;
         // end enhanced control structures
 
         this.progressCfg = sourceState.progressCfg;
         this.roundCounter = sourceState.roundCounter;
+
+        this.selfId = sourceState.selfId;
 
         if (sourceState.getTransactionCounter() != null) {
             final int size = sourceState.getTransactionCounter().size();
@@ -242,10 +228,6 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
 
     void setConfig(final PayloadCfgSimple config) {
         setChild(ChildIndices.CONFIG, config);
-    }
-
-    QuorumTriggeredAction<ControlAction> getControlQuorum() {
-        return controlQuorum;
     }
 
     public NextSeqConsList getNextSeqCons() {
@@ -345,16 +327,20 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
         return accountsWithExpiringRecords;
     }
 
-    public synchronized void setPayloadConfig(final FCMConfig fcmConfig) {
-        expectedFCMFamily.setNodeId(platform.getSelfId().id());
+    public synchronized void setPayloadConfig(final FCMConfig fcmConfig, final Roster roster) {
+        expectedFCMFamily.setNodeId(selfId.id());
         expectedFCMFamily.setFcmConfig(fcmConfig);
-        expectedFCMFamily.setWeightedNodeNum(RosterUtils.getNumberWithWeight(platform.getRoster()));
+        expectedFCMFamily.setWeightedNodeNum(RosterUtils.getNumberWithWeight(roster));
 
         referenceNftLedger.setFractionToTrack(this.getNftLedger(), fcmConfig.getNftTrackingFraction());
     }
 
     public void setProgressCfg(final ProgressCfg progressCfg) {
         this.progressCfg = progressCfg;
+    }
+
+    void setSelfId(NodeId selfId) {
+        this.selfId = selfId;
     }
 
     public void initChildren() {
@@ -365,18 +351,6 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
         if (getNftLedger() == null) {
             setNftLedger(new NftLedger());
         }
-    }
-
-    void initControlStructures(final Action<Long, ControlAction> action) {
-        final int nodeIndex =
-                RosterUtils.getIndex(platform.getRoster(), platform.getSelfId().id());
-        this.controlQuorum = new QuorumTriggeredAction<>(
-                () -> nodeIndex,
-                () -> platform.getRoster().rosterEntries().size(),
-                () -> RosterUtils.getNumberWithWeight(platform.getRoster()),
-                action);
-
-        this.exceptionRateLimiter = new ThresholdLimitingHandler<>(EXCEPTION_RATE_THRESHOLD);
     }
 
     public void initializeExpirationQueueAndAccountsSet() {
@@ -400,6 +374,7 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized PlatformTestingToolState copy() {
         throwIfImmutable();
@@ -408,8 +383,8 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
 
         final PlatformTestingToolState mutableCopy = new PlatformTestingToolState(this);
 
-        if (platform != null) {
-            UnsafeMutablePTTStateAccessor.getInstance().setMutableState(platform.getSelfId(), mutableCopy);
+        if (selfId != null) {
+            UnsafeMutablePTTStateAccessor.getInstance().setMutableState(selfId, mutableCopy);
         }
 
         return mutableCopy;
@@ -521,6 +496,11 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
      */
     public void setExpectedFCMFamily(final ExpectedFCMFamily expectedFCMFamily) {
         this.expectedFCMFamily = expectedFCMFamily;
+    }
+
+    @Override
+    protected PlatformTestingToolState copyingConstructor() {
+        return new PlatformTestingToolState(this);
     }
 
     /**

@@ -165,7 +165,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
         givenValidFile(true);
         readableFileState = readableFileState();
         given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
-        readableStore = new ReadableFileStoreImpl(readableStates);
+        readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createGetFileContentQuery(fileId.fileNum());
         when(context.query()).thenReturn(query);

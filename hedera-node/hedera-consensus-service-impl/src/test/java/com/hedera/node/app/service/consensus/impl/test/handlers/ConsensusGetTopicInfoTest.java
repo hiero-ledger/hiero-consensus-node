@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -128,7 +128,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         readableTopicState.reset();
         final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_KEY).build();
         given(readableStates.<Long, Topic>get(TOPICS_KEY)).willReturn(state);
-        final var store = new ReadableTopicStoreImpl(readableStates);
+        final var store = new ReadableTopicStoreImpl(readableStates, entityCounters);
 
         final var query = createGetTopicInfoQuery(topicEntityNum);
         when(context.query()).thenReturn(query);
@@ -145,7 +145,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         readableTopicState.reset();
         final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_KEY).build();
         given(readableStates.<Long, Topic>get(TOPICS_KEY)).willReturn(state);
-        final var store = new ReadableTopicStoreImpl(readableStates);
+        final var store = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createEmptyGetTopicInfoQuery();
         when(context.query()).thenReturn(query);
@@ -162,7 +162,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         givenValidTopic(autoRenewId, true);
         readableTopicState = readableTopicState();
         given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
-        readableStore = new ReadableTopicStoreImpl(readableStates);
+        readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createGetTopicInfoQuery(topicEntityNum);
         when(context.query()).thenReturn(query);
@@ -228,6 +228,9 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
                 .autoRenewAccount(topic.autoRenewAccountId())
                 .autoRenewPeriod(WELL_KNOWN_AUTO_RENEW_PERIOD)
                 .ledgerId(new BytesConverter().convert("0x03"))
+                .feeScheduleKey(feeScheduleKey)
+                .feeExemptKeyList(key, anotherKey)
+                .customFees(customFees)
                 .build();
     }
 

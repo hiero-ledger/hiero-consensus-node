@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ class AllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 .value(spenderId, spenderAccount)
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
-        readableAccountStore = new ReadableAccountStoreImpl(readableStates);
+        readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
     }
 
     @Test
@@ -117,7 +117,8 @@ class AllowanceValidatorTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void failsIfEffectiveOwnerDoesntExist() {
-        final var missingOwner = AccountID.newBuilder().accountNum(1000).build();
+        final var missingOwner =
+                AccountID.newBuilder().shardNum(1).realmNum(2).accountNum(1000).build();
         assertThatThrownBy(() -> getEffectiveOwner(missingOwner, account, readableAccountStore, expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));
@@ -130,7 +131,7 @@ class AllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 .value(deleteAccountId, deleteAccount)
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
-        readableAccountStore = new ReadableAccountStoreImpl(readableStates);
+        readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         assertThatThrownBy(
                         () -> getEffectiveOwner(deleteAccountId, deleteAccount, readableAccountStore, expiryValidator))
                 .isInstanceOf(HandleException.class)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
@@ -36,10 +37,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.annotations.NodeSelfId;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
@@ -61,10 +64,12 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeBuffer;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
@@ -72,6 +77,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,6 +93,7 @@ public final class IngestChecker {
             EnumSet.of(FREEZE, SYSTEM_DELETE, SYSTEM_UNDELETE);
 
     private final CurrentPlatformStatus currentPlatformStatus;
+    private final BlockStreamManager blockStreamManager;
     private final TransactionChecker transactionChecker;
     private final SolvencyPreCheck solvencyPreCheck;
     private final SignatureVerifier signatureVerifier;
@@ -99,6 +106,7 @@ public final class IngestChecker {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     /**
      * Constructor of the {@code IngestChecker}
@@ -120,6 +128,7 @@ public final class IngestChecker {
     public IngestChecker(
             @NodeSelfId @NonNull final AccountID nodeAccount,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
+            @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final SolvencyPreCheck solvencyPreCheck,
             @NonNull final SignatureExpander signatureExpander,
@@ -130,9 +139,11 @@ public final class IngestChecker {
             @NonNull final Authorizer authorizer,
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
-            @NonNull final OpWorkflowMetrics workflowMetrics) {
+            @NonNull final OpWorkflowMetrics workflowMetrics,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
+        this.blockStreamManager = requireNonNull(blockStreamManager);
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck, "solvencyPreCheck must not be null");
         this.signatureVerifier = requireNonNull(signatureVerifier, "signatureVerifier must not be null");
@@ -144,16 +155,29 @@ public final class IngestChecker {
         this.synchronizedThrottleAccumulator = requireNonNull(synchronizedThrottleAccumulator);
         this.instantSource = requireNonNull(instantSource);
         this.workflowMetrics = requireNonNull(workflowMetrics);
+        this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
     }
 
     /**
-     * Checks the general state of the node
+     * Verifies the platform is active and this node should be processing HAPI operations.
      *
-     * @throws PreCheckException if the node is unable to process queries
+     * @throws PreCheckException if the node is unable to process HAPI operations
      */
-    public void checkNodeState() throws PreCheckException {
+    public void verifyPlatformActive() throws PreCheckException {
         if (currentPlatformStatus.get() != ACTIVE) {
             throw new PreCheckException(PLATFORM_NOT_ACTIVE);
+        }
+    }
+
+    /**
+     * Verifies the network is ready to handle transactions.
+     *
+     * @throws PreCheckException if the node is unable to process HAPI operations
+     */
+    public void verifyReadyForTransactions() throws PreCheckException {
+        verifyPlatformActive();
+        if (!blockStreamManager.hasLedgerId()) {
+            throw new PreCheckException(WAITING_FOR_LEDGER_ID);
         }
     }
 
@@ -204,10 +228,11 @@ public final class IngestChecker {
         }
 
         // 4a. Run pure checks
-        dispatcher.dispatchPureChecks(txBody);
+        final var pureChecksContext = new PureChecksContextImpl(txBody, configuration, dispatcher, transactionChecker);
+        dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactory(state);
+        final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in

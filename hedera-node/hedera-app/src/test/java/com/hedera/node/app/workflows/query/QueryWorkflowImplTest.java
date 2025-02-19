@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
@@ -72,6 +73,7 @@ import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
@@ -87,6 +89,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -159,6 +162,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     private TransactionInfo transactionInfo;
 
     private QueryWorkflowImpl workflow;
+    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = v -> new ServicesSoftwareVersion();
 
     @BeforeEach
     void setup(@Mock FeeCalculator feeCalculator) throws ParseException, PreCheckException {
@@ -221,7 +225,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                true);
+                true,
+                softwareVersionFactory);
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -242,7 +247,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -259,7 +265,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -276,7 +283,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -293,7 +301,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -310,7 +319,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -327,7 +337,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -344,7 +355,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -361,7 +373,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -378,7 +391,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -395,7 +409,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -412,7 +427,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -429,7 +445,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         null,
                         instantSource,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -446,7 +463,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         null,
                         opWorkflowMetrics,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -463,7 +481,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                         synchronizedThrottleAccumulator,
                         instantSource,
                         null,
-                        true))
+                        true,
+                        softwareVersionFactory))
                 .isInstanceOf(NullPointerException.class);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
@@ -500,7 +519,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                shouldCharge);
+                shouldCharge,
+                softwareVersionFactory);
         final var responseBuffer = newEmptyBuffer();
         // when
         workflow.handleQuery(requestBuffer, responseBuffer);
@@ -534,7 +554,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                shouldCharge);
+                shouldCharge,
+                softwareVersionFactory);
         given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
         given(handler.requiresNodePayment(any())).willReturn(true);
         when(handler.findResponse(any(), any()))
@@ -576,7 +597,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                                 .header(ResponseHeader.newBuilder().build())
                                 .build())
                         .build());
-        doThrow(new PreCheckException(INSUFFICIENT_TX_FEE)).when(queryChecker).validateCryptoTransfer(transactionInfo);
+        doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
+                .when(queryChecker)
+                .validateCryptoTransfer(eq(transactionInfo), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -673,7 +696,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     @Test
     void testInvalidNodeFails() throws PreCheckException, ParseException {
         // given
-        doThrow(new PreCheckException(INVALID_NODE_ACCOUNT)).when(ingestChecker).checkNodeState();
+        doThrow(new PreCheckException(INVALID_NODE_ACCOUNT)).when(ingestChecker).verifyPlatformActive();
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -756,7 +779,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                false);
+                false,
+                softwareVersionFactory);
         when(synchronizedThrottleAccumulator.shouldThrottle(eq(HederaFunctionality.FILE_GET_INFO), any(), any(), any()))
                 .thenReturn(true);
         final var responseBuffer = newEmptyBuffer();
@@ -799,7 +823,9 @@ class QueryWorkflowImplTest extends AppTestBase {
     void testPaidQueryWithInvalidCryptoTransferFails() throws PreCheckException, ParseException {
         // given
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
-        doThrow(new PreCheckException(INSUFFICIENT_TX_FEE)).when(queryChecker).validateCryptoTransfer(transactionInfo);
+        doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
+                .when(queryChecker)
+                .validateCryptoTransfer(eq(transactionInfo), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when

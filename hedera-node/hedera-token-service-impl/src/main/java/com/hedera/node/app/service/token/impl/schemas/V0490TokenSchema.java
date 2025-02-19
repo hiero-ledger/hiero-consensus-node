@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -124,10 +124,6 @@ public class V0490TokenSchema extends Schema {
 
         // Get the map for storing all the created accounts
         final var accounts = ctx.newStates().<AccountID, Account>get(ACCOUNTS_KEY);
-        if (accounts.size() != 0) {
-            throw new IllegalStateException("Accounts map should be empty at genesis");
-        }
-
         // We will use these various configs for creating accounts. It would be nice to consolidate them somehow
         final var ledgerConfig = ctx.appConfig().getConfigData(LedgerConfig.class);
         final var hederaConfig = ctx.appConfig().getConfigData(HederaConfig.class);
@@ -171,7 +167,7 @@ public class V0490TokenSchema extends Schema {
                 throw new IllegalStateException("Aliases map should be empty at genesis");
             }
             for (final Account acct : syntheticAccountCreator.blocklistAccounts()) {
-                final var id = asAccountId(ctx.newEntityNum(), hederaConfig);
+                final var id = asAccountId(ctx.newEntityNumForAccount(), hederaConfig);
                 if (!Objects.equals(
                         id.accountNumOrThrow(), acct.accountIdOrThrow().accountNumOrThrow())) {
                     throw new IllegalStateException(
@@ -211,7 +207,7 @@ public class V0490TokenSchema extends Schema {
             @NonNull final WritableKVState<AccountID, Account> accounts, @NonNull final HederaConfig hederaConfig) {
         long totalBalance = 0;
         long curAccountId = 1; // Start with the first account ID
-        long totalAccounts = accounts.size();
+        long totalAccounts = 704; // Since this runs only on genesis, these will only be system accounts
         do {
             final Account account = accounts.get(asAccountId(curAccountId, hederaConfig));
             if (account != null) {

@@ -49,6 +49,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 
 /**
  * Responsible for coordinating the clearing of the platform wiring objects.
@@ -67,7 +68,7 @@ public class PlatformCoordinator {
     private final GossipWiring gossipWiring;
     private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
     private final ComponentWiring<EventCreationManager, UnsignedEvent> eventCreationManagerWiring;
-    private final ComponentWiring<TransactionPrehandler, List<ScopedSystemTransaction<StateSignatureTransaction>>>
+    private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             applicationTransactionPrehandlerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
     private final ComponentWiring<TransactionHandler, StateAndRound> transactionHandlerWiring;
@@ -115,7 +116,7 @@ public class PlatformCoordinator {
             @NonNull final ComponentWiring<EventCreationManager, UnsignedEvent> eventCreationManagerWiring,
             @NonNull
                     final ComponentWiring<
-                                    TransactionPrehandler, List<ScopedSystemTransaction<StateSignatureTransaction>>>
+                                    TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                             applicationTransactionPrehandlerWiring,
             @NonNull
                     final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>>

@@ -17,25 +17,34 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_CONSTRUCTION;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_HINTS_CONSTRUCTION;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_PROOF_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ALIASES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_INFO;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONGESTION_STARTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CRS_PUBLICATIONS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CRS_STATE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ENTITY_COUNTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ENTITY_ID;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FREEZE_TIME;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_HINTS_KEY_SETS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_HISTORY_SIGNATURES;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_MIDNIGHT_RATES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NETWORK_REWARDS;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_CONSTRUCTION;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_HINTS_CONSTRUCTION;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_PROOF_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NFTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NODES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PENDING_AIRDROPS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PLATFORM_STATE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PREPROCESSING_VOTES;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_KEY_SETS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_VOTES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTERS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_RUNNING_HASHES;
@@ -75,12 +84,15 @@ import com.swirlds.common.crypto.DigestType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.function.IntFunction;
 
 /**
  * Utility methods for block implementation.
  */
 public class BlockImplUtils {
     private static final int UNKNOWN_STATE_ID = -1;
+    private static final IntFunction<String> UPGRADE_DATA_FILE_FORMAT =
+            n -> String.format("UPGRADE_DATA\\[FileID\\[shardNum=\\d, realmNum=\\d, fileNum=%s]]", n);
 
     /**
      * Prevent instantiation
@@ -128,37 +140,42 @@ public class BlockImplUtils {
                     };
                     case "EntityIdService" -> switch (stateKey) {
                         case "ENTITY_ID" -> STATE_ID_ENTITY_ID.protoOrdinal();
+                        case "ENTITY_COUNTS" -> STATE_ID_ENTITY_COUNTS.protoOrdinal();
                         default -> UNKNOWN_STATE_ID;
                     };
                     case "FeeService" -> switch (stateKey) {
                         case "MIDNIGHT_RATES" -> STATE_ID_MIDNIGHT_RATES.protoOrdinal();
                         default -> UNKNOWN_STATE_ID;
                     };
-                    case "FileService" -> switch (stateKey) {
-                        case "FILES" -> STATE_ID_FILES.protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=150]]" -> STATE_ID_UPGRADE_DATA_150
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=151]]" -> STATE_ID_UPGRADE_DATA_151
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=152]]" -> STATE_ID_UPGRADE_DATA_152
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=153]]" -> STATE_ID_UPGRADE_DATA_153
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=154]]" -> STATE_ID_UPGRADE_DATA_154
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=155]]" -> STATE_ID_UPGRADE_DATA_155
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=156]]" -> STATE_ID_UPGRADE_DATA_156
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=157]]" -> STATE_ID_UPGRADE_DATA_157
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=158]]" -> STATE_ID_UPGRADE_DATA_158
-                                .protoOrdinal();
-                        case "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=159]]" -> STATE_ID_UPGRADE_DATA_159
-                                .protoOrdinal();
-                        case "UPGRADE_FILE" -> STATE_ID_UPGRADE_FILE.protoOrdinal();
-                        default -> UNKNOWN_STATE_ID;
-                    };
+                    case "FileService" -> {
+                        if ("FILES".equals(stateKey)) {
+                            yield STATE_ID_FILES.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(150))) {
+                            yield STATE_ID_UPGRADE_DATA_150.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(151))) {
+                            yield STATE_ID_UPGRADE_DATA_151.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(152))) {
+                            yield STATE_ID_UPGRADE_DATA_152.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(153))) {
+                            yield STATE_ID_UPGRADE_DATA_153.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(154))) {
+                            yield STATE_ID_UPGRADE_DATA_154.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(155))) {
+                            yield STATE_ID_UPGRADE_DATA_155.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(156))) {
+                            yield STATE_ID_UPGRADE_DATA_156.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(157))) {
+                            yield STATE_ID_UPGRADE_DATA_157.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(158))) {
+                            yield STATE_ID_UPGRADE_DATA_158.protoOrdinal();
+                        } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(159))) {
+                            yield STATE_ID_UPGRADE_DATA_159.protoOrdinal();
+                        } else if ("UPGRADE_FILE".equals(stateKey)) {
+                            yield STATE_ID_UPGRADE_FILE.protoOrdinal();
+                        } else {
+                            yield UNKNOWN_STATE_ID;
+                        }
+                    }
                     case "FreezeService" -> switch (stateKey) {
                         case "FREEZE_TIME" -> STATE_ID_FREEZE_TIME.protoOrdinal();
                         case "UPGRADE_FILE_HASH" -> STATE_ID_UPGRADE_FILE_HASH.protoOrdinal();
@@ -207,9 +224,20 @@ public class BlockImplUtils {
                     };
                     case "HintsService" -> switch (stateKey) {
                         case "HINTS_KEY_SETS" -> STATE_ID_HINTS_KEY_SETS.protoOrdinal();
-                        case "ACTIVE_CONSTRUCTION" -> STATE_ID_ACTIVE_CONSTRUCTION.protoOrdinal();
-                        case "NEXT_CONSTRUCTION" -> STATE_ID_NEXT_CONSTRUCTION.protoOrdinal();
+                        case "ACTIVE_HINTS_CONSTRUCTION" -> STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal();
+                        case "NEXT_HINTS_CONSTRUCTION" -> STATE_ID_NEXT_HINTS_CONSTRUCTION.protoOrdinal();
                         case "PREPROCESSING_VOTES" -> STATE_ID_PREPROCESSING_VOTES.protoOrdinal();
+                        case "CRS_STATE" -> STATE_ID_CRS_STATE.protoOrdinal();
+                        case "CRS_PUBLICATIONS" -> STATE_ID_CRS_PUBLICATIONS.protoOrdinal();
+                        default -> UNKNOWN_STATE_ID;
+                    };
+                    case "HistoryService" -> switch (stateKey) {
+                        case "LEDGER_ID" -> STATE_ID_LEDGER_ID.protoOrdinal();
+                        case "PROOF_KEY_SETS" -> STATE_ID_PROOF_KEY_SETS.protoOrdinal();
+                        case "ACTIVE_PROOF_CONSTRUCTION" -> STATE_ID_ACTIVE_PROOF_CONSTRUCTION.protoOrdinal();
+                        case "NEXT_PROOF_CONSTRUCTION" -> STATE_ID_NEXT_PROOF_CONSTRUCTION.protoOrdinal();
+                        case "HISTORY_SIGNATURES" -> STATE_ID_HISTORY_SIGNATURES.protoOrdinal();
+                        case "PROOF_VOTES" -> STATE_ID_PROOF_VOTES.protoOrdinal();
                         default -> UNKNOWN_STATE_ID;
                     };
                     default -> UNKNOWN_STATE_ID;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,10 +80,6 @@ public class V0500ContractSchema extends Schema {
     public void migrate(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
         final ReadableKVState<SlotKey, SlotValue> storage = ctx.previousStates().get(STORAGE_KEY);
-        if (storage.size() > MAX_SUPPORTED_STORAGE_SIZE) {
-            log.warn("  -> Link repair is impractical with {} slots in state, skipping migration", storage.size());
-            return;
-        }
         final var begin = Instant.now();
         final Map<ContractID, List<StorageMapping>> mappings = new HashMap<>();
         final SortedMap<ContractID, Bytes> firstKeys = new TreeMap<>(CONTRACT_ID_COMPARATOR);
@@ -104,10 +100,6 @@ public class V0500ContractSchema extends Schema {
         });
 
         final List<ContractID> contractIdsToMigrate = new ArrayList<>(mappings.keySet());
-        log.info(
-                "Previous state with {} slots had {} contracts with broken storage links",
-                storage.size(),
-                contractIdsToMigrate.size());
         if (!contractIdsToMigrate.isEmpty()) {
             contractIdsToMigrate.sort(CONTRACT_ID_COMPARATOR);
             final WritableKVState<SlotKey, SlotValue> writableStorage =

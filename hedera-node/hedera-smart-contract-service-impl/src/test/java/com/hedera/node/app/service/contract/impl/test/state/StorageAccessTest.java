@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package com.hedera.node.app.service.contract.impl.test.state;
 
+import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.ZERO_INTO_EMPTY_SLOT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,6 +46,9 @@ class StorageAccessTest {
     void zeroIsOnlyRemovalIfExistingValueNotZero() {
         final var reZero = StorageAccess.newWrite(UInt256.ONE, UInt256.ZERO, UInt256.ZERO);
         assertFalse(reZero.isRemoval());
+        assertTrue(reZero.isUpdate());
+        assertTrue(reZero.isZeroIntoEmptySlot());
+        assertEquals(ZERO_INTO_EMPTY_SLOT, StorageAccess.StorageAccessType.getAccessType(reZero));
     }
 
     @Test
@@ -53,8 +58,9 @@ class StorageAccessTest {
     }
 
     @Test
-    void anyWriteIsAnUpdate() {
-        final var reZero = StorageAccess.newWrite(UInt256.ONE, UInt256.MAX_VALUE, UInt256.ZERO);
+    void anyNonZeroWriteIsAnUpdate() {
+        final var reZero = StorageAccess.newWrite(UInt256.ONE, UInt256.MAX_VALUE, UInt256.ONE);
         assertTrue(reZero.isUpdate());
+        assertFalse(reZero.isZeroIntoEmptySlot());
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,14 +37,14 @@ import java.util.concurrent.Future;
 public interface MerkleCryptography {
 
     /**
-     * Computes a cryptographic hash for the {@link MerkleInternal} instance. The hash is passed to the object by
+     * Computes a cryptographic hash for the {@link MerkleNode} instance. The hash is passed to the object by
      * calling {@link Hashable#setHash(Hash)}. Convenience method that defaults to {@link DigestType#SHA_384} message
      * digests.
      *
      * @param node the MerkleInternal to hash
      * @throws CryptographyException if an unrecoverable error occurs while computing the digest
      */
-    default Hash digestSync(final MerkleInternal node) {
+    default Hash digestSync(final MerkleNode node) {
         return digestSync(node, DEFAULT_DIGEST_TYPE);
     }
 

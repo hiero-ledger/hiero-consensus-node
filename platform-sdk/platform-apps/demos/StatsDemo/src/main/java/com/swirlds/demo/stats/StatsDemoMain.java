@@ -32,6 +32,8 @@ import static com.swirlds.platform.gui.SwirldsGui.createConsole;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
@@ -95,8 +97,7 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
         try {
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(new ClassConstructorPair(StatsDemoState.class, () -> {
-                StatsDemoState statsDemoState =
-                        new StatsDemoState(version -> new BasicSoftwareVersion(version.major()));
+                StatsDemoState statsDemoState = new StatsDemoState();
                 return statsDemoState;
             }));
             registerMerkleStateRootClassIds();
@@ -316,9 +317,8 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
 
     @NonNull
     @Override
-    public StatsDemoState newMerkleStateRoot() {
-        final StatsDemoState state =
-                new StatsDemoState(version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+    public StatsDemoState newStateRoot() {
+        final StatsDemoState state = new StatsDemoState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }
@@ -335,5 +335,10 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     @Override
     public BasicSoftwareVersion getSoftwareVersion() {
         return softwareVersion;
+    }
+
+    @Override
+    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
+        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

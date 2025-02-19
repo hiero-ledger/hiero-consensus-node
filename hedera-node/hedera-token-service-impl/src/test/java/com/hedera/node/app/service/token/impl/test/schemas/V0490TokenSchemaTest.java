@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.token.impl.test.schemas;
 
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
@@ -30,8 +31,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.token.impl.schemas.SyntheticAccountCreator;
@@ -66,7 +69,7 @@ final class V0490TokenSchemaTest {
     private static final AccountID[] ACCT_IDS = new AccountID[1001];
 
     static {
-        IntStream.rangeClosed(1, 1000).forEach(i -> ACCT_IDS[i] = asAccount(i));
+        IntStream.rangeClosed(1, 1000).forEach(i -> ACCT_IDS[i] = asAccount(0L, 0L, i));
     }
 
     private static final long[] NON_CONTRACT_RESERVED_NUMS =
@@ -94,7 +97,9 @@ final class V0490TokenSchemaTest {
         newStates = newStatesInstance(
                 accounts,
                 MapWritableKVState.<Bytes, AccountID>builder(ALIASES_KEY).build(),
-                newWritableEntityIdState());
+                newWritableEntityIdState(),
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}));
 
         entityIdStore = new WritableEntityIdStore(newStates);
 
@@ -112,7 +117,9 @@ final class V0490TokenSchemaTest {
         final var nonEmptyPrevStates = newStatesInstance(
                 accounts,
                 MapWritableKVState.<Bytes, AccountID>builder(ALIASES_KEY).build(),
-                newWritableEntityIdState());
+                newWritableEntityIdState(),
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}));
         final var schema = newSubjectWithAllExpected();
         final var migrationContext = new MigrationContextImpl(
                 nonEmptyPrevStates,
@@ -124,7 +131,8 @@ final class V0490TokenSchemaTest {
                 CURRENT_VERSION,
                 NON_GENESIS_ROUND,
                 new HashMap<>(),
-                startupNetworks);
+                startupNetworks,
+                new AppEntityIdFactory(config));
 
         schema.migrate(migrationContext);
 
@@ -149,7 +157,8 @@ final class V0490TokenSchemaTest {
                 null,
                 0L,
                 new HashMap<>(),
-                startupNetworks);
+                startupNetworks,
+                new AppEntityIdFactory(config));
 
         schema.migrate(migrationContext);
 
@@ -172,7 +181,8 @@ final class V0490TokenSchemaTest {
                 null,
                 0L,
                 new HashMap<>(),
-                startupNetworks);
+                startupNetworks,
+                new AppEntityIdFactory(config));
 
         schema.migrate(migrationContext);
 
@@ -248,7 +258,8 @@ final class V0490TokenSchemaTest {
                 CURRENT_VERSION,
                 NON_GENESIS_ROUND,
                 new HashMap<>(),
-                startupNetworks);
+                startupNetworks,
+                new AppEntityIdFactory(config));
 
         schema.migrate(migrationContext);
 
@@ -276,7 +287,8 @@ final class V0490TokenSchemaTest {
                 null,
                 0L,
                 new HashMap<>(),
-                startupNetworks));
+                startupNetworks,
+                new AppEntityIdFactory(config)));
 
         // Verify contract entity IDs aren't used
         for (int i = 350; i < 400; i++) {
@@ -285,12 +297,12 @@ final class V0490TokenSchemaTest {
 
         // Verify entity IDs between system and staking reward accounts aren't used
         for (int i = 751; i < 800; i++) {
-            assertThat(accounts.contains(asAccount(i))).isFalse();
+            assertThat(accounts.contains(asAccount(0L, 0L, i))).isFalse();
         }
 
         // Verify entity IDs between staking rewards and misc accounts are empty
         for (int i = 802; i < 900; i++) {
-            assertThat(accounts.contains(asAccount(i))).isFalse();
+            assertThat(accounts.contains(asAccount(0L, 0L, i))).isFalse();
         }
     }
 
@@ -302,7 +314,8 @@ final class V0490TokenSchemaTest {
     private MapWritableStates newStatesInstance(
             final MapWritableKVState<AccountID, Account> accts,
             final MapWritableKVState<Bytes, AccountID> aliases,
-            final WritableSingletonState<EntityNumber> entityIdState) {
+            final WritableSingletonState<EntityNumber> entityIdState,
+            final WritableSingletonState<EntityCounts> entityCountsState) {
         //noinspection ReturnOfNull
         return MapWritableStates.builder()
                 .state(accts)
@@ -311,6 +324,7 @@ final class V0490TokenSchemaTest {
                         .build())
                 .state(new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))
                 .state(entityIdState)
+                .state(entityCountsState)
                 .build();
     }
 

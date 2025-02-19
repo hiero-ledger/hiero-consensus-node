@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTestBase;
 import com.swirlds.state.spi.ReadableKVState;
@@ -61,7 +62,7 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
     @BeforeEach
     public void setUp() {
         initializeToken();
-        subject = new ReadableTokenStoreImpl(states);
+        subject = new ReadableTokenStoreImpl(states, readableEntityCounters);
     }
 
     private void initializeToken() {
@@ -103,11 +104,7 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
                                 .build())
                         .fallbackFee(FixedFee.newBuilder().amount(1).build())
                         .build())
-                .feeCollectorAccountId(AccountID.newBuilder()
-                        .shardNum(1)
-                        .realmNum(2)
-                        .accountNum(3)
-                        .build())
+                .feeCollectorAccountId(AccountID.newBuilder().accountNum(3).build())
                 .build());
 
         given(tokens.get(tokenId)).willReturn(copy.build());
@@ -129,11 +126,7 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
                                 .denominator(2)
                                 .build())
                         .build())
-                .feeCollectorAccountId(AccountID.newBuilder()
-                        .shardNum(1)
-                        .realmNum(2)
-                        .accountNum(5)
-                        .build())
+                .feeCollectorAccountId(AccountID.newBuilder().accountNum(5).build())
                 .build());
 
         given(tokens.get(tokenId)).willReturn(copy.build());
@@ -146,8 +139,8 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
 
     @Test
     void returnSizeOfState() {
-        final var store = new ReadableTokenStoreImpl(readableStates);
-        assertEquals(readableStates.get(TOKENS).size(), store.sizeOfState());
+        final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
+        assertEquals(readableEntityCounters.getCounterFor(EntityType.TOKEN), store.sizeOfState());
     }
 
     @Test

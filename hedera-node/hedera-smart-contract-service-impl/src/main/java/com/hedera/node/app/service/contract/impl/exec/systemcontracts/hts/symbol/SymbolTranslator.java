@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,18 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.symbol;
 
-import com.esaulpaugh.headlong.abi.Function;
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Modifier;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -30,22 +37,27 @@ import javax.inject.Singleton;
 @Singleton
 public class SymbolTranslator extends AbstractCallTranslator<HtsCallAttempt> {
     /** Selector for symbol() method. */
-    public static final Function SYMBOL = new Function("symbol()", ReturnTypes.STRING);
+    public static final SystemContractMethod SYMBOL = SystemContractMethod.declare("symbol()", ReturnTypes.STRING)
+            .withModifier(Modifier.VIEW)
+            .withCategories(Category.ERC20, Category.ERC721, Category.TOKEN_QUERY);
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public SymbolTranslator() {
+    public SymbolTranslator(
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
         // Dagger2
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
+
+        registerMethods(SYMBOL);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isSelector(SYMBOL);
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        requireNonNull(attempt);
+        return attempt.isMethod(SYMBOL);
     }
 
     /**

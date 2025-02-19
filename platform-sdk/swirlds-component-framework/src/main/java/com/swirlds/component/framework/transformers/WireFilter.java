@@ -54,10 +54,9 @@ public class WireFilter<T> {
 
         Objects.requireNonNull(predicate);
 
-        final TaskScheduler<T> taskScheduler = model.schedulerBuilder(filterName)
+        final TaskScheduler<T> taskScheduler = model.<T>schedulerBuilder(filterName)
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
+                .build();
 
         inputWire = taskScheduler.buildInputWire(filterInputName);
         inputWire.bind(t -> {
@@ -79,10 +78,9 @@ public class WireFilter<T> {
     public WireFilter(
             @NonNull final WiringModel model, @NonNull final String filterName, @NonNull final String filterInputName) {
 
-        final TaskScheduler<T> taskScheduler = model.schedulerBuilder(filterName)
+        final TaskScheduler<T> taskScheduler = model.<T>schedulerBuilder(filterName)
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
+                .build();
 
         inputWire = taskScheduler.buildInputWire(filterInputName);
         outputWire = taskScheduler.getOutputWire();

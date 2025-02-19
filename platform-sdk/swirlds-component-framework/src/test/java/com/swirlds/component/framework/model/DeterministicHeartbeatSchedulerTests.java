@@ -42,7 +42,7 @@ public class DeterministicHeartbeatSchedulerTests {
         ;
 
         final TaskScheduler<Void> scheduler =
-                model.schedulerBuilder("test").build().cast();
+                model.<Void>schedulerBuilder("test").build();
 
         final BindableInputWire<Instant, Void> heartbeatBindable = scheduler.buildInputWire("heartbeat");
         model.buildHeartbeatWire(100).solderTo(heartbeatBindable);
@@ -73,7 +73,7 @@ public class DeterministicHeartbeatSchedulerTests {
         ;
 
         final TaskScheduler<Void> scheduler =
-                model.schedulerBuilder("test").build().cast();
+                model.<Void>schedulerBuilder("test").build();
 
         final BindableInputWire<Instant, Void> heartbeatBindable = scheduler.buildInputWire("heartbeat");
         model.buildHeartbeatWire(Duration.ofMillis(10)).solderTo(heartbeatBindable);
@@ -103,10 +103,9 @@ public class DeterministicHeartbeatSchedulerTests {
                 .build();
         ;
 
-        final TaskScheduler<Void> scheduler = model.schedulerBuilder("test")
+        final TaskScheduler<Void> scheduler = model.<Void>schedulerBuilder("test")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<Instant, Void> heartbeatBindableA = scheduler.buildInputWire("heartbeatA");
         final BindableInputWire<Instant, Void> heartbeatBindableB = scheduler.buildInputWire("heartbeatB");

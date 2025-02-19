@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package com.hedera.node.app.workflows.ingest;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
+import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
@@ -28,8 +30,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.estimatedFee;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
@@ -39,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -55,10 +60,13 @@ import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.token.CryptoAddLiveHashTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.CurrentPlatformStatus;
@@ -73,6 +81,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -133,6 +142,9 @@ class IngestCheckerTest extends AppTestBase {
     @Mock(strictness = LENIENT)
     private Authorizer authorizer;
 
+    @Mock(strictness = LENIENT)
+    private BlockStreamManager blockStreamManager;
+
     @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
 
@@ -184,6 +196,7 @@ class IngestCheckerTest extends AppTestBase {
         subject = new IngestChecker(
                 nodeSelfAccountId,
                 currentPlatformStatus,
+                blockStreamManager,
                 transactionChecker,
                 solvencyPreCheck,
                 signatureExpander,
@@ -194,7 +207,8 @@ class IngestCheckerTest extends AppTestBase {
                 authorizer,
                 synchronizedThrottleAccumulator,
                 instantSource,
-                opWorkflowMetrics);
+                opWorkflowMetrics,
+                ServicesSoftwareVersion::new);
     }
 
     @Nested
@@ -204,7 +218,8 @@ class IngestCheckerTest extends AppTestBase {
         @Test
         @DisplayName("When the node is ok, no exception should be thrown")
         void testNodeStateSucceeds() {
-            assertThatCode(() -> subject.checkNodeState()).doesNotThrowAnyException();
+            given(blockStreamManager.hasLedgerId()).willReturn(true);
+            assertThatCode(() -> subject.verifyPlatformActive()).doesNotThrowAnyException();
         }
 
         @ParameterizedTest
@@ -216,12 +231,24 @@ class IngestCheckerTest extends AppTestBase {
             if (status != PlatformStatus.ACTIVE) {
                 // Given a platform that is not ACTIVE
                 when(currentPlatformStatus.get()).thenReturn(status);
+                given(blockStreamManager.hasLedgerId()).willReturn(true);
                 // When we try to parse and check a transaction, it should fail because the platform is not active
-                assertThatThrownBy(() -> subject.checkNodeState())
+                assertThatThrownBy(() -> subject.verifyPlatformActive())
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(PLATFORM_NOT_ACTIVE));
                 verify(opWorkflowMetrics, never()).incrementThrottled(any());
             }
+        }
+
+        @Test
+        @DisplayName("Even if the platform is not ACTIVE, waits for ledger id to be available")
+        void testParseAndCheckWithUnknownLedgerIdFails() {
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
+            // When we try to parse and check a transaction, it should fail because the platform is not active
+            assertThatThrownBy(() -> subject.verifyReadyForTransactions())
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(WAITING_FOR_LEDGER_ID));
+            verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
     }
 
@@ -236,6 +263,7 @@ class IngestCheckerTest extends AppTestBase {
         subject = new IngestChecker(
                 otherNodeSelfAccountId,
                 currentPlatformStatus,
+                blockStreamManager,
                 transactionChecker,
                 solvencyPreCheck,
                 signatureExpander,
@@ -246,7 +274,8 @@ class IngestCheckerTest extends AppTestBase {
                 authorizer,
                 synchronizedThrottleAccumulator,
                 instantSource,
-                opWorkflowMetrics);
+                opWorkflowMetrics,
+                ServicesSoftwareVersion::new);
 
         // Then the checker should throw a PreCheckException
         assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
@@ -321,7 +350,7 @@ class IngestCheckerTest extends AppTestBase {
     class DuplicationTests {
         @Test
         @DisplayName("The second of two transactions with the same transaction ID should be rejected")
-        void testThrottleFails() throws PreCheckException {
+        void testThrottleFails() {
             // Given a deduplication cache, and a transaction with an ID already in the deduplication cache
             final var id = txBody.transactionIDOrThrow();
             deduplicationCache.add(id);
@@ -349,6 +378,66 @@ class IngestCheckerTest extends AppTestBase {
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", BUSY);
             verify(opWorkflowMetrics).incrementThrottled(UNCHECKED_SUBMIT);
+        }
+
+        @Test
+        @DisplayName("Unsupported transaction functionality should throw NOT_SUPPORTED")
+        void unsupportedTransactionFunctionality() throws PreCheckException {
+            final TransactionBody cryptoAddLiveHashTxBody = TransactionBody.newBuilder()
+                    .cryptoAddLiveHash(
+                            CryptoAddLiveHashTransactionBody.newBuilder().build())
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(ALICE.accountID())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
+                    .nodeAccountID(nodeSelfAccountId)
+                    .build();
+            final var signedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, cryptoAddLiveHashTxBody))
+                    .build();
+            final var cryptoAddLiveHashTx = Transaction.newBuilder()
+                    .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
+                    .build();
+
+            final var cryptoAddLiveHashTransactionInfo = new TransactionInfo(
+                    cryptoAddLiveHashTx,
+                    cryptoAddLiveHashTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    cryptoAddLiveHashTx.signedTransactionBytes(),
+                    CRYPTO_ADD_LIVE_HASH,
+                    null);
+            when(transactionChecker.check(cryptoAddLiveHashTx, null)).thenReturn(cryptoAddLiveHashTransactionInfo);
+
+            assertThatThrownBy(() -> subject.runAllChecks(state, cryptoAddLiveHashTx, configuration))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
+        }
+
+        @Test
+        @DisplayName("Privileged transaction functionality should throw NOT_SUPPORTED for non-privileged accounts")
+        void privilegedTransactionFunctionality() throws PreCheckException {
+            final TransactionBody freezeTxBody = TransactionBody.newBuilder()
+                    .freeze(FreezeTransactionBody.newBuilder().build())
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(ALICE.accountID()) // a non-privileged account
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
+                    .nodeAccountID(nodeSelfAccountId)
+                    .build();
+            final var signedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, freezeTxBody))
+                    .build();
+            final var freezeTx = Transaction.newBuilder()
+                    .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
+                    .build();
+
+            final var freezeTransactionInfo = new TransactionInfo(
+                    freezeTx, freezeTxBody, MOCK_SIGNATURE_MAP, freezeTx.signedTransactionBytes(), FREEZE, null);
+            when(transactionChecker.check(freezeTx, null)).thenReturn(freezeTransactionInfo);
+
+            assertThatThrownBy(() -> subject.runAllChecks(state, freezeTx, configuration))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
         }
 
         @Test

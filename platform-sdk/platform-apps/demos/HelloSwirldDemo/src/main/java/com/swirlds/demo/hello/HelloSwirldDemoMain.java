@@ -30,6 +30,8 @@ import static com.swirlds.platform.gui.SwirldsGui.createConsole;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
@@ -60,8 +62,7 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
         try {
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(new ClassConstructorPair(HelloSwirldDemoState.class, () -> {
-                HelloSwirldDemoState helloSwirldDemoState =
-                        new HelloSwirldDemoState(version -> new BasicSoftwareVersion(version.major()));
+                HelloSwirldDemoState helloSwirldDemoState = new HelloSwirldDemoState();
                 return helloSwirldDemoState;
             }));
             registerMerkleStateRootClassIds();
@@ -129,9 +130,8 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
 
     @NonNull
     @Override
-    public HelloSwirldDemoState newMerkleStateRoot() {
-        final HelloSwirldDemoState state =
-                new HelloSwirldDemoState(version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+    public HelloSwirldDemoState newStateRoot() {
+        final HelloSwirldDemoState state = new HelloSwirldDemoState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }
@@ -170,5 +170,10 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
     @Override
     public BasicSoftwareVersion getSoftwareVersion() {
         return softwareVersion;
+    }
+
+    @Override
+    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
+        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

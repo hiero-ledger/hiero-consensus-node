@@ -27,6 +27,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.system.address.AddressBook;
@@ -48,6 +49,8 @@ public class AddressBookUtils {
     public static final long CLASSIC_FIRST_NODE_ACCOUNT_NUM = 3;
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
 
     private AddressBookUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -140,7 +143,7 @@ public class AddressBookUtils {
                     .append(", 127.0.0.1, ")
                     .append(nextExternalGossipPort + (node.getNodeId() * 2))
                     .append(", ")
-                    .append("0.0.")
+                    .append(SHARD + "." + REALM + ".")
                     .append(node.getAccountId().accountNumOrThrow())
                     .append('\n');
             maxNodeId = Math.max(node.getNodeId(), maxNodeId);
@@ -181,6 +184,8 @@ public class AddressBookUtils {
                 nodeId,
                 CLASSIC_NODE_NAMES[nodeId],
                 AccountID.newBuilder()
+                        .shardNum(Long.parseLong(SHARD))
+                        .realmNum(Long.parseLong(REALM))
                         .accountNum(CLASSIC_FIRST_NODE_ACCOUNT_NUM + nodeId)
                         .build(),
                 host,
@@ -225,6 +230,8 @@ public class AddressBookUtils {
                 nodeId,
                 CLASSIC_NODE_NAMES[nodeId],
                 AccountID.newBuilder()
+                        .shardNum(Long.parseLong(SHARD))
+                        .realmNum(Long.parseLong(REALM))
                         .accountNum(CLASSIC_FIRST_NODE_ACCOUNT_NUM + nodeId)
                         .build(),
                 host,
@@ -287,6 +294,8 @@ public class AddressBookUtils {
      */
     public static com.hederahashgraph.api.proto.java.AccountID classicFeeCollectorIdFor(final long nodeId) {
         return com.hederahashgraph.api.proto.java.AccountID.newBuilder()
+                .setShardNum(Long.parseLong(SHARD))
+                .setRealmNum(Long.parseLong(REALM))
                 .setAccountNum(nodeId + CLASSIC_FIRST_NODE_ACCOUNT_NUM)
                 .build();
     }

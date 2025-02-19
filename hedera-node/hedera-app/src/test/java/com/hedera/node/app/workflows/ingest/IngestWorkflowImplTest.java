@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -199,7 +199,7 @@ class IngestWorkflowImplTest extends AppTestBase {
                 // Given a platform that is not ACTIVE
                 doThrow(new PreCheckException(PLATFORM_NOT_ACTIVE))
                         .when(ingestChecker)
-                        .checkNodeState();
+                        .verifyReadyForTransactions();
 
                 // When the transaction is submitted
                 workflow.submitTransaction(requestBuffer, responseBuffer);

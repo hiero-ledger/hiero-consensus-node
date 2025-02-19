@@ -40,6 +40,7 @@ import "stream/output/util_service.proto";
 import "stream/output/crypto_service.proto";
 import "stream/output/token_service.proto";
 import "stream/output/smart_contract_service.proto";
+import "stream/output/consensus_service.proto";
 
 /**
  * Output from a transaction.
@@ -56,9 +57,6 @@ import "stream/output/smart_contract_service.proto";
  *
  * <!--
  * Reserved definitions:
- * import "stream/output/consensus_service.proto";
- *    SubmitMessageOutput submit_message;
- *
  * import "stream/smart_contract_service.proto";
  *    UpdateContractOutput contract_update;
  *    DeleteContractOutput contract_delete;
@@ -79,7 +77,6 @@ import "stream/output/smart_contract_service.proto";
  *    UpdateNodeStakeOutput update_node_stake;
  *    ApproveAllowanceOutput approve_allowance;
  *    DeleteAllowanceOutput delete_allowance;
- *    CreateAccountOutput create_account;
  *    UpdateAccountOutput update_account;
  *    DeleteAccountOutput delete_account;
  *
@@ -155,5 +152,16 @@ message TransactionOutput {
          * Output from a token airdrop transaction.
          */
         TokenAirdropOutput token_airdrop = 8;
+
+        /**
+         * Output from a consensus submit message transaction.
+         */
+        SubmitMessageOutput submit_message = 9;
+
+        /**
+         * Output from a transaction that includes the creation of a new
+         * CryptoService Account.
+         */
+        CreateAccountOutput account_create = 10;
     }
 }

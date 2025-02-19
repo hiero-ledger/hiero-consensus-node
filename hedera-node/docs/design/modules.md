@@ -9,24 +9,25 @@ Java modules.
 
 ## Gradle module description
 
-Each module needs a `build.gradle.kts` file that describes the module.
+Please also refer to the
+[documentation of the Hiero Gradle Conventions](https://github.com/hiero-ledger/hiero-gradle-conventions#modules)
+which describes a common approach for structuring projects and modules in Hiero and Hedera repositories.
 
-General best practices for all our (Java) modules are defined in custom plugins that can be found
-under `gradle/plugins/src/main/kotlin`. For a Java module the `com.hedera.gradle.java` plugin should be used.
-Next to this each module should have a description. Since nothing else is needed for a minimal module the most simple
-`build.gradle.kts` looks like this:
+Each module needs a `build.gradle.kts` file that describes the module.
+In the `build.gradle.kts` file, you define the type of the module by using one of the
+[_Module_ convention plugins](https://github.com/hiero-ledger/hiero-gradle-conventions#plugins).
+provided by the Hiero Gradle Conventions.
 
 ```
-plugins {
-  id("com.hedera.gradle.java")
-}
+plugins { id("org.hiero.gradle.module.library") }
 
 description = "A minimal module without any dependecies"
 ```
 
-The `group` and `version` of the module should not be added here. The `group` is the same for all modules on the
-repository (`com.hedera.hashgraph`) and its definition can be found in the `com.hedera.gradle.conventions` plugin.
-For the `version` we use a global definition, too. The current `version` is defined in the `gradle.properties` file in
+Note: the `group` and `version` of the module should not be added here. The `group` is the same for all modules that
+belong to a _product_, and it is
+[defined in `settings.gradle.kts`](https://github.com/hiero-ledger/hiero-gradle-conventions#modules).
+For the `version` we use a global definition, too. The current `version` is defined in the `version.txt` file in
 the root folder of the project. The `name` of a module is simple created based on the folder name of the module.
 
 ## Project sources set
@@ -45,36 +46,44 @@ specific path below the `src/main/resources/com/hedera/node/app/services/foo` fo
 
 ## Tests
 
-All modules can have different types of tests. The `com.hedera.gradle.java` plugin provides direct support
-for unit test, integration tests, and end-to-end tests. Next to this the test fixtures functionality of Gradle is
-supported.
+All modules can have different types of tests. The `org.hiero.gradle.module.library` plugin provides direct support
+for unit tests. Other test sets can be added by applying additional feature plugins:
+
+- `id("org.hiero.gradle.feature.test-hammer")`
+- `id("org.hiero.gradle.feature.test-integration")`
+- `id("org.hiero.gradle.feature.test-time-consuming")`
+- `id("org.hiero.gradle.feature.test-timing-sensitive")`
+
+Next to this, the test fixtures functionality of Gradle is supported.
 
 ### Test fixtures
 
 To create clean and readable unit tests it is best practice to provide common functionality for tests in the test
-fixtures of a module. Based on the `com.hedera.gradle.java` plugin test fixtures are supported for all
-Java modules.
+fixtures of a module. To add test fixture support to a module, apply the `id("org.hiero.gradle.feature.test-fixtures")`
+plugin.
 
 All Java sources for the test fixtures must be placed under `src/testFixtures/java`. Additional resources that should be
 shared for tests can be placed under `src/testFixtures/resources`.
 
 Like for the source set of a project the test fixtures sets are defined as full JPMS modules, too. Based on that
 a `module-info.java` file must be placed directly under `src/testFixtures/java` if at least one Java file is present.
-The name of the test fixtures module should be based on the name of the source module and add a `testfixtures` suffix.
+The name of the test fixtures module should be based on the name of the source module and add a `test.fixtures` suffix.
 For the given sample of the foo service the name and the base package for the test fixtures set would
-be `com.hedera.node.app.services.foo.testfixtures`. Since the test fixtures JPMS module will only be used in tests it
+be `com.hedera.node.app.services.foo.test.fixtures`. Since the test fixtures JPMS module will only be used in tests it
 should be fully opened. This makes the content of the `module-info.java` much more readable since no individual `opens`
 statements need to be added. The complete module will be opened by adding the `open` keyword directly to the module
 definition:
 
 ```
-open module com.hedera.node.app.services.foo.testfixtures {
+open module com.hedera.node.app.services.foo.test.fixtures {
     //...
 }
 ```
 
-**Hint:** Similar to any other module the test fixtures set of a module can be added as a dependendency by using the
-correct Gradle syntax like in this sample: `testImplementation(testFixtures(project(":foo-service"))) `
+**Hint:** Similar to any other module the test fixtures set of a module can be added as a dependency by using the
+corresponding `requires`. In this sample: `requires com.hedera.node.app.services.foo.test.fixtures`
+(in module-info.java) or `testModuleInfo { requires("com.hedera.node.app.services.foo.test.fixtures") }"`
+(in build.gradle.kts for unit tests that have no module-info.java).
 
 ### Unit tests
 
@@ -84,24 +93,20 @@ same base package as the module sources. By doing so unit tests can access packa
 
 ### Integration tests
 
-For the integration test set the `src/itest/java` and `src/itest/resources` folders must be used. All integration tests
-will be executed on the module path to be as near to the real usage as possible. Based on that a `module-info.java` file
-is needed. Like for test fixtures the name for the module and the base package is based on the name of the source module
-plus the 'itest' suffix. For the given sample the JPMS module name for the integration tests would
-be `com.hedera.node.app.services.foo.itest`. Since the test fixtures JPMS module will only be used in tests it should be
-fully opened. This makes the content of the `module-info.java` much more readable since no individual `opens`
-statements need to be added. The complete module will be opened by adding the `open` keyword directly to the module
-definition:
+For the integration test set the `src/testIntegration/java` and `src/testIntegration/resources` folders must be used.
+All integration tests will be executed on the module path to be as near to the real usage as possible. Based on that a
+`module-info.java` file is needed. Like for test fixtures the name for the module and the base package is based on the
+name of the source module plus the 'test.integration' suffix. For the given sample the JPMS module name for the
+integration tests would be `com.hedera.node.app.services.foo.test.integration`. Since the test fixtures JPMS module
+will only be used in tests it should be fully opened. This makes the content of the `module-info.java` much more
+readable since no individual `opens` statements need to be added. The complete module will be opened by adding the
+`open` keyword directly to the module definition:
 
 ```
-open com.hedera.node.app.services.foo.itest {
+open com.hedera.node.app.services.foo.test.integration {
     //...
 }
 ```
-
-### End-to-end tests
-
-For the end-to-end test set the `src/eet/java` and `src/eet/resources` folders must be used.
 
 ## JMH benchmarks
 
@@ -113,29 +118,29 @@ benchmarks must be based on JMH and the `src/jmh/java` and `src/jmh/resources` f
 Based on the given definitions a module folder in the project looks like this:
 
 ```
- foo-service/
- ├── src/main/java/
- │   ├── com.hedera.node.app.service.foo
- │   │   ├── FooService.java
- │   │   └── package-info.java
- │   └── module-info.java
- ├── src/main/resources/
- │   ├── com.hedera.node.app.service.foo
- │   │   └── some_data.json
- │   └── logging.properties
- ├── src/testFixtures/java/
- │   ├── com.hedera.node.app.service.foo.testfixtures
- │   │   └── FooServiceTestConfig.java
- │   └── module-info.java
- ├── src/test/java/
- │   └── com.hedera.node.app.service.foo
- │       └── FooServiceTest.java
- ├── src/itest/java/
- │   ├── com.hedera.node.app.service.foo.itest
- │   │   └── FooServiceITest.java
- │   └── module-info.java
- └── build.gradle.kts
- ```
+foo-service/
+├── src/main/java/
+│   ├── com.hedera.node.app.service.foo
+│   │   ├── FooService.java
+│   │   └── package-info.java
+│   └── module-info.java
+├── src/main/resources/
+│   ├── com.hedera.node.app.service.foo
+│   │   └── some_data.json
+│   └── logging.properties
+├── src/testFixtures/java/
+│   ├── com.hedera.node.app.service.foo.testfixtures
+│   │   └── FooServiceTestConfig.java
+│   └── module-info.java
+├── src/test/java/
+│   └── com.hedera.node.app.service.foo
+│       └── FooServiceTest.java
+├── src/testIntegration/java/
+│   ├── com.hedera.node.app.service.foo.itest
+│   │   └── FooServiceITest.java
+│   └── module-info.java
+└── build.gradle.kts
+```
 
 ### Open questions:
 

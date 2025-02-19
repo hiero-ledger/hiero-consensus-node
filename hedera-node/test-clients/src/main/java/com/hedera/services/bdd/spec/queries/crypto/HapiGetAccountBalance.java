@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -230,9 +230,8 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
 
         // Since we don't support token balances from getAccountBalance query, for internal testing
         // we are using getAccountDetails query to get token balances.
-        if (!expectedTokenBalances.isEmpty() || !tokenBalanceObservers.isEmpty()) {
-            final var detailsLookup = QueryVerbs.getAccountDetails(
-                            "0.0." + balanceResponse.getAccountID().getAccountNum())
+        if (!expectedTokenBalances.isEmpty() || tokenBalanceObservers.isPresent()) {
+            final var detailsLookup = QueryVerbs.getAccountDetails(toEntityId(balanceResponse.getAccountID()))
                     .payingWith(GENESIS);
             allRunFor(spec, detailsLookup);
             final var response = detailsLookup.getResponse();
@@ -360,5 +359,9 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
         return super.toStringHelper().add("account", account);
+    }
+
+    private String toEntityId(AccountID accountID) {
+        return accountID.getShardNum() + "." + accountID.getRealmNum() + "." + accountID.getAccountNum();
     }
 }

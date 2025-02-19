@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import com.hedera.services.bdd.spec.dsl.operations.queries.GetBalanceOperation;
 import com.hedera.services.bdd.spec.dsl.operations.queries.GetContractInfoOperation;
 import com.hedera.services.bdd.spec.dsl.operations.queries.StaticCallContractOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.AssociateTokensOperation;
+import com.hedera.services.bdd.spec.dsl.operations.transactions.AuthorizeContractOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.CallContractOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.DissociateTokensOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.TransferTokenOperation;
@@ -59,12 +60,17 @@ import org.bouncycastle.util.encoders.Hex;
 public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
         implements OwningEntity, EvmAddressableEntity {
     private static final int MAX_INLINE_INITCODE_SIZE = 4096;
+    public static final String VARIANT_NONE = "";
+    public static final String VARIANT_16C = "16c";
+    public static final String VARIANT_167 = "167";
 
     private final long creationGas;
     private final String contractName;
     private final boolean immutable;
     private final int maxAutoAssociations;
     private final Account.Builder builder = Account.newBuilder();
+    private final String variant;
+
     /**
      * The constructor arguments for the contract's creation call; if the arguments are
      * not constant values, must be set imperatively within the HapiTest context instead
@@ -84,7 +90,8 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
                 annotation.contract(),
                 annotation.creationGas(),
                 annotation.isImmutable(),
-                annotation.maxAutoAssociations());
+                annotation.maxAutoAssociations(),
+                annotation.variant());
     }
 
     private SpecContract(
@@ -92,12 +99,14 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
             @NonNull final String contractName,
             final long creationGas,
             final boolean immutable,
-            final int maxAutoAssociations) {
+            final int maxAutoAssociations,
+            @NonNull final String variant) {
         super(name);
         this.immutable = immutable;
         this.creationGas = creationGas;
         this.contractName = requireNonNull(contractName);
         this.maxAutoAssociations = maxAutoAssociations;
+        this.variant = requireNonNull(variant);
     }
 
     /**
@@ -168,8 +177,8 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
      * @param token the tokens to associate
      * @return the operation
      */
-    public TransferTokenOperation transferToken(
-            @NonNull final SpecToken token, final long amount, @NonNull final SpecAccount sender) {
+    public TransferTokenOperation receiveUnitsFrom(
+            @NonNull final SpecAccount sender, @NonNull final SpecToken token, final long amount) {
         requireNonNull(token);
         requireNonNull(sender);
         return new TransferTokenOperation(amount, token, sender, this);
@@ -203,7 +212,7 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
      * @param args the arguments
      */
     public void setConstructorArgs(@NonNull final Object... args) {
-        this.constructorArgs = args;
+        constructorArgs = args;
     }
 
     /**
@@ -217,12 +226,31 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
     }
 
     /**
+     * Returns an operation to authorize the given contract to act on behalf of this account.
+     *
+     * @param contract the contract to authorize
+     * @return the operation
+     */
+    public AuthorizeContractOperation authorizeContract(@NonNull final SpecContract contract) {
+        requireNonNull(contract);
+        return new AuthorizeContractOperation(this, contract);
+    }
+
+    /**
+     * Returns the variant of the contract.
+     * @return the variant a\
+     */
+    public String variant() {
+        return variant;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
     protected Creation<SpecOperation, Account> newCreation(@NonNull final HapiSpec spec) {
         final var model = builder.build();
-        final var initcode = getInitcodeOf(contractName);
+        final var initcode = getInitcodeOf(contractName, variant);
         final SpecOperation op;
         constructorArgs = withSubstitutedTypes(spec.targetNetworkOrThrow(), constructorArgs);
         if (initcode.size() < MAX_INLINE_INITCODE_SIZE) {
@@ -249,9 +277,9 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
      */
     @Override
     protected Result<Account> resultForSuccessful(
-            @NonNull Creation<SpecOperation, Account> creation, @NonNull HapiSpec spec) {
+            @NonNull final Creation<SpecOperation, Account> creation, @NonNull final HapiSpec spec) {
         final HapiContractCreate contractCreate;
-        if (creation.op() instanceof HapiContractCreate inlineCreate) {
+        if (creation.op() instanceof final HapiContractCreate inlineCreate) {
             contractCreate = inlineCreate;
         } else {
             contractCreate = (HapiContractCreate) ((InBlockingOrder) creation.op()).last();

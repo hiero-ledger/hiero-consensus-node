@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getscheduledinfo.GetScheduledFungibleTokenCreateCall;
@@ -30,6 +31,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getsch
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getscheduledinfo.GetScheduledNonFungibleTokenCreateCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.signschedule.SignScheduleTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -60,15 +62,21 @@ class GetScheduledInfoTranslatorTest {
     @Mock
     private SignatureVerifier signatureVerifier;
 
+    @Mock
+    private SystemContractMethodRegistry systemContractMethodRegistry;
+
+    @Mock
+    private ContractMetrics contractMetrics;
+
     private GetScheduledInfoTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new GetScheduledInfoTranslator();
+        subject = new GetScheduledInfoTranslator(systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
-    void matchesGetScheduledFungibleTokenTxn() {
+    void identifyMethodGetScheduledFungibleTokenTxn() {
         attempt = prepareHssAttemptWithSelectorAndCustomConfig(
                 GetScheduledInfoTranslator.GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO,
                 subject,
@@ -77,15 +85,15 @@ class GetScheduledInfoTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 DEFAULT_CONFIG);
 
-        final var result = subject.matches(attempt);
-
+        final var result = subject.identifyMethod(attempt).isPresent();
         assertTrue(result);
     }
 
     @Test
-    void matchesGetScheduledNonFungibleTokenTxn() {
+    void identifyMethodGetScheduledNonFungibleTokenTxn() {
         attempt = prepareHssAttemptWithSelectorAndCustomConfig(
                 GetScheduledInfoTranslator.GET_SCHEDULED_CREATE_NON_FUNGIBLE_TOKEN_INFO,
                 subject,
@@ -94,15 +102,15 @@ class GetScheduledInfoTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 DEFAULT_CONFIG);
 
-        final var result = subject.matches(attempt);
-
+        final var result = subject.identifyMethod(attempt).isPresent();
         assertTrue(result);
     }
 
     @Test
-    void matchesFailsForOtherSelector() {
+    void identifyMethodFailsForOtherSelector() {
         attempt = prepareHssAttemptWithSelectorAndCustomConfig(
                 SignScheduleTranslator.SIGN_SCHEDULE,
                 subject,
@@ -111,10 +119,10 @@ class GetScheduledInfoTranslatorTest {
                 verificationStrategies,
                 signatureVerifier,
                 gasCalculator,
+                systemContractMethodRegistry,
                 DEFAULT_CONFIG);
 
-        final var result = subject.matches(attempt);
-
+        final var result = subject.identifyMethod(attempt).isPresent();
         assertFalse(result);
     }
 

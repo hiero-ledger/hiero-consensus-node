@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import static com.hedera.services.yahcli.config.ConfigUtils.YAHCLI_LOGGING_CLASS
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
+import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.yahcli.config.ConfigUtils;
@@ -76,7 +77,7 @@ public class NewPemCommand implements Callable<Integer> {
         if (passphrase == null) {
             passphrase = TxnUtils.randomAlphaNumeric(12);
         }
-        Ed25519Utils.writeKeyTo(privateKey, loc, passphrase);
+        KeyUtils.writeKeyTo(privateKey, loc, passphrase);
         final var passLoc = loc.replace(".pem", ".pass");
         Files.writeString(Paths.get(passLoc), passphrase + "\n");
         final var wordsLoc = loc.replace(".pem", ".words");

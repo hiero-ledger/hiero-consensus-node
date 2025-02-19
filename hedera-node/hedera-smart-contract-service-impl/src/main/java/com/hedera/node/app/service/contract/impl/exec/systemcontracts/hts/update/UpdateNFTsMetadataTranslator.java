@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,25 +16,34 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update;
 
-import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Variant;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
+@Singleton
 public class UpdateNFTsMetadataTranslator extends AbstractCallTranslator<HtsCallAttempt> {
     /** Selector for updateNFTsMetadata(address,int64[],bytes) method. */
-    public static final Function UPDATE_NFTs_METADATA =
-            new Function("updateNFTsMetadata(address,int64[],bytes)", ReturnTypes.INT);
+    public static final SystemContractMethod UPDATE_NFTs_METADATA = SystemContractMethod.declare(
+                    "updateNFTsMetadata(address,int64[],bytes)", ReturnTypes.INT)
+            .withVariants(Variant.NFT, Variant.WITH_METADATA)
+            .withCategories(Category.UPDATE);
 
     private final UpdateDecoder decoder;
 
@@ -42,14 +51,21 @@ public class UpdateNFTsMetadataTranslator extends AbstractCallTranslator<HtsCall
      * @param decoder the decoder to use for NFTs update  metadata
      */
     @Inject
-    public UpdateNFTsMetadataTranslator(@NonNull final UpdateDecoder decoder) {
+    public UpdateNFTsMetadataTranslator(
+            @NonNull final UpdateDecoder decoder,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
         this.decoder = decoder;
+
+        registerMethods(UPDATE_NFTs_METADATA);
     }
 
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
-        return attempt.configuration().getConfigData(ContractsConfig.class).systemContractUpdateNFTsMetadataEnabled()
-                && attempt.isSelector(UPDATE_NFTs_METADATA);
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        if (!attempt.configuration().getConfigData(ContractsConfig.class).systemContractUpdateNFTsMetadataEnabled())
+            return Optional.empty();
+        return attempt.isMethod(UPDATE_NFTs_METADATA);
     }
 
     @Override

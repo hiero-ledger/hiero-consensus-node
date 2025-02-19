@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
@@ -42,8 +43,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.validation.EntityType;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
@@ -75,19 +75,20 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
     /**
      * Constructs a {@link TokenServiceApiImpl}.
-     * @param config the configuration
-     * @param storeMetricsService the store metrics service
+     *
+     * @param config         the configuration
      * @param writableStates the writable states
-     * @param customFeeTest a predicate for determining if a transfer has custom fees
+     * @param customFeeTest  a predicate for determining if a transfer has custom fees
+     * @param entityCounters
      */
     public TokenServiceApiImpl(
             @NonNull final Configuration config,
-            @NonNull final StoreMetricsService storeMetricsService,
             @NonNull final WritableStates writableStates,
-            @NonNull final Predicate<CryptoTransferTransactionBody> customFeeTest) {
+            @NonNull final Predicate<CryptoTransferTransactionBody> customFeeTest,
+            @NonNull final WritableEntityCounters entityCounters) {
         this.customFeeTest = customFeeTest;
         requireNonNull(config);
-        this.accountStore = new WritableAccountStore(writableStates, config, storeMetricsService);
+        this.accountStore = new WritableAccountStore(writableStates, entityCounters);
 
         // Determine whether staking is enabled
         stakingConfig = config.getConfigData(StakingConfig.class);
@@ -501,7 +502,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
         // get the account from account store that has all balance changes
         // commit the account with deleted flag set to true
-        final var updatedDeleteAccount = requireNonNull(accountStore.getForModify(deletedId));
+        final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
         final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
         if (freeAliasOnDeletion == YES) {
             accountStore.removeAlias(updatedDeleteAccount.alias());
@@ -573,7 +574,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     }
 
     private EntityType getEntityType(@NonNull final Account account) {
-        return account.smartContract() ? EntityType.CONTRACT : EntityType.ACCOUNT;
+        return account.smartContract() ? EntityType.CONTRACT_BYTECODE : EntityType.ACCOUNT;
     }
 
     private void distributeToNetworkFundingAccounts(final long amount, @NonNull final FeeStreamBuilder rb) {

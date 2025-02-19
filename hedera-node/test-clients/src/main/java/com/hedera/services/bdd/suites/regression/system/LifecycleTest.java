@@ -1,4 +1,19 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2025 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.services.bdd.junit.hedera.MarkerFile.EXEC_IMMEDIATE_MF;
@@ -40,6 +55,7 @@ import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -114,7 +130,7 @@ public interface LifecycleTest {
      * @return the operation
      */
     default SpecOperation upgradeToNextConfigVersion() {
-        return sourcing(() -> upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, noOp()));
+        return sourcing(() -> upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, Map.of(), noOp()));
     }
 
     /**
@@ -128,7 +144,7 @@ public interface LifecycleTest {
                 // reset when last frozen time matches it (i.e., in a post-upgrade transaction)
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 confirmFreezeAndShutdown(),
-                sourcing(() -> FakeNmt.restartNetwork(CURRENT_CONFIG_VERSION.incrementAndGet())),
+                sourcing(() -> FakeNmt.restartNetwork(CURRENT_CONFIG_VERSION.incrementAndGet(), Map.of())),
                 waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT));
     }
 
@@ -163,18 +179,22 @@ public interface LifecycleTest {
      * @return the operation
      */
     default HapiSpecOperation upgradeToConfigVersion(final int version) {
-        return upgradeToConfigVersion(version, noOp());
+        return upgradeToConfigVersion(version, Map.of(), noOp());
     }
 
     /**
      * Returns an operation that upgrades the network to the next configuration version using a fake upgrade ZIP,
      * running the given operation before the network is restarted.
      *
+     * @param envOverrides the environment overrides to use
      * @param preRestartOps operations to run before the network is restarted
      * @return the operation
      */
-    default SpecOperation upgradeToNextConfigVersion(@NonNull final SpecOperation... preRestartOps) {
-        return sourcing(() -> upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, preRestartOps));
+    default SpecOperation upgradeToNextConfigVersion(
+            @NonNull final Map<String, String> envOverrides, @NonNull final SpecOperation... preRestartOps) {
+        requireNonNull(envOverrides);
+        requireNonNull(preRestartOps);
+        return sourcing(() -> upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, envOverrides, preRestartOps));
     }
 
     /**
@@ -182,11 +202,16 @@ public interface LifecycleTest {
      * running the given operation before the network is restarted.
      *
      * @param version the configuration version to upgrade to
-     * @param preRestartOps  operations to run before the network is restarted
+     * @param envOverrides the environment overrides to use
+     * @param preRestartOps operations to run before the network is restarted
      * @return the operation
      */
-    default HapiSpecOperation upgradeToConfigVersion(final int version, @NonNull final SpecOperation... preRestartOps) {
+    default HapiSpecOperation upgradeToConfigVersion(
+            final int version,
+            @NonNull final Map<String, String> envOverrides,
+            @NonNull final SpecOperation... preRestartOps) {
         requireNonNull(preRestartOps);
+        requireNonNull(envOverrides);
         return blockingOrder(
                 runBackgroundTrafficUntilFreezeComplete(),
                 sourcing(() -> freezeUpgrade()
@@ -196,7 +221,7 @@ public interface LifecycleTest {
                         .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
                 confirmFreezeAndShutdown(),
                 blockingOrder(preRestartOps),
-                FakeNmt.restartNetwork(version),
+                FakeNmt.restartNetwork(version, envOverrides),
                 doAdhoc(() -> CURRENT_CONFIG_VERSION.set(version)),
                 waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
                 cryptoCreate("postUpgradeAccount"),

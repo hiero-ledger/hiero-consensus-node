@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -35,6 +34,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -68,7 +68,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         // Create the transaction-scoped component
-        final var component = provider.get().create(context, CONTRACT_CREATE);
+        final var component = getTransactionComponent(context, CONTRACT_CREATE);
 
         // Run its in-scope transaction and get the outcome
         final var outcome = component.contextTransactionProcessor().call();
@@ -80,8 +80,10 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
         try {
+            final var txn = context.body();
             final var op = txn.contractCreateInstanceOrThrow();
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);

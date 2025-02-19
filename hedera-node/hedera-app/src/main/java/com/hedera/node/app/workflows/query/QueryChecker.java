@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,8 +42,10 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -61,6 +63,7 @@ public class QueryChecker {
     private final ExpiryValidation expiryValidation;
     private final FeeManager feeManager;
     private final TransactionDispatcher dispatcher;
+    private final TransactionChecker transactionChecker;
 
     /**
      * Constructor of {@code QueryChecker}
@@ -81,13 +84,15 @@ public class QueryChecker {
             @NonNull final SolvencyPreCheck solvencyPreCheck,
             @NonNull final ExpiryValidation expiryValidation,
             @NonNull final FeeManager feeManager,
-            final TransactionDispatcher dispatcher) {
+            final TransactionDispatcher dispatcher,
+            @NonNull final TransactionChecker transactionChecker) {
         this.authorizer = requireNonNull(authorizer);
         this.cryptoTransferHandler = requireNonNull(cryptoTransferHandler);
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck);
         this.expiryValidation = requireNonNull(expiryValidation);
         this.feeManager = requireNonNull(feeManager);
         this.dispatcher = requireNonNull(dispatcher);
+        this.transactionChecker = requireNonNull(transactionChecker);
     }
 
     /**
@@ -97,13 +102,16 @@ public class QueryChecker {
      * @throws PreCheckException if validation fails
      * @throws NullPointerException if one of the arguments is {@code null}
      */
-    public void validateCryptoTransfer(@NonNull final TransactionInfo transactionInfo) throws PreCheckException {
+    public void validateCryptoTransfer(
+            @NonNull final TransactionInfo transactionInfo, @NonNull final Configuration config)
+            throws PreCheckException {
         requireNonNull(transactionInfo);
         if (transactionInfo.functionality() != CRYPTO_TRANSFER) {
             throw new PreCheckException(INSUFFICIENT_TX_FEE);
         }
         final var txBody = transactionInfo.txBody();
-        cryptoTransferHandler.pureChecks(txBody);
+        final var pureChecksContext = new PureChecksContextImpl(txBody, config, dispatcher, transactionChecker);
+        cryptoTransferHandler.pureChecks(pureChecksContext);
     }
 
     /**

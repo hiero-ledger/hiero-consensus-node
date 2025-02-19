@@ -121,6 +121,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;
     exports com.swirlds.platform.reconnect;
+    exports com.swirlds.platform.gossip.modular;
     exports com.swirlds.platform.gossip.shadowgraph;
     exports com.swirlds.platform.recovery.emergencyfile;
     exports com.swirlds.platform.event;
@@ -160,12 +161,14 @@ module com.swirlds.platform.core {
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
+    requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
     requires org.hiero.event.creator.impl;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
+    requires com.google.common;
     requires java.desktop;
     requires java.management;
     requires java.scripting;

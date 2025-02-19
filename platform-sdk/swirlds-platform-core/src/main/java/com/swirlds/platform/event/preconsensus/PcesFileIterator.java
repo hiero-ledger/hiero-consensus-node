@@ -94,7 +94,6 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
                 // This is possible (if not likely) when a node is shut down abruptly.
                 hasPartialEvent = true;
                 closeFile();
-                throw e;
             } catch (final NullPointerException e) {
                 // The PlatformEvent constructor can throw this if the event is malformed.
                 hasPartialEvent = true;

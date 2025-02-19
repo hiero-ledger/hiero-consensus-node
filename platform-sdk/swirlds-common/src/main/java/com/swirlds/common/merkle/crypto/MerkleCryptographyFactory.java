@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
  */
 
 package com.swirlds.common.merkle.crypto;
-
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.config.CryptoConfig;
@@ -41,7 +39,6 @@ public final class MerkleCryptographyFactory {
     @NonNull
     public static MerkleCryptography create(
             @NonNull final Configuration configuration, @NonNull final Cryptography cryptography) {
-        return new MerkleCryptoEngine(
-                getStaticThreadManager(), cryptography, configuration.getConfigData(CryptoConfig.class));
+        return new MerkleCryptoEngine(cryptography, configuration.getConfigData(CryptoConfig.class));
     }
 }

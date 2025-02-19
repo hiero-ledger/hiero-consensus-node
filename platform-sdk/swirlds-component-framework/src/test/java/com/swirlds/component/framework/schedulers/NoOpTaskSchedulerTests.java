@@ -42,7 +42,7 @@ class NoOpTaskSchedulerTests {
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
         final TaskScheduler<List<Integer>> realFakeScheduler =
-                model.schedulerBuilder("A").withType(NO_OP).build().cast();
+                model.<List<Integer>>schedulerBuilder("A").withType(NO_OP).build();
 
         final AtomicBoolean shouldAlwaysBeFalse = new AtomicBoolean(false);
 
@@ -74,10 +74,9 @@ class NoOpTaskSchedulerTests {
         splitter.solderTo("handler", "handler input", value -> shouldAlwaysBeFalse.set(true));
 
         // Solder the fake scheduler to a real one. No data should be passed.
-        final TaskScheduler<Void> realScheduler = model.schedulerBuilder("B")
+        final TaskScheduler<Void> realScheduler = model.<Void>schedulerBuilder("B")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<List<Integer>, Void> realInA = realScheduler.buildInputWire("realInA");
         realInA.bindConsumer((value) -> shouldAlwaysBeFalse.set(true));

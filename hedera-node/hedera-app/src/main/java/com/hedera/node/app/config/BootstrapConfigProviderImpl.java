@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -68,6 +69,7 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)
+                .withConfigDataType(ContractsConfig.class)
                 .withConverter(Bytes.class, new BytesConverter())
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())
                 .withConverter(LongPair.class, new LongPairConverter());

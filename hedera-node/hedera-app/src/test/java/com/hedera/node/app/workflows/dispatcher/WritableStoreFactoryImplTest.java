@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -88,7 +88,7 @@ class WritableStoreFactoryImplTest {
         given(stack.getWritableStates(serviceName)).willReturn(writableStates);
         final var configuration = HederaTestConfigBuilder.createConfig();
         final WritableStoreFactory subject =
-                new WritableStoreFactory(stack, serviceName, configuration, mock(StoreMetricsService.class));
+                new WritableStoreFactory(stack, serviceName, mock(WritableEntityCounters.class));
 
         // given
         final var store = subject.getStore(storeClass);

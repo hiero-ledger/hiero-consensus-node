@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,31 +18,46 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isass
 
 import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Function;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Modifier;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @Singleton
 public class IsAssociatedTranslator extends AbstractCallTranslator<HtsCallAttempt> {
     /** Selector for isAssociated() method. */
-    public static final Function IS_ASSOCIATED = new Function("isAssociated()", ReturnTypes.BOOL);
+    public static final SystemContractMethod IS_ASSOCIATED = SystemContractMethod.declare(
+                    "isAssociated()", ReturnTypes.BOOL)
+            .withModifier(Modifier.VIEW)
+            .withCategories(Category.TOKEN_QUERY, Category.ASSOCIATION);
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public IsAssociatedTranslator() {
+    public IsAssociatedTranslator(
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
         // Dagger2
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
+
+        registerMethods(IS_ASSOCIATED);
     }
 
     @Override
-    public final boolean matches(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isTokenRedirect() && attempt.isSelector(IS_ASSOCIATED);
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        requireNonNull(attempt);
+        if (!attempt.isTokenRedirect()) return Optional.empty();
+        return attempt.isMethod(IS_ASSOCIATED);
     }
 
     @Override

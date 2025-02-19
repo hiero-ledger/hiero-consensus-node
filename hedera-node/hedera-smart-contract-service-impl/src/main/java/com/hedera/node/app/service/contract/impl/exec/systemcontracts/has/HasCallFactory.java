@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +21,14 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallFactory;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.SyntheticIds;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -46,6 +48,7 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
     private final VerificationStrategies verificationStrategies;
     private final SignatureVerifier signatureVerifier;
     private final List<CallTranslator<HasCallAttempt>> callTranslators;
+    private final SystemContractMethodRegistry systemContractMethodRegistry;
 
     @Inject
     public HasCallFactory(
@@ -53,12 +56,14 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
             @NonNull final CallAddressChecks addressChecks,
             @NonNull final VerificationStrategies verificationStrategies,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull @Named("HasTranslators") final List<CallTranslator<HasCallAttempt>> callTranslators) {
+            @NonNull @Named("HasTranslators") final List<CallTranslator<HasCallAttempt>> callTranslators,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry) {
         this.syntheticIds = requireNonNull(syntheticIds);
         this.addressChecks = requireNonNull(addressChecks);
         this.verificationStrategies = requireNonNull(verificationStrategies);
         this.signatureVerifier = requireNonNull(signatureVerifier);
         this.callTranslators = requireNonNull(callTranslators);
+        this.systemContractMethodRegistry = requireNonNull(systemContractMethodRegistry);
     }
 
     /**
@@ -71,6 +76,7 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
      */
     @Override
     public @NonNull HasCallAttempt createCallAttemptFrom(
+            @NonNull ContractID contractID,
             @NonNull final Bytes input,
             @NonNull final FrameUtils.CallType callType,
             @NonNull final MessageFrame frame) {
@@ -78,6 +84,7 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
         requireNonNull(frame);
         final var enhancement = proxyUpdaterFor(frame).enhancement();
         return new HasCallAttempt(
+                contractID,
                 input,
                 frame.getSenderAddress(),
                 addressChecks.hasParentDelegateCall(frame),
@@ -88,6 +95,7 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
                 signatureVerifier,
                 systemContractGasCalculatorOf(frame),
                 callTranslators,
+                systemContractMethodRegistry,
                 frame.isStatic());
     }
 }

@@ -185,9 +185,8 @@ public class TestIntake {
     }
 
     public <X> TaskScheduler<X> directScheduler(final String name) {
-        return model.schedulerBuilder(name)
+        return model.<X>schedulerBuilder(name)
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
     }
 }

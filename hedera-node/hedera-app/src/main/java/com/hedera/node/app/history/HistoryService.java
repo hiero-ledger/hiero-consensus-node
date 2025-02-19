@@ -16,8 +16,10 @@
 
 package com.hedera.node.app.history;
 
+import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,11 +31,6 @@ import java.time.Instant;
  */
 public interface HistoryService extends Service {
     String NAME = "HistoryService";
-
-    @Override
-    default @NonNull String getServiceName() {
-        return NAME;
-    }
 
     /**
      * Since the roster service has to decide to adopt the candidate roster
@@ -47,9 +44,19 @@ public interface HistoryService extends Service {
     int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
 
     @Override
+    default @NonNull String getServiceName() {
+        return NAME;
+    }
+
+    @Override
     default int migrationOrder() {
         return MIGRATION_ORDER;
     }
+
+    /**
+     * Returns the handlers for the {@link HistoryService}.
+     */
+    HistoryHandlers handlers();
 
     /**
      * Whether this service is ready to provide metadata-enriched proofs.
@@ -62,12 +69,14 @@ public interface HistoryService extends Service {
      * @param currentMetadata the current metadata, if known
      * @param historyStore the history store
      * @param now the current time
+     * @param tssConfig the TSS configuration
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,
             @Nullable Bytes currentMetadata,
             @NonNull WritableHistoryStore historyStore,
-            @NonNull Instant now);
+            @NonNull Instant now,
+            @NonNull TssConfig tssConfig);
 
     /**
      * Returns a proof of inclusion of the given metadata for the current roster.

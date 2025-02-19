@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_LIST_TOO_LONG;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropTranslator.CANCEL_AIRDROP;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropTranslator.CANCEL_AIRDROPS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_FT;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_NFT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
@@ -99,7 +99,7 @@ class TokenCancelAirdropDecoderTest {
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
 
-        final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROP.encodeCall(Tuple.singleton(new Tuple[] {
+        final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
                     asHeadlongAddress(SENDER_ID.accountNum()),
                     OWNER_ACCOUNT_AS_ADDRESS,
@@ -133,7 +133,7 @@ class TokenCancelAirdropDecoderTest {
                 FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
                 0L);
         final var encoded =
-                Bytes.wrapByteBuffer(CANCEL_AIRDROP.encodeCall(Tuple.singleton(new Tuple[] {tuple, tuple, tuple})));
+                Bytes.wrapByteBuffer(CANCEL_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {tuple, tuple, tuple})));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
         assertThatExceptionOfType(HandleException.class)
@@ -150,7 +150,7 @@ class TokenCancelAirdropDecoderTest {
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
 
-        final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROP.encodeCall(Tuple.singleton(new Tuple[] {
+        final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
                     asHeadlongAddress(SENDER_ID.accountNum()),
                     OWNER_ACCOUNT_AS_ADDRESS,
@@ -173,7 +173,7 @@ class TokenCancelAirdropDecoderTest {
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
 
-        final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROP.encodeCall(Tuple.singleton(new Tuple[] {
+        final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
                     asHeadlongAddress(SENDER_ID.accountNum()),
                     OWNER_ACCOUNT_AS_ADDRESS,

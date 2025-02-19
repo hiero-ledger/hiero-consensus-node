@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
@@ -71,6 +72,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -125,6 +127,9 @@ class EthereumTransactionHandlerTest {
     private HandleContext.SavepointStack stack;
 
     @Mock
+    private PureChecksContext pureChecksContext;
+
+    @Mock
     private RootProxyWorldUpdater baseProxyWorldUpdater;
 
     @Mock
@@ -165,24 +170,27 @@ class EthereumTransactionHandlerTest {
     @Mock
     private ContractsConfig contractsConfig;
 
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private final Metrics metrics = new NoOpMetrics();
-    private final ContractMetrics contractMetrics = new ContractMetrics(() -> metrics, () -> contractsConfig);
+    private final ContractMetrics contractMetrics =
+            new ContractMetrics(metrics, () -> contractsConfig, systemContractMethodRegistry);
 
     @BeforeEach
     void setUp() {
-        contractMetrics.createContractMetrics();
+        contractMetrics.createContractPrimaryMetrics();
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
         subject = new EthereumTransactionHandler(
                 ethereumSignatures, callDataHydration, () -> factory, gasCalculator, contractServiceComponent);
     }
 
     void setUpTransactionProcessing() {
-        final var contractsConfig = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
+        final var defaultContractsConfig = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
 
         final var contextTransactionProcessor = new ContextTransactionProcessor(
                 HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS),
                 handleContext,
-                contractsConfig,
+                defaultContractsConfig,
                 DEFAULT_CONFIG,
                 hederaEvmContext,
                 null,
@@ -379,10 +387,11 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void validatePureChecks() throws PreCheckException {
+    void validatePureChecks() {
         // check bad eth txn body
         final var txn1 = ethTxWithNoTx();
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(txn1));
+        given(pureChecksContext.body()).willReturn(txn1);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check bad to evm address
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
@@ -394,7 +403,8 @@ class EthereumTransactionHandlerTest {
             given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(ethTxDataReturned.to()).willReturn(toAddress);
-            assertThrows(PreCheckException.class, () -> subject.pureChecks(ethTxWithTx()));
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         }
 
         // check at least intrinsic gas
@@ -402,7 +412,8 @@ class EthereumTransactionHandlerTest {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
             given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            assertThrows(PreCheckException.class, () -> subject.pureChecks(ethTxWithTx()));
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         }
     }
 

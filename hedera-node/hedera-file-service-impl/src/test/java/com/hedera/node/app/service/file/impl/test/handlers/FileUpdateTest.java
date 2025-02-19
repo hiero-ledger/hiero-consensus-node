@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -48,7 +47,6 @@ import com.hedera.node.app.service.file.impl.handlers.FileSignatureWaiversImpl;
 import com.hedera.node.app.service.file.impl.handlers.FileUpdateHandler;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -56,6 +54,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -106,6 +105,9 @@ class FileUpdateTest extends FileTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private FileSignatureWaiversImpl waivers;
 
+    @Mock
+    private TransactionChecker transactionChecker;
+
     protected Configuration testConfig;
 
     private FileUpdateHandler subject;
@@ -130,7 +132,7 @@ class FileUpdateTest extends FileTestBase {
         BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
         PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txnWith(), testConfig, mockDispatcher);
+                new PreHandleContextImpl(mockStoreFactory, txnWith(), testConfig, mockDispatcher, transactionChecker);
 
         subject.preHandle(realPreContext);
 
@@ -155,7 +157,7 @@ class FileUpdateTest extends FileTestBase {
                 .fileUpdate(updateFileBuilder.build())
                 .build();
         PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txBody, testConfig, mockDispatcher);
+                new PreHandleContextImpl(mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker);
 
         subject.preHandle(realPreContext);
 
@@ -233,7 +235,7 @@ class FileUpdateTest extends FileTestBase {
         writableFileState = writableFileStateWithOneKey();
         given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableFileStore(writableStates, configuration, mock(StoreMetricsService.class));
+        writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
         given(handleContext.body()).willReturn(txBody);

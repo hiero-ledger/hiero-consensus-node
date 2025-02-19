@@ -90,13 +90,12 @@ public class GossipWiring {
     public GossipWiring(@NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
         this.model = model;
 
-        scheduler = model.schedulerBuilder("gossip")
+        scheduler = model.<Void>schedulerBuilder("gossip")
                 .configure(platformContext
                         .getConfiguration()
                         .getConfigData(PlatformSchedulersConfig.class)
                         .gossip())
-                .build()
-                .cast();
+                .build();
 
         eventInput = scheduler.buildInputWire("events to gossip");
         eventWindowInput = scheduler.buildInputWire("event window");

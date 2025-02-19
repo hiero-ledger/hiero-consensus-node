@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -179,11 +179,10 @@ public class BlockTransactionalUnitTranslator {
             };
 
     /**
-     * Constructs a new {@link BlockTransactionalUnitTranslator} with the given network size.
-     * @param networkSize the network size
+     * Constructs a new {@link BlockTransactionalUnitTranslator}.
      */
-    public BlockTransactionalUnitTranslator(final int networkSize) {
-        baseTranslator = new BaseTranslator(networkSize - 1);
+    public BlockTransactionalUnitTranslator() {
+        baseTranslator = new BaseTranslator();
     }
 
     /**

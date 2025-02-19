@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Account;
@@ -84,7 +85,7 @@ public class ClassicGrantApprovalCallTest extends CallTestBase {
         assertEquals(
                 asBytesResult(GrantApprovalTranslator.GRANT_APPROVAL
                         .getOutputs()
-                        .encodeElements(ResponseCodeEnum.SUCCESS.protoOrdinal(), true)),
+                        .encode(Tuple.of(ResponseCodeEnum.SUCCESS.protoOrdinal(), true))),
                 result.getOutput());
     }
 
@@ -108,8 +109,8 @@ public class ClassicGrantApprovalCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
                 asBytesResult(
-                        GrantApprovalTranslator.GRANT_APPROVAL_NFT.getOutputs().encodeElements((long)
-                                ResponseCodeEnum.SUCCESS.protoOrdinal())),
+                        GrantApprovalTranslator.GRANT_APPROVAL_NFT.getOutputs().encode(Tuple.singleton((long)
+                                ResponseCodeEnum.SUCCESS.protoOrdinal()))),
                 result.getOutput());
     }
 }

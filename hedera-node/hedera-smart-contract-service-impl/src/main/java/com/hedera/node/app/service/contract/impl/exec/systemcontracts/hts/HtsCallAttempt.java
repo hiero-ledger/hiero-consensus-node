@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
@@ -31,6 +32,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemC
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -63,6 +67,7 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     // too many parameters
     @SuppressWarnings("java:S107")
     public HtsCallAttempt(
+            @NonNull final ContractID contractID,
             @NonNull final Bytes input,
             @NonNull final Address senderAddress,
             @NonNull final Address authorizingAddress,
@@ -73,8 +78,10 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
             @NonNull final VerificationStrategies verificationStrategies,
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final List<CallTranslator<HtsCallAttempt>> callTranslators,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             final boolean isStaticCall) {
         super(
+                contractID,
                 input,
                 senderAddress,
                 authorizingAddress,
@@ -86,6 +93,7 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
                 gasCalculator,
                 callTranslators,
                 isStaticCall,
+                systemContractMethodRegistry,
                 REDIRECT_FOR_TOKEN);
         if (isRedirect()) {
             this.redirectToken = linkedToken(redirectAddress);
@@ -94,6 +102,11 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
         }
         this.authorizingId =
                 (authorizingAddress != senderAddress) ? addressIdConverter.convertSender(authorizingAddress) : senderId;
+    }
+
+    @Override
+    protected SystemContract systemContractKind() {
+        return SystemContractMethod.SystemContract.HTS;
     }
 
     @Override

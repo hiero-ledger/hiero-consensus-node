@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -45,8 +46,11 @@ public class HssSystemContract extends AbstractNativeSystemContract implements H
     public static final ContractID HSS_CONTRACT_ID = asNumberedContractId(Address.fromHexString(HSS_EVM_ADDRESS));
 
     @Inject
-    public HssSystemContract(@NonNull final GasCalculator gasCalculator, @NonNull final HssCallFactory callFactory) {
-        super(HSS_SYSTEM_CONTRACT_NAME, callFactory, HSS_CONTRACT_ID, gasCalculator);
+    public HssSystemContract(
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HssCallFactory callFactory,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(HSS_SYSTEM_CONTRACT_NAME, callFactory, gasCalculator, contractMetrics);
     }
 
     @Override
@@ -55,7 +59,8 @@ public class HssSystemContract extends AbstractNativeSystemContract implements H
     }
 
     @Override
-    public FullResult computeFully(@NonNull final Bytes input, @NonNull final MessageFrame frame) {
+    public FullResult computeFully(
+            @NonNull ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
         requireNonNull(input);
         requireNonNull(frame);
 
@@ -64,6 +69,6 @@ public class HssSystemContract extends AbstractNativeSystemContract implements H
             return haltResult(NOT_SUPPORTED, frame.getRemainingGas());
         }
 
-        return super.computeFully(input, frame);
+        return super.computeFully(contractID, input, frame);
     }
 }
