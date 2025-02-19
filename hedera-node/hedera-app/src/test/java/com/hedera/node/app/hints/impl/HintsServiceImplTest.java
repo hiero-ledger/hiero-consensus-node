@@ -16,9 +16,12 @@
 
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hints.impl.WritableHintsStoreImplTest.WITH_ENABLED_HINTS;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -27,13 +30,19 @@ import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.hints.schemas.V059HintsSchema;
+import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -48,10 +57,10 @@ class HintsServiceImplTest {
     private ActiveRosters activeRosters;
 
     @Mock
-    private WritableHintsStore hintsStore;
+    private SchemaRegistry schemaRegistry;
 
     @Mock
-    private SchemaRegistry schemaRegistry;
+    private WritableHintsStore hintsStore;
 
     @Mock
     private HintsServiceComponent component;
@@ -67,6 +76,9 @@ class HintsServiceImplTest {
 
     @Mock
     private HintsLibrary library;
+
+    @Mock
+    private HintsHandlers handlers;
 
     private HintsServiceImpl subject;
 
@@ -135,5 +147,37 @@ class HintsServiceImplTest {
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig);
 
         verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore);
+    }
+
+    @Test
+    void registersNoSchemasWhenHintsDisabled() {
+        final var disabledSubject = new HintsServiceImpl(DEFAULT_CONFIG, component, library);
+
+        disabledSubject.registerSchemas(schemaRegistry);
+
+        verifyNoInteractions(schemaRegistry);
+    }
+
+    @Test
+    void registersTwoSchemasWhenHintsEnabled() {
+        given(component.signingContext()).willReturn(context);
+
+        subject.registerSchemas(schemaRegistry);
+
+        final var captor = ArgumentCaptor.forClass(Schema.class);
+        verify(schemaRegistry, times(2)).register(captor.capture());
+        final var schemas = captor.getAllValues();
+        assertThat(schemas.getFirst()).isInstanceOf(V059HintsSchema.class);
+        assertThat(schemas.getLast()).isInstanceOf(V060HintsSchema.class);
+    }
+
+    @Test
+    void delegatesHandlersAndKeyToComponent() {
+        given(component.handlers()).willReturn(handlers);
+        given(component.signingContext()).willReturn(context);
+        given(context.verificationKeyOrThrow()).willReturn(Bytes.EMPTY);
+
+        assertThat(subject.handlers()).isSameAs(handlers);
+        assertThat(subject.activeVerificationKeyOrThrow()).isSameAs(Bytes.EMPTY);
     }
 }
