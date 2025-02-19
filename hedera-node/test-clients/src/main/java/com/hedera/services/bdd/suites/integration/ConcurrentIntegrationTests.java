@@ -167,20 +167,20 @@ public class ConcurrentIntegrationTests {
                                                         "operator",
                                                         nftOne.treasury().name()))
                                         .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                .batchKey("operator")
+                                        .batchKey("operator")
                                         .payingWith("operator"),
                                 cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
                                                 .between(
                                                         "operator",
                                                         nftOne.treasury().name()))
                                         .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                .batchKey("operator")
+                                        .batchKey("operator")
                                         .payingWith("operator"),
                                 cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
                                                 .between(
                                                         "operator",
                                                         nftOne.treasury().name()))
-                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                         .batchKey("operator")
                                         .payingWith("operator"))
                         .signedByPayerAnd("operator"),
