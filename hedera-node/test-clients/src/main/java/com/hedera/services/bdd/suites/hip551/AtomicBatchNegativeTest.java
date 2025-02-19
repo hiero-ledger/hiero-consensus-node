@@ -30,6 +30,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -37,10 +38,12 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -109,6 +112,50 @@ public class AtomicBatchNegativeTest {
                                 .has(accountDetailsWith().key(expectedKey));
                         allRunFor(spec, accountQuery);
                     }));
+        }
+    }
+
+    @Nested
+    @DisplayName("Blacklisted inner transactions - NEGATIVE")
+    @Disabled // TODO:  Enable when txn blacklist is implemented
+    class BlacklistedTransactions {
+
+        @HapiTest
+        @DisplayName("Batch containing nested batch")
+        // BATCH_59
+        public Stream<DynamicTest> batchContainingNestedBatch() {
+            return hapiTest(
+                    cryptoCreate("batchOperator").balance(FIVE_HBARS),
+                    atomicBatch(atomicBatch(cryptoCreate("foo").batchKey("batchOperator"))
+                            .batchKey("batchOperator")
+                            .signedByPayerAnd("batchOperator")
+                            .hasPrecheck(NOT_SUPPORTED)));
+        }
+
+        @HapiTest
+        @DisplayName("Batch containing freeze transaction")
+        // BATCH_60
+        public Stream<DynamicTest> batchContainingFreezeTransactions() {
+            return hapiTest(
+                    cryptoCreate("batchOperator").balance(FIVE_HBARS),
+                    atomicBatch(freezeOnly()
+                            .batchKey("batchOperator")
+                            .signedByPayerAnd("batchOperator")
+                            .hasPrecheck(NOT_SUPPORTED)));
+        }
+
+        @HapiTest
+        @DisplayName("Batch containing blacklisted and non-blacklisted transactions")
+        // BATCH_61
+        public Stream<DynamicTest> nonBlacklistedAndBlacklistedTransactions() {
+            return hapiTest(
+                    cryptoCreate("batchOperator").balance(FIVE_HBARS),
+                    atomicBatch(
+                            cryptoCreate("foo").batchKey("batchOperator"),
+                            freezeOnly()
+                                    .batchKey("batchOperator")
+                                    .signedByPayerAnd("batchOperator")
+                                    .hasPrecheck(NOT_SUPPORTED)));
         }
     }
 }
