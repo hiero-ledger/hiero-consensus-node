@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
+ * Copyright (C) 2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,33 +31,24 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Dispat
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
-import javax.inject.Inject;
-import javax.inject.Singleton;
 
-@Singleton
-public class UpdateKeysTranslator extends AbstractCallTranslator<HtsCallAttempt> {
-    /** Selector for updateTokenKeys(address, TOKEN_KEY[]) method. */
-    public static final SystemContractMethod TOKEN_UPDATE_KEYS_FUNCTION = SystemContractMethod.declare(
-                    "updateTokenKeys(address," + TOKEN_KEY + ARRAY_BRACKETS + ")", ReturnTypes.INT)
-            .withCategories(Category.UPDATE);
-
-    private final UpdateDecoder decoder;
+public abstract class UpdateKeysCommonTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 
     /**
-     * @param decoder the decoder to use for token update keys calls
+     * Selector for updateTokenKeys(address, TOKEN_KEY[]) method.
      */
-    @Inject
-    public UpdateKeysTranslator(
-            @NonNull final UpdateDecoder decoder,
+    public static final SystemContractMethod TOKEN_UPDATE_KEYS_FUNCTION = SystemContractMethod.declare(
+                    "updateTokenKeys(address," + TOKEN_KEY + ARRAY_BRACKETS + ")", ReturnTypes.INT)
+            .withCategories(SystemContractMethod.Category.UPDATE);
+
+    public UpdateKeysCommonTranslator(
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
-        this.decoder = decoder;
 
         registerMethods(TOKEN_UPDATE_KEYS_FUNCTION);
     }
@@ -68,19 +59,19 @@ public class UpdateKeysTranslator extends AbstractCallTranslator<HtsCallAttempt>
     }
 
     @Override
-    public Call callFrom(@NonNull HtsCallAttempt attempt) {
+    public Call callFrom(@NonNull final HtsCallAttempt attempt) {
         return new DispatchForResponseCodeHtsCall(
                 attempt,
-                decoder.decodeTokenUpdateKeys(attempt),
-                UpdateKeysTranslator::gasRequirement,
+                getDecoder().decodeTokenUpdateKeys(attempt),
+                UpdateKeysCommonTranslator::gasRequirement,
                 FAILURE_CUSTOMIZER);
     }
 
     /**
-     * @param body                          the transaction body to be dispatched
-     * @param systemContractGasCalculator   the gas calculator for the system contract
-     * @param enhancement                   the enhancement to use
-     * @param payerId                       the payer of the transaction
+     * @param body                        the transaction body to be dispatched
+     * @param systemContractGasCalculator the gas calculator for the system contract
+     * @param enhancement                 the enhancement to use
+     * @param payerId                     the payer of the transaction
      * @return the required gas
      */
     public static long gasRequirement(
@@ -90,4 +81,6 @@ public class UpdateKeysTranslator extends AbstractCallTranslator<HtsCallAttempt>
             @NonNull final AccountID payerId) {
         return systemContractGasCalculator.gasRequirement(body, DispatchType.UPDATE, payerId);
     }
+
+    protected abstract UpdateCommonDecoder getDecoder();
 }

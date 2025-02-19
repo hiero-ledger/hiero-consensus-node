@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateKeysTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.KeyValueWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
@@ -255,7 +256,7 @@ public class UpdateDecoder {
         }
         try {
             return TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build();
-        } catch (IllegalArgumentException ignore) {
+        } catch (final IllegalArgumentException ignore) {
             return null;
         }
     }
@@ -286,7 +287,7 @@ public class UpdateDecoder {
         });
     }
 
-    private void setUsedKeys(Builder builder, TokenKeyWrapper tokenKeyWrapper, Key key) {
+    private void setUsedKeys(final Builder builder, final TokenKeyWrapper tokenKeyWrapper, final Key key) {
         if (tokenKeyWrapper.isUsedForAdminKey()) {
             builder.adminKey(key);
         }

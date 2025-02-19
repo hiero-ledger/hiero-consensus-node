@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update.address_0x167;
 
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,8 +25,8 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategi
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateKeysTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateKeysTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import org.junit.jupiter.api.BeforeEach;
