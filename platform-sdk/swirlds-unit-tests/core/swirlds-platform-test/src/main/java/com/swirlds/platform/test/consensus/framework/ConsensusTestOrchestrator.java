@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -155,7 +155,7 @@ public class ConsensusTestOrchestrator {
      * Configures the graph generators of all nodes with the given configurator. This must be done for all nodes so that
      * the generators generate the same graphs
      */
-    public ConsensusTestOrchestrator configGenerators(final Consumer<GraphGenerator<?>> configurator) {
+    public ConsensusTestOrchestrator configGenerators(final Consumer<GraphGenerator> configurator) {
         for (final ConsensusTestNode node : nodes) {
             configurator.accept(node.getEventEmitter().getGraphGenerator());
         }

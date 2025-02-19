@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * Emits events based on node priority while maintaining a topologically correct order.
  */
-public class PriorityEventEmitter extends BufferingEventEmitter<PriorityEventEmitter> {
+public class PriorityEventEmitter extends BufferingEventEmitter {
 
     /**
      * A list of node priorities. Lower index nodes have higher priority, so the highest priority node id appears first
@@ -46,7 +46,7 @@ public class PriorityEventEmitter extends BufferingEventEmitter<PriorityEventEmi
      * @param nodePriorities
      * 		node is in prior order with the highest priority at index 0 and lowest priority node at the last index
      */
-    public PriorityEventEmitter(final GraphGenerator<?> graphGenerator, final List<Integer> nodePriorities) {
+    public PriorityEventEmitter(final GraphGenerator graphGenerator, final List<Integer> nodePriorities) {
         super(graphGenerator);
         this.nodePriorities = nodePriorities;
     }

@@ -18,7 +18,6 @@ package com.hedera.node.app.workflows.standalone;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
@@ -38,7 +37,9 @@ import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.RealmID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
+import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -99,6 +100,7 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -151,14 +153,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class TransactionExecutorsTest {
     private static final long GAS = 100_000L;
     private static final long EXPECTED_LUCKY_NUMBER = 42L;
-    private static final AccountID TREASURY_ID =
-            AccountID.newBuilder().accountNum(2).build();
-    private static final AccountID NODE_ACCOUNT_ID =
-            AccountID.newBuilder().accountNum(3).build();
-    private static final FileID EXPECTED_INITCODE_ID =
-            FileID.newBuilder().fileNum(1001).build();
-    private static final ContractID EXPECTED_CONTRACT_ID =
-            ContractID.newBuilder().contractNum(1002).build();
+    private static final EntityIdFactory idFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
+    private static final AccountID TREASURY_ID = idFactory.newAccountId(2);
+    private static final AccountID NODE_ACCOUNT_ID = idFactory.newAccountId(3);
+    private static final FileID EXPECTED_INITCODE_ID = idFactory.newFileId(1001);
+    private static final ContractID EXPECTED_CONTRACT_ID = idFactory.newContractId(1002);
     private static final com.esaulpaugh.headlong.abi.Function PICK_FUNCTION =
             new com.esaulpaugh.headlong.abi.Function("pick()", "(uint32)");
     private static final com.esaulpaugh.headlong.abi.Function GET_LAST_BLOCKHASH_FUNCTION =
@@ -166,7 +165,7 @@ public class TransactionExecutorsTest {
     private static final String EXPECTED_TRACE_START =
             "{\"pc\":0,\"op\":96,\"gas\":\"0x13458\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY);
+            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY);
 
     public static final Metrics NO_OP_METRICS = new NoOpMetrics();
     public static final NetworkInfo FAKE_NETWORK_INFO = fakeNetworkInfo();
@@ -338,11 +337,16 @@ public class TransactionExecutorsTest {
     private TransactionBody createContract() {
         final var maxLifetime =
                 DEFAULT_CONFIG.getConfigData(EntitiesConfig.class).maxLifetime();
+        final var shard = DEFAULT_CONFIG.getConfigData(HederaConfig.class).shard();
+        final var realm = DEFAULT_CONFIG.getConfigData(HederaConfig.class).realm();
+
         return newBodyBuilder()
                 .contractCreateInstance(ContractCreateTransactionBody.newBuilder()
                         .fileID(EXPECTED_INITCODE_ID)
                         .autoRenewPeriod(new Duration(maxLifetime))
                         .gas(GAS)
+                        .shardID(new ShardID(shard))
+                        .realmID(new RealmID(shard, realm))
                         .build())
                 .build();
     }
@@ -480,7 +484,7 @@ public class TransactionExecutorsTest {
     }
 
     private static NetworkInfo fakeNetworkInfo() {
-        final AccountID someAccount = AccountID.newBuilder().accountNum(12345).build();
+        final AccountID someAccount = idFactory.newAccountId(12345);
         final var addressBook = new AddressBook(StreamSupport.stream(
                         Spliterators.spliteratorUnknownSize(
                                 RandomAddressBookBuilder.create(new Random())
