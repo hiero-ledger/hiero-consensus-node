@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,15 +20,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.crypto.engine.EcdsaSecp256k1Verifier;
 import com.swirlds.common.test.fixtures.crypto.EcdsaUtils;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.Security;
 import java.security.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Test;
 
 /**
  * Test class to verify the signatures of ECDSA(secp256k1) keys.
@@ -46,18 +43,15 @@ class EcdsaSecp256k1VerifierTest {
         Security.addProvider(new BouncyCastleProvider());
     }
 
-    @ParameterizedTest
-    @ValueSource(ints = {1, 10, 49, 1000})
-    @Disabled("This test needs to be investigated")
-    void verifySignatureVerification(int count) throws Exception {
-        for (int i = 0; i < count; i++) {
+    @Test
+    void verifySignatureVerification() throws Exception {
+        for (int i = 0; i < 1000; i++) {
             final KeyPair pair = EcdsaUtils.genEcdsaSecp256k1KeyPair();
 
             final byte[] signature = EcdsaUtils.signWellKnownDigestWithEcdsaSecp256k1(pair.getPrivate());
             final byte[] rawPubKey = EcdsaUtils.asRawEcdsaSecp256k1Key((ECPublicKey) pair.getPublic());
 
-            final boolean isValid =
-                    subject.verify(signature, EcdsaUtils.WELL_KNOWN_DIGEST.getBytes(StandardCharsets.UTF_8), rawPubKey);
+            final boolean isValid = subject.verify(signature, EcdsaUtils.WELL_KNOWN_DIGEST, rawPubKey);
 
             assertTrue(isValid, "signature should be valid");
         }
