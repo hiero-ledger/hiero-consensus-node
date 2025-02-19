@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,13 +21,10 @@ import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 /**
  * Base class for all event emitters. Contains a {@link GraphGenerator} from which events are emitted according to
  * subclass implementations.
- *
- * @param <T>
- * 		the type of class extending this class
  */
-public abstract class AbstractEventEmitter<T extends AbstractEventEmitter<T>> implements EventEmitter<T> {
+public abstract class AbstractEventEmitter implements EventEmitter {
 
-    private GraphGenerator<?> graphGenerator;
+    private GraphGenerator graphGenerator;
 
     /**
      * The next event count checkpoint.
@@ -39,7 +36,7 @@ public abstract class AbstractEventEmitter<T extends AbstractEventEmitter<T>> im
      */
     protected long numEventsEmitted;
 
-    protected AbstractEventEmitter(final GraphGenerator<?> graphGenerator) {
+    protected AbstractEventEmitter(final GraphGenerator graphGenerator) {
         this.graphGenerator = graphGenerator;
     }
 
@@ -47,7 +44,7 @@ public abstract class AbstractEventEmitter<T extends AbstractEventEmitter<T>> im
      * {@inheritDoc}
      */
     @Override
-    public GraphGenerator<?> getGraphGenerator() {
+    public GraphGenerator getGraphGenerator() {
         return graphGenerator;
     }
 

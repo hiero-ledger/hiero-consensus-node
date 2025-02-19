@@ -17,6 +17,7 @@
 package com.hedera.node.app.spi.fixtures.ids;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
@@ -71,7 +72,21 @@ public class FakeEntityIdFactoryImpl implements EntityIdFactory {
     }
 
     @Override
+    public AccountID newDefaultAccountId() {
+        return AccountID.newBuilder().shardNum(shard).realmNum(realm).build();
+    }
+
+    @Override
     public FileID newFileId(long number) {
         return new FileID(shard, realm, number);
+    }
+
+    @Override
+    public ContractID newContractId(long number) {
+        return ContractID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .contractNum(number)
+                .build();
     }
 }

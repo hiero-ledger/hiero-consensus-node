@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,6 +49,9 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
 public class TargetNetworkPrep {
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
+
     @LeakyHapiTest(requirement = {SYSTEM_ACCOUNT_BALANCES})
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithSystemDefaultFiles() {
         final var emptyKey =
@@ -90,7 +94,7 @@ public class TargetNetworkPrep {
                                 .noAlias()
                                 .noAllowances()),
                 withOpContext((spec, opLog) -> {
-                    final var genesisInfo = getAccountInfo("0.0.2");
+                    final var genesisInfo = getAccountInfo(String.format("%s.%s.2", SHARD, REALM));
                     allRunFor(spec, genesisInfo);
                     final var key = genesisInfo
                             .getResponse()
@@ -99,7 +103,7 @@ public class TargetNetworkPrep {
                             .getKey();
                     final var cloneConfirmations = inParallel(IntStream.rangeClosed(200, 750)
                             .filter(i -> i < 350 || i >= 400)
-                            .mapToObj(i -> getAccountInfo("0.0." + i)
+                            .mapToObj(i -> getAccountInfo(String.format("%s.%s.%d", SHARD, REALM, i))
                                     .noLogging()
                                     .payingWith(GENESIS)
                                     .has(AccountInfoAsserts.accountWith().key(key)))
