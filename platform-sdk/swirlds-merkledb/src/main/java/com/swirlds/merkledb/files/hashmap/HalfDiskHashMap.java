@@ -161,7 +161,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     private final AtomicReference<AbstractTask> notifyTaskRef = new AtomicReference<>();
 
     /** A holder for the first exception occured during endWriting() tasks */
-    private final AtomicReference<Exception> exceptionOccurred = new AtomicReference<>();
+    private final AtomicReference<Throwable> exceptionOccurred = new AtomicReference<>();
 
     /** Fork-join pool for HDHM.endWriting() */
     private static volatile ForkJoinPool flushingPool = null;
@@ -502,7 +502,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 // task depends on the last "store bucket" task
                 notifyTaskRef.get().join();
                 if (exceptionOccurred.get() != null) {
-                    throw exceptionOccurred.get();
+                    throw new IOException(exceptionOccurred.get());
                 }
                 // close files session
                 dataFileReader = fileCollection.endWriting(0, numOfBuckets);
@@ -542,7 +542,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             // The next submit task to run after the current one. It will only be run, if
             // this task doesn't schedule tasks for all remaining buckets, and at least one
             // bucket is completely processed while this method is running
@@ -611,36 +611,34 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
 
         @Override
-        protected boolean exec() {
-            try {
-                BufferedData bucketData =
-                        fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
-                // The bucket will be closed by StoreBucketTask
-                final Bucket bucket = bucketPool.getBucket();
-                if (bucketData == null) {
-                    // An empty bucket
-                    bucket.setBucketIndex(bucketIndex);
-                } else {
-                    // Read from bytes
-                    bucket.readFrom(bucketData);
-                    if (bucketIndex != bucket.getBucketIndex()) {
-                        throw new RuntimeException(
-                                "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
-                    }
+        protected boolean onExecute() throws IOException {
+            BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
+            // The bucket will be closed by StoreBucketTask
+            final Bucket bucket = bucketPool.getBucket();
+            if (bucketData == null) {
+                // An empty bucket
+                bucket.setBucketIndex(bucketIndex);
+            } else {
+                // Read from bytes
+                bucket.readFrom(bucketData);
+                if (bucketIndex != bucket.getBucketIndex()) {
+                    throw new RuntimeException(
+                            "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
                 }
-                // Apply all updates
-                keyUpdates.forEachKeyValue(bucket::putValue);
-                // Schedule a "store bucket" task for this bucket
-                createAndScheduleStoreTask(bucket);
-                return true;
-            } catch (final IOException z) {
-                logger.error(MERKLE_DB.getMarker(), "Failed to read / update bucket " + bucketIndex, z);
-                exceptionOccurred.set(z);
-                completeExceptionally(z);
-                // Make sure the writing thread is resumed
-                notifyTaskRef.get().completeExceptionally(z);
-                return false;
             }
+            // Apply all updates
+            keyUpdates.forEachKeyValue(bucket::putValue);
+            // Schedule a "store bucket" task for this bucket
+            createAndScheduleStoreTask(bucket);
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error(MERKLE_DB.getMarker(), "Failed to read / update bucket " + bucketIndex, t);
+            exceptionOccurred.set(t);
+            // Make sure the writing thread is resumed
+            notifyTaskRef.get().completeExceptionally(t);
         }
     }
 
@@ -671,7 +669,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() throws IOException {
             try (bucket) {
                 final int bucketIndex = bucket.getBucketIndex();
                 if (bucket.isEmpty()) {
@@ -685,12 +683,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 }
                 next.send();
                 return true;
-            } catch (final IOException z) {
-                exceptionOccurred.set(z);
-                completeExceptionally(z);
-                // Make sure the writing thread is resumed
-                notifyTaskRef.get().completeExceptionally(z);
-                return false;
             } finally {
                 // Let the current submit task know that a bucket is fully processed, and
                 // the task can be run
@@ -702,6 +694,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     currentSubmitTask.get().notifyBucketProcessed();
                 }
             }
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error(MERKLE_DB.getMarker(), "Failed to write bucket " + bucket.getBucketIndex(), t);
+            exceptionOccurred.set(t);
+            // Make sure the writing thread is resumed
+            notifyTaskRef.get().completeExceptionally(t);
         }
     }
 
@@ -717,7 +717,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             // Task body is empty: the task is only needed to wait until its dependency
             // tasks are complete
             return true;

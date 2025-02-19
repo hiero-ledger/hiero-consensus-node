@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package com.swirlds.platform.test.network.communication;
 
 import com.swirlds.platform.network.communication.NegotiationProtocols;
-import com.swirlds.platform.network.protocol.Protocol;
+import com.swirlds.platform.network.protocol.PeerProtocol;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
@@ -32,14 +32,14 @@ class NegotiationProtocolsTest {
                 IllegalArgumentException.class,
                 () -> new NegotiationProtocols(null),
                 "a null list should throw an exception");
-        final List<Protocol> empty = List.of();
+        final List<PeerProtocol> empty = List.of();
         Assertions.assertThrows(
                 IllegalArgumentException.class,
                 () -> new NegotiationProtocols(empty),
                 "a empty list should throw an exception");
-        final List<Protocol> lots = Stream.generate(TestProtocol::new)
+        final List<PeerProtocol> lots = Stream.generate(TestPeerProtocol::new)
                 .limit(1000)
-                .map(p -> (Protocol) p)
+                .map(p -> (PeerProtocol) p)
                 .toList();
         Assertions.assertThrows(
                 IllegalArgumentException.class,

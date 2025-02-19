@@ -94,6 +94,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -104,6 +105,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
@@ -133,6 +135,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
+    protected static final int SHARD = 1;
+    protected static final long REALM = 2;
     protected static final Instant originalInstant = Instant.ofEpochSecond(12345678910L);
     protected static final long stakePeriodStart =
             LocalDate.ofInstant(originalInstant, ZONE_UTC).toEpochDay() - 1;
@@ -404,6 +408,9 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     protected Account hbarReceiverAccount;
     protected Account zeroAccount;
 
+    /* ---------- Ids ---------- */
+    protected EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
+
     /* ---------- Maps for updating both readable and writable stores ---------- */
     private Map<AccountID, Account> accountsMap;
     private Map<ProtoBytes, AccountID> aliasesMap;
@@ -472,7 +479,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
 
         aliasesMap = new HashMap<>();
         aliasesMap.put(new ProtoBytes(alias.alias()), payerId);
-        aliasesMap.put(new ProtoBytes(contractAlias.evmAddress()), asAccount(contract.contractNum()));
+        aliasesMap.put(new ProtoBytes(contractAlias.evmAddress()), asAccount(0L, 0L, contract.contractNum()));
 
         tokenRelsMap = new HashMap<>();
         tokenRelsMap.put(fungiblePair, fungibleTokenRelation);

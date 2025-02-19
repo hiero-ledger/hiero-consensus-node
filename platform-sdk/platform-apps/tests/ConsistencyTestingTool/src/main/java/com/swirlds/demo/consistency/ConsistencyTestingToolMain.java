@@ -27,6 +27,7 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -57,8 +58,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(
                     new ClassConstructorPair(ConsistencyTestingToolState.class, () -> {
-                        ConsistencyTestingToolState consistencyTestingToolState =
-                                new ConsistencyTestingToolState(version -> new BasicSoftwareVersion(version.major()));
+                        ConsistencyTestingToolState consistencyTestingToolState = new ConsistencyTestingToolState();
                         // Don't call FAKE_MERKLE_STATE_LIFECYCLES.initStates(consistencyTestingToolState) here.
                         // The stub states are automatically initialized upon loading the state from disk,
                         // or after finishing a reconnect.
@@ -115,9 +115,8 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
      */
     @Override
     @NonNull
-    public ConsistencyTestingToolState newMerkleStateRoot() {
-        final ConsistencyTestingToolState state =
-                new ConsistencyTestingToolState(version -> new BasicSoftwareVersion(softwareVersion.getVersion()));
+    public ConsistencyTestingToolState newStateRoot() {
+        final ConsistencyTestingToolState state = new ConsistencyTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
 
         return state;
@@ -129,7 +128,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     @NonNull
     public StateLifecycles<ConsistencyTestingToolState> newStateLifecycles() {
-        return new ConsistencyTestingToolStateLifecycles();
+        return new ConsistencyTestingToolStateLifecycles(new PlatformStateFacade((v) -> getSoftwareVersion()));
     }
 
     /**

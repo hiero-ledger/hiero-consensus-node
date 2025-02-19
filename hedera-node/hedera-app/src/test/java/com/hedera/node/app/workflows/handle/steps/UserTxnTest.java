@@ -17,12 +17,14 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.workflows.handle.TransactionType.GENESIS_TRANSACTION;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -38,6 +40,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -72,6 +75,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -153,12 +157,18 @@ class UserTxnTest {
     @Mock
     private TransactionChecker transactionChecker;
 
+    @Mock
+    private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
+
     private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = ServicesSoftwareVersion::new;
 
     @BeforeEach
     void setUp() {
         given(preHandleWorkflow.getCurrentPreHandleResult(
-                        eq(creatorInfo), eq(PLATFORM_TXN), any(ReadableStoreFactory.class)))
+                        eq(creatorInfo),
+                        eq(PLATFORM_TXN),
+                        any(ReadableStoreFactory.class),
+                        eq(stateSignatureTxnCallback)))
                 .willReturn(preHandleResult);
         given(preHandleResult.txInfo()).willReturn(txnInfo);
         given(txnInfo.functionality()).willReturn(CONSENSUS_CREATE_TOPIC);
@@ -169,7 +179,8 @@ class UserTxnTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         assertSame(GENESIS_TRANSACTION, subject.type());
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
@@ -184,6 +195,16 @@ class UserTxnTest {
         assertNotNull(subject.config());
 
         assertThat(subject.baseBuilder()).isInstanceOf(PairedStreamBuilder.class);
+    }
+
+    @Test
+    void returnsNullForStateSignatureTxn() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
+
+        final var factory = createUserTxnFactory();
+        assertNull(factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback));
     }
 
     @Test
@@ -204,7 +225,8 @@ class UserTxnTest {
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -235,7 +257,8 @@ class UserTxnTest {
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 

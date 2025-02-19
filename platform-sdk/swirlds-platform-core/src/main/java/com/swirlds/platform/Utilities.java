@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package com.swirlds.platform;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -379,12 +380,23 @@ public final class Utilities {
                 // Only include peers with valid gossip certificates
                 // https://github.com/hashgraph/hedera-services/issues/16648
                 .filter(entry -> CryptoStatic.checkCertificate((RosterUtils.fetchGossipCaCertificate(entry))))
-                .map(entry -> new PeerInfo(
-                        NodeId.of(entry.nodeId()),
-                        // Assume that the first ServiceEndpoint describes the external hostname,
-                        // which is the same order in which RosterRetriever.buildRoster(AddressBook) lists them.
-                        Objects.requireNonNull(RosterUtils.fetchHostname(entry, 0)),
-                        Objects.requireNonNull(RosterUtils.fetchGossipCaCertificate(entry))))
+                .map(Utilities::toPeerInfo)
                 .toList();
+    }
+
+    /**
+     * Converts single roster entry to PeerInfo, which is more abstract class representing information about possible node connection
+     * @param entry data to convert
+     * @return PeerInfo with extracted hostname, port and certificate for remote host
+     */
+    public static @NonNull PeerInfo toPeerInfo(@NonNull RosterEntry entry) {
+        Objects.requireNonNull(entry);
+        return new PeerInfo(
+                NodeId.of(entry.nodeId()),
+                // Assume that the first ServiceEndpoint describes the external hostname,
+                // which is the same order in which RosterRetriever.buildRoster(AddressBook) lists them.
+                Objects.requireNonNull(RosterUtils.fetchHostname(entry, 0)),
+                RosterUtils.fetchPort(entry, 0),
+                Objects.requireNonNull(RosterUtils.fetchGossipCaCertificate(entry)));
     }
 }

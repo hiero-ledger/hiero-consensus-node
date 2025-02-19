@@ -16,6 +16,7 @@
 
 package com.hedera.services.bdd.spec.transactions.consensus;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asDuration;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
@@ -241,8 +242,7 @@ public class HapiTopicCreate extends HapiTxnOp<HapiTopicCreate> {
         if (advertiseCreation) {
             final String banner = "\n\n"
                     + bannerWith(String.format(
-                            "Created topic '%s' with id '0.0.%d'.",
-                            topic, lastReceipt.getTopicID().getTopicNum()));
+                            "Created topic '%s' with id '%s'.", topic, asTopicString(lastReceipt.getTopicID())));
             log.info(banner);
         }
     }

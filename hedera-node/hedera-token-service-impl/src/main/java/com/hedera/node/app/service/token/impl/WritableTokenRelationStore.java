@@ -98,26 +98,6 @@ public class WritableTokenRelationStore extends ReadableTokenRelationStoreImpl {
     }
 
     /**
-     * Returns the {@link TokenRelation} with the given token number and account number.
-     * If no such token relation exists, returns {@code Optional.empty()}
-     *
-     * @param accountId - the number of the account to be retrieved
-     * @param tokenId   - the number of the token to be retrieved
-     * @return the token relation with the given token number and account number, or {@code Optional.empty()} if no such
-     * token relation exists
-     */
-    @Nullable
-    public TokenRelation getForModify(@NonNull final AccountID accountId, @NonNull final TokenID tokenId) {
-        requireNonNull(accountId);
-        requireNonNull(tokenId);
-
-        if (AccountID.DEFAULT.equals(accountId) || TokenID.DEFAULT.equals(tokenId)) return null;
-
-        return tokenRelState.getForModify(
-                EntityIDPair.newBuilder().accountId(accountId).tokenId(tokenId).build());
-    }
-
-    /**
      * Gets the original value associated with the given tokenRelation before any modifications were made to
      * it. The returned value will be {@code null} if the tokenRelation does not exist.
      *

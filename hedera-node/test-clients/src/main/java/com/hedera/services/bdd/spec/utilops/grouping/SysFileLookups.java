@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,11 +59,14 @@ public class SysFileLookups extends UtilOp {
      */
     public static Map<FileID, Bytes> getSystemFileContents(
             @NonNull final HapiSpec spec, @NonNull final LongPredicate test) {
+        var shard = spec.startupProperties().getLong("hedera.shard");
+        var realm = spec.startupProperties().getLong("hedera.realm");
         return allSystemFileNums(spec)
                 .filter(test)
                 .boxed()
-                .collect(Collectors.toMap(fileNum -> new FileID(0, 0, fileNum), fileNum -> {
-                    final var query = getFileContents("0.0." + fileNum).noLogging();
+                .collect(Collectors.toMap(fileNum -> new FileID(shard, realm, fileNum), fileNum -> {
+                    final var query = getFileContents(String.format("%s.%s.%s", shard, realm, fileNum))
+                            .noLogging();
                     allRunFor(spec, query);
                     final var contents = query.getResponse()
                             .getFileGetContents()

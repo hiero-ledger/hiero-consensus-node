@@ -27,6 +27,7 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBo
 import static com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.FAKE_NETWORK_INFO;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.NO_OP_METRICS;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
@@ -253,7 +254,7 @@ class DiskStartupNetworksTest {
     void writesExpectedStateInfo() throws IOException, ParseException {
         final var state = stateContainingInfoFrom(NETWORK);
         final var loc = tempDir.resolve("reproduced-network.json");
-        DiskStartupNetworks.writeNetworkInfo(state, loc, EnumSet.allOf(InfoType.class));
+        DiskStartupNetworks.writeNetworkInfo(state, loc, EnumSet.allOf(InfoType.class), TEST_PLATFORM_STATE_FACADE);
         try (final var fin = Files.newInputStream(loc)) {
             final var network = Network.JSON.parse(new ReadableStreamingData(fin));
             Assertions.assertThat(network).isEqualTo(NETWORK);
@@ -272,29 +273,31 @@ class DiskStartupNetworksTest {
         final var servicesRegistry = new FakeServicesRegistry();
         final var tssBaseService = new TssBaseServiceImpl();
         given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(network);
+        final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
+        ServicesSoftwareVersion currentVersion = new ServicesSoftwareVersion(
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion());
         PLATFORM_STATE_SERVICE.setAppVersionFn(ServicesSoftwareVersion::from);
         Set.of(
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,
                         new EntityIdService(),
-                        new RosterService(roster -> true, () -> {}, () -> state),
+                        new RosterService(roster -> true, () -> {}, () -> state, TEST_PLATFORM_STATE_FACADE),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
-        final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(
                 state,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
+                currentVersion,
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
                 FAKE_NETWORK_INFO,
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                TEST_PLATFORM_STATE_FACADE);
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
         return state;

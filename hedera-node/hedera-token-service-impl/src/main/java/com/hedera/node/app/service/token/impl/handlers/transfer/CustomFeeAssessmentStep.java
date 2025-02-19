@@ -23,7 +23,7 @@ import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult.HBAR_TOKEN_ID;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.TokenValidations.PERMIT_PAUSED;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.TRANSACTION_FIXED_FEE;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.TRANSACTION_FIXED_FEE;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Collections.emptyList;
@@ -36,6 +36,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -107,7 +108,7 @@ public class CustomFeeAssessmentStep {
         final var tokenRelStore = feeContext.readableStore(ReadableTokenRelationStore.class);
         final var readableStore = feeContext.readableStore(ReadableAccountStore.class);
         final var config = feeContext.configuration();
-        final var result = assessFees(tokenStore, tokenRelStore, config, readableStore, AccountID::hasAlias, false);
+        final var result = assessFees(tokenStore, tokenRelStore, config, readableStore, AccountID::hasAlias);
         return result.assessedCustomFees();
     }
 
@@ -136,11 +137,24 @@ public class CustomFeeAssessmentStep {
         } else {
             autoCreationTest = accountId -> false;
         }
-        // check dispatchMetadata, if this is a dispatch for paying transaction fixed fee or a regular token custom fee
-        // assessing
-        final var isTnxFixedFee =
-                transferContext.getHandleContext().dispatchMetadata().getMetadata(TRANSACTION_FIXED_FEE) != null;
-        final var result = assessFees(tokenStore, tokenRelStore, config, accountStore, autoCreationTest, isTnxFixedFee);
+        // assess custom fees
+        final var result = assessFees(tokenStore, tokenRelStore, config, accountStore, autoCreationTest);
+
+        // check if the current operation is a dispatch for paying a transaction fixed fee
+        final var txnFeeMetadata = transferContext
+                .getHandleContext()
+                .dispatchMetadata()
+                .getMetadata(TRANSACTION_FIXED_FEE, FixedCustomFee.class);
+        if (txnFeeMetadata.isPresent()) {
+            final var transactionFixedFee = txnFeeMetadata.get();
+            final var payer = transferContext.getHandleContext().payer();
+            final var assessmentResult = new AssessmentResult(emptyList(), emptyList());
+
+            // when dispatching crypto transfer for charging custom fees,
+            // we still need to set the transfer as assessed
+            customFeeAssessor.setTransactionFeesAsAssessed(payer, transactionFixedFee, assessmentResult);
+            result.assessedCustomFees.addAll(assessmentResult.getAssessedCustomFees());
+        }
 
         result.assessedCustomFees().forEach(transferContext::addToAssessedCustomFee);
         customFeeAssessor.resetInitialNftChanges();
@@ -160,7 +174,6 @@ public class CustomFeeAssessmentStep {
      * @param config - configuration
      * @param accountStore - account store
      * @param autoCreationTest - predicate to test if account id is being auto created
-     * @param isTxnFixedFee - is assessing transaction fixed fees or token custom fees
      * @return - transaction body with assessed custom fees
      */
     public CustomFeeAssessmentResult assessFees(
@@ -168,8 +181,7 @@ public class CustomFeeAssessmentStep {
             @NonNull final ReadableTokenRelationStore tokenRelStore,
             @NonNull final Configuration config,
             @NonNull final ReadableAccountStore accountStore,
-            @NonNull final Predicate<AccountID> autoCreationTest,
-            boolean isTxnFixedFee) {
+            @NonNull final Predicate<AccountID> autoCreationTest) {
         final var tokensConfig = config.getConfigData(TokensConfig.class);
         final var maxCustomFeeDepth = tokensConfig.maxCustomFeeDepth();
 
@@ -224,15 +236,6 @@ public class CustomFeeAssessmentStep {
                     numUniqueAdjustmentsIn(assessedTxns) <= maxBalanceChanges,
                     CUSTOM_FEE_CHARGING_EXCEEDED_MAX_ACCOUNT_AMOUNTS);
         }
-
-        // if this was a dispatch for paying transaction fixed fee,
-        // we need to convert the toplevel transfer in to assessed fees too.
-        if (isTxnFixedFee) {
-            final var assessmentResult = new AssessmentResult(emptyList(), emptyList());
-            customFeeAssessor.convertTransferToFixedFee(op, assessmentResult);
-            customFeesAssessed.addAll(assessmentResult.getAssessedCustomFees());
-        }
-
         return new CustomFeeAssessmentResult(assessedTxns, customFeesAssessed);
     }
 

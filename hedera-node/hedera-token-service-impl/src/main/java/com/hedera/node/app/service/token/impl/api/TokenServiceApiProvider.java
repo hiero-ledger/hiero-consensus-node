@@ -57,8 +57,7 @@ public enum TokenServiceApiProvider implements ServiceApiProvider<TokenServiceAp
                                 new ReadableTokenRelationStoreImpl(writableStates, entityCounters),
                                 configuration,
                                 new ReadableAccountStoreImpl(writableStates, entityCounters),
-                                AccountID::hasAlias,
-                                false);
+                                AccountID::hasAlias);
                         return !result.assessedCustomFees().isEmpty();
                     } catch (Exception ignore) {
                         return false;

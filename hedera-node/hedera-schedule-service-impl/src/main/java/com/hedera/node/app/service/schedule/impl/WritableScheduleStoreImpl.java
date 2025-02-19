@@ -84,24 +84,13 @@ public class WritableScheduleStoreImpl extends ReadableScheduleStoreImpl impleme
     public @NonNull Schedule delete(@Nullable final ScheduleID scheduleId, @NonNull final Instant consensusTime) {
         requireNonNull(consensusTime);
         requireNonNull(scheduleId);
-        final var schedule = schedulesByIdMutable.getForModify(scheduleId);
+        final var schedule = schedulesByIdMutable.get(scheduleId);
         if (schedule == null) {
             throw new IllegalStateException("Schedule to be deleted, %1$s, not found in state.".formatted(scheduleId));
         }
         final var deletedSchedule = markDeleted(schedule, consensusTime);
         schedulesByIdMutable.put(scheduleId, deletedSchedule);
         return deletedSchedule;
-    }
-
-    @Override
-    public Schedule getForModify(@Nullable final ScheduleID scheduleId) {
-        final Schedule result;
-        if (scheduleId != null) {
-            result = schedulesByIdMutable.getForModify(scheduleId);
-        } else {
-            result = null;
-        }
-        return result;
     }
 
     @Override

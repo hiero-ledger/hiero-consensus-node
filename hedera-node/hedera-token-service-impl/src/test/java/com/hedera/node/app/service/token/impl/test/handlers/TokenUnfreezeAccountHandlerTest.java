@@ -239,7 +239,7 @@ class TokenUnfreezeAccountHandlerTest {
             given(tokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey());
             given(accountStore.getAccountById(ACCOUNT_13257))
                     .willReturn(Account.newBuilder().accountId(ACCOUNT_13257).build());
-            given(tokenRelStore.getForModify(ACCOUNT_13257, token)).willReturn(null);
+            given(tokenRelStore.get(ACCOUNT_13257, token)).willReturn(null);
             given(expiryValidator.expirationStatus(EntityType.ACCOUNT, false, 0))
                     .willReturn(OK);
             final var txn = newUnfreezeTxn(token);
@@ -302,7 +302,7 @@ class TokenUnfreezeAccountHandlerTest {
             given(tokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey());
             given(accountStore.getAccountById(ACCOUNT_13257))
                     .willReturn(Account.newBuilder().accountId(ACCOUNT_13257).build());
-            given(tokenRelStore.getForModify(ACCOUNT_13257, token))
+            given(tokenRelStore.get(ACCOUNT_13257, token))
                     .willReturn(TokenRelation.newBuilder()
                             .tokenId(token)
                             .accountId(ACCOUNT_13257)
@@ -333,7 +333,7 @@ class TokenUnfreezeAccountHandlerTest {
 
         private ReadableTokenStore.TokenMetadata tokenMetaWithFreezeKey(Key freezeKey) {
             return new ReadableTokenStore.TokenMetadata(
-                    null, null, null, freezeKey, null, null, null, null, false, asAccount(25L), 2);
+                    null, null, null, freezeKey, null, null, null, null, false, asAccount(0L, 0L, 25L), 2);
         }
 
         private TransactionBody newUnfreezeTxn(TokenID token) {

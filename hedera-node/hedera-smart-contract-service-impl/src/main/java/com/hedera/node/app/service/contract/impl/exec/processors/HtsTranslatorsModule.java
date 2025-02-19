@@ -52,7 +52,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.symbol
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenexpiry.TokenExpiryTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.TokenTypeTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.address_0x167.TokenTypeTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenuri.TokenUriTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.totalsupply.TotalSupplyTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator;
@@ -76,7 +76,7 @@ import javax.inject.Singleton;
 /**
  * Provides the {@link CallTranslator} implementations for the HTS system contract.
  */
-@Module
+@Module(includes = {Hts0x16cTranslatorsModule.class, Hts0x167TranslatorsModule.class})
 public interface HtsTranslatorsModule {
     @Provides
     @Singleton

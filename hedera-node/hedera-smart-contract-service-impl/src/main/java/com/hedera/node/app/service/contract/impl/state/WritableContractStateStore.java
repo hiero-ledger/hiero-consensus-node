@@ -111,14 +111,6 @@ public class WritableContractStateStore extends ReadableContractStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public SlotValue getSlotValueForModify(@NonNull SlotKey key) {
-        return storage.getForModify(requireNonNull(key));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public @Nullable SlotValue getOriginalSlotValue(@NonNull final SlotKey key) {
         return storage.getOriginalValue(requireNonNull(key));
     }

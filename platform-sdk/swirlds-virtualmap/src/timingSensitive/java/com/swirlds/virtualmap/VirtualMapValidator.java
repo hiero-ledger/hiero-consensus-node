@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,22 +76,6 @@ public class VirtualMapValidator<K extends VirtualKey, V extends VirtualValue> {
             System.out.printf("Get Actual: [%s]:  %s%n", key, subject.get(key));
         }
         assertEquals(expected, actual);
-        return actual;
-    }
-
-    public V getForModify(final K key) {
-        final V expected = reference.get(key);
-        final V actual = subject.getForModify(key);
-        if (expected != null && !expected.equals(actual)) {
-            // Failed to match. Print out debug info.
-            dumpHistory(key);
-            System.out.printf("GetForModify Actual: [%s]:  %s%n", key, subject.get(key));
-        }
-        assertEquals(expected, actual);
-        // Update reference
-        if (actual != null) {
-            reference.put(key, actual);
-        }
         return actual;
     }
 

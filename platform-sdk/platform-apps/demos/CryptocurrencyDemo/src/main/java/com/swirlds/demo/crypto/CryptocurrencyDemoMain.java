@@ -31,6 +31,8 @@ import static com.swirlds.platform.gui.SwirldsGui.createConsole;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
@@ -61,8 +63,7 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
         try {
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(new ClassConstructorPair(CryptocurrencyDemoState.class, () -> {
-                CryptocurrencyDemoState cryptocurrencyDemoState =
-                        new CryptocurrencyDemoState(version -> new BasicSoftwareVersion(version.major()));
+                CryptocurrencyDemoState cryptocurrencyDemoState = new CryptocurrencyDemoState();
                 return cryptocurrencyDemoState;
             }));
             registerMerkleStateRootClassIds();
@@ -204,9 +205,8 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
      */
     @Override
     @NonNull
-    public CryptocurrencyDemoState newMerkleStateRoot() {
-        final CryptocurrencyDemoState state =
-                new CryptocurrencyDemoState(version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+    public CryptocurrencyDemoState newStateRoot() {
+        final CryptocurrencyDemoState state = new CryptocurrencyDemoState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }
@@ -226,5 +226,10 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
     @Override
     public BasicSoftwareVersion getSoftwareVersion() {
         return softwareVersion;
+    }
+
+    @Override
+    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
+        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

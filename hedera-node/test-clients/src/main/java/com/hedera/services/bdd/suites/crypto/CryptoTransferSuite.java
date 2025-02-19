@@ -1574,7 +1574,7 @@ public class CryptoTransferSuite {
     final Stream<DynamicTest> transferWithMissingAccountGetsInvalidAccountId() {
         return hapiTest(
                 cryptoCreate(PAYEE_SIG_REQ).receiverSigRequired(true),
-                cryptoTransfer(tinyBarsFromTo("1.2.3", PAYEE_SIG_REQ, 1_000L))
+                cryptoTransfer(tinyBarsFromTo("5.5.3", PAYEE_SIG_REQ, 1_000L))
                         .signedBy(DEFAULT_PAYER, PAYEE_SIG_REQ)
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
     }

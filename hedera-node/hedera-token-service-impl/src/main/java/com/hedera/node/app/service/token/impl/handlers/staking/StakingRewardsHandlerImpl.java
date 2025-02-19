@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -87,7 +88,9 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         final var stakingRewardsStore = context.writableStore(WritableNetworkStakingRewardsStore.class);
         final var stakingInfoStore = context.writableStore(WritableStakingInfoStore.class);
         final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
-        final var stakingRewardAccountId = asAccount(accountsConfig.stakingRewardAccount());
+        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
+        final var stakingRewardAccountId =
+                asAccount(hederaConfig.shard(), hederaConfig.realm(), accountsConfig.stakingRewardAccount());
         final var consensusNow = context.consensusTime();
         // When an account StakedIdType is FROM_ACCOUNT or TO_ACCOUNT, we need to assess if the staked accountId
         // could be in a reward situation. So add those staked accountIds to the list of possible reward receivers

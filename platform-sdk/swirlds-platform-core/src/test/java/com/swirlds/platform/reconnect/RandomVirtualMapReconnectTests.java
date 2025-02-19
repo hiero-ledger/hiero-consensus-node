@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,20 +22,33 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleInternal;
+import com.swirlds.common.metrics.config.MetricsConfig;
+import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
+import com.swirlds.common.metrics.platform.MetricKeyRegistry;
+import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.common.test.fixtures.set.RandomAccessSet;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.metrics.api.Metric;
+import com.swirlds.metrics.api.Metric.ValueType;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -45,6 +58,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -299,6 +313,57 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
 
         afterSyncLearnerTree.release();
         copy.release();
+        afterCopy.release();
+        teacherTree.release();
+        learnerTree.release();
+    }
+
+    @Test
+    void metricsAfterReconnect() throws Exception {
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
+        when(registry.register(any(), any(), any())).thenReturn(true);
+        final Metrics metrics = new DefaultPlatformMetrics(
+                null,
+                registry,
+                mock(ScheduledExecutorService.class),
+                new PlatformMetricsFactoryImpl(metricsConfig),
+                metricsConfig);
+        learnerMap.registerMetrics(metrics);
+
+        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_Learner");
+        assertNotNull(sizeMetric);
+        assertEquals(0L, sizeMetric.get(ValueType.VALUE));
+
+        final TestKey zeroKey = new TestKey(0);
+        teacherMap.put(zeroKey, new TestValue("value0"));
+        learnerMap.put(zeroKey, new TestValue("value0"));
+        assertEquals(1L, sizeMetric.get(ValueType.VALUE));
+
+        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
+        final TestKey key = new TestKey(123);
+        teacherMap.put(key, new TestValue("value123"));
+
+        final VirtualMap<TestKey, TestValue> teacherCopy = teacherMap.copy();
+        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+
+        final DummyMerkleInternal afterSyncLearnerTree =
+                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+
+        final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
+        final VirtualMap<TestKey, TestValue> afterLearnerMap = node.getChild(3);
+        final VirtualMap<TestKey, TestValue> afterCopy = afterLearnerMap.copy();
+
+        assertTrue(afterCopy.containsKey(key));
+        assertEquals("value123", afterCopy.get(key).getValue());
+        assertEquals(2L, sizeMetric.get(ValueType.VALUE));
+
+        final TestKey key2 = new TestKey(456);
+        afterCopy.put(key2, new TestValue("value456"));
+        assertEquals(3L, sizeMetric.get(ValueType.VALUE));
+
+        teacherCopy.release();
         afterCopy.release();
         teacherTree.release();
         learnerTree.release();

@@ -29,6 +29,7 @@ import com.hedera.node.app.blocks.impl.KVStateChangeListener;
 import com.hedera.node.app.components.IngestInjectionComponent;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.grpc.GrpcInjectionModule;
@@ -47,6 +48,7 @@ import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.services.ServicesRegistry;
+import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
@@ -66,6 +68,7 @@ import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
@@ -119,6 +122,8 @@ public interface HederaInjectionComponent {
     Supplier<Charset> nativeCharset();
 
     NetworkInfo networkInfo();
+
+    AppFeeCharging appFeeCharging();
 
     PreHandleWorkflow preHandleWorkflow();
 
@@ -226,6 +231,12 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder startupNetworks(StartupNetworks startupNetworks);
+
+        @BindsInstance
+        Builder platformStateFacade(PlatformStateFacade platformStateFacade);
+
+        @BindsInstance
+        Builder appContext(AppContext appContext);
 
         HederaInjectionComponent build();
     }

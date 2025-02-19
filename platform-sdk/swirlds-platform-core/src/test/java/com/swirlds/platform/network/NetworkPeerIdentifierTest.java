@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,22 +74,29 @@ class NetworkPeerIdentifierTest {
                 names.add(s.split("-")[1]);
             }
         });
-        publicStores = PublicStores.fromAllPublic(publicKeys, names.stream().toList());
+
+        final var ids = names.stream()
+                .map(name -> {
+                    final Matcher nameMatcher = NODE_NAME_PATTERN.matcher(name);
+                    if (!nameMatcher.matches()) {
+                        throw new RuntimeException("Invalid node name " + name);
+                    }
+                    final int id = Integer.parseInt(nameMatcher.group(1)) - 1;
+                    return NodeId.of(id);
+                })
+                .toList();
+
+        publicStores = PublicStores.fromAllPublic(publicKeys, ids);
 
         peerInfoList = new ArrayList<>();
-        names.forEach(name -> {
-            final Matcher nameMatcher = NODE_NAME_PATTERN.matcher(name);
-            if (!nameMatcher.matches()) {
-                throw new RuntimeException("Invalid node name " + name);
-            }
-            final int id = Integer.parseInt(nameMatcher.group(1)) - 1;
-            final NodeId node = NodeId.of(id);
+        ids.forEach(id -> {
             final PeerInfo peer;
             try {
                 peer = new PeerInfo(
-                        node,
+                        id,
                         "127.0.0.1",
-                        Objects.requireNonNull(publicStores.getCertificate(KeyCertPurpose.SIGNING, name)));
+                        12345,
+                        Objects.requireNonNull(publicStores.getCertificate(KeyCertPurpose.SIGNING, id)));
             } catch (final KeyLoadingException e) {
                 throw new RuntimeException(e);
             }

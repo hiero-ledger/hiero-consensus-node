@@ -98,6 +98,7 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.math.BigInteger;
@@ -268,8 +269,9 @@ public class CryptoTransferHTSSuite {
                                                 .forFunction(FunctionType.HAPI_TRANSFER_FROM)
                                                 .withStatus(SUCCESS)))),
                 withOpContext((spec, log) -> {
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = toTokenIdString(spec.registry().getTokenID(FUNGIBLE_TOKEN));
+                    final var sender = spec.registry().getAccountID(OWNER);
+                    final var receiver = spec.registry().getAccountID(RECEIVER);
                     final var txnRecord = getTxnRecord(successfulTransferFromTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -278,13 +280,13 @@ public class CryptoTransferHTSSuite {
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(OWNER)
-                                                                            .getAccountNum()),
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getAccountNum()),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(RECEIVER)
-                                                                            .getAccountNum())))
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .longValue(allowance / 2)))))
                             .andAllChildRecords();
                     allRunFor(spec, txnRecord);
@@ -299,8 +301,9 @@ public class CryptoTransferHTSSuite {
                                                 .forFunction(FunctionType.HAPI_TRANSFER_FROM)
                                                 .withStatus(SUCCESS)))),
                 withOpContext((spec, log) -> {
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = toTokenIdString(spec.registry().getTokenID(FUNGIBLE_TOKEN));
+                    final var sender = spec.registry().getAccountID(OWNER);
+                    final var receiver = spec.registry().getAccountID(RECEIVER);
                     final var txnRecord = getTxnRecord(successfulTransferFromTxn2)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -309,13 +312,13 @@ public class CryptoTransferHTSSuite {
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(OWNER)
-                                                                            .getAccountNum()),
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getAccountNum()),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(RECEIVER)
-                                                                            .getAccountNum())))
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .longValue(allowance / 2)))))
                             .andAllChildRecords()
                             .logged();
@@ -787,8 +790,9 @@ public class CryptoTransferHTSSuite {
                                                 .forFunction(FunctionType.HAPI_TRANSFER_FROM_NFT)
                                                 .withStatus(SUCCESS)))),
                 withOpContext((spec, log) -> {
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(NFT_TOKEN).getTokenNum());
+                    final var idOfToken = toTokenIdString(spec.registry().getTokenID(NFT_TOKEN));
+                    final var sender = spec.registry().getAccountID(OWNER);
+                    final var receiver = spec.registry().getAccountID(RECEIVER);
                     final var txnRecord = getTxnRecord(successfulTransferFromTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -797,14 +801,17 @@ public class CryptoTransferHTSSuite {
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(OWNER)
-                                                                            .getAccountNum()),
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getAccountNum()),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(RECEIVER)
-                                                                            .getAccountNum()),
-                                                            parsedToByteString(2L)))))))
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum()),
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    2L)))))))
                             .andAllChildRecords()
                             .logged();
                     allRunFor(spec, txnRecord);
@@ -1771,5 +1778,9 @@ public class CryptoTransferHTSSuite {
                 tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
                 cryptoTransfer(moving(200L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
                 opsArray));
+    }
+
+    private String toTokenIdString(TokenID tokenId) {
+        return String.format("%d.%d.%d", tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum());
     }
 }

@@ -89,6 +89,12 @@ public interface MigrationContext {
     StartupNetworks startupNetworks();
 
     /**
+     * Returns the startup networks in use.
+     */
+    @NonNull
+    EntityIdFactory entityIdFactory();
+
+    /**
      * Consumes and returns the next entity number. For use by migrations that need to create entities.
      * @return the next entity number
      */
@@ -122,7 +128,7 @@ public interface MigrationContext {
      * Returns whether this is a genesis migration.
      */
     default boolean isGenesis() {
-        return previousVersion() == null;
+        return previousVersion() == null || previousVersion() == SemanticVersion.DEFAULT;
     }
 
     /**

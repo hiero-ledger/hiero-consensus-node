@@ -135,7 +135,7 @@ class TokenRevokeKycFromAccountHandlerTest {
         @Mock(strictness = LENIENT)
         private StoreFactory storeFactory;
 
-        private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(9876);
+        private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(0L, 0L, 9876);
 
         private static final Token newToken10 = Token.newBuilder()
                 .tokenId(TOKEN_10)
@@ -171,8 +171,8 @@ class TokenRevokeKycFromAccountHandlerTest {
         }
 
         @Test
-        @DisplayName("When getForModify returns empty, should not put or commit")
-        void emptyGetForModifyShouldNotPersist() {
+        @DisplayName("When get returns empty, should not put or commit")
+        void emptyGetShouldNotPersist() {
             given(readableAccountStore.getAccountById(ACCOUNT_100))
                     .willReturn(Account.newBuilder().accountId(ACCOUNT_100).build());
             given(readableTokenStore.get(TOKEN_10)).willReturn(newToken10);

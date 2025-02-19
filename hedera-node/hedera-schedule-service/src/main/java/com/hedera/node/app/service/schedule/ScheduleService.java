@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.node.app.service.schedule;
 
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.RpcServiceFactory;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,4 +76,10 @@ public interface ScheduleService extends RpcService {
      */
     ExecutableTxnIterator executableTxns(
             @NonNull Instant start, @NonNull Instant end, @NonNull StoreFactory storeFactory);
+
+    /**
+     * Returns the base fee charging implementation for the service.
+     * @return the base fee charging implementation
+     */
+    FeeCharging baseFeeCharging();
 }

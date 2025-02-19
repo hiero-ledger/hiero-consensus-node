@@ -18,7 +18,7 @@ package com.hedera.node.app.service.contract.impl.exec.processors;
 
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.address_0x16c.balanceof.BalanceOfTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.address_0x16c.TokenTypeTranslator;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.IntoSet;
@@ -36,7 +36,7 @@ public interface Hts0x16cTranslatorsModule {
     @Singleton
     @IntoSet
     @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideBalanceOfTranslator(@NonNull final BalanceOfTranslator translator) {
+    static CallTranslator<HtsCallAttempt> provideTokenTypeTranslator(@NonNull final TokenTypeTranslator translator) {
         return translator;
     }
 }

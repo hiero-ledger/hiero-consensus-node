@@ -83,15 +83,14 @@ class SequentialTask extends AbstractTask {
     }
 
     /**
-     * Execute this task.
+     * {@inheritDoc}
      */
     @Override
-    public boolean exec() {
+    public boolean onExecute() {
         busyTimer.activate();
         try {
             handler.accept(data);
-        } catch (final Throwable t) {
-            uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), t);
+            return true;
         } finally {
             offRamp.offRamp();
             busyTimer.deactivate();
@@ -100,6 +99,13 @@ class SequentialTask extends AbstractTask {
             // method will cause the next task to be immediately eligible for execution.
             nextTask.send();
         }
-        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onException(final Throwable t) {
+        uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), t);
     }
 }

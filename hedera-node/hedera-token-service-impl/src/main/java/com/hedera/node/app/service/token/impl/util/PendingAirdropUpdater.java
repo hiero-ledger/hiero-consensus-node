@@ -69,14 +69,14 @@ public class PendingAirdropUpdater {
             @NonNull final PendingAirdropId airdropId,
             @NonNull final WritableAirdropStore pendingAirdropStore,
             @NonNull final WritableAccountStore accountStore) {
-        final var airdrop = pendingAirdropStore.getForModify(airdropId);
+        final var airdrop = pendingAirdropStore.get(airdropId);
         validateTrue(airdrop != null, INVALID_PENDING_AIRDROP_ID);
 
         // update pending airdrops links
         final var prevAirdropId = airdrop.previousAirdrop();
         final var nextAirdropId = airdrop.nextAirdrop();
         if (prevAirdropId != null) {
-            final var prevAirdrop = pendingAirdropStore.getForModify(prevAirdropId);
+            final var prevAirdrop = pendingAirdropStore.get(prevAirdropId);
             if (prevAirdrop == null) {
                 log.error("Failed to find pending airdrop with id {}", prevAirdropId);
             } else {
@@ -86,7 +86,7 @@ public class PendingAirdropUpdater {
             }
         }
         if (nextAirdropId != null) {
-            final var nextAirdrop = pendingAirdropStore.getForModify(nextAirdropId);
+            final var nextAirdrop = pendingAirdropStore.get(nextAirdropId);
             if (nextAirdrop == null) {
                 log.error("Failed to find pending airdrop with id {}", nextAirdropId);
             } else {

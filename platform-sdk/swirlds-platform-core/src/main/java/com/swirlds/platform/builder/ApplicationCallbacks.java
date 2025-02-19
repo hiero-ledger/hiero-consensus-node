@@ -20,6 +20,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -36,4 +37,4 @@ public record ApplicationCallbacks(
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @Nullable Consumer<PlatformEvent> staleEventConsumer,
-        @Nullable Function<StateSignatureTransaction, Bytes> systemTransactionEncoder) {}
+        @NonNull Function<StateSignatureTransaction, Bytes> systemTransactionEncoder) {}

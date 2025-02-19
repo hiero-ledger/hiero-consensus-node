@@ -22,7 +22,6 @@ module com.hedera.node.app.service.addressbook.impl {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.state.api;
     requires transitive dagger;
     requires transitive javax.inject;
@@ -30,6 +29,7 @@ module com.hedera.node.app.service.addressbook.impl {
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.token;
     requires com.swirlds.common;
+    requires com.swirlds.config.api;
     requires com.swirlds.platform.core;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
@@ -44,5 +44,4 @@ module com.hedera.node.app.service.addressbook.impl {
     exports com.hedera.node.app.service.addressbook.impl.records;
     exports com.hedera.node.app.service.addressbook.impl.validators;
     exports com.hedera.node.app.service.addressbook.impl.schemas;
-    exports com.hedera.node.app.service.addressbook.impl.helpers;
 }

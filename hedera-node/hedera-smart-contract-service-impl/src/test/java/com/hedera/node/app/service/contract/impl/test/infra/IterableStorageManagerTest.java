@@ -138,7 +138,7 @@ class IterableStorageManagerTest {
         // Deleting the first slot
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(BYTES_1, Bytes.EMPTY, BYTES_2));
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_2)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2)))
                 .willReturn(new SlotValue(BYTES_2, BYTES_1, BYTES_3));
 
         subject.persistChanges(enhancement, accesses, sizeChanges, store);
@@ -168,7 +168,7 @@ class IterableStorageManagerTest {
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(BYTES_1, Bytes.EMPTY, BYTES_2));
         // The next slot is missing (invariant failure, should be impossible)
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_2))).willReturn(null);
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2))).willReturn(null);
 
         subject.persistChanges(enhancement, accesses, sizeChanges, store);
 
@@ -195,9 +195,9 @@ class IterableStorageManagerTest {
         // Deleting the second slot
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2)))
                 .willReturn(new SlotValue(BYTES_2, BYTES_1, BYTES_3));
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_1)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(BYTES_1, Bytes.EMPTY, BYTES_2));
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_3)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_3)))
                 .willReturn(new SlotValue(BYTES_3, BYTES_2, BYTES_3));
 
         subject.persistChanges(enhancement, accesses, sizeChanges, store);
@@ -294,9 +294,9 @@ class IterableStorageManagerTest {
         given(hederaNativeOperations.getAccount(CONTRACT_1)).willReturn(account);
         given(account.firstContractStorageKey()).willReturn(BYTES_1);
         given(enhancement.operations()).willReturn(hederaOperations);
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_1)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(tuweniToPbjBytes(UInt256.ONE), Bytes.EMPTY, Bytes.EMPTY));
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_2)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2)))
                 .willReturn(new SlotValue(tuweniToPbjBytes(UInt256.ONE), Bytes.EMPTY, BYTES_1));
 
         // Should insert into the head of the existing storage list
@@ -339,7 +339,7 @@ class IterableStorageManagerTest {
         given(hederaNativeOperations.getAccount(CONTRACT_1)).willReturn(account);
         given(account.firstContractStorageKey()).willReturn(BYTES_1);
         given(enhancement.operations()).willReturn(hederaOperations);
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_1)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(tuweniToPbjBytes(UInt256.ONE), Bytes.EMPTY, Bytes.EMPTY));
 
         // Should insert into the head of the existing storage list
@@ -373,7 +373,7 @@ class IterableStorageManagerTest {
         given(account.firstContractStorageKey()).willReturn(BYTES_1);
         given(enhancement.operations()).willReturn(hederaOperations);
         // The next slot is missing (invariant failure, should be impossible)
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_1))).willReturn(null);
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1))).willReturn(null);
 
         // Insert into the second slot
         subject.persistChanges(enhancement, accesses, sizeChanges, store);

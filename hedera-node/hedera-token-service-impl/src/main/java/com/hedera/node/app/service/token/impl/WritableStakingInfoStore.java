@@ -56,18 +56,6 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
     }
 
     /**
-     * Returns the {@link StakingNodeInfo} for the given node's numeric ID (NOT the account ID).
-     *
-     * @param nodeId - the node ID of the node to retrieve the staking info for
-     * @return the staking info for the given node ID, or null if no such node exists
-     */
-    @Nullable
-    public StakingNodeInfo getForModify(final long nodeId) {
-        return stakingInfoState.getForModify(
-                EntityNumber.newBuilder().number(nodeId).build());
-    }
-
-    /**
      * Persists an updated {@link StakingNodeInfo} into state.
      *
      * @param nodeId the node's ID

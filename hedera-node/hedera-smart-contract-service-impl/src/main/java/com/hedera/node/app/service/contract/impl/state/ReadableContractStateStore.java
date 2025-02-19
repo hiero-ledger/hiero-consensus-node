@@ -119,14 +119,6 @@ public class ReadableContractStateStore implements ContractStateStore {
      * {@inheritDoc}
      */
     @Override
-    public SlotValue getSlotValueForModify(@NonNull SlotKey key) {
-        throw new UnsupportedOperationException("Cannot get for modify in a read-only store");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public @Nullable SlotValue getOriginalSlotValue(@NonNull SlotKey key) {
         return storage.get(key);
     }

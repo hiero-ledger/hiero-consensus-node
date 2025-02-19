@@ -75,7 +75,7 @@ message CreateAccountOutput {
      * This value SHALL be set for every account creation.
      * This value SHALL NOT be set if no account is created.
      */
-    proto.AccountID created_account = 1;
+    proto.AccountID created_account_id = 1;
 }
 
 /**

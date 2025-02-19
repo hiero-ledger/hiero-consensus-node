@@ -168,7 +168,7 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                         newTreasuryAccount.accountIdOrThrow(), token, accountStore, tokenRelStore, config);
                 recordBuilder.addAutomaticTokenAssociation(
                         asTokenAssociation(newRelation.tokenId(), newRelation.accountId()));
-                newTreasuryAccount = requireNonNull(accountStore.getForModify(newTreasury));
+                newTreasuryAccount = requireNonNull(accountStore.get(newTreasury));
             }
             // Treasury can be modified when it owns NFTs when the property "tokens.nfts.useTreasuryWildcards"
             // is enabled.

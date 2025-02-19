@@ -39,7 +39,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -108,14 +107,7 @@ public class StakePeriodChanges {
                 logger.error("CATASTROPHIC failure updating midnight rates", e);
                 stack.rollbackFullStack();
             }
-            final var config = tokenContext.configuration();
             try {
-                final var nodeStore = newWritableNodeStore(stack, config);
-                final BiConsumer<Long, Integer> weightUpdates = (nodeId, weight) -> nodeStore.put(nodeStore
-                        .getForModify(nodeId)
-                        .copyBuilder()
-                        .weight(weight)
-                        .build());
                 final var streamBuilder =
                         endOfStakingPeriodUpdater.updateNodes(tokenContext, exchangeRateManager.exchangeRates());
                 if (streamBuilder != null) {

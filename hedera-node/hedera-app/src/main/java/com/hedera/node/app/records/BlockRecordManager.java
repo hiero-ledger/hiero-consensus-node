@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,6 +72,14 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * @return true if a new block was created, false otherwise
      */
     boolean startUserTransaction(@NonNull Instant consensusTime, @NonNull State state);
+
+    /**
+     * Check if a user transaction will start a new block, without any side effects.
+     * @param consensusTime the current consensus time
+     * @param state the state to read BlockInfo from
+     * @return true if a new block will be created, false otherwise
+     */
+    boolean willOpenNewBlock(@NonNull Instant consensusTime, @NonNull State state);
 
     /**
      * "Advances the consensus clock" by updating the latest consensus timestamp that the node has handled. This should

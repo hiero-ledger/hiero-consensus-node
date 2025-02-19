@@ -35,6 +35,7 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
@@ -54,14 +55,12 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin;
     requires com.hedera.node.app.service.util;
-    requires com.swirlds.base;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
     requires com.google.common;
-    requires com.google.protobuf;
     requires io.grpc.netty;
     requires io.grpc;
     requires io.helidon.common.tls;
@@ -122,7 +121,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.workflows.handle.metric;
     exports com.hedera.node.app.roster;
     exports com.hedera.node.app.tss;
-    exports com.hedera.node.app.statedumpers;
     exports com.hedera.node.app.workflows.handle.stack;
     exports com.hedera.node.app.fees.congestion;
     exports com.hedera.node.app.throttle.annotations;

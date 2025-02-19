@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -38,7 +39,6 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -152,6 +152,24 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     // =================================================================================================================
     // BlockRecordManager implementation
 
+    @Override
+    public boolean willOpenNewBlock(@NonNull final Instant consensusTime, @NonNull final State state) {
+        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
+            return true;
+        }
+        final var currentBlockPeriod = getBlockPeriod(lastBlockInfo.firstConsTimeOfCurrentBlock());
+        final var newBlockPeriod = getBlockPeriod(consensusTime);
+        if (newBlockPeriod > currentBlockPeriod) {
+            return true;
+        }
+        final var platformState = state.getReadableStates(PlatformStateService.NAME)
+                .<PlatformState>getSingleton(PLATFORM_STATE_KEY)
+                .get();
+        requireNonNull(platformState);
+        return platformState.freezeTime() != null
+                && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -177,7 +195,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var newBlockPeriod = getBlockPeriod(consensusTime);
 
         final var platformState = state.getReadableStates(PlatformStateService.NAME)
-                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
+                .<PlatformState>getSingleton(PLATFORM_STATE_KEY)
                 .get();
         requireNonNull(platformState);
         // Also check to see if this is the first transaction we're handling after a freeze restart. If so, we also

@@ -53,7 +53,7 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
                 hollowAccountId, Account.newBuilder().accountId(hollowAccountId).build());
         writableAccounts.commit();
 
-        final var finalizedContract = requireNonNull(writableStore.getForModify(hollowAccountId))
+        final var finalizedContract = requireNonNull(writableStore.get(hollowAccountId))
                 .copyBuilder()
                 .ethereumNonce(1)
                 .smartContract(true)
@@ -80,7 +80,7 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
         writableAccounts.put(otherContractIdByNum, contractWith(otherContractIdByNum, unchangedOtherNonce));
         writableAccounts.commit();
 
-        final var newContract = requireNonNull(writableStore.getForModify(contractIdByNum))
+        final var newContract = requireNonNull(writableStore.get(contractIdByNum))
                 .copyBuilder()
                 .ethereumNonce(afterNonce)
                 .build();
@@ -115,18 +115,6 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void getForModifyReturnsImmutableAccount() {
-        refreshStoresWithCurrentTokenInWritable();
-
-        writableStore.put(account);
-
-        final var readaccount = writableStore.getForModify(id);
-
-        assertThat(readaccount).isNotNull();
-        assertThat(account).isEqualTo(readaccount);
-    }
-
-    @Test
     void canRemoveAlias() {
         writableStore.putAndIncrementCountAlias(alias.aliasOrThrow(), id);
         assertEquals(1, writableStore.sizeOfAliasesState());
@@ -135,13 +123,13 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void getForModifyDoesntLookForAlias() {
+    void getDoesntLookForAlias() {
         assertEquals(0, writableStore.sizeOfAliasesState());
 
         writableStore.putAndIncrementCount(account);
         writableStore.putAndIncrementCountAlias(alias.alias(), id);
 
-        final var readaccount = writableStore.getForModify(alias);
+        final var readaccount = writableStore.get(alias);
 
         assertThat(readaccount).isNull();
         assertEquals(1, writableStore.sizeOfAliasesState());
@@ -164,10 +152,10 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void getForModifyReturnEmptyIfAliasNotPresent() {
+    void getReturnEmptyIfAliasNotPresent() {
         writableStore.put(account);
 
-        final var readaccount = writableStore.getForModify(alias);
+        final var readaccount = writableStore.get(alias);
 
         assertThat(readaccount).isNull();
         assertThat(writableStore.sizeOfAliasesState()).isZero();

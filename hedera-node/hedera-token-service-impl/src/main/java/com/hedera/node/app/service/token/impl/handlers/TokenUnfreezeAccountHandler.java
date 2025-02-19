@@ -144,7 +144,7 @@ public class TokenUnfreezeAccountHandler implements TransactionHandler {
         TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
 
         // Check that the token is associated to the account
-        final var tokenRel = tokenRelStore.getForModify(accountId, tokenId);
+        final var tokenRel = tokenRelStore.get(accountId, tokenId);
         validateTrue(tokenRel != null, TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
 
         // Return the token relation

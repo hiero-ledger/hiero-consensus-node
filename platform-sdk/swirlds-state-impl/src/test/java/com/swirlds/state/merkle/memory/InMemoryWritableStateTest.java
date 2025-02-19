@@ -214,8 +214,7 @@ class InMemoryWritableStateTest extends MerkleTestBase {
             // This needs to be done so fast-copy on merkle map will work
             setupConstructableRegistry();
 
-            // Let's read with get and getForModify, remove something, put a modification, and
-            // put something new.
+            // Let's read with get, remove something, put a modification, and put something new
             assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             assertThat(state.get(B_KEY)).isEqualTo(BANANA);
             state.put(C_KEY, CHERRY);
@@ -235,7 +234,7 @@ class InMemoryWritableStateTest extends MerkleTestBase {
             // sure the merkle map hasn't changed.
             fruitMerkleMap = fruitMerkleMap.copy();
             state = createState();
-            assertThat(state.getForModify(A_KEY)).isEqualTo(APPLE);
+            assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             state.remove(B_KEY);
             assertThat(state.get(C_KEY)).isEqualTo(CHERRY);
             state.put(D_KEY, DATE);

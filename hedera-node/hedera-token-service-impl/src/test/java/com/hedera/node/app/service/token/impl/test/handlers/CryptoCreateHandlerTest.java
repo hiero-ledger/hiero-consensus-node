@@ -232,6 +232,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         final long realm = 10;
         txn = new CryptoCreateBuilder().withStakedAccountId(3).build();
         given(handleContext.body()).willReturn(txn);
+        given(pureChecksContext.body()).willReturn(txn);
 
         given(handleContext.consensusNow()).willReturn(consensusInstant);
         given(entityNumGenerator.newEntityNum()).willReturn(1000L);
@@ -245,11 +246,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
                 .withValue("hedera.realm", realm)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
+        given(pureChecksContext.body()).willReturn(txn);
         setupExpiryValidator();
 
         // newly created account is not modified.
         assertFalse(writableStore.modifiedAccountsInState().contains(accountIDWithShardAndRealm(1000L, shard, realm)));
-        given(pureChecksContext.body()).willReturn(txn);
         assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
         subject.handle(handleContext);
 
@@ -764,7 +765,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         setupConfig();
         setupExpiryValidator();
         final var writableAliases = emptyWritableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(0L, 0L, accountNum))
                 .build();
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
         writableStore = new WritableAccountStore(writableStates, entityCounters);

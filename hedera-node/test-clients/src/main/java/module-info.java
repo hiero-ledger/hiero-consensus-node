@@ -104,7 +104,6 @@ module com.hedera.node.test.clients {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
-    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;

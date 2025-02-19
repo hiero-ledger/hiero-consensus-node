@@ -163,7 +163,7 @@ public class IterableStorageManager {
         requireNonNull(key);
         final var slotKey = new SlotKey(contractID, key);
         try {
-            final var slotValue = slotValueFor(store, false, slotKey, "Missing key ");
+            final var slotValue = slotValueFor(store, slotKey, "Missing key ");
             final var nextKey = slotValue.nextKey();
             final var prevKey = slotValue.previousKey();
             if (!Bytes.EMPTY.equals(nextKey)) {
@@ -223,24 +223,19 @@ public class IterableStorageManager {
 
     private void updatePrevFor(
             @NonNull final SlotKey key, @NonNull final Bytes newPrevKey, @NonNull final ContractStateStore store) {
-        final var value = slotValueFor(store, true, key, "Missing next key ");
+        final var value = slotValueFor(store, key, "Missing next key ");
         store.putSlot(key, value.copyBuilder().previousKey(newPrevKey).build());
     }
 
     private void updateNextFor(
             @NonNull final SlotKey key, @NonNull final Bytes newNextKey, @NonNull final ContractStateStore store) {
-        final var value = slotValueFor(store, true, key, "Missing prev key ");
+        final var value = slotValueFor(store, key, "Missing prev key ");
         store.putSlot(key, value.copyBuilder().nextKey(newNextKey).build());
     }
 
     @NonNull
     private SlotValue slotValueFor(
-            @NonNull final ContractStateStore store,
-            final boolean forModify,
-            @NonNull final SlotKey slotKey,
-            @NonNull final String msgOnError) {
-        return forModify
-                ? requireNonNull(store.getSlotValueForModify(slotKey), () -> msgOnError + slotKey.key())
-                : requireNonNull(store.getSlotValue(slotKey), () -> msgOnError + slotKey.key());
+            @NonNull final ContractStateStore store, @NonNull final SlotKey slotKey, @NonNull final String msgOnError) {
+        return requireNonNull(store.getSlotValue(slotKey), () -> msgOnError + slotKey.key());
     }
 }

@@ -60,7 +60,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -82,7 +81,7 @@ class StressTestingToolStateTest {
 
     @BeforeEach
     void setUp() throws NoSuchAlgorithmException, KeyStoreException, KeyGeneratingException, NoSuchProviderException {
-        state = new StressTestingToolState(mock(Function.class));
+        state = new StressTestingToolState();
         stateLifecycles = new StressTestingToolStateLifecycles();
         main = new StressTestingToolMain();
         platformStateModifier = mock(PlatformStateModifier.class);
@@ -98,7 +97,7 @@ class StressTestingToolStateTest {
         final Randotron randotron = Randotron.create();
 
         final var keysAndCerts =
-                KeysAndCerts.generate("a-name", EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+                KeysAndCerts.generate(NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
 
         final var signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();

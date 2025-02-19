@@ -1437,7 +1437,10 @@ public class UtilVerbs {
             long tinyBarMaxNetworkFee,
             long tinyBarMaxServiceFee) {
         return withOpContext((spec, opLog) -> {
-            if (!spec.setup().defaultNode().equals(asAccount("0.0.3"))) {
+            var shard = spec.startupProperties().getLong("hedera.shard");
+            var realm = spec.startupProperties().getLong("hedera.realm");
+
+            if (!spec.setup().defaultNode().equals(asAccount(String.format("%d.%d.3", shard, realm)))) {
                 opLog.info("Sleeping to wait for fee reduction...");
                 Thread.sleep(20000);
                 return;
@@ -1604,8 +1607,8 @@ public class UtilVerbs {
                 final var updateSubOp = fileUpdate(fileName)
                         .fee(ONE_HUNDRED_HBARS)
                         .contents(contents.substring(0, position))
-                        .alertingPre(fid -> System.out.println(
-                                ".i. Submitting initial update for file" + " 0.0." + fid.getFileNum()))
+                        .alertingPre(fid -> System.out.println(".i. Submitting initial update for file"
+                                + String.format(" %s.%s.%s, ", fid.getShardNum(), fid.getRealmNum(), fid.getFileNum())))
                         .alertingPost(code -> System.out.println(".i. Finished initial update with " + code))
                         .noLogging()
                         .payingWith(payer)
@@ -2012,9 +2015,20 @@ public class UtilVerbs {
                         .toArray(n -> new SpecOperation[n]));
     }
 
-    public static HapiSpecOperation validateRecordTransactionFees(String txn) {
+    public static HapiSpecOperation validateRecordTransactionFees(HapiSpec spec, String txn) {
+        var shard = spec.startupProperties().getLong("hedera.shard");
+        var realm = spec.startupProperties().getLong("hedera.realm");
+        var fundingAccount = spec.startupProperties().getLong("ledger.fundingAccount");
+        var stakingRewardAccount = spec.startupProperties().getLong("accounts.stakingRewardAccount");
+        var nodeRewardAccount = spec.startupProperties().getLong("accounts.nodeRewardAccount");
+
         return validateRecordTransactionFees(
-                txn, Set.of(asAccount("0.0.3"), asAccount("0.0.98"), asAccount("0.0.800"), asAccount("0.0.801")));
+                txn,
+                Set.of(
+                        asAccount(String.format("%s.%s.3", shard, realm)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, fundingAccount)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, stakingRewardAccount)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, nodeRewardAccount))));
     }
 
     /**

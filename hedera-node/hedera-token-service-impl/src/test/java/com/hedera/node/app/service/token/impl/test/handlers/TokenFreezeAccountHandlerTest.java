@@ -305,7 +305,7 @@ class TokenFreezeAccountHandlerTest {
 
         private ReadableTokenStore.TokenMetadata tokenMetaWithFreezeKey(Key freezeKey) {
             return new ReadableTokenStore.TokenMetadata(
-                    null, null, null, freezeKey, null, null, null, null, false, asAccount(25L), 2);
+                    null, null, null, freezeKey, null, null, null, null, false, asAccount(0L, 0L, 25L), 2);
         }
 
         private TransactionBody newFreezeTxn(TokenID token) {

@@ -41,6 +41,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import org.apache.tuweni.bytes.Bytes;
@@ -50,6 +51,13 @@ import org.hyperledger.besu.evm.precompile.ECRECPrecompiledContract;
 
 /** HIP-632 method: `isAuthorizedRaw` */
 public class IsAuthorizedRawCall extends AbstractCall {
+
+    private static final int EIP_155_V_MIN_LENGTH = 1;
+    private static final int EIP_155_V_MAX_LENGTH = 8; // we limit chainId to fit in a `long`
+    private static final int EC_SIGNATURE_WITHOUT_V_LENGTH = 64;
+    public static final int EC_SIGNATURE_MIN_LENGTH = EC_SIGNATURE_WITHOUT_V_LENGTH + EIP_155_V_MIN_LENGTH;
+    public static final int EC_SIGNATURE_MAX_LENGTH = EC_SIGNATURE_WITHOUT_V_LENGTH + EIP_155_V_MAX_LENGTH;
+    public static final int ED_SIGNATURE_LENGTH = 64;
 
     private final Address address;
     private final byte[] messageHash;
@@ -92,13 +100,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
     public PricedResult execute(@NonNull final MessageFrame frame) {
         requireNonNull(frame, "frame");
 
-        // First things first: What kind of signature are we dealing with, thus what kind of account+key we need
-        final var signatureType =
-                switch (signature.length) {
-                    case 65 -> SignatureType.EC;
-                    case 64 -> SignatureType.ED;
-                    default -> SignatureType.INVALID;
-                };
+        final var signatureType = signatureTypeFromItsLength(signature);
 
         // Now we know how much gas this call will cost
         final long gasRequirement =
@@ -133,7 +135,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         if (!isValidAccount(accountNum, signatureType)) return bail.apply(INVALID_ACCOUNT_ID);
         final var account = requireNonNull(enhancement.nativeOperations().getAccount(accountNum));
 
-        // If ED then require a key on the account
+        // If ED, then require a key on the account
         final Optional<Key> key;
         if (signatureType == SignatureType.ED) {
             key = Optional.ofNullable(account.key());
@@ -220,7 +222,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // Signature:
         //   [ 0;  31]  r
         //   [32;  63]  s
-        //   [64;  64]  v (but possibly 0..1 instead of 27..28)
+        //   [64;  64+]  v (but possibly 0..1 instead of 27..28)
 
         // From evm.codes, input to ECRECOVER:
         //   [ 0;  31]  hash
@@ -228,8 +230,8 @@ public class IsAuthorizedRawCall extends AbstractCall {
         //   [64;  95]  r == x-value ∈ (0, secp256k1n);
         //   [96; 127]  s ∈ (0; sep256k1n ÷ 2 + 1)
 
-        if (messageHash.length != 32 || signature.length != 65) return Optional.empty();
-        final var ov = reverseV(signature[64]);
+        if (messageHash.length != 32 || signature.length <= 64) return Optional.empty();
+        final var ov = reverseV(signature);
         if (ov.isEmpty()) return Optional.empty();
 
         final byte[] result = new byte[128];
@@ -241,24 +243,32 @@ public class IsAuthorizedRawCall extends AbstractCall {
         return Optional.of(result);
     }
 
+    private static final Map<BigInteger, Byte> knownVs = Map.of(
+            BigInteger.ZERO,
+            (byte) 27,
+            BigInteger.ONE,
+            (byte) 28,
+            BigInteger.valueOf(27),
+            (byte) 27,
+            BigInteger.valueOf(28),
+            (byte) 28);
+
+    private static final BigInteger BIG_35 = BigInteger.valueOf(35);
+
     /** Make sure v ∈ {27, 28} - but after EIP-155 it might come in with a chain id ... */
     @NonNull
-    public Optional<Byte> reverseV(final byte v) {
+    public Optional<Byte> reverseV(final byte[] signature) {
+        requireNonNull(signature);
+        if (signature.length <= 64) throw new IllegalArgumentException("Signature is too short");
 
-        // We're getting the recovery value from a signature where it is only given a byte.  So
-        // this isn't the EIP-155 recovery value where the chain id is encoded in it (it's too
-        // small for most chain ids).  But I'm not 100% sure of that ... so ...
+        final var v = new BigInteger(1, signature, 64, signature.length - 64);
 
-        // FUTURE: Determine if in fact input `v` _ever_ has a EIP-155 encoded chain id ...
+        if (knownVs.containsKey(v)) return Optional.of(knownVs.get(v));
+        if (BIG_35.compareTo(v) > 0) return Optional.empty(); // invalid
 
-        if (v == 0 || v == 1) return Optional.of((byte) (v + 27));
-        if (v == 27 || v == 28) return Optional.of(v);
-        if (v >= 35) {
-            // EIP-155 case (35 is magic number for encoding chain id)
-            final var parity = (v - 35) % 2;
-            return Optional.of((byte) (parity + 27));
-        }
-        return Optional.empty();
+        // v = {0,1} + (chainid * 2) + 35 thus parity is the opposite of the low order bit
+        var parity = !v.testBit(0);
+        return Optional.of((byte) (parity ? 28 : 27));
     }
 
     public boolean isValidAccount(final long accountNum, @NonNull final SignatureType signatureType) {
@@ -276,5 +286,15 @@ public class IsAuthorizedRawCall extends AbstractCall {
         }
 
         return true;
+    }
+
+    @NonNull
+    private SignatureType signatureTypeFromItsLength(@NonNull final byte[] signature) {
+        final var len = signature.length;
+
+        if (EC_SIGNATURE_MIN_LENGTH <= len && len <= EC_SIGNATURE_MAX_LENGTH) return SignatureType.EC;
+        else if (ED_SIGNATURE_LENGTH == len) return SignatureType.ED;
+
+        return SignatureType.INVALID;
     }
 }

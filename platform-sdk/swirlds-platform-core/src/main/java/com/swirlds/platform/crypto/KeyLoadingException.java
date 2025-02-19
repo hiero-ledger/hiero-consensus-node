@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package com.swirlds.platform.crypto;
 
+import com.swirlds.common.platform.NodeId;
+
 /**
  * Thrown when an issue occurs while loading keys from pfx files
  */
@@ -24,8 +26,8 @@ public class KeyLoadingException extends Exception {
         super(message);
     }
 
-    public KeyLoadingException(final String message, final KeyCertPurpose type, final String name) {
-        super(message + " Missing:" + type.storeName(name));
+    public KeyLoadingException(final String message, final KeyCertPurpose type, final NodeId id) {
+        super(message + " Missing:" + type.storeName(id));
     }
 
     public KeyLoadingException(final String message, final Throwable cause) {

@@ -24,11 +24,13 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -214,4 +216,16 @@ public interface AppContext {
      * @return the throttle factory
      */
     Throttle.Factory throttleFactory();
+
+    /**
+     * Supplier of the application's strategy for charging fees.
+     * @return the fee charging strategy
+     */
+    Supplier<FeeCharging> feeChargingSupplier();
+
+    /**
+     * The application's strategy for creating entity ids.
+     * @return the entity id factory
+     */
+    EntityIdFactory idFactory();
 }

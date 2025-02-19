@@ -454,7 +454,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             if (senderAccount.hasHeadPendingAirdropId()) {
                 // Get the previous head pending airdrop and update the previous airdrop ID
                 final var currentHeadAirdropId = senderAccount.headPendingAirdropIdOrThrow();
-                final var currentHeadAirdrop = pendingStore.getForModify(currentHeadAirdropId);
+                final var currentHeadAirdrop = pendingStore.get(currentHeadAirdropId);
                 if (currentHeadAirdrop == null) {
                     log.error(
                             "Head pending airdrop {} not found for account {}",
@@ -593,7 +593,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         requireNonNull(airdropState);
 
         if (airdropId.hasFungibleTokenType()) {
-            final var existingAirdrop = requireNonNull(airdropState.getForModify(airdropId));
+            final var existingAirdrop = requireNonNull(airdropState.get(airdropId));
             final var existingValue = existingAirdrop.pendingAirdropValue();
             long newValue;
             try {

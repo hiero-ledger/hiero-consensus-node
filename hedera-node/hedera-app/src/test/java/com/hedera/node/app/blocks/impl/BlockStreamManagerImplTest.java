@@ -28,6 +28,7 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -71,6 +72,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.Round;
+import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -140,6 +142,9 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private CompletableFuture<Bytes> mockSigningFuture;
+
+    @Mock
+    private ConsensusEvent consensusEvent;
 
     private WritableStates writableStates;
 
@@ -218,7 +223,8 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,
-                SemanticVersion.DEFAULT);
+                SemanticVersion.DEFAULT,
+                TEST_PLATFORM_STATE_FACADE);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -238,7 +244,8 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,
-                SemanticVersion.DEFAULT);
+                SemanticVersion.DEFAULT,
+                TEST_PLATFORM_STATE_FACADE);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -612,6 +619,9 @@ class BlockStreamManagerImplTest {
             @NonNull final PlatformState platformState,
             @NonNull final BlockItemWriter... writers) {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.iterator())
+                .willAnswer(invocationOnMock -> List.of(consensusEvent).iterator());
+        given(consensusEvent.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         final AtomicInteger nextWriter = new AtomicInteger(0);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.roundsPerBlock", roundsPerBlock)
@@ -624,7 +634,8 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,
-                SemanticVersion.DEFAULT);
+                SemanticVersion.DEFAULT,
+                TEST_PLATFORM_STATE_FACADE);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
         infoRef.set(blockStreamInfo);

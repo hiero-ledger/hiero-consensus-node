@@ -24,9 +24,12 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.swirlds.common.utility.CommonUtils.unhex;
+import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -469,6 +472,17 @@ public class ConversionUtils {
     }
 
     /**
+     * Converts a number to a long zero address.
+     *
+     * @param accountID the account id to convert
+     * @return the long zero address
+     */
+    public static Address asLongZeroAddress(@NonNull final AccountID accountID) {
+        return Address.wrap(
+                Bytes.wrap(asEvmAddress(accountID.shardNum(), accountID.realmNum(), accountID.accountNumOrThrow())));
+    }
+
+    /**
      * Converts a Tuweni bytes to a PBJ bytes.
      *
      * @param bytes the Tuweni bytes
@@ -634,6 +648,25 @@ public class ConversionUtils {
      */
     public static byte[] asEvmAddress(final long num) {
         return copyToLeftPaddedByteArray(num, new byte[20]);
+    }
+
+    /**
+     * Given a long entity number, returns its 20-byte EVM address.
+     * The shard is downcast to an int so it must not exceed the range of an int.
+     *
+     * @param shard the shard number
+     * @param realm the realm number
+     * @param num the entity number
+     * @return its 20-byte EVM address
+     */
+    public static byte[] asEvmAddress(final long shard, final long realm, final long num) {
+        final byte[] evmAddress = new byte[20];
+
+        arraycopy(Ints.toByteArray((int) shard), 0, evmAddress, 0, 4);
+        arraycopy(Longs.toByteArray(realm), 0, evmAddress, 4, 8);
+        arraycopy(Longs.toByteArray(num), 0, evmAddress, 12, 8);
+
+        return evmAddress;
     }
 
     /**

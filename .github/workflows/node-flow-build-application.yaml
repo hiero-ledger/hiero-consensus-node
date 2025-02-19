@@ -85,7 +85,7 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs: code
     if: ${{ needs.code.result == 'success' }}
     steps:
@@ -98,7 +98,7 @@ jobs:
         uses: step-security/workflow-dispatch@4d1049025980f72b1327cbfdeecb07fe7a20f577 # v1.2.4
         with:
           workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
-          repo: hashgraph/hedera-services # ensure we are executing in the hashgraph org
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{

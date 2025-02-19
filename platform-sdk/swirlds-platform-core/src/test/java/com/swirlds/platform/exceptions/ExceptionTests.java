@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import static com.swirlds.platform.exceptions.ExceptionAssertions.MESSAGE;
 import static com.swirlds.platform.exceptions.ExceptionAssertions.assertExceptionContains;
 import static com.swirlds.platform.exceptions.ExceptionAssertions.assertExceptionSame;
 
+import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.crypto.KeyCertPurpose;
 import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeyLoadingException;
@@ -44,9 +45,10 @@ class ExceptionTests {
         assertExceptionSame(new KeyLoadingException(MESSAGE), MESSAGE, null);
         assertExceptionSame(new KeyLoadingException(MESSAGE, CAUSE), MESSAGE, CAUSE);
         assertExceptionSame(new KeyLoadingException(MESSAGE, CAUSE), MESSAGE, CAUSE);
-        final String name = "a name";
         assertExceptionContains(
-                new KeyLoadingException(MESSAGE, KeyCertPurpose.SIGNING, name), List.of(name, MESSAGE), null);
+                new KeyLoadingException(MESSAGE, KeyCertPurpose.SIGNING, NodeId.FIRST_NODE_ID),
+                List.of((NodeId.FIRST_NODE_ID.id() + 1) + "", MESSAGE),
+                null);
     }
 
     @Test

@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.verify;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
@@ -122,32 +121,6 @@ class WritableTokenRelationStoreTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void testGetForModify() {
-        TokenRelation tokenRelation = mock(TokenRelation.class);
-        given(tokenRelState.getForModify(EntityIDPair.newBuilder()
-                        .accountId(ACCOUNT_20_ID)
-                        .tokenId(TOKEN_10_ID)
-                        .build()))
-                .willReturn(tokenRelation);
-
-        final var result = subject.getForModify(ACCOUNT_20_ID, TOKEN_10_ID);
-        Assertions.assertThat(result).isEqualTo(tokenRelation);
-    }
-
-    @Test
-    void testGetForModifyEmpty() {
-        given(tokenRelState.getForModify(EntityIDPair.newBuilder()
-                        .accountId(asAccount(-2L))
-                        .tokenId(TOKEN_10_ID)
-                        .build()))
-                .willReturn(null);
-
-        final var result =
-                subject.getForModify(AccountID.newBuilder().accountNum(-2L).build(), TOKEN_10_ID);
-        Assertions.assertThat(result).isNull();
-    }
-
-    @Test
     void testSizeOfState() {
         Assertions.assertThat(readableEntityCounters.numTokenRelations()).isEqualTo(subject.sizeOfState());
     }
@@ -160,7 +133,7 @@ class WritableTokenRelationStoreTest extends CryptoTokenHandlerTestBase {
                         .tokenId(TOKEN_10_ID)
                         .build(),
                 EntityIDPair.newBuilder()
-                        .accountId(asAccount(1L))
+                        .accountId(asAccount(0L, 0L, 1L))
                         .tokenId(asToken(2L))
                         .build());
         given(tokenRelState.modifiedKeys()).willReturn(modifiedKeys);

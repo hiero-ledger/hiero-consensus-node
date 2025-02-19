@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,11 +72,6 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
     @Override
     protected Iterator<K> iterateFromDataSource() {
         return backingStore.keySet().iterator();
-    }
-
-    @Override
-    protected V getForModifyFromDataSource(@NonNull K key) {
-        return backingStore.get(key);
     }
 
     @Override

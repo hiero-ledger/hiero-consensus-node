@@ -53,6 +53,9 @@ public record SystemContractMethod(
         @NonNull EnumSet<Variant> variants,
         @NonNull Set<ContractID> supportedAddresses) {
 
+    // Denote all supported addresses by ContractID.DEFAULT
+    public static final ContractID ALL_CONTRACT_ID = ContractID.DEFAULT;
+
     public SystemContractMethod {
         requireNonNull(function);
         requireNonNull(systemContract);
@@ -78,7 +81,7 @@ public record SystemContractMethod(
                 EnumSet.noneOf(Category.class),
                 Optional.empty(),
                 EnumSet.noneOf(Variant.class),
-                Set.of(ContractID.DEFAULT));
+                Set.of(ALL_CONTRACT_ID));
     }
 
     /**
@@ -96,7 +99,7 @@ public record SystemContractMethod(
                 EnumSet.noneOf(Category.class),
                 Optional.empty(),
                 EnumSet.noneOf(Variant.class),
-                Set.of(ContractID.DEFAULT));
+                Set.of(ALL_CONTRACT_ID));
     }
 
     /**
@@ -274,7 +277,7 @@ public record SystemContractMethod(
         // be overridden
         if (supportedAddresses.length == 0) {
             return new SystemContractMethod(
-                    function, systemContract, via, categories, modifier, variants, Set.of(ContractID.DEFAULT));
+                    function, systemContract, via, categories, modifier, variants, Set.of(ALL_CONTRACT_ID));
         }
         final var sa = new java.util.HashSet<ContractID>();
         sa.addAll(Arrays.asList(supportedAddresses));

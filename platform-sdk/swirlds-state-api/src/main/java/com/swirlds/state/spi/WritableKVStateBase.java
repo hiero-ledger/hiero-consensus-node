@@ -110,31 +110,6 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
 
     /** {@inheritDoc} */
     @Override
-    @Nullable
-    public final V getForModify(@NonNull final K key) {
-        Objects.requireNonNull(key);
-        // If there is a modification, then we've already done a "put" or "remove"
-        // and should return based on the modification
-        if (modifications.containsKey(key)) {
-            return modifications.get(key);
-        }
-
-        // If the modifications map does not contain an answer, but the read cache of the
-        // super class does, then it means we've looked this up before but never modified it.
-        // So we can just delegate to the super class.
-        if (hasBeenRead(key)) {
-            return super.get(key);
-        }
-
-        // We have not queried this key before, so let's look it up and store that we have
-        // read this key. And then return the value.
-        final var val = getForModifyFromDataSource(key);
-        markRead(key, val);
-        return val;
-    }
-
-    /** {@inheritDoc} */
-    @Override
     public final void put(@NonNull final K key, @NonNull final V value) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
@@ -221,15 +196,6 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
         }
         return sizeOfBackingMap + numAdditions - numRemovals;
     }
-
-    /**
-     * Reads from the underlying data source in such a way as to cause any fast-copyable data
-     * structures underneath to make a fast copy.
-     *
-     * @param key key to read from state
-     * @return The value read from the underlying data source. May be null.
-     */
-    protected abstract V getForModifyFromDataSource(@NonNull K key);
 
     /**
      * Puts the given key/value pair into the underlying data source.

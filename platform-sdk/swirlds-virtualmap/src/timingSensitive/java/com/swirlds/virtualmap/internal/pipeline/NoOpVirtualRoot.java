@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,9 +68,7 @@ public final class NoOpVirtualRoot<K extends VirtualKey, V extends VirtualValue>
     }
 
     @Override
-    public boolean flush() {
-        return true;
-    }
+    public void flush() {}
 
     @Override
     public boolean isFlushed() {

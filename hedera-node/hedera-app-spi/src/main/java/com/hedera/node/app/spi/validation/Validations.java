@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -115,11 +115,6 @@ public final class Validations {
             }
         }
 
-        // FUTURE: the shard and realm need to match the configuration for this node. But we have to be careful. In
-        // theory, shard and realm are config properties, and are network-wide, so they would be in the network-wide
-        // configuration. And that configuration is dynamic. But if the shard/realm where to ever change, that would
-        // be very bad. And we wouldn't want to look up shard and realm over and over every time we validated an
-        // account, that would be terrible for performance. So we need to think this through.
         return subject;
     }
 }
