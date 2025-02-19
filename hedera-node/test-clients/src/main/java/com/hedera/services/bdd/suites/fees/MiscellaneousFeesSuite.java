@@ -32,6 +32,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -111,7 +112,10 @@ public class MiscellaneousFeesSuite {
     public Stream<DynamicTest> simpleBatchTest() {
         final var batchOperator = "batchOperator";
 
-        final var innerTxn = cryptoCreate("foo").balance(ONE_HBAR).batchKey(batchOperator);
+        final var innerTxn = cryptoCreate("foo")
+                .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                .balance(ONE_HBAR)
+                .batchKey(batchOperator);
 
         return hapiTest(
                 cryptoCreate(batchOperator).balance(ONE_HBAR),

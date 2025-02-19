@@ -153,6 +153,7 @@ public class DispatchProcessor {
             rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.recordBuilder());
             if (e.shouldRollbackStack()) {
                 chargePayer(dispatch, validation, false);
+                e.maybeReplayFees(dispatch);
             }
             // Since there is no easy way to say how much work was done in the failed dispatch,
             // and current throttling is very rough-grained, we just return USER_TRANSACTION here
@@ -226,7 +227,7 @@ public class DispatchProcessor {
         }
         dispatch.feeAccumulator()
                 .chargeNetworkFee(
-                        dispatch.creatorInfo().accountId(), dispatch.fees().networkFee());
+                        dispatch.creatorInfo().accountId(), dispatch.fees().networkFee(), null);
     }
 
     /**

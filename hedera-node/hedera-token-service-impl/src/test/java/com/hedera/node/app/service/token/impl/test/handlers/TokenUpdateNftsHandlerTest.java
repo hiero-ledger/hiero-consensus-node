@@ -125,7 +125,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
 
     private TokenUpdateNftsHandler subject;
     private TransactionBody txn;
-    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(1339);
+    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(0L, 0L, 1339);
     private static final TokenID TOKEN_123 = BaseTokenHandler.asToken(123);
 
     @BeforeEach
