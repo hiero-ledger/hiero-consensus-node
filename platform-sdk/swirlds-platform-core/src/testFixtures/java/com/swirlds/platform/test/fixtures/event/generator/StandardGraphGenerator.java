@@ -498,7 +498,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
             final var copy = event.getBaseEvent().copyGossipedData();
             copy.setHash(event.getBaseEvent().getHash());
             final EventImpl linkedEvent = linker.linkEvent(copy);
-            consensus.addEvent(linkedEvent);
+            consensus.addEvent(Objects.requireNonNull(linkedEvent));
         }
     }
 
