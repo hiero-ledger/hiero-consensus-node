@@ -74,8 +74,6 @@ class FileGetInfoTest extends FileTestBase {
         subject = new FileGetInfoHandler(fileOpsUsage);
         final var configuration = HederaTestConfigBuilder.createConfig();
         lenient().when(context.configuration()).thenReturn(configuration);
-        //        lenient().when(context.createStore(ReadableUpgradeFileStore.class))
-        //                .thenReturn(readableUpgradeFileStore);
     }
 
     @Test
