@@ -101,7 +101,7 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
     void pureChecksHbarTransfersHasAccountIdWithIllegalNumber() {
         final var txn = newCryptoTransfer(
                 ACCT_3333_MINUS_10,
-                ACCT_4444_PLUS_10.copyBuilder().accountID(asAccount(0)).build());
+                ACCT_4444_PLUS_10.copyBuilder().accountID(asAccount(0L, 0L, 0)).build());
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
