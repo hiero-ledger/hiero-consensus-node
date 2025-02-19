@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,13 @@ import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
+import java.util.Set;
+import org.junit.platform.engine.TestSource;
+import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 
 /**
@@ -74,7 +78,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                                 SubProcessNetwork.initializeNextPortsForNetwork(
                                         CLASSIC_HAPI_TEST_NETWORK_SIZE, initialPort);
                             }
-                            yield SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+
+                            final boolean isIssScenario = isIssScenario(testPlan);
+                            yield SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE, isIssScenario);
                         }
                             // For the default Test task, we need to run some tests in concurrent embedded mode and
                             // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
@@ -132,6 +138,21 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 case "repeatable" -> Embedding.REPEATABLE;
                 default -> Embedding.NA;
             };
+        }
+
+        private static boolean isIssScenario(final TestPlan testPlan) {
+            final Set<TestIdentifier> testChildren =
+                    testPlan.getChildren(testPlan.getRoots().iterator().next());
+            if (testChildren.iterator().hasNext()) {
+                final Optional<TestSource> testSource =
+                        testChildren.iterator().next().getSource();
+                if (testSource.isPresent() && testSource.get() instanceof ClassSource tscs) {
+                    final Class<?> javaClass = tscs.getJavaClass();
+                    return javaClass.isAnnotationPresent(IssHapiTest.class);
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -593,7 +593,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
         switch (platformStatus) {
             case ACTIVE -> startGrpcServer();
-            case CATASTROPHIC_FAILURE -> shutdownGrpcServer();
+            case CATASTROPHIC_FAILURE -> {
+                shutdownGrpcServer();
+                // Wait for the block stream to close any pending or current blocks–-we may need them for triage
+                blockStreamManager().awaitFatalShutdown(java.time.Duration.ofSeconds(30));
+            }
             case FREEZE_COMPLETE -> {
                 closeRecordStreams();
                 shutdownGrpcServer();

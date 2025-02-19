@@ -79,6 +79,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -88,6 +90,8 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
+
+    private static final String FATAL_SHUTDOWN_BASE_MSG = "Waiting for fatal shutdown of block stream to complete";
 
     private final int roundsPerBlock;
     private final BlockStreamWriterMode streamWriterType;
@@ -166,6 +170,29 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Map<Long, CompletableFuture<Bytes>> endRoundStateHashes = new ConcurrentHashMap<>();
 
+    /**
+     * Represents the status of a fatal shutdown of the block stream.
+     */
+    private enum FatalShutdownStatus {
+        // Indicates the block stream is operating normally
+        NOT_INITIATED,
+        // Indicates the block stream is in the process of fatally shutting down
+        INITIATED,
+        // Indicates the block stream has completed its fatal shutdown logic
+        COMPLETE;
+
+        boolean hasBeenInitiated() {
+            return this != NOT_INITIATED;
+        }
+
+        boolean isComplete() {
+            return this == COMPLETE;
+        }
+    }
+
+    private final AtomicReference<FatalShutdownStatus> fatalShutdownStatus =
+            new AtomicReference<>(FatalShutdownStatus.NOT_INITIATED);
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -219,6 +246,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
+        if (fatalShutdownStatus.get().hasBeenInitiated()) {
+            log.fatal("Ignoring start of round {} after fatal shutdown initiated", round.getRoundNum());
+            return;
+        }
+
         // If the platform handled this round, it must eventually hash its end state
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
@@ -517,6 +549,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final int roundsPerBlock) {
+        if (fatalShutdownStatus.get().hasBeenInitiated()) {
+            return true;
+        }
         if (!blockHashSigner.isReady()) {
             return false;
         }
@@ -741,5 +776,90 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         endRoundStateHashes
                 .get(notification.round())
                 .complete(notification.hash().getBytes());
+    }
+
+    @Override
+    public void notifyFatalEvent() {
+        if (fatalShutdownStatus.get().hasBeenInitiated()) {
+            // If `fatalShutdown` is true then this method MUST have been invoked previously–-there's nothing more to do
+            return;
+        }
+
+        log.fatal("Initiating fatal shutdown of block stream");
+        fatalShutdownStatus.set(FatalShutdownStatus.INITIATED);
+
+        // Immediately write any pending blocks to disk
+        log.fatal("Writing {} pending blocks", pendingBlocks.size());
+        pendingBlocks.forEach(block -> writeEmptySignature(block.proofBuilder(), block.writer()));
+
+        // Close the current block (if possible)
+        if (writer != null) {
+            maybeFlushStateChanges();
+
+            // Construct an empty signature. Note that we can extract this block's starting state hash from the previous
+            // block, which will either be 1) correct or 2) empty; there's no additional value provided by including it
+            // here in either case. Similarly, since there can be no correct proof for the final block in an ISS
+            // scenario, we can safely omit the sibling hashes.
+            final var emptyProof = BlockProof.newBuilder()
+                    .block(blockNumber)
+                    .previousBlockRootHash(this.lastBlockHash)
+                    .blockSignature(Bytes.EMPTY);
+            writeEmptySignature(emptyProof, writer);
+            log.fatal("Final block {} written", blockNumber);
+
+            // Finally, close the writer
+            writer.closeBlock();
+            writer = null;
+        } else {
+            log.info("Current block {} was closed before fatal shutdown", blockNumber);
+        }
+
+        fatalShutdownStatus.set(FatalShutdownStatus.COMPLETE);
+        log.fatal("Fatal block stream shutdown cleanup complete");
+    }
+
+    @Override
+    public void awaitFatalShutdown(@Nullable final java.time.Duration timeout) {
+        Function<Integer, Boolean> timeRemains = (Integer ignore) -> true;
+        Function<Integer, String> timeoutMessage = (Integer ignore) -> FATAL_SHUTDOWN_BASE_MSG;
+        if (timeout != null) {
+            final var secondsTimeout = timeout.getSeconds();
+            timeRemains = (Integer secondsCounter) -> secondsCounter < secondsTimeout;
+            timeoutMessage = (Integer secondsCounter) ->
+                    FATAL_SHUTDOWN_BASE_MSG + " (" + secondsCounter + " of ~" + secondsTimeout + "s)";
+        }
+
+        int secondsCounter = 0;
+        while (!fatalShutdownStatus.get().isComplete() && timeRemains.apply(secondsCounter)) {
+            log.fatal(timeoutMessage.apply(secondsCounter));
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                log.fatal("Interrupted while waiting for block stream fatal shutdown to complete");
+                return;
+            }
+        }
+
+        log.fatal("Block stream fatal shutdown complete");
+    }
+
+    private static void writeEmptySignature(final BlockProof.Builder proofBuilder, final BlockItemWriter writer) {
+        final var emptyProof = proofBuilder.blockSignature(Bytes.EMPTY);
+        final var proofItem = BlockItem.newBuilder().blockProof(emptyProof).build();
+
+        log.fatal(
+                "Writing empty proof for block {}",
+                proofItem.blockProofOrThrow().block());
+        writer.writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
+    }
+
+    private void maybeFlushStateChanges() {
+        log.fatal("Flushing final outstanding state changes for block {} (if any)", blockNumber);
+        final BlockItem finalChanges = boundaryStateChangeListener.flushChanges();
+        if (finalChanges != null && finalChanges.hasStateChanges()) {
+            log.fatal("Writing final state changes for block {}", blockNumber);
+            writer.writePbjItem(BlockItem.PROTOBUF.toBytes(finalChanges));
+        }
+        log.fatal("Final state changes written (if any)");
     }
 }
