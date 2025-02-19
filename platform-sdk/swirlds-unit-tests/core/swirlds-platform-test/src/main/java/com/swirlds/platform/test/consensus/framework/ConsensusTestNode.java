@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import java.util.Random;
 /** A type which is responsible for managing a node in a consensus test */
 public class ConsensusTestNode {
     /** The event emitter that produces events. */
-    private final EventEmitter<?> eventEmitter;
+    private final EventEmitter eventEmitter;
 
     /** The instance to apply events to. */
     private final TestIntake intake;
@@ -42,7 +42,7 @@ public class ConsensusTestNode {
      * @param eventEmitter the emitter of events
      * @param intake       the instance to apply events to
      */
-    public ConsensusTestNode(@NonNull final EventEmitter<?> eventEmitter, @NonNull final TestIntake intake) {
+    public ConsensusTestNode(@NonNull final EventEmitter eventEmitter, @NonNull final TestIntake intake) {
         this.eventEmitter = eventEmitter;
         this.intake = intake;
         this.random = new Random();
@@ -55,7 +55,7 @@ public class ConsensusTestNode {
      * @param eventEmitter    the emitter of events
      */
     public static @NonNull ConsensusTestNode genesisContext(
-            @NonNull final PlatformContext platformContext, @NonNull final EventEmitter<?> eventEmitter) {
+            @NonNull final PlatformContext platformContext, @NonNull final EventEmitter eventEmitter) {
         return new ConsensusTestNode(
                 eventEmitter,
                 new TestIntake(
@@ -82,7 +82,7 @@ public class ConsensusTestNode {
      */
     public @NonNull ConsensusTestNode reconnect(@NonNull final PlatformContext platformContext) {
         // create a new context
-        final EventEmitter<?> newEmitter = eventEmitter.cleanCopy(random.nextLong());
+        final EventEmitter newEmitter = eventEmitter.cleanCopy(random.nextLong());
         newEmitter.reset();
 
         final ConsensusTestNode consensusTestNode = new ConsensusTestNode(
@@ -111,7 +111,7 @@ public class ConsensusTestNode {
     /**
      * @return the event emitter that produces events
      */
-    public @NonNull EventEmitter<?> getEventEmitter() {
+    public @NonNull EventEmitter getEventEmitter() {
         return eventEmitter;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public final class GenerateConsensus {
     public static Deque<ConsensusRound> generateConsensusRounds(
             @NonNull PlatformContext platformContext, final int numNodes, final int numEvents, final long seed) {
         Objects.requireNonNull(platformContext);
-        final List<EventSource<?>> eventSources = new ArrayList<>();
+        final List<EventSource> eventSources = new ArrayList<>();
         IntStream.range(0, numNodes).forEach(i -> eventSources.add(new StandardEventSource(false)));
         final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
         final TestIntake intake = new TestIntake(platformContext, generator.getAddressBook());
