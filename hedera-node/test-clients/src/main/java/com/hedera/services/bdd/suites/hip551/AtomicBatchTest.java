@@ -315,11 +315,12 @@ public class AtomicBatchTest {
                 cryptoCreate(batchOperator).balance(ONE_HBAR),
                 cryptoCreate(innerTnxPayer).balance(ONE_HBAR),
                 usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
-                atomicBatch(innerTxn).batchKey(batchOperator).hasPrecheck(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                atomicBatch(innerTxn).batchKey(batchOperator).hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
                 cryptoCreate("anotherTest")
                         .balance(ONE_HBAR)
                         .batchKey(batchOperator)
-                        .hasPrecheck(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION));
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION));
     }
 
     @Nested

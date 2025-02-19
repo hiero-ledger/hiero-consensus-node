@@ -111,6 +111,11 @@ public class TransactionScenarioBuilder implements Scenarios {
         return this;
     }
 
+    public TransactionScenarioBuilder withBatchKey(@Nullable final Key key) {
+        body = body.copyBuilder().batchKey(key).build();
+        return this;
+    }
+
     @NonNull
     public TransactionInfo txInfo() {
         final var signedbytes = asBytes(TransactionBody.PROTOBUF, body);
