@@ -161,18 +161,24 @@ public class ConcurrentIntegrationTests {
                                 .between(nftTwo.treasury().name(), "operator"))),
                 // First do a batch where everything succeeds
                 atomicBatch(
-                        cryptoTransfer(movingUnique(nftOne.name(), 1L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .batchKey("operator")
-                                .payingWith("operator"),
-                        cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .batchKey("operator")
-                                .payingWith("operator"),
-                        cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .batchKey("operator")
-                                .payingWith("operator"))
+                                cryptoTransfer(movingUnique(nftOne.name(), 1L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .batchKey("operator")
+                                        .payingWith("operator"))
                         .signedByPayerAnd("operator"),
                 getAccountRecords("operator").exposingTo(records -> {
                     assertEquals(3, records.size());
