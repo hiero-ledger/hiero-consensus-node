@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
-package com.hedera.node.app.spi.ids;
+package com.swirlds.state.lifecycle;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 
+// FUTURE: This can be moved elsewhere once all the migration code happens in handle.
 /**
  * A strategy for creating entity ids.
  */
@@ -46,25 +51,29 @@ public interface EntityIdFactory {
     ScheduleID newScheduleId(long number);
 
     /**
-     * Returns a contract id for the given number.
-     * @param number the number
-     * @return a new ContractID instance
-     */
-    ContractID newContractId(long number);
-
-    /**
      * Returns an account id for the given number.
      * @param number the number
-     * @return a new AccountID instance
      */
     AccountID newAccountId(long number);
 
     /**
      * Returns an account id for the given alias.
      * @param alias the alias
-     * @return a new AccountID instance
      */
-    AccountID newAccountId(Bytes alias);
+    AccountID newAccountIdWithAlias(@NonNull Bytes alias);
+
+    /**
+     * Returns a file id for the given number.
+     * @param number the number
+     */
+    FileID newFileId(long number);
+
+    /**
+     * Returns a contract id for the given number.
+     * @param number the number
+     * @return a new ContractID instance
+     */
+    ContractID newContractId(long number);
 
     /**
      * Returns a hexadecimal string representation of the given number,

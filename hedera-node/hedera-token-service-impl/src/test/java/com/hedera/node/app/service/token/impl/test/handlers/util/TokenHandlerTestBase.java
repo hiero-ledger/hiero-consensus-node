@@ -219,7 +219,7 @@ public class TokenHandlerTestBase {
                 deleted,
                 TokenType.FUNGIBLE_COMMON,
                 TokenSupplyType.INFINITE,
-                entityIdFactory.newAccountId(autoRenewAccountNumber),
+                entityIdFactory.newAccountId(0L, 0L, autoRenewAccountNumber),
                 autoRenewSecs,
                 expirationTime,
                 memo,

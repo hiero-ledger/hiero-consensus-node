@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,9 +35,9 @@ class CustomFeeExemptionsTest extends TokenHandlerTestBase {
     private Token treasuryToken;
     private Token nonTreasuryToken;
     private final TokenID tokenId = TokenID.newBuilder().tokenNum(1000).build();
-    private final AccountID feeCollector = asAccount(7001);
-    private final AccountID minter = asAccount(2001);
-    private final AccountID sender = asAccount(4001);
+    private final AccountID feeCollector = asAccount(0L, 0L, 7001);
+    private final AccountID minter = asAccount(0L, 0L, 2001);
+    private final AccountID sender = asAccount(0L, 0L, 4001);
     private final CustomFee customFee = CustomFee.newBuilder()
             .fixedFee(fixedFee)
             .feeCollectorAccountId(feeCollector)

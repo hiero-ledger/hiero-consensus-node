@@ -52,9 +52,7 @@ public class HelloSwirldDemoStateLifecycles implements StateLifecycles<HelloSwir
                             stateSignatureTransactionCallback) {
         state.throwIfImmutable();
         round.forEachEventTransaction((event, transaction) -> {
-            if (transaction.isSystem()) {
-                return;
-            } else if (areTransactionBytesSystemOnes(transaction)) {
+            if (areTransactionBytesSystemOnes(transaction)) {
                 consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
             }
 

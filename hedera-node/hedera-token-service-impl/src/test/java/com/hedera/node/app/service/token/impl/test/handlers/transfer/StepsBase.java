@@ -242,7 +242,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
                             .alias(ecKeyAlias.value())
                             .build();
                     writableAccountStore.put(copy);
-                    writableAliases.put(ecKeyAlias, asAccount(hbarReceiver));
+                    writableAliases.put(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 })
@@ -253,7 +253,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
                             .alias(edKeyAlias.value())
                             .build();
                     writableAccountStore.put(copy);
-                    writableAliases.put(edKeyAlias, asAccount(tokenReceiver));
+                    writableAliases.put(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });

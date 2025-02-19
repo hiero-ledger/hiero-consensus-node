@@ -52,8 +52,8 @@ class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase
     @Mock
     private PureChecksContext pureChecksContext;
 
-    private static final AccountID ACCOUNT_SENDER = asAccount(4444);
-    private static final AccountID ACCOUNT_RECEIVER = asAccount(3333);
+    private static final AccountID ACCOUNT_SENDER = asAccount(0L, 0L, 4444);
+    private static final AccountID ACCOUNT_RECEIVER = asAccount(0L, 0L, 3333);
 
     private static final TokenID TOKEN_FUNGIBLE = asToken(2468);
     private static final TokenID NFT_TOKEN = asToken(2468);

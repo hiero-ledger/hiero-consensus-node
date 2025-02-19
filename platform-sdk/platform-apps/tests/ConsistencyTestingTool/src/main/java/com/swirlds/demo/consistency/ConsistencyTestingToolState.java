@@ -20,18 +20,17 @@ import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.utility.NonCryptographicHashing;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -39,7 +38,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,7 +45,8 @@ import org.apache.logging.log4j.Logger;
  * State for the Consistency Testing Tool
  */
 @ConstructableIgnored
-public class ConsistencyTestingToolState extends PlatformMerkleStateRoot {
+public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTestingToolState>
+        implements MerkleNodeState {
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
     private static final long CLASS_ID = 0xda03bb07eb897d82L;
 
@@ -96,8 +95,7 @@ public class ConsistencyTestingToolState extends PlatformMerkleStateRoot {
     /**
      * Constructor
      */
-    public ConsistencyTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public ConsistencyTestingToolState() {
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -225,10 +223,6 @@ public class ConsistencyTestingToolState extends PlatformMerkleStateRoot {
      */
     private void applyTransactionToState(final @NonNull ConsensusTransaction transaction) {
         Objects.requireNonNull(transaction);
-        if (transaction.isSystem()) {
-            return;
-        }
-
         final long transactionContents = getTransactionContents(transaction);
 
         if (!transactionsAwaitingPostHandle.remove(transactionContents)) {
@@ -276,6 +270,11 @@ public class ConsistencyTestingToolState extends PlatformMerkleStateRoot {
     public synchronized ConsistencyTestingToolState copy() {
         throwIfImmutable();
         setImmutable(true);
+        return new ConsistencyTestingToolState(this);
+    }
+
+    @Override
+    protected ConsistencyTestingToolState copyingConstructor() {
         return new ConsistencyTestingToolState(this);
     }
 }

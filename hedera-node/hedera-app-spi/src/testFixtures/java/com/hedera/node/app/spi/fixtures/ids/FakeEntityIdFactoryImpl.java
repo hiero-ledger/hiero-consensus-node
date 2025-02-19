@@ -23,21 +23,23 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Fixed shard/realm implementation of {@link EntityIdFactory}.
  */
-public class EntityIdFactoryImpl implements EntityIdFactory {
+public class FakeEntityIdFactoryImpl implements EntityIdFactory {
     private final long shard;
     private final long realm;
 
-    public EntityIdFactoryImpl(final long shard, final long realm) {
+    public FakeEntityIdFactoryImpl(final long shard, final long realm) {
         this.shard = shard;
         this.realm = realm;
     }
@@ -59,17 +61,30 @@ public class EntityIdFactoryImpl implements EntityIdFactory {
 
     @Override
     public AccountID newAccountId(long number) {
-        return new AccountID(shard, realm, new OneOf<>(AccountID.AccountOneOfType.ACCOUNT_NUM, number));
+        return AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(number)
+                .build();
+    }
+
+    @Override
+    public AccountID newAccountIdWithAlias(@NonNull Bytes alias) {
+        return AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .alias(alias)
+                .build();
+    }
+
+    @Override
+    public FileID newFileId(long number) {
+        return new FileID(shard, realm, number);
     }
 
     @Override
     public ContractID newContractId(long number) {
         return new ContractID(shard, realm, new OneOf<>(ContractID.ContractOneOfType.CONTRACT_NUM, number));
-    }
-
-    @Override
-    public AccountID newAccountId(Bytes alias) {
-        return new AccountID(shard, realm, new OneOf<>(AccountID.AccountOneOfType.ALIAS, alias));
     }
 
     @Override
