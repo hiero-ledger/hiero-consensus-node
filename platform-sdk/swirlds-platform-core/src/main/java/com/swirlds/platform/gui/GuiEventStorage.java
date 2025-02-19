@@ -16,7 +16,6 @@
 
 package com.swirlds.platform.gui;
 
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
 
 import com.swirlds.common.context.PlatformContext;
@@ -65,14 +64,18 @@ public class GuiEventStorage {
 
         this.consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
-        this.linker = new SimpleLinker(configuration.getConfigData(EventConfig.class).getAncientMode());
+        this.linker =
+                new SimpleLinker(configuration.getConfigData(EventConfig.class).getAncientMode());
     }
 
     public GuiEventStorage(final Consensus consensus, final SimpleLinker linker, final Configuration configuration) {
         this.consensus = consensus;
         this.linker = linker;
         this.configuration = configuration;
-        maxGeneration = linker.getNonAncientEvents().stream().mapToLong(EventImpl::getGeneration).max().orElseThrow();
+        maxGeneration = linker.getNonAncientEvents().stream()
+                .mapToLong(EventImpl::getGeneration)
+                .max()
+                .orElseThrow();
     }
 
     /**

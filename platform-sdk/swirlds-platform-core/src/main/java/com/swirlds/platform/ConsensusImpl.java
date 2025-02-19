@@ -16,7 +16,6 @@
 
 package com.swirlds.platform;
 
-import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.consensus.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
@@ -219,7 +218,8 @@ public class ConsensusImpl implements Consensus {
     /**
      * Constructs an empty object (no events) to keep track of elections and calculate consensus.
      */
-    public ConsensusImpl(@NonNull final PlatformContext platformContext,
+    public ConsensusImpl(
+            @NonNull final PlatformContext platformContext,
             @NonNull final ConsensusMetrics consensusMetrics,
             @NonNull final Roster roster,
             boolean logThings) {
@@ -312,13 +312,14 @@ public class ConsensusImpl implements Consensus {
     @NonNull
     @Override
     public List<ConsensusRound> addEvent(@NonNull final EventImpl event) {
-        if(event.getBaseHash().toHex().equalsIgnoreCase(
-                "180e3ba05d23106c8bb8f618f90aaaaa7dc826d0b973233d6697fdfe7e82624978fb5f8abb280fd56d94c30da525ddfa")){
+        if (event.getBaseHash()
+                .toHex()
+                .equalsIgnoreCase(
+                        "180e3ba05d23106c8bb8f618f90aaaaa7dc826d0b973233d6697fdfe7e82624978fb5f8abb280fd56d94c30da525ddfa")) {
             System.out.println("Breaking event");
         }
 
-        if(event.getBaseHash().toHex().startsWith(
-                "098d01d8ce24")){
+        if (event.getBaseHash().toHex().startsWith("098d01d8ce24")) {
             System.out.println("non voting witness");
         }
         try {
@@ -420,8 +421,8 @@ public class ConsensusImpl implements Consensus {
 
         event.setWitness(true);
 
-        if(event.getRoundCreated() == 335){
-            System.out.println("Witness in round 335: "+event.shortString());
+        if (event.getRoundCreated() == 335) {
+            System.out.println("Witness in round 335: " + event.shortString());
         }
 
         if (rounds.getElectionRoundNumber() <= event.getRoundCreated()) {
@@ -486,8 +487,7 @@ public class ConsensusImpl implements Consensus {
         initJudges.judgeFound(event);
         logger.info(
                 STARTUP.getMarker(),
-                "Found init judge %s, num remaining: {}"
-                        .formatted(event.shortString()),
+                "Found init judge %s, num remaining: {}".formatted(event.shortString()),
                 initJudges::numMissingJudges);
         if (!initJudges.allJudgesFound()) {
             return false;
@@ -681,7 +681,7 @@ public class ConsensusImpl implements Consensus {
             @NonNull final CandidateWitness candidateWitness,
             @NonNull final String votingType,
             final long diff) {
-        //if (logger.isDebugEnabled(CONSENSUS_VOTING.getMarker())) {
+        // if (logger.isDebugEnabled(CONSENSUS_VOTING.getMarker())) {
         if (logThings && candidateWitness.getWitness().getRoundCreated() == 336) {
             logger.info(
                     STARTUP.getMarker(),

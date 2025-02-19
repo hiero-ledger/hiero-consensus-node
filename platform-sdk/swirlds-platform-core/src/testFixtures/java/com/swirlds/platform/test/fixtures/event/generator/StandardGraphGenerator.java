@@ -23,6 +23,7 @@ import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.ConsensusImpl;
+import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
@@ -202,8 +203,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
 
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook),
-                true);
+                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook), true);
         linker = new SimpleLinker(platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
@@ -477,21 +477,28 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
 
     @Override
     public void removeNode(final NodeId nodeId) {
-        System.out.println("Removing node, last round decided: "+consensusSnapshot.round());
+        System.out.println("Removing node, last round decided: " + consensusSnapshot.round());
         final int nodeIndex = addressBook.getIndexOfNodeId(nodeId);
         sources.remove(nodeIndex);
         addressBook = addressBook.remove(nodeId);
         buildDefaultOtherParentAffinityMatrix();
         consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook),
-                true);
+                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook), true);
         consensus.loadSnapshot(consensusSnapshot);
-        for (final EventImpl event : linker.getNonAncientEvents()) {
-            if(event.getBaseHash().toHex().startsWith("384127a8ece4")){
-                System.out.println("Breaking event 2");
-                return;
-            }
-            consensus.addEvent(event);
+        //        final List<EventImpl> nonAncientEvents = linker.getNonAncientEvents().stream()
+        //                .sorted(Comparator.comparing(EventImpl::getGeneration))
+        //                .toList();
+        final List<EventImpl> nonAncientEvents = linker.getNonAncientEvents();
+        linker.clear();
+        linker.setNonAncientThreshold(consensusSnapshot.getAncientThreshold(platformContext
+                .getConfiguration()
+                .getConfigData(ConsensusConfig.class)
+                .roundsNonAncient()));
+        for (final EventImpl event : nonAncientEvents) {
+            final var copy = event.getBaseEvent().copyGossipedData();
+            copy.setHash(event.getBaseEvent().getHash());
+            final EventImpl linkedEvent = linker.linkEvent(copy);
+            consensus.addEvent(linkedEvent);
         }
     }
 

@@ -25,7 +25,6 @@ import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.consensus.TestIntake;
 import com.swirlds.platform.test.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Random;

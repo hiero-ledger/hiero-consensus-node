@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package com.swirlds.platform.test.fixtures.event.source;
 
-import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
@@ -232,10 +231,6 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
         final EventImpl otherParentEvent =
                 otherParent == null ? null : otherParent.getRecentEvent(random, otherParentIndex);
         final EventImpl latestSelfEvent = getLatestEvent(random);
-        final long generation = Math.max(
-                        otherParentEvent == null ? (FIRST_GENERATION - 1) : otherParentEvent.getGeneration(),
-                        latestSelfEvent == null ? (FIRST_GENERATION - 1) : latestSelfEvent.getGeneration())
-                + 1;
 
         event = RandomEventUtils.randomEventWithTimestamp(
                 random,
