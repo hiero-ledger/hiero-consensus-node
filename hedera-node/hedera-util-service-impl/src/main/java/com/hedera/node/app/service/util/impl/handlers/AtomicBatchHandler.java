@@ -17,12 +17,14 @@
 package com.hedera.node.app.service.util.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -91,17 +93,10 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var op = context.body().atomicBatchOrThrow();
         validateFalsePreCheck(context.body().hasBatchKey(), MISSING_BATCH_KEY);
         for (final var transaction : op.transactions()) {
-            final TransactionBody txBody;
-            try {
-                txBody = bodyParser.apply(transaction);
-            } catch (HandleException e) {
-                throw new PreCheckException(e.getStatus());
-            }
+            validateTruePreCheck(transaction.hasBody(), INVALID_TRANSACTION);
 
             // validate batch key exists on each inner transaction
-            if (!txBody.hasBatchKey()) {
-                throw new PreCheckException(MISSING_BATCH_KEY);
-            }
+            validateTruePreCheck(transaction.bodyOrThrow().hasBatchKey(), MISSING_BATCH_KEY);
         }
     }
 

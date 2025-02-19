@@ -90,6 +90,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
+import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -163,14 +164,17 @@ public class ConcurrentIntegrationTests {
                 atomicBatch(
                         cryptoTransfer(movingUnique(nftOne.name(), 1L)
                                         .between("operator", nftOne.treasury().name()))
+                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                 .batchKey("operator")
                                 .payingWith("operator"),
                         cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
                                         .between("operator", nftOne.treasury().name()))
+                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                 .batchKey("operator")
                                 .payingWith("operator"),
                         cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
                                         .between("operator", nftOne.treasury().name()))
+                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                 .batchKey("operator")
                                 .payingWith("operator")),
                 getAccountRecords("operator").exposingTo(records -> {
@@ -184,18 +188,21 @@ public class ConcurrentIntegrationTests {
                                                 .between(
                                                         "operator",
                                                         nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                         .batchKey("operator")
                                         .payingWith("operator"),
                                 cryptoTransfer(movingUnique(nftTwo.name(), 2L, 3L)
                                                 .between(
                                                         "operator",
                                                         nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                         .batchKey("operator")
                                         .payingWith("operator"),
                                 cryptoTransfer(movingUnique(nftTwo.name(), 4L, 5L, 6L)
                                                 .between(
                                                         "operator",
                                                         nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                         .batchKey("operator")
                                         .payingWith("operator"))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
