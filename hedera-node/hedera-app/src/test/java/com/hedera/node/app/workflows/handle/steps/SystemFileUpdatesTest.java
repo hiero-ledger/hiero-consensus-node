@@ -38,8 +38,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.util.FileUtilities;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -51,6 +50,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -103,7 +103,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1L));
         SHARD = config.getConfigData(HederaConfig.class).shard();
         REALM = config.getConfigData(HederaConfig.class).realm();
-        idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+        idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
         subject = new SystemFileUpdates(configProvider, exchangeRateManager, feeManager, throttleServiceManager);
     }
 

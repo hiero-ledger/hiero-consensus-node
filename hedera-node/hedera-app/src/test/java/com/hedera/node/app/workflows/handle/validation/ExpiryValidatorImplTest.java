@@ -40,8 +40,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hapi.utils.InvalidTransactionException;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
@@ -49,6 +48,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -91,7 +91,7 @@ class ExpiryValidatorImplTest {
 
         long SHARD = config.getConfigData(HederaConfig.class).shard();
         long REALM = config.getConfigData(HederaConfig.class).realm();
-        EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+        EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
         AN_AUTO_RENEW_ID = idFactory.newAccountId(888);
 
         subject = new ExpiryValidatorImpl(context);
