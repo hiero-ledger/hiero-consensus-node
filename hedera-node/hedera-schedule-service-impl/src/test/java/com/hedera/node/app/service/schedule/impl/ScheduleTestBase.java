@@ -86,8 +86,7 @@ import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -96,6 +95,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableStates;
@@ -178,7 +178,7 @@ public class ScheduleTestBase {
     protected final Timestamp calculatedExpirationTime = Timestamp.newBuilder().seconds(2281580449L).nanos(0).build();
     protected final Timestamp modifiedResolutionTime = new Timestamp(18601220L, 18030109);
     protected final Timestamp modifiedStartTime = new Timestamp(18601220L, 18030109);
-    protected final EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    protected final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
     // spotless:on
 
     @Mock(strictness = Mock.Strictness.LENIENT)

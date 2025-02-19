@@ -68,7 +68,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -1787,9 +1786,9 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         final var record = getTxnRecord("submit")
                                 .andAllChildRecords()
                                 .hasAssessedCustomFeesSize(1)
+                                .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, record);
-                        assertEquals(0, record.getChildRecords().size());
                     }),
                     // assert topic fee collector balance
                     getAccountBalance("collector").hasTinyBars(10)));
@@ -1817,9 +1816,9 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         final var record = getTxnRecord("submit")
                                 .andAllChildRecords()
                                 .hasAssessedCustomFeesSize(2)
+                                .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, record);
-                        assertEquals(0, record.getChildRecords().size());
                     }),
                     // assert topic fee collector balance
                     getAccountBalance("collector").hasTinyBars(10).hasTokenBalance("token", 1)));
@@ -1847,11 +1846,9 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         final var submitTxnRecord = getTxnRecord("submit")
                                 .andAllChildRecords()
                                 .hasAssessedCustomFeesSize(3)
+                                .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, submitTxnRecord);
-                        final var transactionRecordSize =
-                                submitTxnRecord.getChildRecords().size();
-                        assertEquals(0, transactionRecordSize);
                     }),
                     // assert topic fee collector balance
                     getAccountBalance(collector).hasTokenBalance(tokenName, 1),

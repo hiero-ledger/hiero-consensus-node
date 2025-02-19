@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asFile;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -75,7 +76,7 @@ public class Issue1765Suite {
         final String THE_MEMO_IS = MEMO_IS;
 
         return hapiTest(flattened(
-                withOpContext((spec, ctxLog) -> spec.registry().saveFileId(INVALID_FILE, asFile("0.0.0"))),
+                withOpContext((spec, ctxLog) -> spec.registry().saveFileId(INVALID_FILE, asFile(asEntityString(0)))),
                 newKeyNamed(INVALID_FILE).type(KeyFactory.KeyType.LIST),
                 takeBalanceSnapshots(FUNDING, GENESIS, STAKING_REWARD, NODE),
                 fileUpdate(INVALID_FILE)
@@ -94,7 +95,7 @@ public class Issue1765Suite {
         final String THE_MEMO_IS = MEMO_IS;
 
         return hapiTest(flattened(
-                withOpContext((spec, ctxLog) -> spec.registry().saveFileId(INVALID_FILE, asFile("0.0.0"))),
+                withOpContext((spec, ctxLog) -> spec.registry().saveFileId(INVALID_FILE, asFile(asEntityString(0)))),
                 newKeyNamed(INVALID_FILE).type(KeyFactory.KeyType.LIST),
                 takeBalanceSnapshots(FUNDING, GENESIS, STAKING_REWARD, NODE),
                 fileAppend(INVALID_FILE)
