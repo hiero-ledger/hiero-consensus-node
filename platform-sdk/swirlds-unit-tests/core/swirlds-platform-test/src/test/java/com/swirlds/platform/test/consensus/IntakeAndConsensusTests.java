@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ class IntakeAndConsensusTests {
         //				node.getConsensus().getMaxRoundGeneration());
     }
 
-    private static class GeneratorWithConsensus implements GraphGenerator<GeneratorWithConsensus> {
+    private static class GeneratorWithConsensus implements GraphGenerator {
         private final StandardGraphGenerator generator;
         private final TestIntake intake;
 
@@ -190,8 +190,7 @@ class IntakeAndConsensusTests {
             Objects.requireNonNull(platformContext);
             final List<StandardEventSource> eventSources =
                     Stream.generate(StandardEventSource::new).limit(numNodes).toList();
-            generator =
-                    new StandardGraphGenerator(platformContext, seed, (List<EventSource<?>>) (List<?>) eventSources);
+            generator = new StandardGraphGenerator(platformContext, seed, (List<EventSource>) (List<?>) eventSources);
             intake = new TestIntake(platformContext, generator.getAddressBook());
         }
 
@@ -209,7 +208,7 @@ class IntakeAndConsensusTests {
 
         @Override
         @Nullable
-        public EventSource<?> getSource(@NonNull final NodeId nodeID) {
+        public EventSource getSource(@NonNull final NodeId nodeID) {
             Objects.requireNonNull(nodeID);
             return generator.getSource(nodeID);
         }

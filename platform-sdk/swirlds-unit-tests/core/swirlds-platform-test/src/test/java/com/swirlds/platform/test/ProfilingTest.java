@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ public class ProfilingTest {
         final int numNodes = 39;
         final int numEvents = 250_000;
 
-        final List<EventSource<?>> eventSources =
+        final List<EventSource> eventSources =
                 EventSourceFactory.newStandardEventSources(WeightGenerators.balancedNodeWeights(numNodes));
 
         final PlatformContext platformContext =

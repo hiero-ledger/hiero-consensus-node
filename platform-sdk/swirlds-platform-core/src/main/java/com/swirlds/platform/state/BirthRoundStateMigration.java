@@ -65,7 +65,7 @@ public final class BirthRoundStateMigration {
             return;
         }
 
-        final PlatformMerkleStateRoot state = initialState.getState();
+        final MerkleNodeState state = initialState.getState();
         final boolean alreadyMigrated = platformStateFacade.firstVersionInBirthRoundModeOf(state) != null;
         if (alreadyMigrated) {
             // Birth round migration was completed at a prior time, no action needed.
