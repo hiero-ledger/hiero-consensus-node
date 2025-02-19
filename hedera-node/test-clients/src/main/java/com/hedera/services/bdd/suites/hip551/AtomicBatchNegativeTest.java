@@ -161,12 +161,14 @@ public class AtomicBatchNegativeTest {
                     atomicBatch(
                                     cryptoTransfer(TokenMovement.moving(1, "ftA")
                                                     .between("Bob", "receiver"))
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey("Alice")
                                             .payingWith("Bob")
                                             .signedBy("Bob"),
                                     // will fail because receiver is not associated with ftC
                                     cryptoTransfer(TokenMovement.moving(1, "ftC")
                                                     .between("Bob", "receiver"))
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey("Alice")
                                             .payingWith("Bob")
                                             .signedBy("Bob"))
@@ -190,8 +192,12 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("Alice").balance(ONE_HBAR),
                     // batch txn
                     atomicBatch(
-                                    tokenCreate("ftA").batchKey("Alice").payingWith("Alice"),
+                                    tokenCreate("ftA")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("Alice")
+                                            .payingWith("Alice"),
                                     tokenCreate("ftB")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .withTxnTransform(txn -> TxnUtils.replaceTxnDuration(txn, -1L))
                                             .batchKey("Alice")
                                             .payingWith("Alice"))
@@ -212,8 +218,14 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("Bob").balance(ONE_HBAR),
                     // batch txn
                     atomicBatch(
-                                    tokenCreate("ftA").batchKey("Alice").payingWith("Bob"),
-                                    tokenCreate("ftB").batchKey("Alice").payingWith("Bob"))
+                                    tokenCreate("ftA")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("Alice")
+                                            .payingWith("Bob"),
+                                    tokenCreate("ftB")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("Alice")
+                                            .payingWith("Bob"))
                             .payingWith("Alice")
                             .withTxnTransform(txn -> TxnUtils.replaceTxnDuration(txn, -1L))
                             .hasPrecheck(INVALID_TRANSACTION_DURATION)
