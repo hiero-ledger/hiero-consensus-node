@@ -17,7 +17,6 @@
 package com.swirlds.platform.event.hashing;
 
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -53,9 +52,7 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
     @NonNull
     public PlatformEvent hashEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
-        final List<Bytes> transactions = event.getGossipEvent().transactions();
-        final boolean isNewFormat = !transactions.isEmpty();
-        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions(), isNewFormat);
+        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions());
         event.setHash(hash);
         return event;
     }
@@ -66,7 +63,7 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
      * @param event the event to hash
      */
     public void hashUnsignedEvent(@NonNull final UnsignedEvent event) {
-        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions(), true);
+        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions());
         event.setHash(hash);
     }
 
@@ -78,19 +75,11 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
      * @return the hash of the event
      */
     @NonNull
-    private Hash hashEvent(
-            @NonNull final EventCore eventCore,
-            @NonNull final List<TransactionWrapper> transactions,
-            final boolean isNewFormat) {
+    private Hash hashEvent(@NonNull final EventCore eventCore, @NonNull final List<TransactionWrapper> transactions) {
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
             for (final TransactionWrapper transaction : transactions) {
-                if (isNewFormat) {
-                    transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
-                } else {
-                    EventTransaction.PROTOBUF.write(transaction.getTransaction(), transactionStream);
-                }
-
+                transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
                 processTransactionHash(transaction);
             }
         } catch (final IOException e) {

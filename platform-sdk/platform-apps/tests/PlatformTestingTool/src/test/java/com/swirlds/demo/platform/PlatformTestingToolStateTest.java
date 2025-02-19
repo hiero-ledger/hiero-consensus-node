@@ -16,13 +16,10 @@
 
 package com.swirlds.demo.platform;
 
-import static com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType.APPLICATION_TRANSACTION;
-import static com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType.STATE_SIGNATURE_TRANSACTION;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_STATES_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -32,10 +29,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.context.PlatformContext;
@@ -240,25 +235,6 @@ class PlatformTestingToolStateTest {
     }
 
     @Test
-    void handleConsensusRoundWithDeprecatedSystemTransaction() {
-        // Given
-        givenInitState(DEFAULT_CONFIG);
-        givenRoundAndEvent();
-
-        final byte[] transactionBytes = new byte[300];
-        random.nextBytes(transactionBytes);
-
-        when(transaction.getApplicationTransaction()).thenReturn(Bytes.wrap(transactionBytes));
-        when(transaction.isSystem()).thenReturn(true);
-
-        // When
-        main.stateLifecycles.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).isEmpty();
-    }
-
-    @Test
     void preHandleConsensusRoundWithApplicationTransactionOfRandomType() {
         // Given
         givenInitState(DEFAULT_CONFIG);
@@ -266,11 +242,9 @@ class PlatformTestingToolStateTest {
 
         final TestTransactionWrapper testTransactionWrapper = getTransactionWithRandomType(300);
 
-        final EventTransaction eventTransaction = new EventTransaction(
-                new OneOf<>(APPLICATION_TRANSACTION, Bytes.wrap(testTransactionWrapper.toByteArray())));
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
+                new GossipEvent(eventCore, null, List.of(Bytes.wrap(testTransactionWrapper.toByteArray())));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
@@ -288,11 +262,8 @@ class PlatformTestingToolStateTest {
         givenRoundAndEvent();
 
         final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        final EventTransaction eventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
         final EventCore eventCore = mock(EventCore.class);
-        final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
+        final GossipEvent gossipEvent = new GossipEvent(eventCore, null, List.of(stateSignatureTransactionBytes));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
@@ -310,18 +281,14 @@ class PlatformTestingToolStateTest {
 
         final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
 
-        final EventTransaction eventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
-        final EventTransaction secondEventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
-        final EventTransaction thirdEventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = new GossipEvent(
                 eventCore,
                 null,
-                List.of(eventTransaction, secondEventTransaction, thirdEventTransaction),
-                Collections.emptyList());
+                List.of(
+                        stateSignatureTransactionBytes,
+                        stateSignatureTransactionBytes,
+                        stateSignatureTransactionBytes));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
@@ -330,32 +297,6 @@ class PlatformTestingToolStateTest {
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(3);
-    }
-
-    @Test
-    void preHandleConsensusRoundWithDeprecatedSystemTransaction() {
-        // Given
-        givenInitState(DEFAULT_CONFIG);
-        givenRoundAndEvent();
-        when(transaction.isSystem()).thenReturn(true);
-        doReturn(true).when(transaction).isSystem();
-
-        final byte[] transactionBytes = new byte[300];
-        random.nextBytes(transactionBytes);
-
-        final EventTransaction eventTransaction =
-                new EventTransaction(new OneOf<>(STATE_SIGNATURE_TRANSACTION, transactionBytes));
-        final EventCore eventCore = mock(EventCore.class);
-        final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
-        when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
-        platformEvent = new PlatformEvent(gossipEvent);
-
-        // When
-        main.stateLifecycles.onPreHandle(platformEvent, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).isEmpty();
     }
 
     @Test

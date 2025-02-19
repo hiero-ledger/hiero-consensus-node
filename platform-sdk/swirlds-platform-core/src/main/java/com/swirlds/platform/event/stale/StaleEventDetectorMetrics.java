@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,12 +43,6 @@ public class StaleEventDetectorMetrics {
             .withDescription("number of application transactions in stale self events");
     private final LongAccumulator staleAppTransactionCount;
 
-    private static final LongAccumulator.Config STALE_SYSTEM_TRANSACTIONS_CONFIG = new LongAccumulator.Config(
-                    INTERNAL_CATEGORY, "staleSystemTransactions")
-            .withAccumulator(Long::sum)
-            .withDescription("number of system transactions in stale self events");
-    private final LongAccumulator staleSystemTransactionCount;
-
     /**
      * Constructor
      *
@@ -59,7 +53,6 @@ public class StaleEventDetectorMetrics {
 
         staleEventCount = metrics.getOrCreate(STALE_EVENTS_CONFIG);
         staleAppTransactionCount = metrics.getOrCreate(STALE_APP_TRANSACTIONS_CONFIG);
-        staleSystemTransactionCount = metrics.getOrCreate(STALE_SYSTEM_TRANSACTIONS_CONFIG);
     }
 
     /**
@@ -68,21 +61,15 @@ public class StaleEventDetectorMetrics {
      * @param event the stale event
      */
     public void reportStaleEvent(@NonNull final PlatformEvent event) {
-        int systemTransactions = 0;
         int appTransactions = 0;
 
         final Iterator<Transaction> iterator = event.transactionIterator();
         while (iterator.hasNext()) {
-            final Transaction transaction = iterator.next();
-            if (transaction.isSystem()) {
-                systemTransactions++;
-            } else {
-                appTransactions++;
-            }
+            iterator.next();
+            appTransactions++;
         }
 
         staleEventCount.update(1);
-        staleSystemTransactionCount.update(systemTransactions);
         staleAppTransactionCount.update(appTransactions);
     }
 }

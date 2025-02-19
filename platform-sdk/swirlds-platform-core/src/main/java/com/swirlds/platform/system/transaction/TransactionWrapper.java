@@ -16,7 +16,6 @@
 
 package com.swirlds.platform.system.transaction;
 
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.util.TransactionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,23 +35,10 @@ public non-sealed class TransactionWrapper implements ConsensusTransaction {
     private Instant consensusTimestamp;
     /** An optional metadata object set by the application */
     private Object metadata;
-    /** The protobuf data stored */
-    private EventTransaction payload;
     /** The hash of the transaction */
     private Bytes hash;
     /** The bytes of the transaction */
-    private Bytes transaction;
-
-    /**
-     * Constructs a new transaction wrapper
-     *
-     * @param transaction the hapi transaction
-     *
-     * @throws NullPointerException if transaction is null
-     */
-    public TransactionWrapper(@NonNull final EventTransaction transaction) {
-        this.payload = Objects.requireNonNull(transaction, "transaction should not be null");
-    }
+    private final Bytes transaction;
 
     /**
      * Constructs a new transaction wrapper
@@ -77,8 +63,7 @@ public non-sealed class TransactionWrapper implements ConsensusTransaction {
             return false;
         }
         TransactionWrapper that = (TransactionWrapper) o;
-        return Objects.equals(getTransaction(), that.getTransaction())
-                && Objects.equals(getApplicationTransaction(), that.getApplicationTransaction());
+        return Objects.equals(getApplicationTransaction(), that.getApplicationTransaction());
     }
 
     /**
@@ -86,7 +71,7 @@ public non-sealed class TransactionWrapper implements ConsensusTransaction {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(getTransaction(), getApplicationTransaction());
+        return Objects.hash(getApplicationTransaction());
     }
 
     /**
@@ -107,22 +92,10 @@ public non-sealed class TransactionWrapper implements ConsensusTransaction {
         this.consensusTimestamp = consensusTimestamp;
     }
 
-    /**
-     * Returns the payload as a PBJ record
-     *
-     * @return the payload
-     */
-    @NonNull
-    public EventTransaction getTransaction() {
-        return payload;
-    }
-
     @NonNull
     @Override
     public Bytes getApplicationTransaction() {
-        return !isSystem()
-                ? (getTransaction() != null ? getTransaction().transaction().as() : transaction)
-                : Bytes.EMPTY;
+        return transaction;
     }
 
     /**
@@ -133,14 +106,7 @@ public non-sealed class TransactionWrapper implements ConsensusTransaction {
      */
     @Override
     public int getSize() {
-        return transaction == null
-                ? TransactionUtils.getLegacyTransactionSize(payload)
-                : TransactionUtils.getLegacyTransactionSize(transaction);
-    }
-
-    @Override
-    public boolean isSystem() {
-        return TransactionUtils.isSystemTransaction(getTransaction());
+        return TransactionUtils.getLegacyTransactionSize(transaction);
     }
 
     /**
