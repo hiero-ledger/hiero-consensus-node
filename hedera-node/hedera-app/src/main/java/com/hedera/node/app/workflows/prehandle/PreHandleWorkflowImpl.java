@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
@@ -179,7 +180,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final Bytes applicationTxBytes,
             @Nullable PreHandleResult previousResult,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback) {
+            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
+            boolean isInnerTransaction) {
         // 0. Ignore the previous result if it was computed using different node configuration
         if (!wasComputedWithCurrentNodeConfiguration(previousResult)) {
             previousResult = null;
@@ -205,11 +207,26 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
             // But we still re-check for node diligence failures
             transactionChecker.checkParsed(txInfo);
+
+            // Check batch key on non-inner transactions,
+            if (!isInnerTransaction && txInfo.txBody().hasBatchKey()) {
+                return preHandleFailure(
+                        creator,
+                        null,
+                        BATCH_KEY_SET_ON_NON_INNER_TRANSACTION,
+                        txInfo,
+                        Set.of(),
+                        Set.of(),
+                        Set.of(),
+                        Map.of());
+            }
+
             // The transaction account ID MUST have matched the creator!
             if (!isBatchInnerTxn(txInfo.txBody())
                     && !creator.equals(txInfo.txBody().nodeAccountID())) {
                 throw new DueDiligenceException(INVALID_NODE_ACCOUNT, txInfo);
             }
+
         } catch (DueDiligenceException e) {
             // The node SHOULD have verified the transaction before it was submitted to the network.
             // Since it didn't, it has failed in its due diligence and will be charged accordingly.

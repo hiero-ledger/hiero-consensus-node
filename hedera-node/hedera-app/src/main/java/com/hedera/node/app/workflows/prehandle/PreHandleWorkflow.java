@@ -68,6 +68,7 @@ public interface PreHandleWorkflow {
      * @param maybeReusableResult       The result of a previous call to the same method that may,
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      *                                  depending on changes in state, be reusable for this call
+     * @param isInnerTransaction        Whether the transaction is an inner transaction
      * @return The {@link PreHandleResult} of running pre-handle
      */
     @NonNull
@@ -77,7 +78,8 @@ public interface PreHandleWorkflow {
             @NonNull ReadableAccountStore accountStore,
             @NonNull Bytes applicationTxBytes,
             @Nullable PreHandleResult maybeReusableResult,
-            @NonNull Consumer<StateSignatureTransaction> stateSignatureTxnCallback);
+            @NonNull Consumer<StateSignatureTransaction> stateSignatureTxnCallback,
+            boolean isInnerTransaction);
 
     /**
      * Starts the pre-handle transaction workflow for all transactions including inner transactions in an atomic batch.
@@ -103,7 +105,8 @@ public interface PreHandleWorkflow {
                 accountStore,
                 applicationTxBytes,
                 maybeReusableResult,
-                stateSignatureTxnCallback);
+                stateSignatureTxnCallback,
+                false);
         // If the transaction is an atomic batch, we need to pre-handle all inner transactions as well
         // and add their results to the outer transaction's pre-handle result
         if (result.txInfo() != null
@@ -127,7 +130,8 @@ public interface PreHandleWorkflow {
                         accountStore,
                         com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(innerTx),
                         useInnerResults ? maybeReusableResult.innerResults().get(i) : null,
-                        ignore -> {});
+                        ignore -> {},
+                        true);
                 requireNonNull(result.innerResults()).add(innerResult);
             }
         }
