@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.address_0x167;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V2;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_FUNGIBLE_TOKEN_V2;
@@ -36,8 +35,6 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorWithContractID;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorWithContractIDAndCustomConfig;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V1_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V2_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V3_TUPLE;
@@ -64,12 +61,11 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.ClassicCreatesCall;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.config.api.Configuration;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -81,7 +77,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * Unit tests for {@link CreateTranslator}.
  */
 @ExtendWith(MockitoExtension.class)
-public class CreateTranslatorTest extends CallTestBase {
+class CreateTranslatorTest extends CallTestBase {
 
     @Mock
     private HtsCallAttempt attempt;
@@ -102,280 +98,186 @@ public class CreateTranslatorTest extends CallTestBase {
     private VerificationStrategy verificationStrategy;
 
     @Mock
-    private ContractsConfig contractsConfig;
-
-    @Mock
-    Configuration configuration;
-
-    @Mock
     private ContractMetrics contractMetrics;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
-    private final com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateDecoder
-            decoder0x167 =
-                    new com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167
-                            .CreateDecoder();
-    private final com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateDecoder
-            decoder0x16c =
-                    new com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c
-                            .CreateDecoder();
-    private com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator
-            subject0x167;
-    private com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator
-            subject0x16c;
+    private final CreateDecoder decoder = new CreateDecoder();
+
+    private CreateTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject0x167 =
-                new com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167
-                        .CreateTranslator(decoder0x167, systemContractMethodRegistry, contractMetrics);
-        subject0x16c =
-                new com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c
-                        .CreateTranslator(decoder0x16c, systemContractMethodRegistry, contractMetrics);
+        subject = new CreateTranslator(decoder, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
     void matchesCreateFungibleTokenV1() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_FUNGIBLE_TOKEN_V1,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenV2() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_FUNGIBLE_TOKEN_V2,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenV3() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_FUNGIBLE_TOKEN_V3,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void matchesCreateFungibleTokenWithMetadata() {
-        attempt = prepareHtsAttemptWithSelectorWithContractIDAndCustomConfig(
-                HTS_16C_CONTRACT_ID,
-                CREATE_FUNGIBLE_TOKEN_WITH_METADATA,
-                subject0x16c,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-        assertThat(subject0x16c.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenWithCustomFeesV1() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenWithCustomFeesV2() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenWithCustomFeesV3() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void matchesCreateFungibleTokenWithMetadataAndCustomFees() {
-        attempt = prepareHtsAttemptWithSelectorWithContractIDAndCustomConfig(
-                HTS_16C_CONTRACT_ID,
-                CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES,
-                subject0x16c,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-        assertThat(subject0x16c.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenV1() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_NON_FUNGIBLE_TOKEN_V1,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenV2() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_NON_FUNGIBLE_TOKEN_V2,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenV3() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_NON_FUNGIBLE_TOKEN_V3,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void matchesCreateNonFungibleTokenWithMetadata() {
-        attempt = prepareHtsAttemptWithSelectorWithContractIDAndCustomConfig(
-                HTS_16C_CONTRACT_ID,
-                CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA,
-                subject0x167,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-        assertThat(subject0x16c.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenWithCustomFeesV1() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenWithCustomFeesV2() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenWithCustomFeesV3() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void matchesCreateNonFungibleTokenWithMetadataAndCustomFees() {
-        attempt = prepareHtsAttemptWithSelectorWithContractIDAndCustomConfig(
-                HTS_16C_CONTRACT_ID,
-                CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES,
-                subject0x16c,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-        assertThat(subject0x16c.identifyMethod(attempt)).isPresent();
+        assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void falseOnInvalidSelector() {
         attempt = prepareHtsAttemptWithSelector(
                 BURN_TOKEN_V2,
-                subject0x167,
+                subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject0x167.identifyMethod(attempt)).isEmpty();
-    }
-
-    @Test
-    void falseOnInvalidSelector16c() {
-        attempt = prepareHtsAttemptWithSelectorWithContractID(
-                HTS_16C_CONTRACT_ID,
-                BURN_TOKEN_V2,
-                subject0x16c,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry);
-        assertThat(subject0x16c.identifyMethod(attempt)).isEmpty();
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
@@ -389,7 +291,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -403,7 +305,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -417,7 +319,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -431,7 +333,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.senderId()).willReturn(SENDER_ID);
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -446,7 +348,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -461,7 +363,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -476,7 +378,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -490,7 +392,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.senderId()).willReturn(SENDER_ID);
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -504,7 +406,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -518,7 +420,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -532,7 +434,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -546,7 +448,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.senderId()).willReturn(SENDER_ID);
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -561,7 +463,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -576,7 +478,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -591,7 +493,7 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 
     @Test
@@ -605,6 +507,6 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.senderId()).willReturn(SENDER_ID);
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        assertThat(subject0x167.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
+        assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
     }
 }
