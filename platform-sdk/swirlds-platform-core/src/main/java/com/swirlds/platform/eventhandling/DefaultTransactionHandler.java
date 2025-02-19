@@ -38,7 +38,7 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -49,6 +49,7 @@ import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
@@ -248,7 +249,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @throws InterruptedException if this thread is interrupted
      */
     private void updateRunningEventHash(@NonNull final ConsensusRound round) throws InterruptedException {
-        PlatformMerkleStateRoot consensusState = swirldStateManager.getConsensusState();
+        final State consensusState = swirldStateManager.getConsensusState();
 
         if (writeLegacyRunningEventHash) {
             // Update the running hash object. If there are no events, the running hash does not change.
@@ -290,7 +291,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         final ReservedSignedState reservedSignedState;
         if (isBoundary || freezeRoundReceived) {
             handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
-            final PlatformMerkleStateRoot immutableStateCons = swirldStateManager.getStateForSigning();
+            final MerkleNodeState immutableStateCons = swirldStateManager.getStateForSigning();
 
             handlerMetrics.setPhase(CREATING_SIGNED_STATE);
             final SignedState signedState = new SignedState(

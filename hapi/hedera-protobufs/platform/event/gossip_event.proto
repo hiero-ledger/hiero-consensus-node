@@ -29,7 +29,6 @@ package com.hedera.hapi.platform.event;
  * limitations under the License.
  */
 
-import "event/event_transaction.proto";
 import "event/event_core.proto";
 
 option java_package = "com.hedera.hapi.platform.event.legacy";
@@ -40,6 +39,11 @@ option java_multiple_files = true;
  * An event that is sent and received via gossip
  */
 message GossipEvent {
+
+  // The EventTransaction field has been reserved because it is no longer
+  // required to be stored in the GossipEvent.
+  reserved 3;
+
   /**
    * The core event data
    */
@@ -56,17 +60,6 @@ message GossipEvent {
    * 2. The SHA-384 hash of each individual `EventTransaction`, in the order the transaction appear in the `event_transaction` field
    */
   bytes signature = 2;
-
-  /**
-   * The event transaction.
-   * <p>
-   * This field MAY contain zero transactions.<br/>
-   * This field MUST NOT exceed `maxTransactionCountPerEvent` entries, initially `245760`.<br/>
-   * This total size of this field MUST NOT exceed `maxTransactionBytesPerEvent`, initially `245760` bytes.<br/>
-   * Deprecated in favor of the `transaction` field. The idea is to clean the design of event transactions.<br/>
-   * This is transitional state until 'transaction' field is fully adopted.
-   */
-  repeated EventTransaction event_transaction = 3 [deprecated = true];
 
   /**
    * A list of serialized transactions.
