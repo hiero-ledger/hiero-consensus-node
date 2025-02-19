@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-
 package com.hedera.node.app;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;

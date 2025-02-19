@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-
 package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.BlockItem;
