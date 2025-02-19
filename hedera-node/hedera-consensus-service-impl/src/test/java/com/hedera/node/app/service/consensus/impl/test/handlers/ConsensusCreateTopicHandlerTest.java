@@ -24,6 +24,7 @@ import static com.hedera.node.app.service.consensus.impl.test.handlers.Consensus
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -531,6 +532,52 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
         assertEquals(1_234_567L + op.autoRenewPeriod().seconds(), actualTopic.expirationSecond());
         assertEquals(op.autoRenewPeriod().seconds(), actualTopic.autoRenewPeriod());
         assertEquals(autoRenewId, actualTopic.autoRenewAccountId());
+        final var topicID = idFactory.newTopicId(1_234L);
+        verify(recordBuilder).topicID(topicID);
+        assertNotNull(topicStore.getTopic(topicID));
+    }
+
+    @Test
+    @DisplayName("Handle works as expected with auto-renew account and without adminKey set")
+    void autoRenewAccountSetWithoutAdminKey() {
+        final var customFees = List.of(FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(1).build())
+                .feeCollectorAccountId(AccountID.DEFAULT)
+                .build());
+        final var feeExemptKeyList = List.of(SIMPLE_KEY_A, SIMPLE_KEY_B);
+        final var txnBody = newCreateTxn(null, null, true, customFees, feeExemptKeyList);
+        given(handleContext.body()).willReturn(txnBody);
+        given(accountStore.getAliasedAccountById(any())).willReturn(Account.DEFAULT);
+
+        // mock validators
+        given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
+        given(handleContext.attributeValidator()).willReturn(validator);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(entityNumGenerator.newEntityNum()).willReturn(1_234L);
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        final var op = txnBody.consensusCreateTopic();
+        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
+                .willReturn(new ExpiryMeta(
+                        1_234_567L + op.autoRenewPeriod().seconds(),
+                        op.autoRenewPeriod().seconds(),
+                        op.autoRenewAccount()));
+
+        subject.handle(handleContext);
+
+        final var createdTopic = topicStore.getTopic(TopicID.newBuilder()
+                .shardNum(SHARD)
+                .realmNum(REALM)
+                .topicNum(1_234L)
+                .build());
+
+        assertNotNull(createdTopic);
+        assertEquals(0L, createdTopic.sequenceNumber());
+        assertEquals(memo, createdTopic.memo());
+        assertFalse(createdTopic.hasAdminKey());
+        assertEquals(1_234_567L + op.autoRenewPeriod().seconds(), createdTopic.expirationSecond());
+        assertEquals(op.autoRenewPeriod().seconds(), createdTopic.autoRenewPeriod());
+        assertEquals(autoRenewId, createdTopic.autoRenewAccountId());
+
         final var topicID = idFactory.newTopicId(1_234L);
         verify(recordBuilder).topicID(topicID);
         assertNotNull(topicStore.getTopic(topicID));

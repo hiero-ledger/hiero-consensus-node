@@ -16,7 +16,6 @@
 
 package com.hedera.node.app.service.consensus.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
@@ -153,12 +152,6 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
             final var effectiveExpiryMeta = handleContext
                     .expiryValidator()
                     .resolveCreationAttempt(false, entityExpiryMeta, HederaFunctionality.CONSENSUS_CREATE_TOPIC);
-
-            // HapiTest, TopicCreateSuite.signingRequirementsEnforced() expects error code from resolveCreationAttempt()
-            // before the following check
-            if (op.hasAutoRenewAccount()) {
-                validateTrue(op.hasAdminKey(), AUTORENEW_ACCOUNT_NOT_ALLOWED);
-            }
 
             builder.autoRenewPeriod(effectiveExpiryMeta.autoRenewPeriod());
             builder.expirationSecond(effectiveExpiryMeta.expiry());
