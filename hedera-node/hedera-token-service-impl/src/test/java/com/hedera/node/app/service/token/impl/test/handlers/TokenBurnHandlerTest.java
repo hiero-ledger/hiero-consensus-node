@@ -96,7 +96,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TokenBurnHandlerTest extends ParityTestBase {
-    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(1339);
+
+    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(0L, 0L, 1339);
     private static final TokenID TOKEN_123 = BaseTokenHandler.asToken(123);
     private TokenSupplyChangeOpsValidator validator = new TokenSupplyChangeOpsValidator();
     private final TokenBurnHandler subject = new TokenBurnHandler(validator);

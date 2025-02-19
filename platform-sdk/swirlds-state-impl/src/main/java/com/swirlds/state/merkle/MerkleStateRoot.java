@@ -76,6 +76,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -101,11 +102,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
     private static final Logger logger = LogManager.getLogger(MerkleStateRoot.class);
 
-    /**
-     * Used when asked for a service's readable states that we don't have
-     */
-    private static final ReadableStates EMPTY_READABLE_STATES = new EmptyReadableStates();
-
     private static final long CLASS_ID = 0x8e300b0dfdafbb1bL;
     // Migrates from `PlatformState` to State API singleton
     public static final int CURRENT_VERSION = 31;
@@ -114,6 +110,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     // indices globally, assuming these indices do not change that often. We need to re-think index lookup,
     // but at this point all major rewrites seem to risky.
     private static final Map<String, Integer> INDEX_LOOKUP = new ConcurrentHashMap<>();
+    private LongSupplier roundSupplier;
 
     private MerkleCryptography merkleCryptography;
     private Time time;
@@ -162,10 +159,11 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
     }
 
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography) {
+    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
         this.time = time;
         this.metrics = metrics;
         this.merkleCryptography = merkleCryptography;
+        this.roundSupplier = roundSupplier;
         snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
     }
 
@@ -179,6 +177,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
         this.listeners.addAll(from.listeners);
+        this.roundSupplier = from.roundSupplier;
 
         // Copy over the metadata
         for (final var entry : from.services.entrySet()) {
@@ -251,7 +250,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     public ReadableStates getReadableStates(@NonNull String serviceName) {
         return readableStatesMap.computeIfAbsent(serviceName, s -> {
             final var stateMetadata = services.get(s);
-            return stateMetadata == null ? EMPTY_READABLE_STATES : new MerkleReadableStates(stateMetadata);
+            return stateMetadata == null ? EmptyReadableStates.INSTANCE : new MerkleReadableStates(stateMetadata);
         });
     }
 
@@ -291,6 +290,10 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         return copyingConstructor();
     }
 
+    /**
+     * Creates a copy of the instance.
+     * @return a copy of the instance
+     */
     protected abstract T copyingConstructor();
 
     @Override
@@ -552,8 +555,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
         @NonNull
         @Override
-        public <T> ReadableSingletonState<T> getSingleton(@NonNull String stateKey) {
-            final ReadableSingletonState<T> instance = (ReadableSingletonState<T>) singletonInstances.get(stateKey);
+        public <S> ReadableSingletonState<S> getSingleton(@NonNull String stateKey) {
+            final ReadableSingletonState<S> instance = (ReadableSingletonState<S>) singletonInstances.get(stateKey);
             if (instance != null) {
                 return instance;
             }
@@ -736,8 +739,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
         @NonNull
         @Override
-        public <T> WritableSingletonState<T> getSingleton(@NonNull String stateKey) {
-            return (WritableSingletonState<T>) super.getSingleton(stateKey);
+        public <S> WritableSingletonState<S> getSingleton(@NonNull String stateKey) {
+            return (WritableSingletonState<S>) super.getSingleton(stateKey);
         }
 
         @NonNull
@@ -928,21 +931,16 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         throwIfMutable();
         throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, getCurrentRound());
+        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, roundSupplier.getAsLong());
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
 
     /**
-     * Returns the number of the current rount
-     */
-    public abstract long getCurrentRound();
-
-    /**
      * {@inheritDoc}
      */
+    @SuppressWarnings("unchecked")
     @Override
-    public MerkleStateRoot<?> loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (MerkleStateRoot<?>)
-                MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
+    public T loadSnapshot(@NonNull Path targetPath) throws IOException {
+        return (T) MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
     }
 }

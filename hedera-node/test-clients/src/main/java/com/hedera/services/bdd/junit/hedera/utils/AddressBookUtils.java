@@ -17,6 +17,8 @@
 package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
@@ -185,6 +187,8 @@ public class AddressBookUtils {
                 nodeId,
                 CLASSIC_NODE_NAMES[nodeId],
                 AccountID.newBuilder()
+                        .shardNum(shard)
+                        .realmNum(realm)
                         .accountNum(CLASSIC_FIRST_NODE_ACCOUNT_NUM + nodeId)
                         .build(),
                 host,
@@ -293,6 +297,8 @@ public class AddressBookUtils {
      */
     public static com.hederahashgraph.api.proto.java.AccountID classicFeeCollectorIdFor(final long nodeId) {
         return com.hederahashgraph.api.proto.java.AccountID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
                 .setAccountNum(nodeId + CLASSIC_FIRST_NODE_ACCOUNT_NUM)
                 .build();
     }

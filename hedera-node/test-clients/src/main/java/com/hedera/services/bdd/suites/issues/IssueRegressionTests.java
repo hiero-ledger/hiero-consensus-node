@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -209,16 +210,16 @@ public class IssueRegressionTests {
     @HapiTest
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
         return hapiTest(
-                cryptoCreate("acct3").setNode("0.0.3").via("txnId1"),
+                cryptoCreate("acct3").setNode(asEntityString(3)).via("txnId1"),
                 sleepFor(2000),
                 cryptoCreate("acctWithDuplicateTxnId")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .txnId("txnId1")
                         .hasPrecheck(DUPLICATE_TRANSACTION),
                 uncheckedSubmit(cryptoCreate("acctWithDuplicateTxnId")
-                                .setNode("0.0.5")
+                                .setNode(asEntityString(5))
                                 .txnId("txnId1"))
-                        .setNode("0.0.5"),
+                        .setNode(asEntityString(5)),
                 sleepFor(2000),
                 getTxnRecord("txnId1")
                         .andAnyDuplicates()
@@ -230,9 +231,9 @@ public class IssueRegressionTests {
     @HapiTest
     final Stream<DynamicTest> duplicatedTxnsDifferentTypesDifferentNodesDetected() {
         return hapiTest(
-                cryptoCreate("acct4").via("txnId4").setNode("0.0.3"),
+                cryptoCreate("acct4").via("txnId4").setNode(asEntityString(3)),
                 newKeyNamed("key2"),
-                createTopic("topic2").setNode("0.0.5").submitKeyName("key2"),
+                createTopic("topic2").setNode(asEntityString(5)).submitKeyName("key2"),
                 submitMessageTo("topic2")
                         .message("Hello world")
                         .payingWith("acct4")

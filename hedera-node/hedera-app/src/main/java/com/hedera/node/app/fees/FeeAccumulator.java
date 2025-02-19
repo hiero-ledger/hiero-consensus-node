@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@ import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.Fees;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.ObjLongConsumer;
 
 /**
  * Accumulates fees for a given transaction. They can either be charged to a payer account, ore refunded to a receiver
@@ -48,11 +50,13 @@ public class FeeAccumulator {
      *
      * @param payer The account to charge the fees to
      * @param networkFee The network fee to charge
+     * @param cb if not null, a callback to receive the fee disbursements
      * @return true if the full fee was charged
      */
-    public boolean chargeNetworkFee(@NonNull final AccountID payer, final long networkFee) {
+    public boolean chargeNetworkFee(
+            @NonNull final AccountID payer, final long networkFee, @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(payer);
-        return tokenApi.chargeNetworkFee(payer, networkFee, recordBuilder);
+        return tokenApi.chargeNetworkFee(payer, networkFee, recordBuilder, cb);
     }
 
     /**
@@ -62,12 +66,17 @@ public class FeeAccumulator {
      * @param payer The account to charge the fees to
      * @param nodeAccount The node account to receive the node fee
      * @param fees The fees to charge
+     * @param cb if not null, a callback to receive the fee disbursements
      */
-    public void chargeFees(@NonNull AccountID payer, @NonNull final AccountID nodeAccount, @NonNull Fees fees) {
+    public void chargeFees(
+            @NonNull AccountID payer,
+            @NonNull final AccountID nodeAccount,
+            @NonNull Fees fees,
+            @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(payer);
         requireNonNull(nodeAccount);
         requireNonNull(fees);
-        tokenApi.chargeFees(payer, nodeAccount, fees, recordBuilder);
+        tokenApi.chargeFees(payer, nodeAccount, fees, recordBuilder, cb);
     }
 
     /**

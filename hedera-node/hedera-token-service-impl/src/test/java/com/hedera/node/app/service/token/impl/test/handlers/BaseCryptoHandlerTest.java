@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,14 +48,14 @@ public class BaseCryptoHandlerTest {
     @DisplayName("isStakingAccount Check if account is a staking reward account")
     void isStakingAccount_returnsTrue_whenAccountIsStakingRewardAccount() {
         when(accountsConfig.stakingRewardAccount()).thenReturn(1L);
-        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(1L)));
+        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(0L, 0L, 1L)));
     }
 
     @Test
     @DisplayName("isStakingAccount Check if account is a node reward account")
     void isStakingAccount_returnsTrue_whenAccountIsNodeRewardAccount() {
         when(accountsConfig.nodeRewardAccount()).thenReturn(1L);
-        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(1L)));
+        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(0L, 0L, 1L)));
     }
 
     @Test
@@ -63,13 +63,13 @@ public class BaseCryptoHandlerTest {
     void isStakingAccount_returnsFalse_whenAccountIsNotStakingOrNodeRewardAccount() {
         when(accountsConfig.stakingRewardAccount()).thenReturn(1L);
         when(accountsConfig.nodeRewardAccount()).thenReturn(2L);
-        assertFalse(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(3L)));
+        assertFalse(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(0L, 0L, 3L)));
     }
 
     @DisplayName("asAccount Check if asAccount returns AccountID with given number")
     @Test
     void asAccountReturnsAccountIDWithGivenNumber() {
-        AccountID result = BaseCryptoHandler.asAccount(123);
+        AccountID result = BaseCryptoHandler.asAccount(0L, 0L, 123);
         assertEquals(123, result.accountNum());
     }
 
