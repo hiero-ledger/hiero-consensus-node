@@ -19,9 +19,11 @@ package com.hedera.services.bdd.suites.hip551;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -140,7 +142,7 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Empty batch should fail")
-        @Disabled // TODO: enable this when we have pure checks and pre handle logic
+        @Disabled // TODO: enable this when we have pure checks
         // BATCH_37
         public Stream<DynamicTest> submitEmptyBatch() {
             return hapiTest(atomicBatch().hasPrecheck(BATCH_LIST_EMPTY));
@@ -149,7 +151,6 @@ public class AtomicBatchNegativeTest {
         @HapiTest
         @DisplayName("Batch with invalid duration should fail")
         // BATCH_39
-        @Disabled // TODO: check if validation will pass with all disabled tests
         public Stream<DynamicTest> batchWithInvalidDurationShouldFail() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
@@ -162,13 +163,20 @@ public class AtomicBatchNegativeTest {
         @HapiTest
         @DisplayName("Batch containing inner txn with invalid duration should fail")
         // BATCH_41
-        @Disabled // TODO: Enable after adding time box validations on inner transactions
         public Stream<DynamicTest> innerTxnWithInvalidDuration() {
+            final var innerId = "innerId";
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
-                    atomicBatch(cryptoCreate("foo").validDurationSecs(-1).batchKey("batchOperator"))
+                    usableTxnIdNamed(innerId).payerId("batchOperator"),
+                    atomicBatch(cryptoCreate(innerId)
+                                    .txnId(innerId)
+                                    .validDurationSecs(-1)
+                                    .batchKey("batchOperator"))
                             .payingWith("batchOperator")
-                            .hasPrecheck(INVALID_TRANSACTION_DURATION));
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    getTxnRecord(innerId)
+                            .assertingNothingAboutHashes()
+                            .hasPriority(recordWith().status((INVALID_TRANSACTION_DURATION))));
         }
 
         @HapiTest
@@ -209,8 +217,8 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Submit batch with duplicated inner txn should fail")
-        @Disabled // TODO: enable this when we have deduplication logic for inner txn.
-        // BATCH_45
+        @Disabled // TODO: enable this when we have pure checks
+        // BATCH_44
         public Stream<DynamicTest> duplicatedInnerTxn() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
