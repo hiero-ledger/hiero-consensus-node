@@ -63,6 +63,7 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -105,6 +106,9 @@ import org.junit.jupiter.api.TestMethodOrder;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class DabEnabledUpgradeTest implements LifecycleTest {
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
+
     // To test BirthRoundStateMigration, use,
     //    Map.of("event.useBirthRoundAncientThreshold", "true")
     private static final Map<String, String> ENV_OVERRIDES = Map.of();
@@ -300,6 +304,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     private static String classicFeeCollectorIdLiteralFor(final long nodeId) {
-        return "0.0." + (nodeId + 3L);
+        return String.format("%s.%s.%d", SHARD, REALM, (nodeId + 3L));
     }
 }

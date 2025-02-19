@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_FILE_HA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_FILE_ID_DOES_NOT_MATCH_PREPARED;
 
 import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.swirlds.common.utility.CommonUtils;
 import java.io.IOException;
@@ -57,6 +58,8 @@ import org.junit.jupiter.api.DynamicTest;
 public class UpgradeSuite extends HapiSuite {
     private static final Logger log = LogManager.getLogger(UpgradeSuite.class);
 
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
     public static final String pragmatism = "Think of the children!";
     public static final String poeticUpgradeLoc = "testfiles/poeticUpgrade.zip";
     public static final String heavyPoeticUpgradeLoc = "testfiles/heavyPoeticUpgrade.zip";
@@ -71,8 +74,8 @@ public class UpgradeSuite extends HapiSuite {
     private final byte[] heavyPoeticUpgradeHash;
     private final byte[] notEvenASha384Hash = "abcdefgh".getBytes(StandardCharsets.UTF_8);
 
-    public static final String standardUpdateFile = "0.0.150";
-    public static final String standardTelemetryFile = "0.0.159";
+    public static final String standardUpdateFile = String.format("%s.%s.150", SHARD, REALM);
+    public static final String standardTelemetryFile = String.format("%s.%s.159", SHARD, REALM);
 
     public UpgradeSuite() {
         try {

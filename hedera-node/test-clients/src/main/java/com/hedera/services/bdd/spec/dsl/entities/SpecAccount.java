@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import com.hedera.services.bdd.spec.dsl.operations.transactions.DeleteAccountOpe
 import com.hedera.services.bdd.spec.dsl.operations.transactions.DissociateTokensOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.TransferTokensOperation;
 import com.hedera.services.bdd.spec.dsl.utils.KeyMetadata;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -53,6 +54,8 @@ import java.util.List;
  */
 public class SpecAccount extends AbstractSpecEntity<HapiCryptoCreate, Account>
         implements OwningEntity, EvmAddressableEntity {
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
     private static final long UNSPECIFIED_CENT_BALANCE = -1;
 
     private final Account.Builder builder = Account.newBuilder();
@@ -374,6 +377,8 @@ public class SpecAccount extends AbstractSpecEntity<HapiCryptoCreate, Account>
                     .saveAccountId(
                             name,
                             com.hederahashgraph.api.proto.java.AccountID.newBuilder()
+                                    .setShardNum(Long.parseLong(SHARD))
+                                    .setRealmNum(Long.parseLong(REALM))
                                     .setAccountNum(model.accountIdOrThrow().accountNumOrThrow())
                                     .build());
             if (model.receiverSigRequired()) {

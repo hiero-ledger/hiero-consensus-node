@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -97,6 +98,8 @@ public class SteadyStateThrottlingTest {
     private static final String SUPPLY = "supply";
     private static final String TOKEN = "token";
     private static final String CIVILIAN = "civilian";
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
     /**
      * In general, only {@code BUSY} and {@code SUCCESS} will be returned by the network ({@code BUSY} if we exhaust
      * all retries for a particular transaction without ever submitting it); however, in CI with fewer CPUs available,
@@ -208,7 +211,7 @@ public class SteadyStateThrottlingTest {
                     int logScreen = 0;
                     while (watch.elapsed(SECONDS) < secsToRun) {
                         var subOps = IntStream.range(0, burstSize)
-                                .mapToObj(ignore -> getAccountBalance("0.0.2")
+                                .mapToObj(ignore -> getAccountBalance(String.format("%s.%s.2", SHARD, REALM))
                                         .noLogging()
                                         .payingWith("curious")
                                         .hasAnswerOnlyPrecheckFrom(BUSY, OK))
