@@ -63,6 +63,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -106,16 +107,9 @@ public class AtomicBatchHandler implements TransactionHandler {
             throw new PreCheckException(BATCH_LIST_EMPTY);
         }
 
-        Set<TransactionID> set = new HashSet<>();
-        for (final var transaction : transactions) {
-            final TransactionBody txBody;
-            try {
-                txBody = bodyParser.apply(transaction);
-            } catch (HandleException e) {
-                throw new PreCheckException(e.getStatus());
-            }
-
-            validateTruePreCheck(set.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
+        Set<TransactionID> txIds = new HashSet<>();
+        for (final var txBody : getTransactionBodies(transactions)) {
+            validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
 
             // validate batch key exists on each inner transaction
             validateTruePreCheck(txBody.hasBatchKey(), MISSING_BATCH_KEY);
@@ -145,14 +139,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         requireNonNull(op);
         List<Transaction> transactions = atomicBatchTransactionBody.transactions();
 
-        for (var transaction : transactions) {
-            // check how to parse it correctly or maybe throw an exception
-            final TransactionBody txBody;
-            try {
-                txBody = bodyParser.apply(transaction);
-            } catch (HandleException e) {
-                throw new PreCheckException(e.getStatus());
-            }
+        for (final var txBody : getTransactionBodies(transactions)) {
             context.requireKeyOrThrow(txBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
@@ -165,22 +152,21 @@ public class AtomicBatchHandler implements TransactionHandler {
         if (!context.configuration().getConfigData(AtomicBatchConfig.class).isEnabled()) {
             throw new HandleException(NOT_SUPPORTED);
         }
-        final var txnBodies = new ArrayList<TransactionBody>();
         List<Transaction> transactions = op.transactions();
-
         if (transactions.size()
                 > context.configuration().getConfigData(AtomicBatchConfig.class).maxNumberOfTransactions()) {
             throw new HandleException(BATCH_SIZE_LIMIT_EXCEEDED);
         }
 
-        for (final var transaction : transactions) {
-            try {
-                txnBodies.add(bodyParser.apply(transaction));
-            } catch (HandleException e) {
-                // Do we need to keep the specific ResponseCodeEnum here?
-                throw new HandleException(INNER_TRANSACTION_FAILED);
-            }
+        final List<TransactionBody> txnBodies;
+        try {
+            txnBodies = getTransactionBodies(transactions);
+        } catch (PreCheckException e) {
+            // this should never happen here
+            // the parsing check is done in the pre-handle workflow
+            throw new HandleException(INNER_TRANSACTION_FAILED);
         }
+
         // The parsing check, timebox, and duplication checks are done in the pre-handle workflow
         // So, no need to repeat here
         // dispatch all the inner transactions
@@ -203,6 +189,15 @@ public class AtomicBatchHandler implements TransactionHandler {
                             builder.setReplayedFees(asTransferList(adjustments));
                         }));
             }
+        }
+    }
+
+    private @NonNull List<TransactionBody> getTransactionBodies(@NonNull List<Transaction> transactions)
+            throws PreCheckException {
+        try {
+            return transactions.stream().map(bodyParser).collect(Collectors.toCollection(ArrayList::new));
+        } catch (HandleException e) {
+            throw new PreCheckException(INNER_TRANSACTION_FAILED);
         }
     }
 
