@@ -26,12 +26,10 @@ package com.swirlds.demo.stats.signing;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.Function;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the
@@ -41,15 +39,16 @@ import java.util.function.Function;
  * optional sequence number check.
  */
 @ConstructableIgnored
-public class StatsSigningTestingToolState extends PlatformMerkleStateRoot {
+public class StatsSigningTestingToolState extends MerkleStateRoot<StatsSigningTestingToolState>
+        implements MerkleNodeState {
 
     private static final long CLASS_ID = 0x79900efa3127b6eL;
 
     /** A running sum of transaction contents */
     private long runningSum = 0;
 
-    public StatsSigningTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public StatsSigningTestingToolState() {
+        // no-op
     }
 
     private StatsSigningTestingToolState(@NonNull final StatsSigningTestingToolState sourceState) {
@@ -65,6 +64,7 @@ public class StatsSigningTestingToolState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized StatsSigningTestingToolState copy() {
         throwIfImmutable();
@@ -94,6 +94,11 @@ public class StatsSigningTestingToolState extends PlatformMerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.MIGRATE_TO_SERIALIZABLE;
+    }
+
+    @Override
+    protected StatsSigningTestingToolState copyingConstructor() {
+        return new StatsSigningTestingToolState();
     }
 
     /**

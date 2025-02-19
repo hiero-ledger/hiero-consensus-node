@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ public class MerkleTreeSnapshotReader {
             @NonNull final Path stateFile, @NonNull final MerkleDataInputStream in, @NonNull final Path directory)
             throws IOException {
         try {
-            final MerkleStateRoot<?> state = in.readMerkleTree(directory, MAX_MERKLE_NODES_IN_STATE);
+            final PartialNaryMerkleInternal state = in.readMerkleTree(directory, MAX_MERKLE_NODES_IN_STATE);
             final Hash hash = in.readSerializable();
             return new StateFileData(state, hash);
 

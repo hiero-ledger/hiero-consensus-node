@@ -115,9 +115,8 @@ public class ConsensusRound implements Round {
             final PlatformEvent e = iterator.next();
             final Iterator<Transaction> ti = e.transactionIterator();
             while (ti.hasNext()) {
-                if (!ti.next().isSystem()) {
-                    numAppTransactions++;
-                }
+                ti.next();
+                numAppTransactions++;
             }
             streamedEvents.add(new CesEvent(e, snapshot.round(), !iterator.hasNext()));
         }

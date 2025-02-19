@@ -34,6 +34,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.token.impl.schemas.SyntheticAccountCreator;
@@ -130,7 +131,8 @@ final class V0490TokenSchemaTest {
                 CURRENT_VERSION,
                 NON_GENESIS_ROUND,
                 new HashMap<>(),
-                startupNetworks);
+                startupNetworks,
+                new AppEntityIdFactory(config));
 
         schema.migrate(migrationContext);
 
@@ -155,7 +157,8 @@ final class V0490TokenSchemaTest {
                 null,
                 0L,
                 new HashMap<>(),
-                startupNetworks);
+                startupNetworks,
+                new AppEntityIdFactory(config));
 
         schema.migrate(migrationContext);
 
@@ -178,7 +181,8 @@ final class V0490TokenSchemaTest {
                 null,
                 0L,
                 new HashMap<>(),
-                startupNetworks);
+                startupNetworks,
+                new AppEntityIdFactory(config));
 
         schema.migrate(migrationContext);
 
@@ -254,7 +258,8 @@ final class V0490TokenSchemaTest {
                 CURRENT_VERSION,
                 NON_GENESIS_ROUND,
                 new HashMap<>(),
-                startupNetworks);
+                startupNetworks,
+                new AppEntityIdFactory(config));
 
         schema.migrate(migrationContext);
 
@@ -282,7 +287,8 @@ final class V0490TokenSchemaTest {
                 null,
                 0L,
                 new HashMap<>(),
-                startupNetworks));
+                startupNetworks,
+                new AppEntityIdFactory(config)));
 
         // Verify contract entity IDs aren't used
         for (int i = 350; i < 400; i++) {

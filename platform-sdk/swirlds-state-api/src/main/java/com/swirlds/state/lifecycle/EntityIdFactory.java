@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hedera.node.app.spi.ids;
+package com.swirlds.state.lifecycle;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -22,7 +22,10 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
+// FUTURE: This can be moved elsewhere once all the migration code happens in handle.
 /**
  * A strategy for creating entity ids.
  */
@@ -50,6 +53,12 @@ public interface EntityIdFactory {
      * @param number the number
      */
     AccountID newAccountId(long number);
+
+    /**
+     * Returns an account id for the given alias.
+     * @param alias the alias
+     */
+    AccountID newAccountIdWithAlias(@NonNull Bytes alias);
 
     /**
      * Returns a default account id with account num UNSET.
