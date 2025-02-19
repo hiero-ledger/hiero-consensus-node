@@ -303,7 +303,7 @@ class AtomicBatchHandlerTest {
                 .willReturn(recordBuilder);
         given(bodyParser.apply(any())).willReturn(innerTxnBody);
         given(recordBuilder.status()).willReturn(SUCCESS);
-        assertDoesNotThrow( () -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(handleContext));
     }
 
     @Test
