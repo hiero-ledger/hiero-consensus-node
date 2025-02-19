@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,10 +31,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.hedera.pbj.runtime.OneOf;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -111,7 +109,7 @@ class InternalEventValidatorTests {
         final GossipEvent noEventCore = GossipEvent.newBuilder()
                 .eventCore((EventCore) null)
                 .signature(wholeEvent.signature())
-                .eventTransaction(wholeEvent.eventTransaction())
+                .transactions(wholeEvent.transactions())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(noEventCore);
         assertNull(multinodeValidator.validateEvent(platformEvent));
@@ -124,7 +122,7 @@ class InternalEventValidatorTests {
                         .version(wholeEvent.eventCore().version())
                         .build())
                 .signature(wholeEvent.signature())
-                .eventTransaction(wholeEvent.eventTransaction())
+                .transactions(wholeEvent.transactions())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(noTimeCreated);
         assertNull(multinodeValidator.validateEvent(platformEvent));
@@ -137,7 +135,7 @@ class InternalEventValidatorTests {
                         .version((SemanticVersion) null)
                         .build())
                 .signature(wholeEvent.signature())
-                .eventTransaction(wholeEvent.eventTransaction())
+                .transactions(wholeEvent.transactions())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(noVersion);
         assertNull(multinodeValidator.validateEvent(platformEvent));
@@ -147,8 +145,7 @@ class InternalEventValidatorTests {
         final GossipEvent nullTransaction = GossipEvent.newBuilder()
                 .eventCore(wholeEvent.eventCore())
                 .signature(wholeEvent.signature())
-                .eventTransaction(
-                        List.of(new EventTransaction(new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, null))))
+                .transactions(List.of(Bytes.EMPTY))
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullTransaction);
 
@@ -165,7 +162,7 @@ class InternalEventValidatorTests {
                         .parents(parents)
                         .build())
                 .signature(wholeEvent.signature())
-                .eventTransaction(wholeEvent.eventTransaction())
+                .transactions(wholeEvent.transactions())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullParent);
         assertNull(multinodeValidator.validateEvent(platformEvent));
@@ -189,7 +186,7 @@ class InternalEventValidatorTests {
         final GossipEvent shortSignature = GossipEvent.newBuilder()
                 .eventCore(validEvent.eventCore())
                 .signature(validEvent.signature().getBytes(1, SignatureType.RSA.signatureLength() - 2))
-                .eventTransaction(validEvent.eventTransaction())
+                .transactions(validEvent.transactions())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortSignature);
         assertNull(multinodeValidator.validateEvent(platformEvent));
@@ -210,7 +207,7 @@ class InternalEventValidatorTests {
                                 .build())
                         .build())
                 .signature(validEvent.signature())
-                .eventTransaction(validEvent.eventTransaction())
+                .transactions(validEvent.transactions())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
         assertNull(multinodeValidator.validateEvent(platformEvent));

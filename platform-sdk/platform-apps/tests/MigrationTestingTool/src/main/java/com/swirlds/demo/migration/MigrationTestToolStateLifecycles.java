@@ -98,9 +98,6 @@ public class MigrationTestToolStateLifecycles implements StateLifecycles<Migrati
             for (final Iterator<ConsensusTransaction> transIt = event.consensusTransactionIterator();
                     transIt.hasNext(); ) {
                 final ConsensusTransaction trans = transIt.next();
-                if (trans.isSystem()) {
-                    continue;
-                }
                 if (isSystemTransaction(trans.getApplicationTransaction())) {
                     consumeSystemTransaction(trans, event, stateSignatureTransactionCallback);
                     continue;
@@ -119,16 +116,6 @@ public class MigrationTestToolStateLifecycles implements StateLifecycles<Migrati
             @NonNull MigrationTestingToolState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         event.forEachTransaction(transaction -> {
-
-            // We don't want to consume deprecated EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in
-            // the callback, since it's intended to be used only
-            // for the new form of encoded system transactions in Bytes.
-            // We skip the current iteration, if it processes a deprecated system transaction with the
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-            if (transaction.isSystem()) {
-                return;
-            }
-
             if (isSystemTransaction(transaction.getApplicationTransaction())) {
                 consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
             }

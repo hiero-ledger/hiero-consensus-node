@@ -29,10 +29,9 @@ import java.util.concurrent.locks.ReadWriteLock;
 public sealed interface Transaction permits ConsensusTransaction {
 
     /**
-     * A convenience method for retrieving the application transaction {@link Bytes} object. Before calling this method,
-     * ensure that the transaction is not a system transaction by calling {@link #isSystem()}.
+     * A convenience method for retrieving the application transaction {@link Bytes} object.
      *
-     * @return the application transaction Bytes or {@code Bytes.EMPTY} if the transaction is a system transaction
+     * @return the application transaction Bytes
      */
     Bytes getApplicationTransaction();
 
@@ -42,15 +41,6 @@ public sealed interface Transaction permits ConsensusTransaction {
      * @return the size of the transaction in the unit of byte
      */
     int getSize();
-
-    /**
-     * Internal use accessor that returns a flag indicating whether this is a system transaction.
-     *
-     * @return {@code true} if this is a system transaction; otherwise {@code false} if this is an application
-     * 		transaction
-     */
-    @Deprecated
-    boolean isSystem();
 
     /**
      * Returns the custom metadata object set via {@link #setMetadata(Object)}.

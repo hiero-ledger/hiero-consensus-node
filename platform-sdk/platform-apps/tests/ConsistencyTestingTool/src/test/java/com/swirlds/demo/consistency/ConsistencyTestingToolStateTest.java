@@ -181,24 +181,6 @@ public class ConsistencyTestingToolStateTest {
     }
 
     @Test
-    void handleConsensusRoundWithDeprecatedSystemTransaction() {
-        when(consensusTransaction.getApplicationTransaction()).thenReturn(Bytes.EMPTY);
-        when(consensusTransaction.isSystem()).thenReturn(true);
-
-        doAnswer(invocation -> {
-                    BiConsumer<ConsensusEvent, Transaction> consumer = invocation.getArgument(0);
-                    consumer.accept(event, consensusTransaction);
-                    return null;
-                })
-                .when(round)
-                .forEachEventTransaction(any());
-
-        stateLifecycle.onHandleConsensusRound(round, state, consumer);
-
-        assertThat(consumedTransactions).isEmpty();
-    }
-
-    @Test
     void preHandleEventWithMultipleSystemTransactions() {
         final var secondConsensusTransaction = mock(TransactionWrapper.class);
         final var thirdConsensusTransaction = mock(TransactionWrapper.class);
@@ -245,23 +227,6 @@ public class ConsistencyTestingToolStateTest {
     void preHandleEventWithApplicationTransaction() {
         final var bytes = Bytes.wrap(new byte[] {1, 1, 1, 1, 1, 1, 1, 1});
         when(consensusTransaction.getApplicationTransaction()).thenReturn(bytes);
-
-        doAnswer(invocation -> {
-                    Consumer<Transaction> consumer = invocation.getArgument(0);
-                    consumer.accept(consensusTransaction);
-                    return null;
-                })
-                .when(event)
-                .forEachTransaction(any());
-
-        stateLifecycle.onPreHandle(event, state, consumer);
-
-        assertThat(consumedTransactions).isEmpty();
-    }
-
-    @Test
-    void preHandleEventWithDeprecatedSystemTransaction() {
-        when(consensusTransaction.isSystem()).thenReturn(true);
 
         doAnswer(invocation -> {
                     Consumer<Transaction> consumer = invocation.getArgument(0);

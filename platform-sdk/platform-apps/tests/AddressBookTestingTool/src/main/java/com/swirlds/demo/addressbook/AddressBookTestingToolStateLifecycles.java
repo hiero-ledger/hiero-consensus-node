@@ -162,17 +162,6 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
 
         for (final var event : round) {
             event.consensusTransactionIterator().forEachRemaining(transaction -> {
-                // We are not interested in handling any system transactions, as they are
-                // specific for the platform only.We also don't want to consume deprecated
-                // EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in the
-                // callback, since it's intended to be used only for the new form of encoded system
-                // transactions in Bytes. Thus, we can directly skip the current
-                // iteration, if it processes a deprecated system transaction with the
-                // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-                if (transaction.isSystem()) {
-                    return;
-                }
-
                 // We should consume in the callback the new form of system transactions in Bytes
                 if (state.areTransactionBytesSystemOnes(transaction)) {
                     consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
@@ -199,9 +188,6 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
      */
     private void handleTransaction(
             @NonNull final ConsensusTransaction transaction, @NonNull final AddressBookTestingToolState state) {
-        if (transaction.isSystem()) {
-            return;
-        }
         final int delta =
                 ByteUtils.byteArrayToInt(transaction.getApplicationTransaction().toByteArray(), 0);
         state.incrementRunningSum(delta);
@@ -811,17 +797,6 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
             @NonNull AddressBookTestingToolState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         event.transactionIterator().forEachRemaining(transaction -> {
-            // We are not interested in pre-handling any system transactions, as they are
-            // specific for the platform only.We also don't want to consume deprecated
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in the
-            // callback,since it's intended to be used only for the new form of encoded system
-            // transactions in Bytes. Thus, we can directly skip the current
-            // iteration, if it processes a deprecated system transaction with the
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-            if (transaction.isSystem()) {
-                return;
-            }
-
             // We should consume in the callback the new form of system transactions in Bytes
             if (state.areTransactionBytesSystemOnes(transaction)) {
                 consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
