@@ -400,8 +400,8 @@ public class ReadableFreezeUpgradeActions {
             return;
         }
 
-        var shard = entityIdFactory.getShard();
-        var realm = entityIdFactory.getRealm();
+        var shard = upgradeFileId.shardNum();
+        var realm = upgradeFileId.realmNum();
 
         try {
             final var curSpecialFileContents = upgradeFileStore.getFull(upgradeFileId);

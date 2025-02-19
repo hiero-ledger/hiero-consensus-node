@@ -61,14 +61,4 @@ public interface EntityIdFactory {
      * @param number the number
      */
     ContractID newContractId(long number);
-
-    /**
-     * Returns the shard.
-     */
-    long getShard();
-
-    /**
-     * Returns the realm.
-     */
-    long getRealm();
 }
