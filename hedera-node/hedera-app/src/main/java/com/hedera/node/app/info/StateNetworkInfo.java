@@ -34,6 +34,7 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +64,7 @@ public class StateNetworkInfo implements NetworkInfo {
      * <i>metadata</i> of nodes, but not the set of nodes itself; so pre-handle threads
      * can use any version of the map to test for address book membership.)
      */
-    private Map<Long, NodeInfo> nodeInfos;
+    private volatile Map<Long, NodeInfo> nodeInfos;
 
     /**
      * Constructs a new network information provider from the given state, roster, selfID, and configuration provider.
@@ -156,6 +157,6 @@ public class StateNetworkInfo implements NetworkInfo {
                 log.warn("Node {} not found in node store", rosterEntry.nodeId());
             }
         }
-        return nodeInfos;
+        return Collections.unmodifiableMap(nodeInfos);
     }
 }
