@@ -59,8 +59,8 @@ public class TransactionHandler {
      * 		the stateLifecycles to apply {@code round} to
      * @param stateRoot the state root to apply {@code round} to
      */
-    public <T extends PlatformMerkleStateRoot> Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleRound(
-            final ConsensusRound round, final StateLifecycles<T> stateLifecycles, final T stateRoot) {
+    public <T extends MerkleNodeState> Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleRound(
+            final ConsensusRound round, final StateLifecycles<MerkleNodeState> stateLifecycles, final T stateRoot) {
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();
 
@@ -76,7 +76,6 @@ public class TransactionHandler {
                 }
             }
         }
-
         try {
             final Instant timeOfHandle = Instant.now();
             final long startTime = System.nanoTime();

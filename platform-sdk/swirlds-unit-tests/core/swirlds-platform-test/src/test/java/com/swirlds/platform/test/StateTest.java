@@ -22,15 +22,18 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -44,8 +47,8 @@ class StateTest {
     @DisplayName("Test Copy")
     void testCopy() {
 
-        final PlatformMerkleStateRoot state = randomSignedState().getState();
-        final PlatformMerkleStateRoot copy = state.copy();
+        final MerkleNodeState state = randomSignedState().getState();
+        final MerkleNodeState copy = state.copy();
 
         assertNotSame(state, copy, "copy should not return the same object");
 
@@ -55,8 +58,8 @@ class StateTest {
 
         assertEquals(state.getHash(), copy.getHash(), "copy should be equal to the original");
         assertFalse(state.isDestroyed(), "copy should not have been deleted");
-        assertEquals(0, copy.getReservationCount(), "copy should have no references");
-        assertSame(state.getRoute(), copy.getRoute(), "route should be recycled");
+        assertEquals(0, ((Reservable) copy).getReservationCount(), "copy should have no references");
+        assertSame(((HasMerkleRoute) state).getRoute(), ((HasMerkleRoute) copy).getRoute(), "route should be recycled");
     }
 
     /**
@@ -66,7 +69,7 @@ class StateTest {
     @Tag(TestComponentTags.MERKLE)
     @DisplayName("Test Try Reserve")
     void tryReserveTest() {
-        final PlatformMerkleStateRoot state = randomSignedState().getState();
+        final MerkleNodeState state = randomSignedState().getState();
         assertEquals(
                 1,
                 state.getReservationCount(),
@@ -84,8 +87,7 @@ class StateTest {
 
     private static SignedState randomSignedState() {
         Random random = new Random(0);
-        PlatformMerkleStateRoot merkleStateRoot =
-                new PlatformMerkleStateRoot(version -> new BasicSoftwareVersion(version.major()));
+        MerkleNodeState merkleStateRoot = new TestMerkleStateRoot();
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),

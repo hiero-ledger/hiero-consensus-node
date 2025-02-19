@@ -23,7 +23,6 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -33,11 +32,11 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * A test implementation of {@link PlatformMerkleStateRoot} state for SignedStateManager unit tests.
- * Node that some of the {@link PlatformMerkleStateRoot} methods are intentionally not implemented. If a test needs these methods,
+ * A test implementation of {@link MerkleStateRoot} state for SignedStateManager unit tests.
+ * Node that some of the {@link MerkleStateRoot} methods are intentionally not implemented. If a test needs these methods,
  * {@link MerkleStateRoot} should be used instead.
  */
-public class BlockingState extends PlatformMerkleStateRoot {
+public class BlockingState extends TestMerkleStateRoot {
 
     static {
         try {
@@ -59,6 +58,9 @@ public class BlockingState extends PlatformMerkleStateRoot {
     private final BlockingStringLeaf value;
     private TestPlatformStateFacade platformStateFacade;
 
+    /**
+     * Constructs a new instance of {@link BlockingState}.
+     */
     public BlockingState() {
         this(new TestPlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
     }
@@ -67,7 +69,6 @@ public class BlockingState extends PlatformMerkleStateRoot {
      * Constructs a new instance of {@link BlockingState}.
      */
     public BlockingState(TestPlatformStateFacade platformStateFacade) {
-        super(version -> new BasicSoftwareVersion(version.major()));
         this.platformStateFacade = platformStateFacade;
         value = new BlockingStringLeaf();
         setChild(1, value);

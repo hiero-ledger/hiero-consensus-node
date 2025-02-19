@@ -44,7 +44,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -63,7 +62,7 @@ class ISSTestingToolStateTest {
 
     @BeforeEach
     void setUp() {
-        state = new ISSTestingToolState(mock(Function.class));
+        state = new ISSTestingToolState();
         stateLifecycles = new ISSTestingToolStateLifecycles();
         main = mock(ISSTestingToolMain.class);
         final var random = new Random();

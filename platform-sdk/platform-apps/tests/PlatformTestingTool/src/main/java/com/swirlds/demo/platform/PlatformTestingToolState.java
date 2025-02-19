@@ -20,7 +20,6 @@ import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLA
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.merkle.MerkleNode;
@@ -45,10 +44,9 @@ import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKe
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -59,7 +57,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -71,7 +68,7 @@ import org.apache.logging.log4j.MarkerManager;
  * consists of an optional sequence number and random bytes.
  */
 @ConstructableIgnored
-public class PlatformTestingToolState extends PlatformMerkleStateRoot {
+public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToolState> implements MerkleNodeState {
 
     static final long CLASS_ID = 0xc0900cfa7a24db76L;
     private static final Logger logger = LogManager.getLogger(PlatformTestingToolState.class);
@@ -115,11 +112,6 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
     private NodeId selfId;
 
     public PlatformTestingToolState() {
-        this(version -> new BasicSoftwareVersion(version.major()));
-    }
-
-    public PlatformTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
         expectedFCMFamily = new ExpectedFCMFamilyImpl();
         referenceNftLedger = new ReferenceNftLedger(NFT_TRACKING_FRACTION);
     }
@@ -382,6 +374,7 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized PlatformTestingToolState copy() {
         throwIfImmutable();
@@ -503,6 +496,11 @@ public class PlatformTestingToolState extends PlatformMerkleStateRoot {
      */
     public void setExpectedFCMFamily(final ExpectedFCMFamily expectedFCMFamily) {
         this.expectedFCMFamily = expectedFCMFamily;
+    }
+
+    @Override
+    protected PlatformTestingToolState copyingConstructor() {
+        return new PlatformTestingToolState(this);
     }
 
     /**
