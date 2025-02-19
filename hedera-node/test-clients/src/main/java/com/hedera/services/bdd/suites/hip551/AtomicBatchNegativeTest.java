@@ -137,7 +137,9 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> batchContainingNestedBatch() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
-                    atomicBatch(atomicBatch(cryptoCreate("foo").batchKey("batchOperator"))
+                    atomicBatch(atomicBatch(cryptoCreate("foo")
+                                    .batchKey("batchOperator")
+                                    .withProtoStructure(TxnProtoStructure.NORMALIZED))
                             .batchKey("batchOperator")
                             .signedByPayerAnd("batchOperator")
                             .hasPrecheck(NOT_SUPPORTED)));
@@ -150,6 +152,7 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     atomicBatch(freezeOnly()
+                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                             .batchKey("batchOperator")
                             .signedByPayerAnd("batchOperator")
                             .hasPrecheck(NOT_SUPPORTED)));
@@ -162,8 +165,11 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     atomicBatch(
-                            cryptoCreate("foo").batchKey("batchOperator"),
+                            cryptoCreate("foo")
+                                    .batchKey("batchOperator")
+                                    .withProtoStructure(TxnProtoStructure.NORMALIZED),
                             freezeOnly()
+                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("batchOperator")
                                     .hasPrecheck(NOT_SUPPORTED)));
