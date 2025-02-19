@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.util.FileUtilities;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -49,6 +50,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -64,6 +66,9 @@ class SystemFileUpdatesTest implements TransactionFactory {
 
     private static final Bytes FILE_BYTES = Bytes.wrap("Hello World");
     private static final Instant CONSENSUS_NOW = Instant.parse("2000-01-01T00:00:00Z");
+    private long SHARD;
+    private long REALM;
+    private EntityIdFactory idFactory;
 
     @Mock(strictness = Strictness.LENIENT)
     private ConfigProviderImpl configProvider;
@@ -96,7 +101,9 @@ class SystemFileUpdatesTest implements TransactionFactory {
                 .withConfigDataType(LedgerConfig.class)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1L));
-
+        SHARD = config.getConfigData(HederaConfig.class).shard();
+        REALM = config.getConfigData(HederaConfig.class).realm();
+        idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
         subject = new SystemFileUpdates(configProvider, exchangeRateManager, feeManager, throttleServiceManager);
     }
 
@@ -138,16 +145,14 @@ class SystemFileUpdatesTest implements TransactionFactory {
         // given
         final var configuration = configProvider.getConfiguration();
         final var config = configuration.getConfigData(FilesConfig.class);
-        final var fileID =
-                FileID.newBuilder().fileNum(config.networkProperties()).build();
+        final var fileID = idFactory.newFileId(config.networkProperties());
         final var txBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()
-                        .accountID(AccountID.newBuilder().accountNum(50L).build())
+                        .accountID(idFactory.newAccountId(50L))
                         .build())
                 .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID));
         files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
-        final var permissionFileID =
-                FileID.newBuilder().fileNum(config.hapiPermissions()).build();
+        final var permissionFileID = idFactory.newFileId(config.hapiPermissions());
         final var permissionContent = Bytes.wrap("Good-bye World");
         files.put(
                 permissionFileID, File.newBuilder().contents(permissionContent).build());
@@ -164,16 +169,14 @@ class SystemFileUpdatesTest implements TransactionFactory {
         // given
         final var configuration = configProvider.getConfiguration();
         final var config = configuration.getConfigData(FilesConfig.class);
-        final var fileID =
-                FileID.newBuilder().fileNum(config.networkProperties()).build();
+        final var fileID = idFactory.newFileId(config.networkProperties());
         final var txBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()
-                        .accountID(AccountID.newBuilder().accountNum(50L).build())
+                        .accountID(idFactory.newAccountId(50L))
                         .build())
                 .fileAppend(FileAppendTransactionBody.newBuilder().fileID(fileID));
         files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
-        final var permissionFileID =
-                FileID.newBuilder().fileNum(config.hapiPermissions()).build();
+        final var permissionFileID = idFactory.newFileId(config.hapiPermissions());
         final var permissionContent = Bytes.wrap("Good-bye World");
         files.put(
                 permissionFileID, File.newBuilder().contents(permissionContent).build());
@@ -190,15 +193,14 @@ class SystemFileUpdatesTest implements TransactionFactory {
         // given
         final var configuration = configProvider.getConfiguration();
         final var config = configuration.getConfigData(FilesConfig.class);
-        final var fileID = FileID.newBuilder().fileNum(config.hapiPermissions()).build();
+        final var fileID = idFactory.newFileId(config.hapiPermissions());
         final var txBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()
-                        .accountID(AccountID.newBuilder().accountNum(50L).build())
+                        .accountID(idFactory.newAccountId(50L))
                         .build())
                 .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID));
         files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
-        final var networkPropertiesFileID =
-                FileID.newBuilder().fileNum(config.networkProperties()).build();
+        final var networkPropertiesFileID = idFactory.newFileId(config.networkProperties());
         final var networkPropertiesContent = Bytes.wrap("Good-bye World");
         files.put(
                 networkPropertiesFileID,
@@ -216,15 +218,15 @@ class SystemFileUpdatesTest implements TransactionFactory {
         // given
         final var configuration = configProvider.getConfiguration();
         final var config = configuration.getConfigData(FilesConfig.class);
-        final var fileID = FileID.newBuilder().fileNum(config.hapiPermissions()).build();
+
+        final var fileID = idFactory.newFileId(config.hapiPermissions());
         final var txBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()
-                        .accountID(AccountID.newBuilder().accountNum(50L).build())
+                        .accountID(idFactory.newAccountId(50L))
                         .build())
                 .fileAppend(FileAppendTransactionBody.newBuilder().fileID(fileID));
         files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
-        final var networkPropertiesFileID =
-                FileID.newBuilder().fileNum(config.networkProperties()).build();
+        final var networkPropertiesFileID = idFactory.newFileId(config.networkProperties());
         final var networkPropertiesContent = Bytes.wrap("Good-bye World");
         files.put(
                 networkPropertiesFileID,

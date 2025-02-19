@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,11 +34,11 @@ public abstract class ConsensusUtils {
 
     public static void loadEventsIntoGenerator(
             @NonNull final List<PlatformEvent> events,
-            @NonNull final GraphGenerator<?> generator,
+            @NonNull final GraphGenerator generator,
             @NonNull final Random random) {
         Instant lastTimestamp = Instant.MIN;
         for (final Address address : generator.getAddressBook()) {
-            final EventSource<?> source = generator.getSource(address.getNodeId());
+            final EventSource source = generator.getSource(address.getNodeId());
             final List<PlatformEvent> eventsByCreator = events.stream()
                     .filter(e -> e.getCreatorId().id() == address.getNodeId().id())
                     .toList();
