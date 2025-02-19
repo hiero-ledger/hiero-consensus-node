@@ -51,9 +51,8 @@ import com.hedera.node.app.service.file.impl.handlers.FileCreateHandler;
 import com.hedera.node.app.service.file.impl.records.CreateFileStreamBuilder;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
@@ -68,6 +67,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -231,7 +231,7 @@ class FileCreateTest extends FileTestBase {
 
         subject.handle(handleContext);
 
-        final EntityIdFactory idFactory = new EntityIdFactoryImpl(5L, 10L);
+        final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(5L, 10L);
         final FileID createdFileId = idFactory.newFileId(1_234L);
         final var createdFile = fileStore.get(createdFileId);
         assertTrue(createdFile.isPresent());
@@ -266,7 +266,7 @@ class FileCreateTest extends FileTestBase {
 
         subject.handle(handleContext);
 
-        final EntityIdFactory idFactory = new EntityIdFactoryImpl(5L, 10L);
+        final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(5L, 10L);
         final FileID createdFileId = idFactory.newFileId(1_234L);
         final var createdFile = fileStore.get(createdFileId);
         assertTrue(createdFile.isPresent());

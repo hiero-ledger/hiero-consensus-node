@@ -46,7 +46,7 @@ import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.handlers.FileGetContentsHandler;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -261,7 +261,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
 
     private Query createGetFileContentQueryFromEntityId(long fileNum) {
 
-        final FileID fileID = new EntityIdFactoryImpl(
+        final FileID fileID = new FakeEntityIdFactoryImpl(
                         Long.parseLong(config.getValue("hedera.shard")),
                         Long.parseLong(config.getValue("hedera.realm")))
                 .newFileId(fileNum);

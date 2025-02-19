@@ -36,8 +36,7 @@ import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.ReadableUpgradeFileStoreImpl;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -45,6 +44,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.FilteredReadableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
@@ -119,7 +119,7 @@ public class FileTestBase {
     private final long SHARD = 5L;
     private final long REALM = 10L;
 
-    private final EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    private final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
 
     protected final FileID WELL_KNOWN_FILE_ID = idFactory.newFileId(1_234L);
     protected final FileID WELL_KNOWN_UPGRADE_FILE_ID = idFactory.newFileId(150L);
