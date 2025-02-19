@@ -136,7 +136,7 @@ public class CommonPbjConverters {
         }
     }
 
-    public static <T extends Record> byte[] asBytes(@NonNull Codec<T> codec, @NonNull T tx) {
+    public static <T> byte[] asBytes(@NonNull Codec<T> codec, @NonNull T tx) {
         requireNonNull(codec);
         requireNonNull(tx);
         try {
@@ -179,7 +179,7 @@ public class CommonPbjConverters {
      * @param <T> the PBJ type
      * @param <R> the proto type
      */
-    public static <T extends Record, R extends GeneratedMessage> R pbjToProto(
+    public static <T, R extends GeneratedMessage> R pbjToProto(
             final T pbj, final Class<T> pbjClass, final Class<R> protoClass) {
         try {
             final var codecField = pbjClass.getDeclaredField("PROTOBUF");
@@ -220,7 +220,7 @@ public class CommonPbjConverters {
         R parseFrom(byte[] bytes) throws InvalidProtocolBufferException;
     }
 
-    private static <T extends Record, R extends GeneratedMessage> R explicitPbjToProto(
+    private static <T, R extends GeneratedMessage> R explicitPbjToProto(
             @NonNull final T pbj, @NonNull final Codec<T> pbjCodec, @NonNull final ProtoParser<R> protoParser) {
         requireNonNull(pbj);
         requireNonNull(pbjCodec);
@@ -265,7 +265,7 @@ public class CommonPbjConverters {
         return builder.build();
     }
 
-    public static <T extends GeneratedMessage, R extends Record> @NonNull R protoToPbj(
+    public static <T extends GeneratedMessage, R> @NonNull R protoToPbj(
             @NonNull final T proto, @NonNull final Class<R> pbjClass) {
         try {
             final var bytes = requireNonNull(proto).toByteArray();

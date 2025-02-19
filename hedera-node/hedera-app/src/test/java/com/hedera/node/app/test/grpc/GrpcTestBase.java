@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -169,8 +169,8 @@ abstract class GrpcTestBase extends TestBase {
 
                     @NonNull
                     @Override
-                    public Set<RpcMethodDefinition<? extends Record, ? extends Record>> methods() {
-                        final var set = new HashSet<RpcMethodDefinition<? extends Record, ? extends Record>>();
+                    public Set<RpcMethodDefinition<?, ?>> methods() {
+                        final var set = new HashSet<RpcMethodDefinition<?, ?>>();
                         if (queryMethodName != null) {
                             set.add(new RpcMethodDefinition<>(queryMethodName, Query.class, Response.class));
                         }

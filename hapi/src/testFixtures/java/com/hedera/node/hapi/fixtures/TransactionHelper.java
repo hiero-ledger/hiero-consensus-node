@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -182,7 +182,7 @@ public interface TransactionHelper {
         return Query.newBuilder().cryptoGetLiveHash(data).build();
     }
 
-    default <T extends Record> Bytes asBytes(T tx, Codec<T> codec) {
+    default <T> Bytes asBytes(T tx, Codec<T> codec) {
         try {
             final var dataOut = byteArrayDataOutput();
             codec.write(tx, dataOut);
@@ -192,7 +192,7 @@ public interface TransactionHelper {
         }
     }
 
-    default <T extends Record> byte[] asByteArray(T tx, Codec<T> codec) {
+    default <T> byte[] asByteArray(T tx, Codec<T> codec) {
         try {
             final var dataOut = byteArrayDataOutput();
             codec.write(tx, dataOut);

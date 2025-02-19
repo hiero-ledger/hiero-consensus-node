@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ public class PbjRecordHasher {
      * @return a Hash object
      */
     @NonNull
-    public <T extends Record> Hash hash(@NonNull final T record, @NonNull final Codec<T> codec) {
+    public <T> Hash hash(@NonNull final T record, @NonNull final Codec<T> codec) {
         try {
             codec.write(record, stream);
         } catch (final IOException e) {

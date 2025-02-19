@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import java.util.function.Consumer;
  * An operation that allows the test author to view a singleton value in an embedded state.
  * @param <T> the type of the singleton
  */
-public class ViewSingletonOp<T extends Record> extends UtilOp {
+public class ViewSingletonOp<T> extends UtilOp {
     private final String serviceName;
     private final String stateKey;
     private final Consumer<T> observer;

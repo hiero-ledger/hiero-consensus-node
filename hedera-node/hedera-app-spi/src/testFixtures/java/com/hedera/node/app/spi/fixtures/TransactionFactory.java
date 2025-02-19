@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ public interface TransactionFactory {
         return asByteArray(Transaction.PROTOBUF, tx);
     }
 
-    default <R extends Record> byte[] asByteArray(@NonNull final Codec<R> codec, @NonNull final R r) {
+    default <R> byte[] asByteArray(@NonNull final Codec<R> codec, @NonNull final R r) {
         try {
             final var byteStream = new ByteArrayOutputStream();
             codec.write(r, new WritableStreamingData(byteStream));
@@ -82,7 +82,7 @@ public interface TransactionFactory {
         }
     }
 
-    default <R extends Record> Bytes asBytes(@NonNull final Codec<R> codec, @NonNull final R r) {
+    default <R> Bytes asBytes(@NonNull final Codec<R> codec, @NonNull final R r) {
         return Bytes.wrap(asByteArray(codec, r));
     }
 
