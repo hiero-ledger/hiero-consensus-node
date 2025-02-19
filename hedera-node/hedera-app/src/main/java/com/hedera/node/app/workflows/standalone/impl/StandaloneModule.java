@@ -25,6 +25,7 @@ import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
 import dagger.Module;
@@ -61,9 +62,9 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     @NodeSelfId
-    static AccountID provideNodeSelfId() {
+    static AccountID provideNodeSelfId(EntityIdFactory entityIdFactory) {
         // This is only used to check the shard and realm of account ids
-        return AccountID.DEFAULT;
+        return entityIdFactory.newDefaultAccountId();
     }
 
     @Provides

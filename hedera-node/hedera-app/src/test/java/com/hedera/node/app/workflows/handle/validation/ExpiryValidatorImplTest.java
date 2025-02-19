@@ -40,12 +40,15 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hapi.utils.InvalidTransactionException;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,8 +63,7 @@ class ExpiryValidatorImplTest {
     private static final long B_TIME = 777_777_777L;
     private static final long A_PERIOD = 666_666L;
     private static final long B_PERIOD = 777_777L;
-    private static final AccountID AN_AUTO_RENEW_ID =
-            AccountID.newBuilder().accountNum(888).build();
+    private static AccountID AN_AUTO_RENEW_ID;
 
     @Mock
     private AttributeValidator attributeValidator;
@@ -86,6 +88,11 @@ class ExpiryValidatorImplTest {
         given(accountStore.getAccountById(any())).willReturn(Account.DEFAULT);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+
+        long SHARD = config.getConfigData(HederaConfig.class).shard();
+        long REALM = config.getConfigData(HederaConfig.class).realm();
+        EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
+        AN_AUTO_RENEW_ID = idFactory.newAccountId(888);
 
         subject = new ExpiryValidatorImpl(context);
     }
