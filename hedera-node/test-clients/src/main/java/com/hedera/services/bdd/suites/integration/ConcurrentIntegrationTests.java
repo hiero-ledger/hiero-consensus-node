@@ -172,7 +172,8 @@ public class ConcurrentIntegrationTests {
                         cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
                                         .between("operator", nftOne.treasury().name()))
                                 .batchKey("operator")
-                                .payingWith("operator")),
+                                .payingWith("operator"))
+                        .signedByPayerAnd("operator"),
                 getAccountRecords("operator").exposingTo(records -> {
                     assertEquals(3, records.size());
                     records.forEach(r -> successfulRecordFees.add(asMap(r.getTransferList())));
@@ -198,6 +199,7 @@ public class ConcurrentIntegrationTests {
                                                         nftTwo.treasury().name()))
                                         .batchKey("operator")
                                         .payingWith("operator"))
+                        .signedByPayerAnd("operator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getAccountRecords("operator").exposingTo(records -> {
                     assertEquals(6, records.size());

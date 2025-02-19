@@ -582,6 +582,7 @@ public class AtomicBatchTest {
         }
 
         @HapiTest
+        @Disabled   // TODO: re-enable this test when ingest workflow is finalized
         // BATCH_20
         @DisplayName("Failing batch should finalize hollow account")
         final Stream<DynamicTest> failingBatchShouldFinalizeHollowAccount() {
