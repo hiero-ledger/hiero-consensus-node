@@ -192,7 +192,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(0L, 0L, accountNum))
                 .build();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
 
@@ -216,7 +216,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(0L, 0L, accountNum))
                 .build();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
 

@@ -43,7 +43,6 @@ import com.swirlds.merkle.test.fixtures.map.lifecycle.ExpectedValue;
 import com.swirlds.merkle.test.fixtures.map.lifecycle.LifecycleStatus;
 import com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionState;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import java.io.IOException;
 import java.time.Instant;
@@ -181,7 +180,7 @@ public class PttTransactionPoolTest {
                 .setOriginNode(otherID)
                 .build();
         try {
-            final PlatformTestingToolState state = new PlatformTestingToolState(version -> new BasicSoftwareVersion(1));
+            final PlatformTestingToolState state = new PlatformTestingToolState();
             state.setFcmFamily(fCMFamily);
             handler.performOperation(
                     trans,
@@ -238,7 +237,7 @@ public class PttTransactionPoolTest {
                 .setOriginNode(otherID)
                 .build();
         try {
-            final PlatformTestingToolState state = new PlatformTestingToolState(version -> new BasicSoftwareVersion(1));
+            final PlatformTestingToolState state = new PlatformTestingToolState();
             state.setFcmFamily(fCMFamily);
             handler.performOperation(
                     trans,

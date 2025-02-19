@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -59,7 +58,7 @@ class MigrationTestingToolStateTest {
 
     @BeforeEach
     void setUp() {
-        state = new MigrationTestingToolState(mock(Function.class));
+        state = new MigrationTestingToolState();
         stateLifecycles = new MigrationTestToolStateLifecycles();
         random = new Random();
         round = mock(Round.class);

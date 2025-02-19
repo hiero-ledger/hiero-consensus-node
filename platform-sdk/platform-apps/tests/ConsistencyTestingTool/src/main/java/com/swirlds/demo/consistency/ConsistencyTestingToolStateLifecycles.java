@@ -25,8 +25,8 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -51,6 +51,9 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
 
+    @NonNull
+    private final PlatformStateFacade platformStateFacade;
+
     /**
      * If not zero, and we are handling the first round after genesis, configure a freeze this duration later.
      * <p>
@@ -58,6 +61,10 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
      * hash).
      */
     private Duration freezeAfterGenesis = null;
+
+    public ConsistencyTestingToolStateLifecycles(@NonNull final PlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
+    }
 
     @Override
     public void onStateInitialized(
@@ -103,16 +110,15 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         requireNonNull(round);
         requireNonNull(state);
-        PlatformStateModifier platformState = state.getWritablePlatformState();
-        requireNonNull(platformState);
-
         if (state.getRoundsHandled() == 0 && !freezeAfterGenesis.equals(Duration.ZERO)) {
             // This is the first round after genesis.
             logger.info(
                     STARTUP.getMarker(),
                     "Setting freeze time to {} seconds after genesis.",
                     freezeAfterGenesis.getSeconds());
-            platformState.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+            platformStateFacade.bulkUpdateOf(state, v -> {
+                v.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+            });
         }
 
         state.processTransactions(round, stateSignatureTransactionCallback);

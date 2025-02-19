@@ -64,7 +64,7 @@ class AdjustFungibleTokenChangesStepTest extends StepsBase {
 
     @Test
     void doesTokenBalanceChangesWithoutAllowances() {
-        final var receiver = asAccount(tokenReceiver);
+        final var receiver = asAccount(0L, 0L, tokenReceiver);
         given(handleContext.payer()).willReturn(spenderId);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.savepointStack()).willReturn(stack);
@@ -114,7 +114,7 @@ class AdjustFungibleTokenChangesStepTest extends StepsBase {
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
 
-        final var receiver = asAccount(tokenReceiver);
+        final var receiver = asAccount(0L, 0L, tokenReceiver);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         final var replacedOp = getReplacedOp();
         // payer is spender for allowances
