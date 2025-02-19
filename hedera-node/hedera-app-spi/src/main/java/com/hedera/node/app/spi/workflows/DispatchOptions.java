@@ -320,7 +320,7 @@ public record DispatchOptions<T extends StreamBuilder>(
      * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
      * to externalize if the parent succeeds.
      * <ul>
-     *     <li>Dispatching an internal contract creation in the EVM.</li>
+     *     <li>Charging a custom topic fee from inside the consensus service.</li>
      * </ul>
      *
      * @param payerId the account to pay for the dispatch
@@ -354,16 +354,19 @@ public record DispatchOptions<T extends StreamBuilder>(
 
     /**
      * returns options for a dispatch for atomic batch transaction
+     *
+     * @param <T> the type of stream builder to use for the dispatch
      * @param payerId the account to pay for the dispatch
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param customFeeCharging the custom fee charging strategy for the dispatch
      * @return the options for the atomic batch
-     * @param <T> the type of stream builder to use for the dispatch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> atomicBatchDispatch(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
-            @NonNull final Class<T> streamBuilderType) {
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final FeeCharging customFeeCharging) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -377,6 +380,6 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REVERSIBLE,
                 NOOP_TRANSACTION_CUSTOMIZER,
                 EMPTY_METADATA,
-                NOOP_FEE_CHARGING);
+                customFeeCharging);
     }
 }

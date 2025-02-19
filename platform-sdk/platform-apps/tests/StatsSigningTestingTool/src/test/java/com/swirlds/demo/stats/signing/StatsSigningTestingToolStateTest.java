@@ -40,7 +40,6 @@ import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.TransactionWrapper;
 import java.security.SignatureException;
@@ -50,7 +49,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,8 +73,7 @@ class StatsSigningTestingToolStateTest {
     void setUp() {
         final SttTransactionPool transactionPool = mock(SttTransactionPool.class);
         final Supplier<SttTransactionPool> transactionPoolSupplier = mock(Supplier.class);
-        final Function<SemanticVersion, SoftwareVersion> versionFactory = mock(Function.class);
-        state = new StatsSigningTestingToolState(versionFactory);
+        state = new StatsSigningTestingToolState();
         stateLifecycles = new StatsSigningTestingToolStateLifecycles(transactionPoolSupplier);
         main = new StatsSigningTestingToolMain();
         random = new Random();

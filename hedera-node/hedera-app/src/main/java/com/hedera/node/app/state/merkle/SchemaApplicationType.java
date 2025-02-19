@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,16 @@
 
 package com.hedera.node.app.state.merkle;
 
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.merkle.MerkleStateRoot;
 
 /**
  * Enumerates the ways the {@link MerkleSchemaRegistry} may apply a {@link Schema}
- * to the {@link MerkleStateRoot}.
+ * to the {@link MerkleNodeState}.
  */
 public enum SchemaApplicationType {
     /**
-     * A schema may contribute state definitions to the {@link MerkleStateRoot}
+     * A schema may contribute state definitions to the {@link MerkleNodeState}
      * no matter if it was first registered before or after the version of the
      * deserialized state. The only two conditions under which a schema {@code X}
      * need not be used for state definitions are:

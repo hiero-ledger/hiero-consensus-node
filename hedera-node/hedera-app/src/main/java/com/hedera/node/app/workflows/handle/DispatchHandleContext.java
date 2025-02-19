@@ -191,7 +191,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
 
     @Override
     public boolean tryToChargePayer(final long amount) {
-        return feeAccumulator.chargeNetworkFee(payerId, amount);
+        return feeAccumulator.chargeNetworkFee(payerId, amount, null);
     }
 
     @NonNull

@@ -17,12 +17,13 @@
 package com.hedera.node.app.service.util.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -37,6 +38,9 @@ import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
+import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
+import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -65,7 +69,13 @@ class AtomicBatchHandlerTest {
     private PureChecksContext pureChecksContext;
 
     @Mock
-    private StreamBuilder recordBuilder;
+    private ReplayableFeeStreamBuilder recordBuilder;
+
+    @Mock
+    private AppContext appContext;
+
+    @Mock
+    private FeeCharging feeCharging;
 
     @Mock
     private Function<Transaction, TransactionBody> bodyParser;
@@ -91,9 +101,10 @@ class AtomicBatchHandlerTest {
                 .withValue("atomicBatch.maxNumberOfTransactions", 2)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
+        given(appContext.feeChargingSupplier()).willReturn(() -> feeCharging);
         given(preHandleContext.configuration()).willReturn(config);
 
-        subject = new AtomicBatchHandler(bodyParser);
+        subject = new AtomicBatchHandler(appContext, bodyParser);
     }
 
     @Test
@@ -261,8 +272,7 @@ class AtomicBatchHandlerTest {
         given(handleContext.body()).willReturn(txnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
         given(bodyParser.apply(any())).willReturn(innerTxnBody);
-        final var dispatchOptions = atomicBatchDispatch(payerId2, innerTxnBody, StreamBuilder.class);
-        given(handleContext.dispatch(dispatchOptions)).willReturn(recordBuilder);
+        given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(UNKNOWN);
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(INNER_TRANSACTION_FAILED, msg.getStatus());
@@ -288,12 +298,13 @@ class AtomicBatchHandlerTest {
                         ConsensusCreateTopicTransactionBody.newBuilder().build())
                 .build();
         given(handleContext.body()).willReturn(txnBody);
-        final var dispatchOptions = atomicBatchDispatch(payerId2, innerTxnBody, StreamBuilder.class);
-        given(handleContext.dispatch(dispatchOptions)).willReturn(recordBuilder);
+        given(handleContext.dispatch(argThat(options -> options.payerId().equals(payerId2)
+                        && options.body().equals(innerTxnBody)
+                        && options.streamBuilderType().equals(ReplayableFeeStreamBuilder.class))))
+                .willReturn(recordBuilder);
         given(bodyParser.apply(any())).willReturn(innerTxnBody);
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);
-        verify(handleContext).dispatch(dispatchOptions);
     }
 
     @Test
@@ -312,14 +323,10 @@ class AtomicBatchHandlerTest {
                 .build();
         given(handleContext.body()).willReturn(txnBody);
         given(bodyParser.apply(any())).willReturn(innerTxnBody1).willReturn(innerTxnBody2);
-        final var dispatchOptions1 = atomicBatchDispatch(payerId2, innerTxnBody1, StreamBuilder.class);
-        final var dispatchOptions2 = atomicBatchDispatch(payerId3, innerTxnBody2, StreamBuilder.class);
-        given(handleContext.dispatch(dispatchOptions1)).willReturn(recordBuilder);
-        given(handleContext.dispatch(dispatchOptions2)).willReturn(recordBuilder);
+        given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);
-        verify(handleContext).dispatch(dispatchOptions1);
-        verify(handleContext).dispatch(dispatchOptions2);
+        verify(handleContext, times(2)).dispatch(any());
     }
 
     private TransactionBody newAtomicBatch(

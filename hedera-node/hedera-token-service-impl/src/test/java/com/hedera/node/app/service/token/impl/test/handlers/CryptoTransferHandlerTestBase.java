@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,8 +50,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CryptoTransferHandlerTestBase extends StepsBase {
-    protected static final AccountID ACCOUNT_ID_3333 = asAccount(3333);
-    protected static final AccountID ACCOUNT_ID_4444 = asAccount(4444);
+
+    protected static final AccountID ACCOUNT_ID_3333 = asAccount(0L, 0L, 3333);
+    protected static final AccountID ACCOUNT_ID_4444 = asAccount(0L, 0L, 4444);
     protected static final TokenID TOKEN_2468 = asToken(2468);
     protected static final TokenID TOKEN_2469 = asToken(2469);
     protected static final NftID NFT_ID =
