@@ -85,7 +85,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
 
     private static final AccountID ACCOUNT_1339 =
             AccountID.newBuilder().accountNum(MISC_ACCOUNT.getAccountNum()).build();
-    private static final AccountID ACCOUNT_2020 = BaseCryptoHandler.asAccount(2020);
+    private static final AccountID ACCOUNT_2020 = BaseCryptoHandler.asAccount(0L, 0L, 2020);
     private static final TokenID TOKEN_555_ID =
             TokenID.newBuilder().tokenNum(555).build();
     private static final TokenID TOKEN_666_ID =

@@ -122,18 +122,8 @@ public class EventMetadata extends AbstractHashable {
         this.generation = calculateGeneration(allParents);
         this.timeCreated = HapiUtils.asInstant(
                 Objects.requireNonNull(gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null"));
-
-        final List<Bytes> transactionsFromGossip = gossipEvent.transactions();
-        final boolean isNewFormat = !transactionsFromGossip.isEmpty();
-        if (isNewFormat) {
-            this.transactions =
-                    transactionsFromGossip.stream().map(TransactionWrapper::new).toList();
-        } else {
-            this.transactions =
-                    Objects.requireNonNull(gossipEvent.eventTransaction(), "transactions must not be null").stream()
-                            .map(TransactionWrapper::new)
-                            .toList();
-        }
+        this.transactions =
+                gossipEvent.transactions().stream().map(TransactionWrapper::new).toList();
     }
 
     private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {

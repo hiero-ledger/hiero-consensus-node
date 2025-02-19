@@ -317,16 +317,13 @@ public class HandleWorkflow {
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
                 try {
-                    // skip system transactions
-                    if (!platformTxn.isSystem()) {
-                        userTransactionsHandled |= handlePlatformTransaction(
-                                state,
-                                creator,
-                                platformTxn,
-                                event.getSoftwareVersion(),
-                                simplifiedStateSignatureTxnCallback,
-                                userTransactionsHandled);
-                    }
+                    userTransactionsHandled |= handlePlatformTransaction(
+                            state,
+                            creator,
+                            platformTxn,
+                            event.getSoftwareVersion(),
+                            simplifiedStateSignatureTxnCallback,
+                            userTransactionsHandled);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
