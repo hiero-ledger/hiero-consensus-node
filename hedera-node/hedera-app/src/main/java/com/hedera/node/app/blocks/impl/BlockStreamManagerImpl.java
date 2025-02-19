@@ -28,7 +28,6 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
-import static com.swirlds.platform.state.service.PlatformStateFacade.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -39,7 +38,6 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -61,8 +59,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
@@ -72,7 +68,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -95,7 +90,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
 
     private final int roundsPerBlock;
-    private final Duration blockPeriod;
     private final BlockStreamWriterMode streamWriterType;
     private final int hashCombineBatchSize;
     private final BlockHashSigner blockHashSigner;
@@ -125,7 +119,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long lastNonEmptyRoundNumber;
     private Bytes lastBlockHash;
     private Instant blockTimestamp;
-    private Instant consensusTimeLastRound;
     private BlockItemWriter writer;
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
@@ -194,7 +187,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.hapiVersion = hapiVersionFrom(config);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
-        this.blockPeriod = blockStreamConfig.blockPeriod();
         this.streamWriterType = blockStreamConfig.writerMode();
         this.hashCombineBatchSize = blockStreamConfig.hashCombineBatchSize();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
@@ -230,16 +222,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // If the platform handled this round, it must eventually hash its end state
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
-        final var platformState = state.getReadableStates(PlatformStateService.NAME)
-                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
-                .get();
-        requireNonNull(platformState);
-        if (isFreezeRound(platformState, round)) {
+        if (platformStateFacade.isFreezeRound(state, round)) {
             // Track freeze round numbers because they always end a block
             freezeRoundNumber = round.getRoundNum();
         }
-
-        // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
             // This iterator is never empty; c.f. DefaultTransactionHandler#handleConsensusRound()
@@ -262,7 +248,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .number(blockNumber)
                     .previousBlockHash(lastBlockHash)
                     .hashAlgorithm(SHA2_384)
-                    .softwareVersion(platformState.creationSoftwareVersionOrThrow())
+                    .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
                     .hapiProtoVersion(hapiVersion);
             signerReady = blockHashSigner.isReady();
             if (signerReady) {
@@ -274,7 +260,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
             }
         }
-        consensusTimeLastRound = round.getConsensusTimestamp();
     }
 
     @Override
@@ -319,7 +304,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public boolean endRound(@NonNull final State state, final long roundNum) {
+    public void endRound(@NonNull final State state, final long roundNum) {
         if (shouldCloseBlock(roundNum, roundsPerBlock)) {
             // If there were no user transactions in the block, this writes all the accumulated
             // items starting from the header, sacrificing the benefits of concurrency; but
@@ -401,9 +386,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 DiskStartupNetworks.writeNetworkInfo(
                         state, exportPath, EnumSet.allOf(InfoType.class), platformStateFacade);
             }
-            return true;
         }
-        return false;
     }
 
     @Override
@@ -534,31 +517,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final int roundsPerBlock) {
-        // We need the signer to be ready
         if (!blockHashSigner.isReady()) {
             return false;
         }
-
-        // During freeze round, we should close the block regardless of other conditions
-        if (roundNumber == freezeRoundNumber) {
-            return true;
-        }
-
-        // If blockPeriod is 0, use roundsPerBlock
-        if (blockPeriod.isZero()) {
-            return roundNumber % roundsPerBlock == 0;
-        }
-
-        // For time-based blocks, check if enough consensus time has elapsed
-        final var elapsed = Duration.between(blockTimestamp, consensusTimeLastRound);
-        return elapsed.compareTo(blockPeriod) >= 0;
-    }
-
-    private boolean isFreezeRound(@NonNull final PlatformState platformState, @NonNull final Round round) {
-        return isInFreezePeriod(
-                round.getConsensusTimestamp(),
-                platformState.freezeTime() == null ? null : asInstant(platformState.freezeTime()),
-                platformState.lastFrozenTime() == null ? null : asInstant(platformState.lastFrozenTime()));
+        return roundNumber % roundsPerBlock == 0 || roundNumber == freezeRoundNumber;
     }
 
     class BlockStreamManagerTask {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -715,7 +715,7 @@ public class Shadowgraph implements Clearable {
             final boolean knownOP = shadow(otherParent) != null;
             final boolean expiredOP = expired(otherParent);
             if (!knownOP && !expiredOP) {
-                logger.warn(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
+                logger.info(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
             }
         }
 
@@ -723,7 +723,7 @@ public class Shadowgraph implements Clearable {
             final boolean knownSP = shadow(e.getSelfParent()) != null;
             final boolean expiredSP = expired(e.getSelfParent());
             if (!knownSP && !expiredSP) {
-                logger.warn(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
+                logger.info(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
             }
         }
 

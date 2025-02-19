@@ -200,7 +200,7 @@ class EventDeduplicatorTests {
                 final PlatformEvent duplicateEvent = new PlatformEvent(new GossipEvent.Builder()
                         .eventCore(platformEvent.getGossipEvent().eventCore())
                         .signature(randomSignatureBytes(random)) // randomize the signature
-                        .eventTransaction(platformEvent.getGossipEvent().eventTransaction())
+                        .transactions(platformEvent.getGossipEvent().transactions())
                         .build());
                 duplicateEvent.setHash(platformEvent.getHash());
 

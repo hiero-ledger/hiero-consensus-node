@@ -202,7 +202,7 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     void failsDeleteAllowancesOnInvalidTreasury() {
         writableTokenStore.put(nonFungibleToken
                 .copyBuilder()
-                .treasuryAccountId(asAccount(200L))
+                .treasuryAccountId(asAccount(0L, 0L, 200L))
                 .build());
         writableNftStore.put(nftSl1.copyBuilder().spenderId(spenderId).build());
         writableNftStore.put(nftSl2.copyBuilder().spenderId(spenderId).build());
