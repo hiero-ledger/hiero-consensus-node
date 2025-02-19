@@ -247,6 +247,11 @@ public class PairedStreamBuilder
     }
 
     @Override
+    public Instant getConsensusTimestamp() {
+        return recordStreamBuilder.getConsensusTimestamp();
+    }
+
+    @Override
     public TransactionID transactionID() {
         return recordStreamBuilder.transactionID();
     }
