@@ -17,15 +17,13 @@
 package com.swirlds.state.lifecycle;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.FileID;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 
 // FUTURE: This can be moved elsewhere once all the migration code happens in handle.
 /**

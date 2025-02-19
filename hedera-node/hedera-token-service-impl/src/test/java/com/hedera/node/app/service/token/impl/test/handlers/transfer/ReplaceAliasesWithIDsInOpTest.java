@@ -124,14 +124,14 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(
                                 AccountAmountUtils.aaWith(ownerId, -1_000),
-                                aaAlias(idFactory.newAccountId(evmAddressAlias1.value()), +1_000))
+                                aaAlias(idFactory.newAccountIdWithAlias(evmAddressAlias1.value()), +1_000))
                         .build())
                 .tokenTransfers(
                         TokenTransferList.newBuilder()
                                 .token(fungibleTokenId)
                                 .transfers(List.of(
                                         AccountAmountUtils.aaWith(ownerId, -1_000),
-                                        aaAlias(idFactory.newAccountId(evmAddressAlias2.value()), +1_000)))
+                                        aaAlias(idFactory.newAccountIdWithAlias(evmAddressAlias2.value()), +1_000)))
                                 .build(),
                         TokenTransferList.newBuilder()
                                 .token(nonFungibleTokenId)
@@ -324,7 +324,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
 
     @Test
     void resolvesMirrorAddressInHbarList() {
-        final var mirrorAdjust = aaAlias(idFactory.newAccountId(mirrorAlias.value()), +100);
+        final var mirrorAdjust = aaAlias(idFactory.newAccountIdWithAlias(mirrorAlias.value()), +100);
         body = CryptoTransferTransactionBody.newBuilder()
                 .transfers(
                         TransferList.newBuilder().accountAmounts(mirrorAdjust).build())
@@ -346,7 +346,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                 .tokenTransfers(TokenTransferList.newBuilder()
                         .token(nonFungibleTokenId)
                         .nftTransfers(NftTransfer.newBuilder()
-                                .receiverAccountID(idFactory.newAccountId(mirrorAlias.value()))
+                                .receiverAccountID(idFactory.newAccountIdWithAlias(mirrorAlias.value()))
                                 .senderAccountID(payerId)
                                 .serialNumber(1)
                                 .build())

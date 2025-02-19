@@ -155,7 +155,7 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
     void validatesAccountDoesntExist() {
         refreshStoresWithCurrentTokenOnlyInReadable();
         mockQueryContext(
-                entityIdFactory.newAccountId(987),
+                idFactory.newAccountId(987),
                 QueryHeader.newBuilder().responseType(ANSWER_ONLY).build());
 
         Assertions.assertThatThrownBy(() -> subject.validate(context))

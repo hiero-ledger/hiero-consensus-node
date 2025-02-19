@@ -133,7 +133,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     private PureChecksContext pureChecksContext;
 
     private final long updateAccountNum = 32132L;
-    private final AccountID updateAccountId = entityIdFactory.newAccountId(updateAccountNum);
+    private final AccountID updateAccountId = idFactory.newAccountId(updateAccountNum);
 
     private Account updateAccount;
     private Configuration configuration;
@@ -860,7 +860,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 if (stakedAccountId.equals(0L)) {
                     builder.stakedAccountId(AccountID.newBuilder().accountNum(0).build());
                 } else {
-                    builder.stakedAccountId(entityIdFactory.newAccountId(stakedAccountId.longValue()));
+                    builder.stakedAccountId(idFactory.newAccountId(stakedAccountId.longValue()));
                 }
             } else if (stakeNodeId != null) {
                 builder.stakedNodeId(stakeNodeId.longValue());
@@ -962,7 +962,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     private void updateReadableAccountStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyReadableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(entityIdFactory.newAccountId(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         readableAccounts = emptyStateBuilder.build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
@@ -973,7 +973,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     private void updateWritableAccountStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyWritableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(entityIdFactory.newAccountId(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         writableAccounts = emptyStateBuilder.build();
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);

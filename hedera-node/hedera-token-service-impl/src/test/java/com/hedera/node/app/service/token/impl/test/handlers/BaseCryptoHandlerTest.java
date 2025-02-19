@@ -22,11 +22,11 @@ import static org.mockito.Mockito.*;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,7 +42,7 @@ public class BaseCryptoHandlerTest {
 
     protected static final int SHARD = 5;
     protected static final long REALM = 10L;
-    protected static final EntityIdFactory entityIdFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    protected static final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
 
     @BeforeEach
     void setUp() {
@@ -54,14 +54,14 @@ public class BaseCryptoHandlerTest {
     @DisplayName("isStakingAccount Check if account is a staking reward account")
     void isStakingAccount_returnsTrue_whenAccountIsStakingRewardAccount() {
         when(accountsConfig.stakingRewardAccount()).thenReturn(1L);
-        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, entityIdFactory.newAccountId(1L)));
+        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, idFactory.newAccountId(1L)));
     }
 
     @Test
     @DisplayName("isStakingAccount Check if account is a node reward account")
     void isStakingAccount_returnsTrue_whenAccountIsNodeRewardAccount() {
         when(accountsConfig.nodeRewardAccount()).thenReturn(1L);
-        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, entityIdFactory.newAccountId(1L)));
+        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, idFactory.newAccountId(1L)));
     }
 
     @Test
@@ -69,13 +69,13 @@ public class BaseCryptoHandlerTest {
     void isStakingAccount_returnsFalse_whenAccountIsNotStakingOrNodeRewardAccount() {
         when(accountsConfig.stakingRewardAccount()).thenReturn(1L);
         when(accountsConfig.nodeRewardAccount()).thenReturn(2L);
-        assertFalse(BaseCryptoHandler.isStakingAccount(configuration, entityIdFactory.newAccountId(3L)));
+        assertFalse(BaseCryptoHandler.isStakingAccount(configuration, idFactory.newAccountId(3L)));
     }
 
     @DisplayName("asAccount Check if asAccount returns AccountID with given number")
     @Test
     void asAccountReturnsAccountIDWithGivenNumber() {
-        AccountID result = entityIdFactory.newAccountId(123);
+        AccountID result = idFactory.newAccountId(123);
         assertEquals(123, result.accountNum());
     }
 

@@ -163,7 +163,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
             configuration.getConfigData(HederaConfig.class).shard();
     protected static final long REALM =
             configuration.getConfigData(HederaConfig.class).realm();
-    protected EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    protected static EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
     /* ---------- Node IDs */
     protected final EntityNumber node0Id = EntityNumber.newBuilder().number(0L).build();
     protected final EntityNumber node1Id = EntityNumber.newBuilder().number(1L).build();

@@ -513,7 +513,7 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
 
     private Query createGetAccountBalanceQuery(final long accountId) {
         final var data = CryptoGetAccountBalanceQuery.newBuilder()
-                .accountID(entityIdFactory.newAccountId(accountId))
+                .accountID(idFactory.newAccountId(accountId))
                 .header(QueryHeader.newBuilder().build())
                 .build();
 
@@ -531,7 +531,7 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
 
     private Query createGetAccountBalanceQueryWithContract(final long contractId) {
         final var data = CryptoGetAccountBalanceQuery.newBuilder()
-                .contractID(entityIdFactory.newContractId(contractId))
+                .contractID(idFactory.newContractId(contractId))
                 .header(QueryHeader.newBuilder().build())
                 .build();
 

@@ -44,8 +44,7 @@ import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -54,6 +53,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -80,7 +80,7 @@ public class CryptoHandlerTestBase {
             configuration.getConfigData(HederaConfig.class).shard();
     protected static final long REALM =
             configuration.getConfigData(HederaConfig.class).realm();
-    protected static final EntityIdFactory entityIdFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    protected static final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
     private static final Function<String, Key.Builder> KEY_BUILDER =
             value -> Key.newBuilder().ed25519(Bytes.wrap(value.getBytes()));
     private static final String A_NAME = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -135,8 +135,8 @@ public class CryptoHandlerTestBase {
             .build();
     protected final Key key = A_COMPLEX_KEY;
     protected final Key otherKey = C_COMPLEX_KEY;
-    protected final AccountID id = entityIdFactory.newAccountId(3);
-    protected final AccountID invalidId = entityIdFactory.newAccountId(Long.MAX_VALUE);
+    protected final AccountID id = idFactory.newAccountId(3);
+    protected final AccountID invalidId = idFactory.newAccountId(Long.MAX_VALUE);
     protected final Timestamp consensusTimestamp =
             Timestamp.newBuilder().seconds(1_234_567L).build();
     protected final Instant consensusInstant = Instant.ofEpochSecond(consensusTimestamp.seconds());
@@ -147,23 +147,23 @@ public class CryptoHandlerTestBase {
             .ed25519(Bytes.wrap("01234567890123456789012345678901"))
             .build();
     protected static final ProtoBytes edKeyAlias = new ProtoBytes(aPrimitiveKey.ed25519());
-    protected final AccountID alias = entityIdFactory.newAccountId(edKeyAlias.value());
+    protected final AccountID alias = idFactory.newAccountIdWithAlias(edKeyAlias.value());
     protected final byte[] evmAddress = CommonUtils.unhex("6aea3773ea468a814d954e6dec795bfee7d76e26");
     protected final ContractID contractAlias =
             ContractID.newBuilder().evmAddress(Bytes.wrap(evmAddress)).build();
     /*Contracts */
     protected final ContractID contract =
             ContractID.newBuilder().contractNum(1234).build();
-    protected final AccountID deleteAccountId = entityIdFactory.newAccountId(3213);
-    protected final AccountID transferAccountId = entityIdFactory.newAccountId(32134);
+    protected final AccountID deleteAccountId = idFactory.newAccountId(3213);
+    protected final AccountID transferAccountId = idFactory.newAccountId(32134);
     protected final Long deleteAccountNum = deleteAccountId.accountNum();
     protected final Long transferAccountNum = transferAccountId.accountNum();
 
     protected final TokenID nft = TokenID.newBuilder().tokenNum(56789).build();
     protected final TokenID token = TokenID.newBuilder().tokenNum(6789).build();
-    protected final AccountID spender = entityIdFactory.newAccountId(12345);
-    protected final AccountID delegatingSpender = entityIdFactory.newAccountId(1234567);
-    protected final AccountID owner = entityIdFactory.newAccountId(123456);
+    protected final AccountID spender = idFactory.newAccountId(12345);
+    protected final AccountID delegatingSpender = idFactory.newAccountId(1234567);
+    protected final AccountID owner = idFactory.newAccountId(123456);
     protected final Key ownerKey = B_COMPLEX_KEY;
     protected final CryptoAllowance cryptoAllowance = CryptoAllowance.newBuilder()
             .spender(spender)
@@ -306,16 +306,16 @@ public class CryptoHandlerTestBase {
     @NonNull
     protected MapWritableKVState<ProtoBytes, AccountID> writableAliasesStateWithOneKey() {
         return emptyWritableAliasStateBuilder()
-                .value(new ProtoBytes(alias.alias()), entityIdFactory.newAccountId(accountNum))
-                .value(new ProtoBytes(contractAlias.evmAddress()), entityIdFactory.newAccountId(contract.contractNum()))
+                .value(new ProtoBytes(alias.alias()), idFactory.newAccountId(accountNum))
+                .value(new ProtoBytes(contractAlias.evmAddress()), idFactory.newAccountId(contract.contractNum()))
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<ProtoBytes, AccountID> readableAliasState() {
         return emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(alias.alias()), entityIdFactory.newAccountId(accountNum))
-                .value(new ProtoBytes(contractAlias.evmAddress()), entityIdFactory.newAccountId(contract.contractNum()))
+                .value(new ProtoBytes(alias.alias()), idFactory.newAccountId(accountNum))
+                .value(new ProtoBytes(contractAlias.evmAddress()), idFactory.newAccountId(contract.contractNum()))
                 .build();
     }
 
@@ -341,7 +341,7 @@ public class CryptoHandlerTestBase {
 
     protected Account givenValidAccount(final long accountNum) {
         return new Account(
-                entityIdFactory.newAccountId(accountNum),
+                idFactory.newAccountId(accountNum),
                 alias.alias(),
                 key,
                 1_234_567L,
@@ -364,7 +364,7 @@ public class CryptoHandlerTestBase {
                 2,
                 0,
                 1000L,
-                entityIdFactory.newAccountId(2L),
+                idFactory.newAccountId(2L),
                 72000,
                 0,
                 Collections.emptyList(),
@@ -379,7 +379,7 @@ public class CryptoHandlerTestBase {
 
     protected void givenValidContract() {
         account = new Account(
-                entityIdFactory.newAccountId(accountNum),
+                idFactory.newAccountId(accountNum),
                 alias.alias(),
                 key,
                 1_234_567L,
@@ -402,7 +402,7 @@ public class CryptoHandlerTestBase {
                 2,
                 0,
                 1000L,
-                entityIdFactory.newAccountId(2L),
+                idFactory.newAccountId(2L),
                 72000,
                 0,
                 Collections.emptyList(),

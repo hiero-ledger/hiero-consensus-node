@@ -191,7 +191,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), entityIdFactory.newAccountId(accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
 
@@ -215,13 +215,13 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), entityIdFactory.newAccountId(accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
 
         subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
-        final var protoKeyId = entityIdFactory.newAccountId(Key.PROTOBUF.toBytes(aSecp256K1Key));
+        final var protoKeyId = idFactory.newAccountIdWithAlias(Key.PROTOBUF.toBytes(aSecp256K1Key));
         final var result = subject.getAliasedAccountById(protoKeyId);
         assertThat(result).isNotNull();
     }

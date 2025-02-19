@@ -180,7 +180,7 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
 
         writableStore.putAndIncrementCount(account);
         assertThat(writableStore.sizeOfAccountState()).isEqualTo(1);
-        assertThat(writableStore.modifiedAccountsInState()).isEqualTo(Set.of(entityIdFactory.newAccountId(3)));
+        assertThat(writableStore.modifiedAccountsInState()).isEqualTo(Set.of(idFactory.newAccountId(3)));
     }
 
     private Account contractWith(final AccountID id, final long nonce) {
