@@ -302,16 +302,16 @@ public class CryptoHandlerTestBase {
     @NonNull
     protected MapWritableKVState<ProtoBytes, AccountID> writableAliasesStateWithOneKey() {
         return emptyWritableAliasStateBuilder()
-                .value(new ProtoBytes(alias.alias()), asAccount(accountNum))
-                .value(new ProtoBytes(contractAlias.evmAddress()), asAccount(contract.contractNum()))
+                .value(new ProtoBytes(alias.alias()), asAccount(0L, 0L, accountNum))
+                .value(new ProtoBytes(contractAlias.evmAddress()), asAccount(0L, 0L, contract.contractNum()))
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<ProtoBytes, AccountID> readableAliasState() {
         return emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(alias.alias()), asAccount(accountNum))
-                .value(new ProtoBytes(contractAlias.evmAddress()), asAccount(contract.contractNum()))
+                .value(new ProtoBytes(alias.alias()), asAccount(0L, 0L, accountNum))
+                .value(new ProtoBytes(contractAlias.evmAddress()), asAccount(0L, 0L, contract.contractNum()))
                 .build();
     }
 

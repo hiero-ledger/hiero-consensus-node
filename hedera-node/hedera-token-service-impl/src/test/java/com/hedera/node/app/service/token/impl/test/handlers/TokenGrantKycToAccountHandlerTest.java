@@ -115,7 +115,7 @@ class TokenGrantKycToAccountHandlerTest extends TokenHandlerTestBase {
         @Mock(strictness = LENIENT)
         private StoreFactory storeFactory;
 
-        private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(9876);
+        private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(0L, 0L, 9876);
         private static final TokenID TOKEN_531 = BaseTokenHandler.asToken(531);
 
         private static final Token newToken531 = Token.newBuilder()

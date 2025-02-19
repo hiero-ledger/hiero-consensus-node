@@ -133,7 +133,7 @@ class WritableTokenRelationStoreTest extends CryptoTokenHandlerTestBase {
                         .tokenId(TOKEN_10_ID)
                         .build(),
                 EntityIDPair.newBuilder()
-                        .accountId(asAccount(1L))
+                        .accountId(asAccount(0L, 0L, 1L))
                         .tokenId(asToken(2L))
                         .build());
         given(tokenRelState.modifiedKeys()).willReturn(modifiedKeys);
