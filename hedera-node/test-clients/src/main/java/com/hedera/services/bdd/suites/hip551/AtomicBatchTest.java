@@ -255,7 +255,6 @@ public class AtomicBatchTest {
         final var innerTnxPayer = "innerPayer";
         final var innerTxnId1 = "innerId1";
         final var innerTxnId2 = "innerId2";
-        final var account1 = "foo1";
         final var account2 = "foo2";
         final var atomicTxn = "atomicTxn";
         final var alias = "alias";
@@ -271,13 +270,19 @@ public class AtomicBatchTest {
                 .txnId(innerTxnId2)
                 .batchKey(batchOperator)
                 .payingWith(innerTnxPayer);
+        final var validStart1 = Timestamp.newBuilder()
+                .setSeconds(Instant.now().getEpochSecond() + 1000)
+                .build();
+        final var validStart2 = Timestamp.newBuilder()
+                .setSeconds(Instant.now().getEpochSecond() + 2000)
+                .build();
 
         return hapiTest(
                 newKeyNamed(alias),
                 cryptoCreate(batchOperator).balance(ONE_HBAR),
                 cryptoCreate(innerTnxPayer).balance(ONE_HUNDRED_HBARS),
-                usableTxnIdNamed(innerTxnId1).payerId(innerTnxPayer),
-                usableTxnIdNamed(innerTxnId2).payerId(innerTnxPayer),
+                usableTxnIdNamed(innerTxnId1).validStart(validStart1).payerId(innerTnxPayer),
+                usableTxnIdNamed(innerTxnId2).validStart(validStart2).payerId(innerTnxPayer),
                 atomicBatch(innerTxn1, innerTxn2).via(atomicTxn),
                 getTxnRecord(atomicTxn).andAllChildRecords().logged(),
                 getTxnRecord(innerTxnId1)

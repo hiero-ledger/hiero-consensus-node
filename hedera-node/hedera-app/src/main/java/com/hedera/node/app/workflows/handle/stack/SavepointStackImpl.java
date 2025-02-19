@@ -18,6 +18,7 @@ package com.hedera.node.app.workflows.handle.stack;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
@@ -64,6 +65,7 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -108,12 +110,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     /**
      * Constructs the root {@link SavepointStackImpl} for the given state at the start of handling a user transaction.
      *
-     * @param state the state
-     * @param maxBuildersBeforeUser the maximum number of preceding builders with available consensus times
-     * @param maxBuildersAfterUser the maximum number of following builders with available consensus times
+     * @param state                       the state
+     * @param maxBuildersBeforeUser       the maximum number of preceding builders with available consensus times
+     * @param maxBuildersAfterUser        the maximum number of following builders with available consensus times
      * @param boundaryStateChangeListener the listener for the round state changes
-     * @param kvStateChangeListener the listener for the key/value state changes
-     * @param streamMode the stream mode
+     * @param kvStateChangeListener       the listener for the key/value state changes
+     * @param streamMode                  the stream mode
      * @return the root {@link SavepointStackImpl}
      */
     public static SavepointStackImpl newRootStack(
@@ -136,11 +138,11 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * Constructs a new child {@link SavepointStackImpl} for the given state, where the child dispatch has the given
      * reversing behavior, transaction category, and record customizer.
      *
-     * @param root the state on which the child dispatch is based
+     * @param root              the state on which the child dispatch is based
      * @param reversingBehavior the reversing behavior for the initial dispatch
-     * @param category the transaction category
-     * @param customizer the record customizer
-     * @param streamMode the stream mode
+     * @param category          the transaction category
+     * @param customizer        the record customizer
+     * @param streamMode        the stream mode
      * @return the child {@link SavepointStackImpl}
      */
     public static SavepointStackImpl newChildStack(
@@ -155,12 +157,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     /**
      * Constructs a new root {@link SavepointStackImpl} with the given root state.
      *
-     * @param state the state
-     * @param maxBuildersBeforeUser the maximum number of preceding builders to create
-     * @param maxBuildersAfterUser the maximum number of following builders to create
+     * @param state                    the state
+     * @param maxBuildersBeforeUser    the maximum number of preceding builders to create
+     * @param maxBuildersAfterUser     the maximum number of following builders to create
      * @param roundStateChangeListener the listener for the round state changes
-     * @param kvStateChangeListener the listener for the key-value state changes
-     * @param streamMode the stream mode
+     * @param kvStateChangeListener    the listener for the key-value state changes
+     * @param streamMode               the stream mode
      */
     private SavepointStackImpl(
             @NonNull final State state,
@@ -184,11 +186,11 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * Constructs a new child {@link SavepointStackImpl} with the given parent stack and the provided
      * characteristics of the dispatch.
      *
-     * @param parent the parent stack
+     * @param parent            the parent stack
      * @param reversingBehavior the reversing behavior of the dispatch
-     * @param category the category of the dispatch
-     * @param customizer the record customizer for the dispatch
-     * @param streamMode the stream mode
+     * @param category          the category of the dispatch
+     * @param customizer        the record customizer for the dispatch
+     * @param streamMode        the stream mode
      */
     private SavepointStackImpl(
             @NonNull final SavepointStackImpl parent,
@@ -426,8 +428,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * with the builder cast to the given type.
      *
      * @param builderClass the type to cast the builders to
-     * @param consumer the consumer to invoke
-     * @param <T> the type to cast the builders to
+     * @param consumer     the consumer to invoke
+     * @param <T>          the type to cast the builders to
      */
     public <T> void forEachNonBaseBuilder(@NonNull final Class<T> builderClass, @NonNull final Consumer<T> consumer) {
         requireNonNull(builderClass);
@@ -443,10 +445,11 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     /**
      * Returns a transaction ID that can safely assigned to a child in this stack's context without
      * waiting to the end of the transaction.
+     *
      * @param isLastAllowed whether the stack should refuse to create more preset ids after this one
      * @return the next expected transaction ID
-     * @throws HandleException if the last allowed preset id was already created, or if the nonce
-     * changed from negative to positive, indicating there are no more nonces left for the base id
+     * @throws HandleException      if the last allowed preset id was already created, or if the nonce
+     *                              changed from negative to positive, indicating there are no more nonces left for the base id
      * @throws NullPointerException if this is called before the base builder was given an id
      */
     public TransactionID nextPresetTxnId(final boolean isLastAllowed) {
@@ -568,17 +571,35 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final var consensusNow = consensusTime.plusNanos((long) i - indexOfTopLevelRecord);
             lastAssignedConsenusTime = consensusNow;
             builder.consensusTimestamp(consensusNow);
+        }
+
+        var parentConsensus = consensusTime;
+        for (int i = 0; i < n; i++) {
+            final var builder = builders.get(i);
             if (i > indexOfTopLevelRecord) {
-                if (builder.category() != SCHEDULED) {
-                    // Only set exchange rates on transactions preceding the user transaction, since
-                    // no subsequent child can change the exchange rate
-                    builder.parentConsensus(consensusTime).exchangeRate(null);
-                } else {
-                    // But for backward compatibility keep setting rates on scheduled receipts, c.f.
-                    // https://github.com/hashgraph/hedera-services/issues/15393
-                    builder.exchangeRate(exchangeRates);
+                switch (builder.category()) {
+                    case SCHEDULED -> builder.exchangeRate(exchangeRates);
+                    case PRECEDING -> {
+                        // Get first non preceding transaction after this one in the list
+                        final var nextTime = builders.subList(indexOfTopLevelRecord + 1, n).stream()
+                                .skip(i - indexOfTopLevelRecord)
+                                .filter(b -> b.category() == BATCH)
+                                .findFirst()
+                                .map(StreamBuilder::getConsensusTimestamp);
+                        if (nextTime.isPresent()) {
+                            builder.parentConsensus(nextTime.get());
+                            parentConsensus = nextTime.get();
+                        }
+                    }
+                    case BATCH -> {
+                        parentConsensus = builder.getConsensusTimestamp();
+                        builder.parentConsensus(consensusTime);
+                    }
+                    case CHILD -> builder.parentConsensus(parentConsensus);
                 }
             }
+
+            // atomic batch user txn, autocreation11, contract (batch1), child12, batch2, child21
             switch (streamMode) {
                 case RECORDS -> {
                     final var nextRecord = ((RecordStreamBuilder) builder).build();

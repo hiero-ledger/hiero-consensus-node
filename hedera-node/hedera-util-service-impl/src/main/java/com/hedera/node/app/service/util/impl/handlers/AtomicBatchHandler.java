@@ -23,7 +23,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -91,7 +90,6 @@ public class AtomicBatchHandler implements TransactionHandler {
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
         final var op = context.body().atomicBatchOrThrow();
-        validateFalsePreCheck(context.body().hasBatchKey(), MISSING_BATCH_KEY);
         for (final var transaction : op.transactions()) {
             validateTruePreCheck(transaction.hasBody(), INVALID_TRANSACTION);
 
