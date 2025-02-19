@@ -7,6 +7,11 @@ on:
         description: "Build Number (ex: 43 = build-00043):"
         type: string
         required: true
+      alpha_release:
+        description: "Select for Alpha Tag:"
+        required: false
+        default: "false"
+        type: boolean
 
 defaults:
   run:
@@ -111,7 +116,11 @@ jobs:
         id: next_version
         run: |
           echo "Compute next version number using git-semver"
-          OUTPUT=$(git-semver next --stable=false 2>&1) || STATUS=$?
+          if [[ "${{ inputs.alpha_release }}" == "true" ]]; then
+            OUTPUT=$(git-semver next --pre-release-tag=alpha --pre-release-counter 2>&1) || STATUS=$?
+          else
+            OUTPUT=$(git-semver next --stable=false 2>&1) || STATUS=$?
+          fi
           echo "$OUTPUT"
           if [[ -n "$STATUS" ]]; then
             echo "git-semver failed with status $STATUS"
