@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
@@ -64,7 +65,8 @@ public class MiscellaneousFeesSuite {
     @HapiTest
     @DisplayName("USD base fee as expected for get version info")
     final Stream<DynamicTest> miscGetInfoBaseUSDFee() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                 getVersionInfo()
                         .signedBy(BOB)
@@ -90,7 +92,8 @@ public class MiscellaneousFeesSuite {
     final Stream<DynamicTest> miscGetTransactionRecordBaseUSDFee() {
         String baseTransactionGetRecord = "baseTransactionGetRecord";
         String createTxn = "createTxn";
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(ALICE).balance(ONE_BILLION_HBARS),
                 cryptoCreate(BOB)
                         .balance(ONE_HUNDRED_HBARS)
