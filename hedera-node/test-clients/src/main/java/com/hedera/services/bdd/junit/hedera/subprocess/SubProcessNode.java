@@ -29,9 +29,6 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.condi
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeWithId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.startSubProcessNodeFrom;
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.APPLICATION_PROPERTIES;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CONFIG_DIR;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.DATA_DIR;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OUTPUT_DIR;
 import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
@@ -40,6 +37,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.Hedera;
 import com.hedera.services.bdd.junit.hedera.AbstractLocalNode;
+import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.BindExceptionSeen;
@@ -57,6 +55,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -103,32 +102,10 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
     public @NonNull SubProcessNode initWorkingDir(@NonNull final String configTxt) {
         final var self = super.initWorkingDir(configTxt);
 
-        final int numAllowedTransfers = isIssScenario ? 5 : 3;
-
-        // Load the application.properties file
-        final Path appPropsPath = metadata.workingDirOrThrow()
-                .resolve(DATA_DIR)
-                .resolve(CONFIG_DIR)
-                .resolve(APPLICATION_PROPERTIES);
-        byte[] bytes;
-        try {
-            bytes = Files.readAllBytes(appPropsPath);
-        } catch (IOException e) {
-            Assertions.fail("Failed to read application.properties for ISS node: " + e.getMessage(), e);
-            // Unreachable, but needed to compile
-            return self;
-        }
-
-        // Append the modified property and value, then write the file back to disk
-        String appProps = new String(bytes);
-        if (!appProps.isEmpty()) {
-            appProps += "\n";
-        }
-        appProps += "ledger.transfers.maxLen=" + numAllowedTransfers;
-        try {
-            Files.write(appPropsPath, appProps.getBytes());
-        } catch (IOException e) {
-            Assertions.fail("Failed to rewrite application.properties for ISS node: " + e.getMessage(), e);
+        // Note: for an ISS scenario _all_ nodes will be modified, ISS or non-ISS nodes alike; the ISS node, however,
+        // will be modified in a different way
+        if (isIssScenario) {
+            modifyForIssScenario();
         }
 
         // super.initWorkingDir() already sets `workingDirInitialized` to true, so no need to do it here
@@ -294,6 +271,23 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         metadata = metadata.withNewAccountId(accountId);
     }
 
+    /**
+     * Reverts any changes made to this node for an ISS scenario.
+     * @param node the node to revert the ISS scenario for
+     */
+    // (FUTURE) We may (or may not) want to generalize this logic to allow for other scenarios beyond the ISS scenario
+    public static void revertIssScenario(@NonNull final HederaNode node) {
+        // Replacing the following with an empty value in the application.properties file will revert the property to
+        // its default value
+        if (((SubProcessNode) node).isIssScenario) {
+            modifyForIssScenario(node, s -> {
+                var replaced = s.replaceAll("ledger.transfers.maxLen=(\\d+)?(\n\n)?", "\n");
+                log.fatal("matt: replaced: {}", replaced);
+                return replaced;
+            });
+        }
+    }
+
     private boolean swirldsLogContains(@NonNull final String text) {
         try (var lines = Files.lines(getExternalPath(SWIRLDS_LOG))) {
             return lines.anyMatch(line -> line.contains(text));
@@ -345,6 +339,49 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         }
         if (exitCode != 0) {
             throw new IOException("jcmd exited with code " + exitCode);
+        }
+    }
+
+    private void modifyForIssScenario() {
+        modifyForIssScenario(self(), s -> {
+            int numAllowedTransfers = 3;
+            // For consistency, only simulate an ISS on node 0
+            if (isIssScenario && metadata().nodeId() == 0) {
+                numAllowedTransfers = 5;
+            }
+
+            var content = s;
+            if (!content.isEmpty()) {
+                content += "\n";
+            }
+            content += "ledger.transfers.maxLen=" + numAllowedTransfers;
+            return content;
+        });
+    }
+
+    private static void modifyForIssScenario(final HederaNode node, final Function<String, String> appPropsModifier) {
+        requireNonNull(node);
+
+        // Load the application.properties file
+        final Path appPropsPath = node.getExternalPath(ExternalPath.APPLICATION_PROPERTIES);
+        byte[] bytes;
+        try {
+            bytes = Files.readAllBytes(appPropsPath);
+        } catch (IOException e) {
+            Assertions.fail("Failed to read application.properties for ISS node: " + e.getMessage(), e);
+            // Needed to compile
+            return;
+        }
+
+        // Modify the file's content with the function provided
+        final String appProps = new String(bytes);
+        final String replaced = appPropsModifier.apply(appProps);
+
+        // Write the modified file back to disk
+        try {
+            Files.write(appPropsPath, replaced.getBytes());
+        } catch (IOException e) {
+            Assertions.fail("Failed to rewrite application.properties for ISS node: " + e.getMessage(), e);
         }
     }
 }

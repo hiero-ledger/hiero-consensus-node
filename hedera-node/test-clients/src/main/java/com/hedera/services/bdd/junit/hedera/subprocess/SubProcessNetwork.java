@@ -407,8 +407,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         nextPrometheusPort),
                                 GRPC_PINGER,
                                 PROMETHEUS_CLIENT,
-                                // For consistency, only simulate an ISS on node 0
-                                (simulateIss && nodeId == 0)))
+                                simulateIss))
                         .toList());
         Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
         return network;
