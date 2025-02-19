@@ -44,6 +44,7 @@ public final class SyntheticSnapshot {
      * @param lastConsensusOrder the last consensus order of all events that have reached consensus
      * @param roundTimestamp the timestamp of the round
      * @param config the consensus configuration
+     * @param ancientMode the ancient mode
      * @param judge the judge event
      * @return the synthetic snapshot
      */
@@ -67,6 +68,10 @@ public final class SyntheticSnapshot {
     }
 
     /**
+     * Create a genesis snapshot. This snapshot is not the result of consensus but is instead generated to be used as a
+     * starting point for consensus.
+     *
+     * @param ancientMode the ancient mode
      * @return the genesis snapshot, when loaded by consensus, it will start from genesis
      */
     public static @NonNull ConsensusSnapshot getGenesisSnapshot(@NonNull final AncientMode ancientMode) {

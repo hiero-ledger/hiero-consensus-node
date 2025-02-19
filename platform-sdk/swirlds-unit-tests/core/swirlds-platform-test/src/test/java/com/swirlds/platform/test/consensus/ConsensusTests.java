@@ -354,10 +354,13 @@ class ConsensusTests extends PlatformTest {
 
         //        final SimpleLinker linker = new SimpleLinker(
         //                context.getConfiguration().getConfigData(EventConfig.class).getAncientMode());
-        HashgraphGuiRunner.runHashgraphGui(
-                new StandardGuiSource(
-                        preRemovalAb,
-                        new GuiEventStorage(graphGenerator.getConsensus(), graphGenerator.getLinker(), null)),
+//        HashgraphGuiRunner.runHashgraphGui(
+//                new StandardGuiSource(
+//                        preRemovalAb,
+//                        new GuiEventStorage(graphGenerator.getConsensus(), graphGenerator.getLinker(), null)),
+//                new JPanel());
+                HashgraphGuiRunner.runHashgraphGui(
+                        graphGenerator.createGuiSource(),
                 new JPanel());
         // Random seed: -5298602547365345220L
         // Random seed: -7058144929547239143L

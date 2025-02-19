@@ -158,18 +158,11 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
     void setOtherParentAffinity(final DynamicValue<List<List<Double>>> affinityMatrix);
 
     /**
-     * Sets the timestamp of the last emitted event
-     *
-     * @param previousTimestamp the timestamp to set
-     */
-    void setPreviousTimestamp(final Instant previousTimestamp);
-
-    /**
      * Remove a node from the generator. This will remove it from the address book and it will remove its event source,
      * so that this node will not generate any more events.
      * NOTE: This method is created specifically for a single node removal. For more complex address book changes this
      * functionality should be expanded.
      * @param nodeId the node to remove
      */
-    void removeNode(final NodeId nodeId);
+    void removeNode(@NonNull final NodeId nodeId);
 }

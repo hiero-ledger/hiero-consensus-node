@@ -58,7 +58,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     private final Checkbox labelConsTimestampCheckbox;
     /** the generation number for the event */
     private final Checkbox labelGenerationCheckbox;
-    /** the generation number for the event */
+    /** the birth round number for the event */
     private final Checkbox labelBirthroundCheckbox;
     /** check to display the latest events available */
     private final Checkbox displayLatestEvents;

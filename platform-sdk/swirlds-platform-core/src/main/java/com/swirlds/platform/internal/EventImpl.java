@@ -580,34 +580,19 @@ public class EventImpl implements Clearable {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        descriptorString(sb, baseEvent.getDescriptor());
+        baseEvent.getDescriptor().shortString(sb);
         final List<EventDescriptorWrapper> allParents = baseEvent.getAllParents();
         for (final EventDescriptorWrapper parent : allParents) {
-            // sb.append("\n    parent:");
-            descriptorString(sb, parent);
+            parent.shortString(sb);
         }
         return sb.toString();
     }
 
+    /**
+     * Create a short string representation of this event without any parent information.
+     * @return a short string
+     */
     public String shortString() {
-        final StringBuilder sb = new StringBuilder();
-        descriptorString(sb, baseEvent.getDescriptor());
-        return sb.toString();
-    }
-
-    private static void descriptorString(final StringBuilder sb, final EventDescriptorWrapper desc) {
-        sb.append('(')
-                .append("CR:")
-                .append(desc.creator().id())
-                .append(" ")
-                .append("H:")
-                .append(desc.hash().toHex(6))
-                .append(" ")
-                .append("G:")
-                .append(desc.eventDescriptor().generation())
-                .append(" ")
-                .append("BR:")
-                .append(desc.eventDescriptor().birthRound())
-                .append(')');
+        return baseEvent.getDescriptor().shortString();
     }
 }

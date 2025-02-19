@@ -28,7 +28,10 @@ import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
 import com.swirlds.platform.eventhandling.EventConfig;
+import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.SimpleLinker;
+import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
+import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
@@ -97,6 +100,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      */
     private ConsensusImpl consensus;
 
+    /** The latest snapshot to be produced by {@link #consensus} */
     private ConsensusSnapshot consensusSnapshot;
 
     /**
@@ -204,7 +208,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
 
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook), true);
+                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
         linker = new SimpleLinker(platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
@@ -472,19 +476,13 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
     }
 
     @Override
-    public void setPreviousTimestamp(final Instant previousTimestamp) {
-        this.previousTimestamp = previousTimestamp;
-    }
-
-    @Override
-    public void removeNode(final NodeId nodeId) {
-        System.out.println("Removing node, last round decided: " + consensusSnapshot.round());
+    public void removeNode(@NonNull final NodeId nodeId) {
         final int nodeIndex = addressBook.getIndexOfNodeId(nodeId);
         sources.remove(nodeIndex);
         addressBook = addressBook.remove(nodeId);
         buildDefaultOtherParentAffinityMatrix();
         consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook), true);
+                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
         consensus.loadSnapshot(consensusSnapshot);
         final List<EventImpl> nonAncientEvents = linker.getNonAncientEvents().stream()
                 .sorted(Comparator.comparing(EventImpl::getGeneration))
@@ -496,7 +494,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
                 .roundsNonAncient()));
         for (final EventImpl event : nonAncientEvents) {
             final var copy = event.getBaseEvent().copyGossipedData();
-            copy.setHash(event.getBaseEvent().getHash());
             final EventImpl linkedEvent = linker.linkEvent(copy);
             consensus.addEvent(Objects.requireNonNull(linkedEvent));
         }
@@ -508,5 +505,16 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
 
     public SimpleLinker getLinker() {
         return linker;
+    }
+
+    public GuiEventStorage createGuiEventStorage() {
+        return new GuiEventStorage(consensus, linker, platformContext.getConfiguration());
+    }
+
+    @SuppressWarnings("unused")// useful for debugging
+    public HashgraphGuiSource createGuiSource() {
+        return new StandardGuiSource(
+                addressBook,
+                new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
     }
 }

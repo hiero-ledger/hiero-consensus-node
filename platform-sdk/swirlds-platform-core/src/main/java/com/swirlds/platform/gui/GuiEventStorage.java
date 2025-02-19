@@ -52,7 +52,7 @@ public class GuiEventStorage {
     private ConsensusRound lastConsensusRound;
 
     /**
-     * Constructor
+     * Creates an empty instance
      *
      * @param configuration this node's configuration
      * @param addressBook   the network's address book
@@ -68,7 +68,13 @@ public class GuiEventStorage {
                 new SimpleLinker(configuration.getConfigData(EventConfig.class).getAncientMode());
     }
 
-    public GuiEventStorage(final Consensus consensus, final SimpleLinker linker, final Configuration configuration) {
+    /**
+     * Creates an instance with the given consensus, linker, and configuration.
+     * @param consensus the consensus object
+     * @param linker the linker object
+     * @param configuration the configuration object
+     */
+    public GuiEventStorage(@NonNull final Consensus consensus, @NonNull final SimpleLinker linker, @NonNull final Configuration configuration) {
         this.consensus = consensus;
         this.linker = linker;
         this.configuration = configuration;
