@@ -42,6 +42,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -485,10 +486,9 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
         consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook), true);
         consensus.loadSnapshot(consensusSnapshot);
-        //        final List<EventImpl> nonAncientEvents = linker.getNonAncientEvents().stream()
-        //                .sorted(Comparator.comparing(EventImpl::getGeneration))
-        //                .toList();
-        final List<EventImpl> nonAncientEvents = linker.getNonAncientEvents();
+        final List<EventImpl> nonAncientEvents = linker.getNonAncientEvents().stream()
+                .sorted(Comparator.comparing(EventImpl::getGeneration))
+                .toList();
         linker.clear();
         linker.setNonAncientThreshold(consensusSnapshot.getAncientThreshold(platformContext
                 .getConfiguration()
