@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ class HashgraphGuiTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final GraphGenerator<?> graphGenerator =
+        final GraphGenerator graphGenerator =
                 new StandardGraphGenerator(platformContext, randotron.nextInt(), generateSources(numNodes));
         graphGenerator.reset();
 
@@ -50,8 +50,8 @@ class HashgraphGuiTest {
         guiSource.runGui();
     }
 
-    private static @NonNull List<EventSource<?>> generateSources(final int numNetworkNodes) {
-        final List<EventSource<?>> list = new LinkedList<>();
+    private static @NonNull List<EventSource> generateSources(final int numNetworkNodes) {
+        final List<EventSource> list = new LinkedList<>();
         for (long i = 0; i < numNetworkNodes; i++) {
             list.add(new StandardEventSource(true));
         }

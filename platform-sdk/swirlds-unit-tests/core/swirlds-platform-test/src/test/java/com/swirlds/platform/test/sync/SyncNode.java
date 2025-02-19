@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ public class SyncNode {
     private final NodeId nodeId;
 
     private final int numNodes;
-    private final EventEmitter<?> eventEmitter;
+    private final EventEmitter eventEmitter;
     private int eventsEmitted = 0;
     private final TestingSyncManager syncManager;
     private final Shadowgraph shadowGraph;
@@ -95,7 +95,7 @@ public class SyncNode {
     public SyncNode(
             final int numNodes,
             final long nodeId,
-            final EventEmitter<?> eventEmitter,
+            final EventEmitter eventEmitter,
             @NonNull final AncientMode ancientMode) {
 
         this(
@@ -109,7 +109,7 @@ public class SyncNode {
     public SyncNode(
             final int numNodes,
             final long nodeId,
-            final EventEmitter<?> eventEmitter,
+            final EventEmitter eventEmitter,
             final ParallelExecutor executor,
             @NonNull final AncientMode ancientMode) {
 
@@ -297,7 +297,7 @@ public class SyncNode {
         return numNodes;
     }
 
-    public EventEmitter<?> getEmitter() {
+    public EventEmitter getEmitter() {
         return eventEmitter;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,10 +30,8 @@ import java.util.List;
 /**
  * Generates a hashgraph of events.
  *
- * @param <T>
- * 		the concrete type of this {@link GraphGenerator}
  */
-public interface GraphGenerator<T extends GraphGenerator<T>> {
+public interface GraphGenerator {
 
     /**
      * Get the next event.
@@ -48,7 +46,7 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
     /**
      * Get the event source for a particular node ID.
      */
-    EventSource<?> getSource(@NonNull final NodeId nodeID);
+    EventSource getSource(@NonNull final NodeId nodeID);
 
     /**
      * Get an exact copy of this event generator in its current state. The events returned by this
@@ -58,8 +56,8 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
      * Note: if this generator has emitted a large number of events, this method may be expensive. The copied
      * generator needs to skip all events already emitted.
      */
-    default T copy() {
-        final T generator = cleanCopy();
+    default GraphGenerator copy() {
+        final GraphGenerator generator = cleanCopy();
         generator.skip(getNumEventsGenerated());
         return generator;
     }
@@ -67,7 +65,7 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
     /**
      * Get an exact copy of this event generator as it was when it was first created.
      */
-    T cleanCopy();
+    GraphGenerator cleanCopy();
 
     /**
      * Get a clean copy but with a different seed.
@@ -75,7 +73,7 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
      * @param seed
      * 		The new seed to use.
      */
-    T cleanCopy(long seed);
+    GraphGenerator cleanCopy(long seed);
 
     /**
      * Reset this generator to its original state. Does not undo settings changes, just the events that have been

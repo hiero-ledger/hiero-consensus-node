@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2018-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 /**
  * Emits events in the order in which the generator creates them.
  */
-public class StandardEventEmitter extends AbstractEventEmitter<StandardEventEmitter> {
+public class StandardEventEmitter extends AbstractEventEmitter {
 
-    public StandardEventEmitter(final GraphGenerator<?> graphGenerator) {
+    public StandardEventEmitter(final GraphGenerator graphGenerator) {
         super(graphGenerator);
         reset();
     }

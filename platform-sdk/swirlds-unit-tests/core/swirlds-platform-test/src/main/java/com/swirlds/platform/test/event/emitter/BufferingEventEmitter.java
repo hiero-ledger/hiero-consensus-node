@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,11 +30,8 @@ import java.util.Queue;
 /**
  * A base event emitter class that buffers events created by the {@link GraphGenerator}. Buffering events allows
  * subclasses to emit events in an order different from the order they are generated.
- *
- * @param <T>
- * 		the type of class extending this class
  */
-public abstract class BufferingEventEmitter<T extends BufferingEventEmitter<T>> extends AbstractEventEmitter<T> {
+public abstract class BufferingEventEmitter extends AbstractEventEmitter {
 
     /**
      * The maximum number of events that this generator is permitted to buffer.
@@ -55,7 +52,7 @@ public abstract class BufferingEventEmitter<T extends BufferingEventEmitter<T>> 
 
     protected long numEventsGenerated;
 
-    protected BufferingEventEmitter(final GraphGenerator<?> graphGenerator) {
+    protected BufferingEventEmitter(final GraphGenerator graphGenerator) {
         super(graphGenerator);
         clearEvents();
     }

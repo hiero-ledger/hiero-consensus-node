@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ public final class ConsensusTestDefinitions {
     /** Test consensus in the presence of forks. */
     public static void forkingTests(@NonNull final TestInput input) {
         // Use a custom event source generator that creates forking event sources
-        final Function<List<Long>, List<EventSource<?>>> eventSourceBuilder = nodeWeights -> {
+        final Function<List<Long>, List<EventSource>> eventSourceBuilder = nodeWeights -> {
             final double forkProbability = 0.1;
             final int numberOfForkedBranches = 10;
             final long totalWeight = nodeWeights.stream().reduce(0L, Long::sum);
@@ -130,7 +130,7 @@ public final class ConsensusTestDefinitions {
                 }
             }
 
-            final List<EventSource<?>> eventSources = new ArrayList<>(nodeWeights.size());
+            final List<EventSource> eventSources = new ArrayList<>(nodeWeights.size());
             for (int i = 0; i < nodeWeights.size(); i++) {
                 final long weight = nodeWeights.get(i);
                 if (i == forkingNodeId) {
@@ -302,7 +302,7 @@ public final class ConsensusTestDefinitions {
 
     public static void variableRateTests(@NonNull final TestInput input) {
         // Set the event source generator to create variable rate event sources
-        final Consumer<EventSource<?>> configureVariable = es -> {
+        final Consumer<EventSource> configureVariable = es -> {
             final DynamicValue<Double> variableEventWeight = (Random r, long eventIndex, Double previousValue) -> {
                 if (previousValue == null) {
                     return 1.0;

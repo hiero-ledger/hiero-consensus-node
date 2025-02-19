@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,14 +27,14 @@ import java.util.Objects;
  * Provides events for the GUI by generating them using a {@link GraphGenerator}
  */
 public class GeneratorEventProvider implements GuiEventProvider {
-    private final GraphGenerator<?> graphGenerator;
+    private final GraphGenerator graphGenerator;
 
     /**
      * Constructor
      *
      * @param graphGenerator the graph generator
      */
-    public GeneratorEventProvider(@NonNull final GraphGenerator<?> graphGenerator) {
+    public GeneratorEventProvider(@NonNull final GraphGenerator graphGenerator) {
         Objects.requireNonNull(graphGenerator);
         this.graphGenerator = graphGenerator;
     }

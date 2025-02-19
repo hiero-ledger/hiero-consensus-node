@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ class SyncFilteringTest {
 
         final List<EventImpl> events = new ArrayList<>(count);
 
-        final List<EventSource<?>> sources = new ArrayList<>();
+        final List<EventSource> sources = new ArrayList<>();
         for (int i = 0; i < addressBook.getSize(); i++) {
             sources.add(new StandardEventSource(false));
         }

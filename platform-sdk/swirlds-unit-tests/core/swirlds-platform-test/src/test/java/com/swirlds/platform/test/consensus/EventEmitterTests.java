@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ public class EventEmitterTests {
     /**
      * Ensure that a generator has same output after a reset.
      */
-    public void validateReset(final EventEmitter<?> emitter) {
+    public void validateReset(final EventEmitter emitter) {
         System.out.println("Validate Reset");
         final int numberOfEvents = 1000;
 
@@ -87,9 +87,9 @@ public class EventEmitterTests {
     /**
      * Ensure that a copy made of a new emitter has same output.
      */
-    public void validateCopyOfNewEmitter(final EventEmitter<?> emitter) {
+    public void validateCopyOfNewEmitter(final EventEmitter emitter) {
         System.out.println("Validate Copy of New Emitter");
-        final EventEmitter<?> emitterCopy = emitter.copy();
+        final EventEmitter emitterCopy = emitter.copy();
 
         final int numberOfEvents = 1000;
 
@@ -107,13 +107,13 @@ public class EventEmitterTests {
     /**
      * Ensure that a copy made of an active emitter has same output.
      */
-    public void validateCopyOfActiveEmitter(final EventEmitter<?> emitter) {
+    public void validateCopyOfActiveEmitter(final EventEmitter emitter) {
         System.out.println("Validate Copy of Active Emitter");
 
         final int numberOfEvents = 10;
 
         emitter.skip(numberOfEvents);
-        final EventEmitter<?> emitterCopy = emitter.copy();
+        final EventEmitter emitterCopy = emitter.copy();
 
         final List<EventImpl> events1 = emitter.emitEvents(numberOfEvents);
         assertEquals(numberOfEvents, events1.size());
@@ -129,7 +129,7 @@ public class EventEmitterTests {
     /**
      * Ensure that a clean copy made of an active emitter has same output.
      */
-    public void validateCleanCopyOfActiveGenerator(final EventEmitter<?> emitter) {
+    public void validateCleanCopyOfActiveGenerator(final EventEmitter emitter) {
         System.out.println("Validate Clean Copy of Active Emitter");
 
         final int numberOfEvents = 1000;
@@ -140,7 +140,7 @@ public class EventEmitterTests {
         final List<EventImpl> events1 = emitter.emitEvents(numberOfEvents);
         assertEquals(numberOfEvents, events1.size());
 
-        final EventEmitter<?> emitterCopy = emitter.cleanCopy();
+        final EventEmitter emitterCopy = emitter.cleanCopy();
 
         emitterCopy.setCheckpoint(numberOfEvents);
         emitterCopy.skip(numberOfEvents);
@@ -156,7 +156,7 @@ public class EventEmitterTests {
     /**
      * Check that events emitted by this emitter are in the proper order.
      */
-    public void validateEventOrder(final EventEmitter<?> emitter) {
+    public void validateEventOrder(final EventEmitter emitter) {
         System.out.println("Validate Event Order");
         final List<EventImpl> events = emitter.emitEvents(1000);
         assertTrue(areGenerationNumbersValid(events, emitter.getGraphGenerator().getNumberOfSources()));
@@ -165,7 +165,7 @@ public class EventEmitterTests {
         emitter.reset();
     }
 
-    public void validateCollectedEvents(EventEmitter<?> emitter) {
+    public void validateCollectedEvents(EventEmitter emitter) {
         System.out.println("Validate Collected Events");
 
         emitter = emitter.cleanCopy();
@@ -191,10 +191,10 @@ public class EventEmitterTests {
     /**
      * Make sure the copy constructor that changes the seed works.
      */
-    public void validateCopyWithNewSeed(final EventEmitter<?> emitter) {
+    public void validateCopyWithNewSeed(final EventEmitter emitter) {
         System.out.println("Validate Copy With New Seed");
-        final EventEmitter<?> emitter1 = emitter.cleanCopy();
-        final EventEmitter<?> emitter2 = emitter.cleanCopy(1234);
+        final EventEmitter emitter1 = emitter.cleanCopy();
+        final EventEmitter emitter2 = emitter.cleanCopy(1234);
 
         assertNotEquals(emitter1.emitEvents(1000), emitter2.emitEvents(1000));
     }
@@ -202,7 +202,7 @@ public class EventEmitterTests {
     /**
      * Run an emitter through a gauntlet of sanity checks.
      */
-    public void emitterSanityChecks(final EventEmitter<?> emitter) {
+    public void emitterSanityChecks(final EventEmitter emitter) {
         validateReset(emitter);
         validateCopyOfNewEmitter(emitter);
         validateCopyOfActiveEmitter(emitter);
@@ -211,7 +211,7 @@ public class EventEmitterTests {
         validateCollectedEvents(emitter);
     }
 
-    public void shuffledEmitterSanityChecks(final EventEmitter<?> emitter) {
+    public void shuffledEmitterSanityChecks(final EventEmitter emitter) {
         emitterSanityChecks(emitter);
         validateCopyWithNewSeed(emitter);
     }
@@ -220,7 +220,7 @@ public class EventEmitterTests {
      * Assert that two emitters with the same generator emit the same events but in a different order.
      */
     public void assertOrderIsDifferent(
-            final EventEmitter<?> emitter1, final EventEmitter<?> emitter2, final int numberOfEvents) {
+            final EventEmitter emitter1, final EventEmitter emitter2, final int numberOfEvents) {
         emitter1.setCheckpoint(numberOfEvents);
         emitter2.setCheckpoint(numberOfEvents);
         final List<EventImpl> list1 = emitter1.emitEvents(numberOfEvents);

@@ -579,7 +579,7 @@ public class SyncTests {
         executor.setCustomInitialization((caller, listener) -> {
             for (final SyncNode node : List.of(caller, listener)) {
 
-                final GraphGenerator<?> generator = node.getEmitter().getGraphGenerator();
+                final GraphGenerator generator = node.getEmitter().getGraphGenerator();
                 generator.setOtherParentAffinity(((random, eventIndex, previousValue) -> {
                     if (eventIndex < params.getNumCommonEvents()) {
                         // Use the normal matrix for common events

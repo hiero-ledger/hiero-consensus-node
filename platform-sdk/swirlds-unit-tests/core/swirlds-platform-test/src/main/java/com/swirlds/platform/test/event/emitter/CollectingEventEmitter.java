@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,14 +24,14 @@ import java.util.List;
  * This event emitter wraps another event emitter. It emits the exact same events as the inner emitter,
  * but also keeps a list of all emitted events that can be retrieved later.
  */
-public class CollectingEventEmitter extends AbstractEventEmitter<CollectingEventEmitter> {
+public class CollectingEventEmitter extends AbstractEventEmitter {
 
     /** All emitted events */
     private final LinkedList<EventImpl> collectedEvents;
 
-    private final EventEmitter<?> emitter;
+    private final EventEmitter emitter;
 
-    public CollectingEventEmitter(final EventEmitter<?> emitter) {
+    public CollectingEventEmitter(final EventEmitter emitter) {
         super(emitter.getGraphGenerator());
         collectedEvents = new LinkedList<>();
         this.emitter = emitter;

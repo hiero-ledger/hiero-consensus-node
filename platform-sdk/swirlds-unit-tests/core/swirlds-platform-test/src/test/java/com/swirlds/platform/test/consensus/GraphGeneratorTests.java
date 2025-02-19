@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ public class GraphGeneratorTests {
     /**
      * Ensure that a generator has sane output after a reset.
      */
-    public void validateReset(final GraphGenerator<?> generator) {
+    public void validateReset(final GraphGenerator generator) {
         System.out.println("Validate Reset");
         final int numberOfEvents = 1000;
 
@@ -101,9 +101,9 @@ public class GraphGeneratorTests {
     /**
      * Ensure that a copy made of a new generator has sane output.
      */
-    public void validateCopyOfNewGenerator(final GraphGenerator<?> generator) {
+    public void validateCopyOfNewGenerator(final GraphGenerator generator) {
         System.out.println("Validate Copy of New Generator");
-        final GraphGenerator<?> generatorCopy = generator.copy();
+        final GraphGenerator generatorCopy = generator.copy();
 
         final int numberOfEvents = 1000;
 
@@ -121,13 +121,13 @@ public class GraphGeneratorTests {
     /**
      * Ensure that a copy made of an active generator has sane output.
      */
-    public void validateCopyOfActiveGenerator(final GraphGenerator<?> generator) {
+    public void validateCopyOfActiveGenerator(final GraphGenerator generator) {
         System.out.println("Validate Copy of Active Generator");
 
         final int numberOfEvents = 1000;
 
         generator.skip(numberOfEvents);
-        final GraphGenerator<?> generatorCopy = generator.copy();
+        final GraphGenerator generatorCopy = generator.copy();
 
         final List<EventImpl> events1 = generator.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events1.size());
@@ -143,7 +143,7 @@ public class GraphGeneratorTests {
     /**
      * Ensure that a clean copy made of an active generator has sane output.
      */
-    public void validateCleanCopyOfActiveGenerator(final GraphGenerator<?> generator) {
+    public void validateCleanCopyOfActiveGenerator(final GraphGenerator generator) {
         System.out.println("Validate Clean Copy of Active Generator");
 
         final int numberOfEvents = 1000;
@@ -152,7 +152,7 @@ public class GraphGeneratorTests {
         final List<EventImpl> events1 = generator.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events1.size());
 
-        final GraphGenerator<?> generatorCopy = generator.cleanCopy();
+        final GraphGenerator generatorCopy = generator.cleanCopy();
 
         generatorCopy.skip(numberOfEvents);
         final List<EventImpl> events2 = generatorCopy.generateEvents(numberOfEvents);
@@ -232,7 +232,7 @@ public class GraphGeneratorTests {
     /**
      * Ensure that the distribution of events between nodes behaves as expected.
      */
-    public void validateParentDistribution(GraphGenerator<?> generator) {
+    public void validateParentDistribution(GraphGenerator generator) {
         System.out.println("Validate Parent Distribution");
 
         assertEquals(4, generator.getNumberOfSources());
@@ -303,7 +303,7 @@ public class GraphGeneratorTests {
      * If given a StandardGraphGenerator or a ShuffledEventGenerator containing a StandardGraphGenerator, return
      * the StandardGraphGenerator.
      */
-    private StandardGraphGenerator getBaseGenerator(final GraphGenerator<?> generator) {
+    private StandardGraphGenerator getBaseGenerator(final GraphGenerator generator) {
         if (generator instanceof StandardGraphGenerator) {
             return (StandardGraphGenerator) generator;
         } else {
@@ -314,7 +314,7 @@ public class GraphGeneratorTests {
     /**
      * Ensure that the distribution of other parents behaves as expected.
      */
-    public void validateOtherParentDistribution(GraphGenerator<?> generator) {
+    public void validateOtherParentDistribution(GraphGenerator generator) {
         System.out.println("Validate Other Parent Distribution");
 
         // Even distribution
@@ -427,7 +427,7 @@ public class GraphGeneratorTests {
     /**
      * Check that events emitted by this generator are in the proper order.
      */
-    public void validateEventOrder(final GraphGenerator<?> generator) {
+    public void validateEventOrder(final GraphGenerator generator) {
         System.out.println("Validate Event Order");
         final List<EventImpl> events = generator.generateEvents(1000);
         assertTrue(areGenerationNumbersValid(events, generator.getNumberOfSources()));
@@ -439,10 +439,10 @@ public class GraphGeneratorTests {
     /**
      * Make sure the copy constructor that changes the seed works.
      */
-    public void validateCopyWithNewSeed(final GraphGenerator<?> generator) {
+    public void validateCopyWithNewSeed(final GraphGenerator generator) {
         System.out.println("Validate Copy With New Seed");
-        final GraphGenerator<?> generator1 = generator.cleanCopy();
-        final GraphGenerator<?> generator2 = generator.cleanCopy(1234);
+        final GraphGenerator generator1 = generator.cleanCopy();
+        final GraphGenerator generator2 = generator.cleanCopy(1234);
 
         assertNotEquals(generator1.generateEvents(1000), generator2.generateEvents(1000));
     }
@@ -450,7 +450,7 @@ public class GraphGeneratorTests {
     /**
      * Run a generator through a gauntlet of sanity checks.
      */
-    public void generatorSanityChecks(final GraphGenerator<?> generator) {
+    public void generatorSanityChecks(final GraphGenerator generator) {
         validateReset(generator);
         validateCopyOfNewGenerator(generator);
         validateCopyOfActiveGenerator(generator);
@@ -466,7 +466,7 @@ public class GraphGeneratorTests {
     /**
      * Ensure that the birth round monotonically advances
      */
-    private void validateBirthRoundAdvancing(@NonNull final GraphGenerator<?> generator) {
+    private void validateBirthRoundAdvancing(@NonNull final GraphGenerator generator) {
         final List<EventImpl> events = generator.generateEvents(100);
         final long firstEventBirthRound = events.get(0).getBirthRound();
         final long lastEventBirthRound = events.get(events.size() - 1).getBirthRound();
@@ -483,7 +483,7 @@ public class GraphGeneratorTests {
     /**
      * Assert that the max generation is updated correctly
      */
-    public void validateMaxGeneration(final GraphGenerator<?> generator) {
+    public void validateMaxGeneration(final GraphGenerator generator) {
         final List<EventImpl> events = generator.generateEvents(100);
         final EventImpl lastEvent = events.get(events.size() - 1);
         // validate only the last event to keep the validation simple
