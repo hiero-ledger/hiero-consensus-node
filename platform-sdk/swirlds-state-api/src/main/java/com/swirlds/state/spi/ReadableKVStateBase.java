@@ -40,9 +40,7 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
      * changed before we got to handle transaction. If the value is "null", this means it was NOT
      * FOUND when we looked it up.
      */
-    private final ConcurrentMap<K, V> readCache = new ConcurrentHashMap<>();
-
-    private final Set<K> unmodifiableReadKeys = Collections.unmodifiableSet(readCache.keySet());
+    private ConcurrentMap<K, V> readCache = new ConcurrentHashMap<>();
 
     private static final Object marker = new Object();
 
@@ -53,6 +51,17 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
      */
     protected ReadableKVStateBase(@NonNull String stateKey) {
         this.stateKey = Objects.requireNonNull(stateKey);
+    }
+
+    /**
+     * Create a new StateBase from the provided map.
+     *
+     * @param stateKey The state key. Cannot be null.
+     * @param readCache A map that is used to init the cache.
+     */
+    protected ReadableKVStateBase(@NonNull String stateKey, @NonNull ConcurrentMap<K, V> readCache) {
+        this.stateKey = Objects.requireNonNull(stateKey);
+        this.readCache = Objects.requireNonNull(readCache);
     }
 
     /** {@inheritDoc} */
@@ -84,7 +93,7 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
      */
     @NonNull
     public final Set<K> readKeys() {
-        return unmodifiableReadKeys;
+        return Collections.unmodifiableSet(readCache.keySet());
     }
 
     /** {@inheritDoc} */
