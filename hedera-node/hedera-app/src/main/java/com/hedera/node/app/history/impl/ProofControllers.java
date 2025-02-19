@@ -130,11 +130,12 @@ public class ProofControllers {
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
-            final var selfId = selfNodeInfoSupplier.get().nodeId();
-            final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
             final var signaturePublications =
                     historyStore.getSignaturePublications(construction.constructionId(), weights.targetNodeIds());
+            final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
+            final var selfId = selfNodeInfoSupplier.get().nodeId();
+            final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -147,6 +148,7 @@ public class ProofControllers {
                     submissions,
                     keyPublications,
                     signaturePublications,
+                    votes,
                     proofConsumer);
         }
     }

@@ -59,6 +59,9 @@ public class ProofControllerImpl implements ProofController {
 
     private final long selfId;
 
+    /**
+     * Null if this controller transitions from the genesis roster.
+     */
     @Nullable
     private final Bytes ledgerId;
 
@@ -137,6 +140,7 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final HistorySubmissions submissions,
             @NonNull final List<ProofKeyPublication> keyPublications,
             @NonNull final List<HistorySignaturePublication> signaturePublications,
+            @NonNull final Map<Long, HistoryProofVote> votes,
             @NonNull final Consumer<HistoryProof> proofConsumer) {
         this.selfId = selfId;
         this.ledgerId = ledgerId;
@@ -148,8 +152,18 @@ public class ProofControllerImpl implements ProofController {
         this.construction = requireNonNull(construction);
         this.proofConsumer = requireNonNull(proofConsumer);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
-        keyPublications.forEach(this::addProofKeyPublication);
-        signaturePublications.forEach(this::addSignaturePublication);
+        this.votes.putAll(requireNonNull(votes));
+        if (!construction.hasTargetProof()) {
+            final var cutoffTime = construction.hasGracePeriodEndTime()
+                    ? asInstant(construction.gracePeriodEndTimeOrThrow())
+                    : Instant.MAX;
+            keyPublications.forEach(publication -> {
+                if (!publication.adoptionTime().isAfter(cutoffTime)) {
+                    maybeUpdateForProofKey(publication);
+                }
+            });
+            signaturePublications.forEach(this::addSignaturePublication);
+        }
     }
 
     @Override
@@ -198,11 +212,7 @@ public class ProofControllerImpl implements ProofController {
         if (!construction.hasGracePeriodEndTime()) {
             return;
         }
-        final long nodeId = publication.nodeId();
-        if (!weights.targetIncludes(nodeId)) {
-            return;
-        }
-        targetProofKeys.put(nodeId, publication.proofKey());
+        maybeUpdateForProofKey(publication);
     }
 
     @Override
@@ -300,6 +310,18 @@ public class ProofControllerImpl implements ProofController {
                             .join(),
                     executor);
         }
+    }
+
+    /**
+     * If the given publication was for a node in the target roster, updates the target proof keys.
+     * @param publication the publication
+     */
+    private void maybeUpdateForProofKey(@NonNull final ProofKeyPublication publication) {
+        final long nodeId = publication.nodeId();
+        if (!weights.targetIncludes(nodeId)) {
+            return;
+        }
+        targetProofKeys.put(nodeId, publication.proofKey());
     }
 
     /**

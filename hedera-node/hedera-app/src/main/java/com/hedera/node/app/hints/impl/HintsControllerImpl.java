@@ -16,6 +16,8 @@
 
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
+import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
@@ -154,10 +156,10 @@ public class HintsControllerImpl implements HintsController {
 
         final var crsState = hintsStore.getCrsState();
         final var crsPublications = hintsStore.getCrsPublications();
-        if (crsState.stage() == CRSStage.GATHERING_CONTRIBUTIONS) {
+        if (crsState.stage() == GATHERING_CONTRIBUTIONS) {
             crsPublications.forEach(publication -> verifyCrsUpdate(publication, hintsStore));
         }
-        this.initialCrs = crsState.stage() != CRSStage.COMPLETED ? crsState.crs() : null;
+        this.initialCrs = crsState.stage() != COMPLETED ? crsState.crs() : null;
         // Ensure we are up-to-date on any published hinTS keys we might need for this construction
         if (!construction.hasHintsScheme()) {
             final var cutoffTime = construction.hasPreprocessingStartTime()
@@ -191,7 +193,7 @@ public class HintsControllerImpl implements HintsController {
         requireNonNull(now);
         requireNonNull(hintsStore);
         // Do the work needed to set the CRS for network and start the preprocessing vote
-        if (hintsStore.getCrsState().stage() != CRSStage.COMPLETED) {
+        if (hintsStore.getCrsState().stage() != COMPLETED) {
             doCRSWork(now, hintsStore);
         }
 
@@ -231,11 +233,11 @@ public class HintsControllerImpl implements HintsController {
         final var tssConfig = configurationSupplier.get().getConfigData(TssConfig.class);
         if (!crsState.hasNextContributingNodeId()) {
             tryToFinalizeCrs(now, hintsStore, crsState, tssConfig);
-        } else if (crsState.nextContributingNodeIdOrThrow() == selfId && crsPublicationFuture == null) {
-            submitUpdatedCRS(hintsStore);
         } else if (crsState.contributionEndTime() != null
                 && now.isAfter(asInstant(crsState.contributionEndTimeOrThrow()))) {
             moveToNextNode(now, hintsStore);
+        } else if (crsState.nextContributingNodeIdOrThrow() == selfId && crsPublicationFuture == null) {
+            submitUpdatedCRS(hintsStore);
         }
     }
 
@@ -254,7 +256,7 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final CRSState crsState,
             @NonNull final TssConfig tssConfig) {
-        if (crsState.stage() == CRSStage.GATHERING_CONTRIBUTIONS) {
+        if (crsState.stage() == GATHERING_CONTRIBUTIONS) {
             final var delay = tssConfig.crsFinalizationDelay();
             final var updatedState = crsState.copyBuilder()
                     .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
@@ -271,7 +273,7 @@ public class HintsControllerImpl implements HintsController {
                         requireNonNull(finalUpdatedCrsFuture).join();
                 final var updatedState = crsState.copyBuilder()
                         .crs(finalUpdatedCrs)
-                        .stage(CRSStage.COMPLETED)
+                        .stage(COMPLETED)
                         .contributionEndTime((Timestamp) null)
                         .build();
                 hintsStore.setCRSState(updatedState);
@@ -298,7 +300,7 @@ public class HintsControllerImpl implements HintsController {
                 weights.sourceNodeIds().stream().min(Long::compareTo).orElse(0L);
         final var contributionTime = tssConfig.crsUpdateContributionTime();
         final var updatedState = crsState.copyBuilder()
-                .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                .stage(GATHERING_CONTRIBUTIONS)
                 .contributionEndTime(asTimestamp(now.plus(contributionTime)))
                 .crs(requireNonNull(initialCrs))
                 .nextContributingNodeId(firstNodeId)
