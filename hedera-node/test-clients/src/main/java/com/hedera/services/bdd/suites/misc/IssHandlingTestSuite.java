@@ -35,11 +35,9 @@ import com.hedera.services.bdd.suites.crypto.ParseableIssBlockStreamValidationOp
 import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.extension.BeforeAllCallback;
-import org.junit.jupiter.api.extension.ExtensionContext;
 
 @IssHapiTest
-class IssHandlingSuite implements BeforeAllCallback {
+class IssHandlingTestSuite {
     private static final long NODE_0_ACCT_ID = 3; // The ISS node
     private static final long NODE_1_ACCT_ID = 4; // One of the Non-ISS nodes
     private static final String NODE_1_FULL_ACCT_ID = "0.0." + NODE_1_ACCT_ID;
@@ -83,10 +81,5 @@ class IssHandlingSuite implements BeforeAllCallback {
                 // Wait for any block stream files to close
                 sleepFor(2000),
                 new ParseableIssBlockStreamValidationOp());
-    }
-
-    @Override
-    public void beforeAll(ExtensionContext context) throws Exception {
-        // no-op
     }
 }
