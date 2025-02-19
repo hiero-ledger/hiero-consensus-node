@@ -65,7 +65,7 @@ jobs:
       - name: Read Current Version
         id: read_version
         run: |
-          current_version=$(cat version.txt)
+          current_version="$(./gradlew -q showVersion)"
           echo "Current version: ${current_version}"
           echo "version=${current_version}" >> ${GITHUB_OUTPUT}
           printf "Current Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
@@ -74,10 +74,10 @@ jobs:
         id: increment_version
         run: |
           # Strip the -SNAPSHOT suffix
-          base_version=$(semver get release ${{ steps.read_version.outputs.version }})
+          base_version="$(semver get release "${{ steps.read_version.outputs.version }}")"
 
           # Increment the minor version
-          new_version=$(semver bump minor ${base_version})
+          new_version="$(semver bump minor "${base_version}")"
 
           # Add the -SNAPSHOT suffix back
           new_version="${new_version}-SNAPSHOT"
@@ -88,7 +88,7 @@ jobs:
 
       - name: Update Versions
         run: |
-          ./gradlew versionAsSpecified -PnewVersion=${{ steps.increment_version.outputs.new-version }}
+          ./gradlew versionAsSpecified -PnewVersion="${{ steps.increment_version.outputs.new-version }}"
 
       - name: Add & Commit
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4

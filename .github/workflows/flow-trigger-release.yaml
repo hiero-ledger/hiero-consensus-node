@@ -38,7 +38,7 @@ jobs:
           echo "Input is a valid integer: $(( ${{ inputs.build_number }} ))"
 
           # 5-digit padding
-          padded_number=$(printf "%05d" ${{ inputs.build_number }})
+          padded_number="$(printf "%05d" "${{ inputs.build_number }}")"
           echo "Padded number is: ${padded_number}"
 
           # Add "build_" prefix to the padded number
@@ -46,7 +46,7 @@ jobs:
           echo "Prefixed number is: ${build_tag}"
 
           # Export to Github output and Github summary
-          BUILD_TAG=${build_tag}
+          BUILD_TAG="${build_tag}"
           echo "BUILD_TAG=${build_tag}" >> ${GITHUB_OUTPUT}
           echo "Build Tag to Release: ${BUILD_TAG}" >> ${GITHUB_STEP_SUMMARY}
 
@@ -75,7 +75,7 @@ jobs:
       - name: Calculate Temporary Semantic Release Branch Name
         id: branch_name
         run: |
-          echo "BRANCH_NAME=temp/${{ steps.validate.outputs.BUILD_TAG }}" >> ${GITHUB_OUTPUT}
+          echo "BRANCH_NAME=ci/release/prep/${{ steps.validate.outputs.BUILD_TAG }}" >> ${GITHUB_OUTPUT}
           echo "The temp branch name is: ${BRANCH_NAME}"
 
       - name: Print Temporary Branch Name
@@ -90,11 +90,11 @@ jobs:
 
       - name: Echo Current Branch Name
         run: |
-          current_branch=$(git symbolic-ref --short HEAD)
+          current_branch="$(git symbolic-ref --short HEAD)"
           echo "Currently on branch: ${current_branch}"
 
       - name: Push Temporary Branch to Origin
-        run: git push --set-upstream origin ${{ steps.branch_name.outputs.BRANCH_NAME }}
+        run: git push --set-upstream origin "${{ steps.branch_name.outputs.BRANCH_NAME }}"
 
       - name: Git-Semver Setup Action
         uses: DJ-BBot/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
@@ -102,7 +102,7 @@ jobs:
       - name: Identify Current Version Number
         run: |
           echo "Find the current version number"
-          current_version=$(git-semver latest)
+          current_version="$(git-semver latest)"
           echo "Current version is: ${current_version}"
 
       # IF HIERO/HEDERA TRANSITIONS TO A MAJOR RELEASE NUMBER (1.0.0+)
@@ -111,7 +111,7 @@ jobs:
         id: next_version
         run: |
           echo "Compute next version number using git-semver"
-          OUTPUT=$(git-semver next --stable=false 2>&1) || STATUS=$?
+          OUTPUT="$(git-semver next --stable=false 2>&1)" || STATUS=$?
           echo "$OUTPUT"
           if [[ -n "$STATUS" ]]; then
             echo "git-semver failed with status $STATUS"
@@ -123,22 +123,22 @@ jobs:
       - name: Apply Tag with Calculated Next Version
         run: |
           echo "Applying computed version tag"
-          git tag --annotate v${{ steps.next_version.outputs.next_release }} --message "v${{ steps.next_version.outputs.next_release }}"
+          git tag --annotate "v${{ steps.next_version.outputs.next_release }}" --message "v${{ steps.next_version.outputs.next_release }}"
           echo "Applied tag v${{ steps.next_version.outputs.next_release }}"
-          current_version=$(git-semver latest)
+          current_version="$(git-semver latest)"
           echo "Version Tag Applied: v${{ steps.next_version.outputs.next_release }}" >> ${GITHUB_STEP_SUMMARY}
           echo "Current version is: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Push Release Tag to Remote
         run: |
           echo "Pushing release tag to remote"
-          git push origin tag v${{ steps.next_version.outputs.next_release }}
+          git push origin tag "v${{ steps.next_version.outputs.next_release }}"
           echo "Pushed new release tag to remote"
 
       - name: Create Release Notes with Markdown
         run: |
-          echo git-semver log --markdown ${{ steps.next_version.outputs.next_release }}
-          git-semver log --markdown ${{ steps.next_version.outputs.next_release }}
+          echo git-semver log --markdown "${{ steps.next_version.outputs.next_release }}"
+          git-semver log --markdown "${{ steps.next_version.outputs.next_release }}"
 
       - name: Clean Up git-semver
         run: |
@@ -156,11 +156,11 @@ jobs:
           git checkout main
 
           # Check if the branch is associated with a worktree and remove the worktree if it exists
-          worktree_path=$(git worktree list | grep ${{ steps.branch_name.outputs.BRANCH_NAME }} || true)
+          worktree_path="$(git worktree list | grep "${{ steps.branch_name.outputs.BRANCH_NAME }}" || true)"
 
-          if [ -n "$worktree_path" ]; then
-            echo "Removing worktree at $worktree_path"
-            git worktree remove "$worktree_path"
+          if [ -n "${worktree_path}" ]; then
+            echo "Removing worktree at ${worktree_path}"
+            git worktree remove "${worktree_path}"
           else
             echo "No worktree found for branch ${{ steps.branch_name.outputs.BRANCH_NAME }}"
           fi
@@ -170,9 +170,9 @@ jobs:
         run: |
           echo "Deleting the temporary semantic release branch"
           echo "Deleting local branch now:"
-          git branch -d ${{ steps.branch_name.outputs.BRANCH_NAME }}
+          git branch -d "${{ steps.branch_name.outputs.BRANCH_NAME }}"
           echo "Deleted Temporary Branch from Local Runner" >> ${GITHUB_STEP_SUMMARY}
 
           echo "Deleting remote branch now:"
-          git push -d origin ${{ steps.branch_name.outputs.BRANCH_NAME }}
+          git push -d origin "${{ steps.branch_name.outputs.BRANCH_NAME }}"
           echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
