@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.subprocess;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
@@ -296,12 +282,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     blockNodes, 256 // default batch size
                     );
 
-            // Write the config to this node's block-nodes.json
+            // Write the config to this consensus node's block-nodes.json
             Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
             Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
 
             // Update application.properties with block stream settings
-            Path appPropertiesPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("application.properties");
+            Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
             log.info(
                     "Attempting to update application.properties at path {} for node {}",
                     appPropertiesPath,
@@ -350,7 +336,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     blockNodes, 256 // default batch size
                     );
 
-            // Write the config to this node's block-nodes.json
+            // Write the config to this consensus node's block-nodes.json
             Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
             Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
 
@@ -373,7 +359,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     blockNodes, 256 // default batch size
                     );
 
-            // Write the config to this node's block-nodes.json
+            // Write the config to this consensus node's block-nodes.json
             Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
             Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
 

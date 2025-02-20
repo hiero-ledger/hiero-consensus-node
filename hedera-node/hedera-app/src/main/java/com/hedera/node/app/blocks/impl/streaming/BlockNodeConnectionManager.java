@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
@@ -47,7 +32,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -62,7 +46,7 @@ public class BlockNodeConnectionManager {
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections;
     private BlockNodeConfigExtractor blockNodeConfigurations;
 
-    private final ReentrantLock connectionLock = new ReentrantLock();
+    private final Object connectionLock = new Object();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService streamingExecutor = Executors.newSingleThreadExecutor();
 
@@ -118,11 +102,8 @@ public class BlockNodeConnectionManager {
                     .build());
 
             BlockNodeConnection connection = new BlockNodeConnection(node, grpcServiceClient, this);
-            connectionLock.lock();
-            try {
+            synchronized (connectionLock) {
                 activeConnections.put(node, connection);
-            } finally {
-                connectionLock.unlock();
             }
             logger.info("Successfully connected to block node {}:{}", node.address(), node.port());
         } catch (URISyntaxException | RuntimeException e) {
@@ -142,13 +123,10 @@ public class BlockNodeConnectionManager {
         long blockNumber = block.blockNumber();
         // Get currently active connections
         List<BlockNodeConnection> connectionsToStream;
-        connectionLock.lock();
-        try {
+        synchronized (connectionLock) {
             connectionsToStream = activeConnections.values().stream()
                     .filter(BlockNodeConnection::isActive)
                     .toList();
-        } finally {
-            connectionLock.unlock();
         }
 
         if (connectionsToStream.isEmpty()) {
@@ -221,11 +199,8 @@ public class BlockNodeConnectionManager {
      * @param node the node configuration for the failed connection
      */
     public void handleConnectionError(@NonNull BlockNodeConfig node) {
-        connectionLock.lock();
-        try {
+        synchronized (connectionLock) {
             activeConnections.remove(node); // Remove the failed connection
-        } finally {
-            connectionLock.unlock();
         }
     }
 
