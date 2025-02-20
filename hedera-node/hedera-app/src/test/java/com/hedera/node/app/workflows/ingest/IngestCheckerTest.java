@@ -89,6 +89,7 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.status.PlatformStatus;
 import java.time.Instant;
@@ -156,6 +157,7 @@ class IngestCheckerTest extends AppTestBase {
     private TransactionInfo transactionInfo;
     private TransactionBody txBody;
     private Transaction tx;
+    private Bytes serializedTx;
 
     private Configuration configuration;
 
@@ -182,10 +184,11 @@ class IngestCheckerTest extends AppTestBase {
         tx = Transaction.newBuilder()
                 .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
                 .build();
+        serializedTx = Transaction.PROTOBUF.toBytes(tx);
 
         transactionInfo = new TransactionInfo(
-                tx, txBody, MOCK_SIGNATURE_MAP, tx.signedTransactionBytes(), UNCHECKED_SUBMIT, null);
-        when(transactionChecker.check(tx, null)).thenReturn(transactionInfo);
+                tx, txBody, MOCK_SIGNATURE_MAP, tx.signedTransactionBytes(), UNCHECKED_SUBMIT, serializedTx);
+        when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(transactionInfo);
 
         final var configProvider = HederaTestConfigBuilder.createConfigProvider();
         this.deduplicationCache = new DeduplicationCacheImpl(configProvider, instantSource);
@@ -278,7 +281,7 @@ class IngestCheckerTest extends AppTestBase {
                 ServicesSoftwareVersion::new);
 
         // Then the checker should throw a PreCheckException
-        assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+        assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_NODE_ACCOUNT));
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -289,7 +292,7 @@ class IngestCheckerTest extends AppTestBase {
     void testRunAllChecksSuccessfully() throws Exception {
         // given
         final var expected = new TransactionInfo(
-                tx, txBody, MOCK_SIGNATURE_MAP, tx.signedTransactionBytes(), UNCHECKED_SUBMIT, null);
+                tx, txBody, MOCK_SIGNATURE_MAP, tx.signedTransactionBytes(), UNCHECKED_SUBMIT, serializedTx);
         final var verificationResultFuture = mock(SignatureVerificationFuture.class);
         final var verificationResult = mock(SignatureVerification.class);
         when(verificationResult.failed()).thenReturn(false);
@@ -298,7 +301,7 @@ class IngestCheckerTest extends AppTestBase {
                 .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
 
         // when
-        final var actual = subject.runAllChecks(state, tx, configuration);
+        final var actual = subject.runAllChecks(state, serializedTx, configuration);
 
         // then
         assertThat(actual).isEqualTo(expected);
@@ -322,10 +325,10 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If the transaction fails TransactionChecker, a failure response is returned with the right error")
         void onsetFailsWithPreCheckException(ResponseCodeEnum failureReason) throws PreCheckException {
             // Given a TransactionChecker that will throw a PreCheckException with the given failure reason
-            when(transactionChecker.check(any(), eq(null))).thenThrow(new PreCheckException(failureReason));
+            when(transactionChecker.parseAndCheck(any())).thenThrow(new PreCheckException(failureReason));
 
             // When the transaction is checked
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(failureReason));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -335,10 +338,10 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
         void randomException() throws PreCheckException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(transactionChecker.check(any(), eq(null))).thenThrow(new RuntimeException("check exception"));
+            when(transactionChecker.parseAndCheck(any())).thenThrow(new RuntimeException("check exception"));
 
             // When the transaction is submitted, then the exception is bubbled up
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("check exception");
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -355,7 +358,7 @@ class IngestCheckerTest extends AppTestBase {
             final var id = txBody.transactionIDOrThrow();
             deduplicationCache.add(id);
             // When the transaction is checked, then it throws a PreCheckException due to duplication
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", DUPLICATE_TRANSACTION);
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -374,7 +377,7 @@ class IngestCheckerTest extends AppTestBase {
                     .thenReturn(true);
 
             // When the transaction is submitted
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", BUSY);
             verify(opWorkflowMetrics).incrementThrottled(UNCHECKED_SUBMIT);
@@ -398,6 +401,7 @@ class IngestCheckerTest extends AppTestBase {
             final var cryptoAddLiveHashTx = Transaction.newBuilder()
                     .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
                     .build();
+            final var serializedCryptoAddLiveHashTx = Transaction.PROTOBUF.toBytes(cryptoAddLiveHashTx);
 
             final var cryptoAddLiveHashTransactionInfo = new TransactionInfo(
                     cryptoAddLiveHashTx,
@@ -405,10 +409,11 @@ class IngestCheckerTest extends AppTestBase {
                     MOCK_SIGNATURE_MAP,
                     cryptoAddLiveHashTx.signedTransactionBytes(),
                     CRYPTO_ADD_LIVE_HASH,
-                    null);
-            when(transactionChecker.check(cryptoAddLiveHashTx, null)).thenReturn(cryptoAddLiveHashTransactionInfo);
+                    serializedCryptoAddLiveHashTx);
+            when(transactionChecker.parseAndCheck(serializedCryptoAddLiveHashTx))
+                    .thenReturn(cryptoAddLiveHashTransactionInfo);
 
-            assertThatThrownBy(() -> subject.runAllChecks(state, cryptoAddLiveHashTx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedCryptoAddLiveHashTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
         }
@@ -430,12 +435,18 @@ class IngestCheckerTest extends AppTestBase {
             final var freezeTx = Transaction.newBuilder()
                     .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
                     .build();
+            final var serializedFreezeTx = Transaction.PROTOBUF.toBytes(freezeTx);
 
             final var freezeTransactionInfo = new TransactionInfo(
-                    freezeTx, freezeTxBody, MOCK_SIGNATURE_MAP, freezeTx.signedTransactionBytes(), FREEZE, null);
-            when(transactionChecker.check(freezeTx, null)).thenReturn(freezeTransactionInfo);
+                    freezeTx,
+                    freezeTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    freezeTx.signedTransactionBytes(),
+                    FREEZE,
+                    serializedFreezeTx);
+            when(transactionChecker.parseAndCheck(serializedFreezeTx)).thenReturn(freezeTransactionInfo);
 
-            assertThatThrownBy(() -> subject.runAllChecks(state, freezeTx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedFreezeTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
         }
@@ -448,7 +459,7 @@ class IngestCheckerTest extends AppTestBase {
                     .thenThrow(new RuntimeException("shouldThrottle exception"));
 
             // When the transaction is submitted, then the exception is bubbled up
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("shouldThrottle exception");
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -469,7 +480,7 @@ class IngestCheckerTest extends AppTestBase {
         void payerAccountStatusFails(ResponseCodeEnum failureReason) throws PreCheckException {
             doThrow(new PreCheckException(failureReason)).when(solvencyPreCheck).getPayerAccount(any(), any());
 
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(failureReason));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -484,7 +495,7 @@ class IngestCheckerTest extends AppTestBase {
                     .getPayerAccount(any(), any());
 
             // When the transaction is submitted, then the exception is bubbled up
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("checkPayerAccountStatus exception");
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -499,7 +510,7 @@ class IngestCheckerTest extends AppTestBase {
             when(solvencyPreCheck.getPayerAccount(any(), eq(ALICE.accountID()))).thenReturn(account);
 
             // When the transaction is submitted, then the exception is thrown
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(UNAUTHORIZED));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -527,7 +538,7 @@ class IngestCheckerTest extends AppTestBase {
                     .when(solvencyPreCheck)
                     .checkSolvency(any(), any(), any(), eq(INGEST));
 
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(InsufficientBalanceException.class)
                     .has(responseCode(failureReason))
                     .has(estimatedFee(123L));
@@ -544,7 +555,7 @@ class IngestCheckerTest extends AppTestBase {
                     .checkSolvency(any(), any(), any(), eq(INGEST));
 
             // When the transaction is submitted, then the exception is bubbled up
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("checkSolvency exception");
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -572,7 +583,7 @@ class IngestCheckerTest extends AppTestBase {
             when(signatureVerifier.verify(any(), any())).thenReturn(Map.of());
 
             // When the transaction is submitted, then the exception is thrown
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_SIGNATURE));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -588,7 +599,7 @@ class IngestCheckerTest extends AppTestBase {
             when(signatureVerifier.verify(any(), any()))
                     .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
 
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_SIGNATURE));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -618,9 +629,15 @@ class IngestCheckerTest extends AppTestBase {
                                     .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
                                     .build()))
                     .build();
+            final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
-                    myTx, myTxBody, MOCK_SIGNATURE_MAP, myTx.signedTransactionBytes(), UNCHECKED_SUBMIT, null);
-            when(transactionChecker.check(myTx, null)).thenReturn(myTransactionInfo);
+                    myTx,
+                    myTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    myTx.signedTransactionBytes(),
+                    UNCHECKED_SUBMIT,
+                    mySerializedTx);
+            when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -636,7 +653,7 @@ class IngestCheckerTest extends AppTestBase {
                             BOB.account().keyOrThrow(), verificationResultFutureBob));
 
             // when
-            final var actual = subject.runAllChecks(state, myTx, configuration);
+            final var actual = subject.runAllChecks(state, serializedTx, configuration);
 
             // then
             assertThat(actual).isEqualTo(myTransactionInfo);
@@ -667,9 +684,15 @@ class IngestCheckerTest extends AppTestBase {
                                     .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
                                     .build()))
                     .build();
+            final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
-                    myTx, myTxBody, MOCK_SIGNATURE_MAP, myTx.signedTransactionBytes(), UNCHECKED_SUBMIT, null);
-            when(transactionChecker.check(myTx, null)).thenReturn(myTransactionInfo);
+                    myTx,
+                    myTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    myTx.signedTransactionBytes(),
+                    UNCHECKED_SUBMIT,
+                    mySerializedTx);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -685,7 +708,7 @@ class IngestCheckerTest extends AppTestBase {
                             BOB.account().keyOrThrow(), verificationResultFutureBob));
 
             // when
-            assertThatThrownBy(() -> subject.runAllChecks(state, myTx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, mySerializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_SIGNATURE));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -717,9 +740,15 @@ class IngestCheckerTest extends AppTestBase {
                                     .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
                                     .build()))
                     .build();
+            final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
-                    myTx, myTxBody, MOCK_SIGNATURE_MAP, myTx.signedTransactionBytes(), UNCHECKED_SUBMIT, null);
-            when(transactionChecker.check(myTx, null)).thenReturn(myTransactionInfo);
+                    myTx,
+                    myTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    myTx.signedTransactionBytes(),
+                    UNCHECKED_SUBMIT,
+                    mySerializedTx);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -735,7 +764,7 @@ class IngestCheckerTest extends AppTestBase {
                             BOB.account().keyOrThrow(), verificationResultFutureBob));
 
             // when
-            final var actual = subject.runAllChecks(state, myTx, configuration);
+            final var actual = subject.runAllChecks(state, mySerializedTx, configuration);
 
             // then
             assertThat(actual).isEqualTo(myTransactionInfo);
@@ -768,9 +797,15 @@ class IngestCheckerTest extends AppTestBase {
                                     .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
                                     .build()))
                     .build();
+            final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
-                    myTx, myTxBody, MOCK_SIGNATURE_MAP, myTx.signedTransactionBytes(), UNCHECKED_SUBMIT, null);
-            when(transactionChecker.check(myTx, null)).thenReturn(myTransactionInfo);
+                    myTx,
+                    myTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    myTx.signedTransactionBytes(),
+                    UNCHECKED_SUBMIT,
+                    mySerializedTx);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -786,7 +821,7 @@ class IngestCheckerTest extends AppTestBase {
                             BOB.account().keyOrThrow(), verificationResultFutureBob));
 
             // when
-            assertThatThrownBy(() -> subject.runAllChecks(state, myTx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, mySerializedTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_SIGNATURE));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -804,7 +839,7 @@ class IngestCheckerTest extends AppTestBase {
                     .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
 
             // When the transaction is submitted, then the exception is bubbled up
-            assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))
+            assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("checkPayerSignature exception");
             verify(opWorkflowMetrics, never()).incrementThrottled(any());

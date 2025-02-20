@@ -33,6 +33,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_ID_FIELD_NO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -49,6 +50,7 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
@@ -61,6 +63,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -148,29 +151,13 @@ public class TransactionChecker {
      */
     @NonNull
     public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
-        final var tx = parse(buffer);
-        return check(tx, buffer);
-    }
-
-    /**
-     * Parse the given {@link Bytes} into a transaction.
-     *
-     * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
-     * transaction is parsed. A transaction can be checked with {@link #check(Transaction, Bytes)}.
-     *
-     * @param buffer the {@code ByteBuffer} with the serialized transaction
-     * @return an {@link TransactionInfo} with the parsed and checked entities
-     * @throws PreCheckException if the data is not valid
-     * @throws NullPointerException if one of the arguments is {@code null}
-     */
-    @NonNull
-    public Transaction parse(@NonNull final Bytes buffer) throws PreCheckException {
         // Fail fast if there are too many transaction bytes
         if (buffer.length() > maxSignedTxnSize) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
 
-        return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+        final var tx = parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+        return check(tx, buffer);
     }
 
     /**
@@ -209,7 +196,8 @@ public class TransactionChecker {
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
-    public TransactionInfo check(@NonNull final Transaction tx, @Nullable Bytes serializedTx) throws PreCheckException {
+    @VisibleForTesting
+    TransactionInfo check(@NonNull final Transaction tx, @Nullable Bytes serializedTx) throws PreCheckException {
         // NOTE: Since we've already parsed the transaction, we assume that the
         // transaction was not too many bytes. This is a safe assumption because
         // the code that receives the transaction bytes and parses/ the transaction
@@ -221,7 +209,11 @@ public class TransactionChecker {
         final SignatureMap signatureMap;
         if (tx.hasBody()) {
             txBody = tx.bodyOrThrow();
-            bodyBytes = TransactionBody.PROTOBUF.toBytes(txBody);
+            try {
+                bodyBytes = serializedTx == null ? Bytes.EMPTY : ProtobufUtils.extractBodyBytes(serializedTx);
+            } catch (IOException | ParseException e) {
+                throw new PreCheckException(INVALID_TRANSACTION);
+            }
             signatureMap = tx.sigMap();
         } else {
             if (tx.signedTransactionBytes().length() > 0) {
