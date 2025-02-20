@@ -18,19 +18,12 @@ import java.util.Objects;
  * A snapshot of consensus at a particular round. This is all the information (except events) consensus needs to
  * continue from a particular point. Apart from this record, consensus needs all non-ancient events to continue.
  */
-public class ConsensusSnapshot implements SelfSerializable {
-    private static final long CLASS_ID = 0xe9563ac8048b7abcL;
-    private static final int MAX_JUDGES = 1000;
-
+public class ConsensusSnapshot {
     private long round;
     private List<Hash> judgeHashes;
     private List<MinimumJudgeInfo> minimumJudgeInfoList;
     private long nextConsensusNumber;
     private Instant consensusTimestamp;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
 
     public ConsensusSnapshot() {}
 
@@ -52,24 +45,6 @@ public class ConsensusSnapshot implements SelfSerializable {
         this.minimumJudgeInfoList = Objects.requireNonNull(minimumJudgeInfoList);
         this.nextConsensusNumber = nextConsensusNumber;
         this.consensusTimestamp = Objects.requireNonNull(consensusTimestamp);
-    }
-
-    @Override
-    public void serialize(@NonNull final SerializableDataOutputStream out) throws IOException {
-        out.writeLong(round);
-        out.writeSerializableList(judgeHashes, false, true);
-        MinimumJudgeInfo.serializeList(minimumJudgeInfoList, out);
-        out.writeLong(nextConsensusNumber);
-        out.writeInstant(consensusTimestamp);
-    }
-
-    @Override
-    public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
-        round = in.readLong();
-        judgeHashes = in.readSerializableList(MAX_JUDGES, false, Hash::new);
-        minimumJudgeInfoList = MinimumJudgeInfo.deserializeList(in);
-        nextConsensusNumber = in.readLong();
-        consensusTimestamp = in.readInstant();
     }
 
     /**
@@ -166,21 +141,5 @@ public class ConsensusSnapshot implements SelfSerializable {
     @Override
     public int hashCode() {
         return Objects.hash(round, judgeHashes, minimumJudgeInfoList, nextConsensusNumber, consensusTimestamp);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
     }
 }
