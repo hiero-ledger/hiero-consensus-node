@@ -8,7 +8,7 @@ import com.swirlds.common.utility.IntReference;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

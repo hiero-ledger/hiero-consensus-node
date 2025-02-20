@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 
 /**
  * A utility for migrating the state when birth round mode is first enabled.

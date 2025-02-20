@@ -23,7 +23,7 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -73,16 +73,8 @@ class PbjConverterTest {
                 platformState.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
                 pbjPlatformState.firstVersionInBirthRoundMode());
 
-        assertSnapshot(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
+        assertEquals(platformState.getSnapshot().getSnapshot(), pbjPlatformState.consensusSnapshot());
         assertAddressBook(platformState.getAddressBook(), pbjPlatformState.addressBook());
-    }
-
-    @Test
-    void testToPbjConsensusSnapshot() {
-        final ConsensusSnapshotWrapper snapshot = randomSnapshot(randotron);
-        final com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot =
-                PbjConverter.toPbjConsensusSnapshot(snapshot);
-        assertSnapshot(snapshot, pbjSnapshot);
     }
 
     @Test
@@ -129,13 +121,6 @@ class PbjConverterTest {
     @Test
     void testFRomConsensusSnapshot_null() {
         assertNull(PbjConverter.fromPbjConsensusSnapshot(null));
-    }
-
-    @Test
-    void testFromPbjConsensusSnapshot() {
-        final com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot = randomPbjSnapshot();
-        final ConsensusSnapshotWrapper snapshot = PbjConverter.fromPbjConsensusSnapshot(pbjSnapshot);
-        assertSnapshot(snapshot, pbjSnapshot);
     }
 
     @Test
@@ -516,33 +501,6 @@ class PbjConverterTest {
                     pbjAddress.signingCertificate().toByteArray());
         } catch (CertificateEncodingException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private void assertSnapshot(
-            ConsensusSnapshotWrapper snapshot, com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot) {
-        assertEquals(snapshot.round(), pbjSnapshot.round());
-        assertEquals(snapshot.judgeHashes().size(), pbjSnapshot.judgeHashes().size());
-        assertEquals(
-                snapshot.judgeHashes().get(0).getBytes(),
-                pbjSnapshot.judgeHashes().get(0));
-        assertEquals(
-                snapshot.judgeHashes().get(1).getBytes(),
-                pbjSnapshot.judgeHashes().get(1));
-        assertJudgeInfos(snapshot.getMinimumJudgeInfoList(), pbjSnapshot.minimumJudgeInfoList());
-        assertEquals(snapshot.nextConsensusNumber(), pbjSnapshot.nextConsensusNumber());
-        assertEquals(
-                snapshot.consensusTimestamp().getEpochSecond(),
-                pbjSnapshot.consensusTimestamp().seconds());
-    }
-
-    private void assertJudgeInfos(
-            List<MinimumJudgeInfo> expected, List<com.hedera.hapi.platform.state.MinimumJudgeInfo> actual) {
-        for (int i = 0; i < expected.size(); i++) {
-            assertEquals(
-                    expected.get(i).minimumJudgeAncientThreshold(),
-                    actual.get(i).minimumJudgeAncientThreshold());
-            assertEquals(expected.get(i).round(), actual.get(i).round());
         }
     }
 
