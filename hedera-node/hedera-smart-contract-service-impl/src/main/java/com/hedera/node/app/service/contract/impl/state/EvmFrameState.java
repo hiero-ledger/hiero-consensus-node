@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,6 +118,20 @@ public interface EvmFrameState {
      * @return an optional {@link ExceptionalHaltReason} with the reason deletion could not be tracked
      */
     Optional<ExceptionalHaltReason> tryTrackingSelfDestructBeneficiary(
+            @NonNull Address deleted, @NonNull Address beneficiary, @NonNull MessageFrame frame);
+
+    /**
+     * Tracks the given deletion of an account with the designated beneficiary.
+     *
+     * @param deleted the address of the account being deleted, a contract
+     * @param beneficiary the address of the beneficiary of the deletion
+     * @param frame
+     *
+     * `Beneficiary` must not be a token or a schedule.  Contract `deleted` must not be any token's
+     * treasury.  Contract `deleted` must not own any tokens.  These conditions are _not_ checked
+     * by this method.
+     */
+    void trackSelfDestructBeneficiary(
             @NonNull Address deleted, @NonNull Address beneficiary, @NonNull MessageFrame frame);
 
     /**

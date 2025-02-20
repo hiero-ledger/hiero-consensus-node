@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
+import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_IS_TREASURY;
+import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_STILL_OWNS_NFTS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.SELFDESTRUCT;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isDelegateCall;
@@ -24,13 +26,16 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
+import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EVM;
-import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -92,65 +97,135 @@ public class CustomSelfDestructOperation extends AbstractOperation {
             final var tbdAddress = frame.getRecipientAddress();
             final var proxyWorldUpdater = (ProxyWorldUpdater) frame.getWorldUpdater();
 
-            // Now proceed with the self-destruct
+            // In EVM the SELFDESTRUCT operation never fails.  It always sweeps ETH, and the contract
+            // is either deleted or not (per EIP-6780).
+            //
+            // In Hedera we have to allow for our semantics for transfers.  Notably, we can't
+            // transfer hbar unless the signature requirements are met on the transaction, we can't
+            // burn hbar, and we don't allow deletion of a contract which is a token treasury.
+            // There's also a restriction due to our performance guarantees: We don't allow contracts
+            // holding native tokens to self destruct because all the tokens would have to be
+            // transferred in the current `handleTransaction` call and if there were too many tokens
+            // it would be too expensive (in CPU/memory/database resources) to transfer them all.
+            //
+            // If the beneficiary account is the contract itself then we have two cases:
+            // * If (per EIP-6780) the contract is _not_ going to be deleted: That's ok.  SELFDESTRUCT
+            //   is a noop.  But if the contract _is_ going to be deleted and it has a balance of hbar
+            //   or any token then SELFDESTRUCT will fail.
+            // * Otherwise, if the beneficiary account is _not_ the contract itself then we fail the
+            //   SELFDESTRUCT if the contract owns any tokens.
+
+            final boolean contractCreatedInThisTransaction = frame.wasCreatedInTransaction(tbdAddress);
+            final boolean contractIsItsOwnBeneficiary = tbdAddress.equals(beneficiaryAddress);
+            final boolean contractIsToBeDeleted =
+                    switch (eip6780Semantics) {
+                        case NO -> true;
+                        case YES -> contractCreatedInThisTransaction;
+                    };
+
+            // inheritance == amount hbar to sweep
             final var inheritance =
                     requireNonNull(proxyWorldUpdater.get(tbdAddress)).getBalance();
             final var beneficiary = proxyWorldUpdater.get(beneficiaryAddress);
             final var beneficiaryIsWarm =
                     frame.warmUpAddress(beneficiaryAddress) || gasCalculator().isPrecompile(beneficiaryAddress);
-            final var cost = gasCalculator().selfDestructOperationGasCost(beneficiary, inheritance)
+            final var costWithoutBeneficiary = gasCalculator().selfDestructOperationGasCost(null, Wei.ZERO);
+            final var costWithBeneficiary = gasCalculator().selfDestructOperationGasCost(beneficiary, inheritance)
                     + (beneficiaryIsWarm ? 0L : gasCalculator().getColdAccountAccessCost());
-            if (frame.isStatic()) {
-                return new OperationResult(cost, ILLEGAL_STATE_CHANGE);
-            } else if (frame.getRemainingGas() < cost) {
-                return new OperationResult(cost, INSUFFICIENT_GAS);
-            }
 
-            // Enforce Hedera-specific checks on the beneficiary address
-            if (addressChecks.isSystemAccount(beneficiaryAddress)
-                    || !addressChecks.isPresent(beneficiaryAddress, frame)) {
-                return haltFor(null, 0, INVALID_SOLIDITY_ADDRESS);
-            }
+            // Initial checks for EVM suitability
+            if (frame.isStatic()) return resultFor(costWithBeneficiary, ILLEGAL_STATE_CHANGE);
+            if (frame.getRemainingGas() < costWithBeneficiary) return resultFor(costWithBeneficiary, INSUFFICIENT_GAS);
 
             // Enforce Hedera-specific restrictions on account deletion
-            final var maybeHaltReason =
+            var maybeReasonToHalt = validateHederaRestrictionsOnBeneficiary(tbdAddress, beneficiaryAddress, frame);
+            if (maybeReasonToHalt.isPresent()) return resultFor(costWithoutBeneficiary, maybeReasonToHalt.get());
+
+            maybeReasonToHalt =
+                    validateHederaRestrictionsOnContract(tbdAddress, beneficiaryAddress, frame, contractIsToBeDeleted);
+            if (maybeReasonToHalt.isPresent()) return resultFor(costWithoutBeneficiary, maybeReasonToHalt.get());
+
+            maybeReasonToHalt =
                     proxyWorldUpdater.tryTrackingSelfDestructBeneficiary(tbdAddress, beneficiaryAddress, frame);
-            if (maybeHaltReason.isPresent()) {
-                return haltFor(null, 0, maybeHaltReason.get());
-            }
+            if (maybeReasonToHalt.isPresent()) return resultFor(costWithoutBeneficiary, maybeReasonToHalt.get());
 
-            // This will enforce the Hedera signing requirements (while treating any Key{contractID=tbdAddress}
-            // or Key{delegatable_contract_id=tbdAddress} keys on the beneficiary account as active); it could
-            // also fail if the beneficiary is a token address
-            final var maybeReasonToHalt = proxyWorldUpdater.tryTransfer(
+            // Sweeps the hbar from the contract being deleted, if Hedera signing requirements met (while treating any
+            // Key{contractID=tbdAddress} or Key{delegatable_contract_id=tbdAddress} keys on the beneficiary account as
+            // active); it could also fail if the beneficiary is a token address.
+            maybeReasonToHalt = proxyWorldUpdater.tryTransfer(
                     tbdAddress, beneficiaryAddress, inheritance.toLong(), isDelegateCall(frame));
-            if (maybeReasonToHalt.isPresent()) {
-                return new OperationResult(cost, maybeReasonToHalt.get());
+            if (maybeReasonToHalt.isPresent()) return resultFor(costWithoutBeneficiary, maybeReasonToHalt.get());
+
+            // From this point success is assured ...
+
+            // Frame tracks contracts to be deleted (for handling later)
+            if (contractIsToBeDeleted) frame.addSelfDestruct(tbdAddress);
+
+            if (!contractIsItsOwnBeneficiary || contractIsToBeDeleted) {
+                proxyWorldUpdater.trackSelfDestructBeneficiary(tbdAddress, beneficiaryAddress, frame);
+                // Frame tracks balance changes
+                frame.addRefund(beneficiaryAddress, inheritance);
             }
 
-            // Tell the EVM to delete this contract if pre-Cancun, or, if post-Cancun, only in the
-            // same transaction it was created in
-            final boolean tellEVMToDoContractDestruct =
-                    switch (eip6780Semantics) {
-                        case NO -> true;
-                        case YES -> frame.wasCreatedInTransaction(tbdAddress);
-                    };
-
-            if (tellEVMToDoContractDestruct) {
-                frame.addSelfDestruct(tbdAddress);
-            }
-
-            frame.addRefund(beneficiaryAddress, inheritance);
             frame.setState(State.CODE_SUCCESS);
-            return new OperationResult(cost, null);
+            return resultFor(costWithBeneficiary, null);
+
         } catch (UnderflowException ignore) {
             return UNDERFLOW_RESPONSE;
         }
     }
 
-    private OperationResult haltFor(
-            @Nullable final Account beneficiary, final long inheritance, @NonNull final ExceptionalHaltReason reason) {
-        final long cost = gasCalculator().selfDestructOperationGasCost(beneficiary, Wei.of(inheritance));
+    protected @NonNull Optional<ExceptionalHaltReason> validateHederaRestrictionsOnBeneficiary(
+            @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
+        requireNonNull(deleted);
+        requireNonNull(beneficiary);
+        requireNonNull(frame);
+
+        final var proxyWorldUpdater = (ProxyWorldUpdater) frame.getWorldUpdater();
+        final var beneficiaryAccount = proxyWorldUpdater.getAccount(beneficiary);
+
+        // Beneficiary must not be a system account, and ...
+        if (addressChecks.isSystemAccount(beneficiary)) return Optional.of(INVALID_SOLIDITY_ADDRESS);
+
+        // ... must be present in the frame, and ...
+        if (!addressChecks.isPresent(beneficiary, frame)) return Optional.of(INVALID_SOLIDITY_ADDRESS);
+
+        // must exist, and ...
+        if (beneficiaryAccount == null) return Optional.of(INVALID_SOLIDITY_ADDRESS);
+
+        // ... must not be a token or schedule.
+        if (beneficiaryAccount instanceof TokenEvmAccount || beneficiaryAccount instanceof ScheduleEvmAccount)
+            return Optional.of(INVALID_SOLIDITY_ADDRESS);
+
+        return Optional.empty();
+    }
+
+    protected @NonNull Optional<ExceptionalHaltReason> validateHederaRestrictionsOnContract(
+            @NonNull final Address deleted,
+            @NonNull final Address beneficiary,
+            @NonNull final MessageFrame frame,
+            final boolean contractIsToBeDeleted) {
+        requireNonNull(deleted);
+        requireNonNull(beneficiary);
+        requireNonNull(frame);
+
+        final var proxyWorldUpdater = (ProxyWorldUpdater) frame.getWorldUpdater();
+        final var deletedAccount = (AbstractProxyEvmAccount) requireNonNull(proxyWorldUpdater.get(deleted));
+
+        // (Contract) account being self-destructed must not be a token treasury
+        if (deletedAccount.numTreasuryTitles() > 0) return Optional.of(CONTRACT_IS_TREASURY);
+
+        // Can't sweep native tokens (fungible or non-fungible) from contract being self-destructed
+        if (contractIsToBeDeleted || !deleted.equals(beneficiary)) {
+            // Any other situation must sweep, but cannot do that if contract being destructed owns tokens
+            // N.B.: Response code name is misleading: Contract can't own fungible tokens either!
+            if (deletedAccount.numPositiveTokenBalances() > 0) return Optional.of(CONTRACT_STILL_OWNS_NFTS);
+        }
+
+        return Optional.empty();
+    }
+
+    private @NonNull OperationResult resultFor(final long cost, @Nullable final ExceptionalHaltReason reason) {
         return new OperationResult(cost, reason);
     }
 }
