@@ -503,7 +503,7 @@ public class ValidationScenarios extends HapiSuite {
                                 .getBalance());
                     }));
         } catch (Exception e) {
-            log.warn("Unable to record inital payer balance, skipping it!", e);
+            log.warn("Unable to record initial payer balance, skipping it!", e);
             errorsOccurred.set(true);
             return null;
         }

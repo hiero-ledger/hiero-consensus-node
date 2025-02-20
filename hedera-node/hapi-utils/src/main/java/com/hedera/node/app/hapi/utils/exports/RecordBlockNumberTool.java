@@ -85,7 +85,7 @@ public class RecordBlockNumberTool {
         if (currentBlockNumber <= prevBlockNumber) {
             LOGGER.error(
                     MARKER,
-                    "Found new block number is equal or less than the prevous one, current {} vs" + " prev {}",
+                    "Found new block number is equal or less than the previous one, current {} vs" + " prev {}",
                     currentBlockNumber,
                     prevBlockNumber);
         }
