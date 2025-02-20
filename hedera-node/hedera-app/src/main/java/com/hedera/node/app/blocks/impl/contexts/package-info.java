@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * This package includes {@link com.hedera.node.app.blocks.impl.contexts.BaseOpContext} and a few other specialized
  * contexts to support translating the block items for a {@link com.hedera.hapi.node.base.TransactionID} into a "legacy"
