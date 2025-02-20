@@ -18,7 +18,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator.UPDATE_TOKEN_EXPIRY_INFO_V1;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator.UPDATE_TOKEN_EXPIRY_INFO_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
@@ -126,8 +126,8 @@ class UpdateExpiryTranslatorTest {
 
     @Test
     void callFromUpdateTest() {
-        Tuple tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, expiry);
-        Bytes inputBytes = Bytes.wrapByteBuffer(UPDATE_TOKEN_EXPIRY_INFO_V1.encodeCall(tuple));
+        final Tuple tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, expiry);
+        final Bytes inputBytes = Bytes.wrapByteBuffer(UPDATE_TOKEN_EXPIRY_INFO_V1.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.selector()).willReturn(UPDATE_TOKEN_EXPIRY_INFO_V1.selector());
         given(attempt.enhancement()).willReturn(enhancement);
