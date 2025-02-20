@@ -3,7 +3,6 @@ package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.TOKEN_TRANSFER_LIST_COMPARATOR;
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.asAccountAmounts;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.requiresExternalization;
 import static java.util.Collections.emptyList;
@@ -29,9 +28,9 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
@@ -53,8 +52,8 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
     public static final long LEDGER_TOTAL_TINY_BAR_FLOAT = 5000000000000000000L;
 
     private final StakingRewardsHandler stakingRewardsHandler;
-    private final HederaConfig hederaConfig;
     private final AccountsConfig accountsConfig;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * Constructs a {@link FinalizeRecordHandler} instance.
@@ -62,10 +61,12 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
      */
     @Inject
     public FinalizeRecordHandler(
-            @NonNull final StakingRewardsHandler stakingRewardsHandler, @NonNull final ConfigProvider configProvider) {
+            @NonNull final StakingRewardsHandler stakingRewardsHandler,
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.stakingRewardsHandler = stakingRewardsHandler;
-        this.hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
         this.accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+        this.entityIdFactory = entityIdFactory;
     }
 
     public void finalizeStakingRecord(
@@ -188,7 +189,7 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
             if (childHbarChangesFromRecord.size() == 1) {
                 var genesisTreasuryCredit = List.of(AccountAmount.newBuilder()
                         .amount(LEDGER_TOTAL_TINY_BAR_FLOAT)
-                        .accountID(asAccount(hederaConfig.shard(), hederaConfig.realm(), accountsConfig.treasury()))
+                        .accountID(entityIdFactory.newAccountId(accountsConfig.treasury()))
                         .build());
 
                 if (!childHbarChangesFromRecord.equals(genesisTreasuryCredit)) {

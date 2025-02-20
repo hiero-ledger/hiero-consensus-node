@@ -19,13 +19,12 @@ import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -50,12 +49,11 @@ public class ReadableFreezeUpgradeActions {
     private static final Logger log = LogManager.getLogger(ReadableFreezeUpgradeActions.class);
 
     private final NodesConfig nodesConfig;
-    private final AddressBookConfig addressBookConfig;
     private final NetworkAdminConfig networkAdminConfig;
     private final ReadableFreezeStore freezeStore;
     private final ReadableUpgradeFileStore upgradeFileStore;
-    private final HederaConfig hederaConfig;
     private final FileID upgradeFileId;
+    private final EntityIdFactory entityIdFactory;
 
     private final ReadableNodeStore nodeStore;
 
@@ -83,7 +81,8 @@ public class ReadableFreezeUpgradeActions {
             @NonNull final Executor executor,
             @NonNull final ReadableUpgradeFileStore upgradeFileStore,
             @NonNull final ReadableNodeStore nodeStore,
-            @NonNull final ReadableStakingInfoStore stakingInfoStore) {
+            @NonNull final ReadableStakingInfoStore stakingInfoStore,
+            @NonNull final EntityIdFactory entityIdFactory) {
         requireNonNull(configuration, "configuration is required for freeze upgrade actions");
         requireNonNull(freezeStore, "Freeze store is required for freeze upgrade actions");
         requireNonNull(executor, "Executor is required for freeze upgrade actions");
@@ -93,18 +92,13 @@ public class ReadableFreezeUpgradeActions {
 
         this.networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
         this.nodesConfig = configuration.getConfigData(NodesConfig.class);
-        this.addressBookConfig = configuration.getConfigData(AddressBookConfig.class);
-        this.hederaConfig = configuration.getConfigData(HederaConfig.class);
         this.freezeStore = freezeStore;
         this.executor = executor;
         this.upgradeFileStore = upgradeFileStore;
         this.nodeStore = nodeStore;
         this.stakingInfoStore = stakingInfoStore;
-        this.upgradeFileId = FileID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .fileNum(UPGRADE_FILE_ID)
-                .build();
+        this.entityIdFactory = entityIdFactory;
+        this.upgradeFileId = entityIdFactory.newFileId(UPGRADE_FILE_ID);
     }
 
     /**
@@ -406,8 +400,8 @@ public class ReadableFreezeUpgradeActions {
             return;
         }
 
-        var shard = hederaConfig.shard();
-        var realm = hederaConfig.realm();
+        var shard = upgradeFileId.shardNum();
+        var realm = upgradeFileId.realmNum();
 
         try {
             final var curSpecialFileContents = upgradeFileStore.getFull(upgradeFileId);
