@@ -42,13 +42,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.swirlds.common.crypto.Hash;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
@@ -240,8 +241,9 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshotWrapper snapshot) {
         reset();
-        initJudges = new InitJudges(snapshot.round(), new HashSet<>(snapshot.judgeHashes()));
-        rounds.loadFromMinimumJudge(snapshot.getMinimumJudgeInfoList());
+        initJudges = new InitJudges(snapshot.round(), snapshot.judgeHashes().stream().map(Hash::new).collect(
+                Collectors.toSet()));
+        rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
         lastConsensusTime = snapshot.consensusTimestamp();
     }

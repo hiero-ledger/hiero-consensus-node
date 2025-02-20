@@ -2,6 +2,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static java.util.stream.Collectors.toList;
 
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
@@ -16,6 +17,7 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.swirlds.common.crypto.Hash;
 
 /**
  * A utility for migrating the state when birth round mode is first enabled.
@@ -63,7 +65,7 @@ public final class BirthRoundStateMigration {
 
         final ConsensusSnapshotWrapper consensusSnapshot =
                 Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(state));
-        final List<MinimumJudgeInfo> judgeInfoList = consensusSnapshot.getMinimumJudgeInfoList();
+        final List<MinimumJudgeInfo> judgeInfoList = consensusSnapshot.minimumJudgeInfoList();
         final long lowestJudgeGenerationBeforeMigration =
                 judgeInfoList.getLast().minimumJudgeAncientThreshold();
 
@@ -87,7 +89,7 @@ public final class BirthRoundStateMigration {
         }
         final ConsensusSnapshotWrapper modifiedConsensusSnapshot = new ConsensusSnapshotWrapper(
                 consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes(),
+                consensusSnapshot.judgeHashes().stream().map(Hash::new).collect(toList()),
                 modifiedJudgeInfoList,
                 consensusSnapshot.nextConsensusNumber(),
                 consensusSnapshot.consensusTimestamp());

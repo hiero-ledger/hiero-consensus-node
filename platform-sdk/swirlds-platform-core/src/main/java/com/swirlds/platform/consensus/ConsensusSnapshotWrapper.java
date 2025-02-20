@@ -5,6 +5,7 @@ import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,7 +20,6 @@ import com.swirlds.platform.state.service.PbjConverter;
  * continue from a particular point. Apart from this record, consensus needs all non-ancient events to continue.
  */
 public class ConsensusSnapshotWrapper {
-    private List<Hash> judgeHashes;
     private final ConsensusSnapshot snapshot;
 
     /**
@@ -35,13 +35,16 @@ public class ConsensusSnapshotWrapper {
             @NonNull final List<MinimumJudgeInfo> minimumJudgeInfoList,
             final long nextConsensusNumber,
             @NonNull final Instant consensusTimestamp) {
-        this.judgeHashes = Objects.requireNonNull(judgeHashes);
         this.snapshot = new ConsensusSnapshot(
                 round,
                 judgeHashes.stream().map(Hash::getBytes).collect(toList()),
                 minimumJudgeInfoList,
                 nextConsensusNumber,
                 toPbjTimestamp(consensusTimestamp));
+    }
+
+    public ConsensusSnapshotWrapper(final ConsensusSnapshot snapshot) {
+        this.snapshot = snapshot;
     }
 
     @NonNull
@@ -56,14 +59,11 @@ public class ConsensusSnapshotWrapper {
         return snapshot.round();
     }
 
-    /**
-     * @return the hashes of all the judges for this round, ordered by their creator ID
-     */
-    public @NonNull List<Hash> judgeHashes() {
-        return judgeHashes;
+    public @NonNull List<Bytes> judgeHashes() {
+        return snapshot.judgeHashes();
     }
 
-    public @NonNull List<MinimumJudgeInfo> getMinimumJudgeInfoList() {
+    public @NonNull List<MinimumJudgeInfo> minimumJudgeInfoList() {
         return snapshot.minimumJudgeInfoList();
     }
 
@@ -102,7 +102,7 @@ public class ConsensusSnapshotWrapper {
      *                                state
      */
     public long getMinimumJudgeAncientThreshold(final long round) {
-        for (final MinimumJudgeInfo info : getMinimumJudgeInfoList()) {
+        for (final MinimumJudgeInfo info : minimumJudgeInfoList()) {
             if (info.round() == round) {
                 return info.minimumJudgeAncientThreshold();
             }
