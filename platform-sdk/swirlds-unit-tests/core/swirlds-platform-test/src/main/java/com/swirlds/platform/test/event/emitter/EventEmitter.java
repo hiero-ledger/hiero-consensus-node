@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,8 @@ import java.util.List;
 
 /**
  * Emits events from a graph created by a {@link GraphGenerator}.
- *
- * @param <T>
- * 		the type of class implementing this interface
  */
-public interface EventEmitter<T extends EventEmitter<T>> {
+public interface EventEmitter {
 
     /**
      * Emits an event from the graph, possibly in a different order than the events were created.
@@ -55,7 +52,7 @@ public interface EventEmitter<T extends EventEmitter<T>> {
      *
      * @return the graph generator
      */
-    GraphGenerator<?> getGraphGenerator();
+    GraphGenerator getGraphGenerator();
 
     /**
      * Get the total number of events that have been emitted by this generator.
@@ -82,7 +79,7 @@ public interface EventEmitter<T extends EventEmitter<T>> {
     /**
      * Returns a copy of this object as it was first created.
      */
-    T cleanCopy();
+    EventEmitter cleanCopy();
 
     /**
      * Get a clean copy but with a different seed.
@@ -90,7 +87,7 @@ public interface EventEmitter<T extends EventEmitter<T>> {
      * @param seed
      * 		The new seed to use.
      */
-    T cleanCopy(long seed);
+    EventEmitter cleanCopy(long seed);
 
     /**
      * Get an exact copy of this event emitter in its current state. The events emitted by this
@@ -100,8 +97,8 @@ public interface EventEmitter<T extends EventEmitter<T>> {
      * Note: if this emitter has emitted a large number of events, this method may be expensive. The copied
      * emitter needs to skip all events already emitted.
      */
-    default T copy() {
-        final T emitter = cleanCopy();
+    default EventEmitter copy() {
+        final EventEmitter emitter = cleanCopy();
         emitter.skip(getNumEventsEmitted());
         return emitter;
     }

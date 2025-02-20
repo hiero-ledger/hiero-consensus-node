@@ -19,7 +19,7 @@ package com.swirlds.platform.turtle.runner;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 
 import com.swirlds.platform.state.*;
-import com.swirlds.platform.system.BasicSoftwareVersion;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -30,7 +30,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *   ﹉∏﹉∏﹉                   ﹉∏﹉∏﹉
  * </pre>
  */
-public class TurtleTestingToolState extends PlatformMerkleStateRoot {
+public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolState> implements MerkleNodeState {
 
     private static final long CLASS_ID = 0xa49b3822a4136ac6L;
 
@@ -42,7 +42,7 @@ public class TurtleTestingToolState extends PlatformMerkleStateRoot {
     long state;
 
     public TurtleTestingToolState() {
-        super(version -> new BasicSoftwareVersion(1));
+        // empty
     }
 
     /**
@@ -74,10 +74,16 @@ public class TurtleTestingToolState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public TurtleTestingToolState copy() {
         throwIfImmutable();
         setImmutable(true);
+        return new TurtleTestingToolState(this);
+    }
+
+    @Override
+    protected TurtleTestingToolState copyingConstructor() {
         return new TurtleTestingToolState(this);
     }
 
@@ -87,8 +93,8 @@ public class TurtleTestingToolState extends PlatformMerkleStateRoot {
      * @return merkle tree root
      */
     @NonNull
-    public static PlatformMerkleStateRoot getStateRootNode() {
-        final PlatformMerkleStateRoot state = new TurtleTestingToolState();
+    public static MerkleNodeState getStateRootNode() {
+        final MerkleNodeState state = new TurtleTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
         FAKE_MERKLE_STATE_LIFECYCLES.initRosterState(state);
 

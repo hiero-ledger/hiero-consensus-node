@@ -26,7 +26,6 @@ import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
-import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -35,7 +34,6 @@ import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -46,6 +44,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -268,7 +267,7 @@ public enum TransactionExecutors {
                         ThrottleAccumulator::new,
                         softwareVersionFactory),
                 () -> componentRef.get().appFeeCharging(),
-                new AppEntityIdFactory(bootstrapConfig));
+                entityIdFactory);
         final var contractService = new ContractServiceImpl(
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
         final var fileService = new FileServiceImpl();
