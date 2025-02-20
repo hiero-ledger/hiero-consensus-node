@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
@@ -114,7 +99,7 @@ public final class ConsensusTestDefinitions {
     /** Test consensus in the presence of forks. */
     public static void forkingTests(@NonNull final TestInput input) {
         // Use a custom event source generator that creates forking event sources
-        final Function<List<Long>, List<EventSource<?>>> eventSourceBuilder = nodeWeights -> {
+        final Function<List<Long>, List<EventSource>> eventSourceBuilder = nodeWeights -> {
             final double forkProbability = 0.1;
             final int numberOfForkedBranches = 10;
             final long totalWeight = nodeWeights.stream().reduce(0L, Long::sum);
@@ -130,7 +115,7 @@ public final class ConsensusTestDefinitions {
                 }
             }
 
-            final List<EventSource<?>> eventSources = new ArrayList<>(nodeWeights.size());
+            final List<EventSource> eventSources = new ArrayList<>(nodeWeights.size());
             for (int i = 0; i < nodeWeights.size(); i++) {
                 final long weight = nodeWeights.get(i);
                 if (i == forkingNodeId) {
@@ -302,7 +287,7 @@ public final class ConsensusTestDefinitions {
 
     public static void variableRateTests(@NonNull final TestInput input) {
         // Set the event source generator to create variable rate event sources
-        final Consumer<EventSource<?>> configureVariable = es -> {
+        final Consumer<EventSource> configureVariable = es -> {
             final DynamicValue<Double> variableEventWeight = (Random r, long eventIndex, Double previousValue) -> {
                 if (previousValue == null) {
                     return 1.0;

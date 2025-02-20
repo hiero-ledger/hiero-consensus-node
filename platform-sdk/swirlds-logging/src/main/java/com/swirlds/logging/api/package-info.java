@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * The logging API is an abstraction layer for logging. It should be used for all logging operations. The API is based
  * on a plugin structure that allows to create custom {@link com.swirlds.logging.api.extensions.handler.LogHandler} and
