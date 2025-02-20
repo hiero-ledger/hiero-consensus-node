@@ -5,7 +5,7 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
@@ -29,7 +29,7 @@ public class MerkleStateUtils {
             @NonNull final MerkleNode state) {
         final Hash hashEventsCons = platformState.getLegacyRunningEventHash();
 
-        final ConsensusSnapshot snapshot = platformState.getSnapshot();
+        final ConsensusSnapshotWrapper snapshot = platformState.getSnapshot();
         final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot == null ? null : snapshot.getMinimumJudgeInfoList();
 
         final StringBuilder sb = new StringBuilder();

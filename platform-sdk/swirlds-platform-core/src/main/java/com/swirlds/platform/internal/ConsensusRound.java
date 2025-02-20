@@ -3,7 +3,7 @@ package com.swirlds.platform.internal;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.Round;
@@ -47,7 +47,7 @@ public class ConsensusRound implements Round {
     /**
      * A snapshot of consensus at this consensus round
      */
-    private final ConsensusSnapshot snapshot;
+    private final ConsensusSnapshotWrapper snapshot;
 
     /**
      * The event that, when added to the hashgraph, caused this round to reach consensus.
@@ -83,7 +83,7 @@ public class ConsensusRound implements Round {
             @NonNull final List<PlatformEvent> consensusEvents,
             @NonNull final PlatformEvent keystoneEvent,
             @NonNull final EventWindow eventWindow,
-            @NonNull final ConsensusSnapshot snapshot,
+            @NonNull final ConsensusSnapshotWrapper snapshot,
             final boolean pcesRound,
             @NonNull final Instant reachedConsTimestamp) {
 
@@ -142,7 +142,7 @@ public class ConsensusRound implements Round {
     /**
      * @return a snapshot of consensus at this consensus round
      */
-    public @NonNull ConsensusSnapshot getSnapshot() {
+    public @NonNull ConsensusSnapshotWrapper getSnapshot() {
         return snapshot;
     }
 

@@ -2,7 +2,7 @@
 package com.swirlds.platform.publisher;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -27,7 +27,7 @@ public interface PlatformPublisher {
      * @param snapshot the snapshot to publish
      */
     @InputWireLabel("ConsensusSnapshot")
-    void publishSnapshotOverride(@NonNull final ConsensusSnapshot snapshot);
+    void publishSnapshotOverride(@NonNull final ConsensusSnapshotWrapper snapshot);
 
     /**
      * Publish a stale event.

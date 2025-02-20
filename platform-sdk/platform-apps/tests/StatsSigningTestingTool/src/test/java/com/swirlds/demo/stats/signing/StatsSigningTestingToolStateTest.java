@@ -15,7 +15,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -64,7 +64,7 @@ class StatsSigningTestingToolStateTest {
         final var roster = new Roster(Collections.EMPTY_LIST);
         when(event.transactionIterator()).thenReturn(Collections.emptyIterator());
         round = new ConsensusRound(
-                roster, List.of(event), event, eventWindow, new ConsensusSnapshot(), false, Instant.now());
+                roster, List.of(event), event, eventWindow, new ConsensusSnapshotWrapper(), false, Instant.now());
 
         consumedSystemTransactions = new ArrayList<>();
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);

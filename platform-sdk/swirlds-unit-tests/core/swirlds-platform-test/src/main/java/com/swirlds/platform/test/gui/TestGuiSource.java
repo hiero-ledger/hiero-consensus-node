@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.gui;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -24,7 +24,7 @@ import javax.swing.SpinnerNumberModel;
 public class TestGuiSource {
     private final GuiEventProvider eventProvider;
     private final HashgraphGuiSource guiSource;
-    private ConsensusSnapshot savedSnapshot;
+    private ConsensusSnapshotWrapper savedSnapshot;
     private final GuiEventStorage eventStorage;
     private final AncientMode ancientMode;
 
@@ -137,7 +137,7 @@ public class TestGuiSource {
      * @param snapshot the snapshot to load
      */
     @SuppressWarnings("unused") // useful for debugging
-    public void loadSnapshot(final ConsensusSnapshot snapshot) {
+    public void loadSnapshot(final ConsensusSnapshotWrapper snapshot) {
         System.out.println("Loading snapshot for round: " + snapshot.round());
         eventStorage.handleSnapshotOverride(snapshot);
     }

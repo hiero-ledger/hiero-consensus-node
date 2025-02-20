@@ -17,7 +17,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
@@ -79,7 +79,7 @@ class UptimeTests {
 
     private static ConsensusRound mockRound(
             @NonNull final List<PlatformEvent> events, @NonNull final Roster roster, final long roundNum) {
-        final ConsensusSnapshot snapshot = mock(ConsensusSnapshot.class);
+        final ConsensusSnapshotWrapper snapshot = mock(ConsensusSnapshotWrapper.class);
         final ConsensusRound round = new ConsensusRound(
                 roster, events, mock(PlatformEvent.class), mock(EventWindow.class), snapshot, false, Instant.now());
         final Instant consensusTimestamp = events.get(events.size() - 1).getConsensusTimestamp();

@@ -31,7 +31,7 @@ import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithClea
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -1008,7 +1008,7 @@ public class PlatformWiring {
      *
      * @param consensusSnapshot the new consensus snapshot
      */
-    public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
+    public void consensusSnapshotOverride(@NonNull final ConsensusSnapshotWrapper consensusSnapshot) {
         consensusEngineWiring
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
                 .inject(consensusSnapshot);

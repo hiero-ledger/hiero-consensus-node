@@ -23,7 +23,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PlatformSigner;
@@ -123,7 +123,7 @@ public final class PlatformBuilder {
     private PlatformContext platformContext;
 
     private Consumer<PlatformEvent> preconsensusEventConsumer;
-    private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
+    private Consumer<ConsensusSnapshotWrapper> snapshotOverrideConsumer;
     private Consumer<PlatformEvent> staleEventConsumer;
     private Function<StateSignatureTransaction, Bytes> systemTransactionEncoder;
 
@@ -267,7 +267,7 @@ public final class PlatformBuilder {
      */
     @NonNull
     public PlatformBuilder withConsensusSnapshotOverrideCallback(
-            @NonNull final Consumer<ConsensusSnapshot> snapshotOverrideConsumer) {
+            @NonNull final Consumer<ConsensusSnapshotWrapper> snapshotOverrideConsumer) {
         throwIfAlreadyUsed();
         this.snapshotOverrideConsumer = Objects.requireNonNull(snapshotOverrideConsumer);
         return this;
