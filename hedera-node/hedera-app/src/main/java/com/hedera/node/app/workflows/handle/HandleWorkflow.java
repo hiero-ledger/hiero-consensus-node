@@ -491,7 +491,11 @@ public class HandleWorkflow {
                     }
                 }
                 executionEnd = executableTxn.nbf();
-                doStreamingKVChanges(writableStates, entityIdWritableStates, executionEnd, iter::remove);
+                doStreamingKVChanges(
+                        writableStates,
+                        entityIdWritableStates,
+                        boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                        iter::remove);
                 nextTime = boundaryStateChangeListener
                         .lastConsensusTimeOrThrow()
                         .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
@@ -500,7 +504,11 @@ public class HandleWorkflow {
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
             // that expire after the last schedule returned from next(), until either the next executable
             // schedule or the iterator boundary is reached
-            doStreamingKVChanges(writableStates, entityIdWritableStates, executionEnd, iter::purgeUntilNext);
+            doStreamingKVChanges(
+                    writableStates,
+                    entityIdWritableStates,
+                    boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                    iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
             if (iter.hasNext()) {
