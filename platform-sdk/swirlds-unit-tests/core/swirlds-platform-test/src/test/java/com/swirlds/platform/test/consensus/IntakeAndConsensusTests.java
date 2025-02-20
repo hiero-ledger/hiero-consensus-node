@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus;
 
 import com.swirlds.common.context.PlatformContext;
@@ -67,11 +52,11 @@ class IntakeAndConsensusTests {
 
         // the generated events are first fed into consensus so that round created is calculated before we start
         // using them
-        final List<EventSource> eventSources =
-                Stream.generate(StandardEventSource::new)
-                        .map(ses->(EventSource)ses).limit(numNodes).toList();
-        final StandardGraphGenerator generator =
-                new StandardGraphGenerator(platformContext, seed, eventSources);
+        final List<EventSource> eventSources = Stream.generate(StandardEventSource::new)
+                .map(ses -> (EventSource) ses)
+                .limit(numNodes)
+                .toList();
+        final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
         final TestIntake node1 = new TestIntake(platformContext, generator.getAddressBook());
         final TestIntake node2 = new TestIntake(platformContext, generator.getAddressBook());
 
@@ -125,7 +110,8 @@ class IntakeAndConsensusTests {
         }
         // now we add the event that was added to 1 but not to 2
         node2.addEvent(lastEvent.getBaseEvent());
-        final long consRoundBeforeLastBatch = node1.getConsensusRounds().getLast().getRoundNum();
+        final long consRoundBeforeLastBatch =
+                node1.getConsensusRounds().getLast().getRoundNum();
         assertConsensusEvents(node1, node2);
 
         // now the partitions rejoin

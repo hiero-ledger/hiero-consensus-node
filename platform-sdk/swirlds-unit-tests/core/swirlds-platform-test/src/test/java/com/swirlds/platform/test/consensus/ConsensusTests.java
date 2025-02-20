@@ -1,40 +1,15 @@
-/*
- * Copyright (C) 2018-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus;
 
 import static com.swirlds.common.test.fixtures.WeightGenerators.RANDOM;
 import static com.swirlds.platform.test.consensus.ConsensusTestArgs.RANDOM_WEIGHT_DESC;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.common.test.fixtures.ResettableRandom;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.eventhandling.EventConfig_;
-import com.swirlds.platform.gui.GuiEventStorage;
-import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.PlatformTest;
-import com.swirlds.platform.test.event.source.EventSourceFactory;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.gui.HashgraphGuiRunner;
 import java.util.List;
-import javax.swing.JPanel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -77,9 +52,8 @@ class ConsensusTests extends PlatformTest {
         return List.of(
                 createPlatformContext(
                         null,
-                        configBuilder -> configBuilder.withValue(
-                                EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                                false)),
+                        configBuilder ->
+                                configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)),
                 createPlatformContext(
                         null,
                         configBuilder ->
