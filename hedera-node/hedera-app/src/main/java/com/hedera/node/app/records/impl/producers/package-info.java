@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * Provides implementations of {@link com.hedera.node.app.records.impl.BlockRecordStreamProducer}. At startup, a single
  * implementation is selected, based on configuration, and used through the duration of the node's execution. There are
