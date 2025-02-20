@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -57,6 +58,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -415,27 +417,38 @@ public class AtomicBatchTest {
 
     @HapiTest
     public Stream<DynamicTest> nonInnerTransactionHasBatchKeyFails() {
-        final var batchOperator = "batchOperator";
+        final var batchPayer = "batchPayer";
         final var innerTnxPayer = "innerPayer";
         final var innerTxnId = "innerId";
-        final var innerTxn = cryptoCreate("foo")
+        final var basicPayer = "basicPayer";
+        final var innerTxn = cryptoCreate("foo1")
                 .withProtoStructure(TxnProtoStructure.NORMALIZED)
                 .balance(ONE_HBAR)
                 .txnId(innerTxnId)
-                .batchKey(batchOperator)
-                .payingWith(innerTnxPayer);
+                .batchKey(batchPayer)
+                .payingWith(innerTnxPayer)
+                .via("innerTxn");
 
         return hapiTest(
-                cryptoCreate(batchOperator).balance(ONE_HBAR),
-                cryptoCreate(innerTnxPayer).balance(ONE_HBAR),
+                cryptoCreate(batchPayer).balance(FIVE_HBARS),
+                cryptoCreate(innerTnxPayer).balance(FIVE_HBARS),
+                cryptoCreate(basicPayer).balance(FIVE_HBARS),
                 usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
-                atomicBatch(innerTxn).batchKey(batchOperator).hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                //
+                // atomicBatch(innerTxn).batchKey(batchPayer).payingWith(batchPayer).via("batchTxn").hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
                 newKeyNamed("newKey"),
-                cryptoCreate("anotherTest")
+                cryptoCreate("foo2")
                         .balance(ONE_HBAR)
                         .batchKey("newKey")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION));
+                        .payingWith(basicPayer)
+                        .via("basicTxn")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                //                getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
+                getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
+                //                validateChargedUsd("batchTxn", 0.000),
+                //                validateChargedUsd("innerTxn", 0.000),
+                validateChargedUsd("basicTxn", 0.000));
     }
 
     @Nested
