@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -134,6 +134,7 @@ public class TokenCreateSpecs {
     private static final String AUTO_RENEW = "autoRenew";
     private static final String CREATE_TXN = "createTxn";
     private static final String PAYER = "payer";
+    public static final String INVALID_ACCOUNT = "999.999.999";
 
     private static String TOKEN_TREASURY = "treasury";
 
@@ -329,7 +330,7 @@ public class TokenCreateSpecs {
                                 .hasKnownStatus(INVALID_AUTORENEW_ACCOUNT),
                         tokenCreate(PRIMARY)
                                 .signedBy(GENESIS)
-                                .autoRenewAccount("1.2.3")
+                                .autoRenewAccount(INVALID_ACCOUNT)
                                 .hasKnownStatus(INVALID_AUTORENEW_ACCOUNT),
                         tokenCreate(PRIMARY)
                                 .autoRenewAccount(AUTO_RENEW)

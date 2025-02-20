@@ -90,6 +90,7 @@ class HintsControllerImplTest {
     private static final HintsKeyPublication TARDY_NODE_TWO_PUBLICATION =
             new HintsKeyPublication(2L, Bytes.wrap("TWO"), 1, PREPROCESSING_START_TIME.plusSeconds(1));
     private static final Map<Long, Long> TARGET_NODE_WEIGHTS = Map.of(1L, 8L, 2L, 2L);
+    private static final Map<Long, Long> SOURCE_NODE_WEIGHTS = Map.of(0L, 8L, 1L, 10L, 2L, 3L);
     private static final Set<Long> SOURCE_NODE_IDS = Set.of(0L, 1L, 2L);
     private static final Bytes INITIAL_CRS = Bytes.wrap("CRS");
     private static final Bytes NEW_CRS = Bytes.wrap("newCRS");
@@ -432,7 +433,12 @@ class HintsControllerImplTest {
                         .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
                         .crs(INITIAL_CRS)
                         .build());
-
+        given(store.getCrsPublicationsByNodeIds(any()))
+                .willReturn(
+                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT));
+        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
+        given(weights.sourceWeightOf(0L)).willReturn(8L);
+        given(weights.sourceWeightOf(1L)).willReturn(10L);
         subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
         subject.advanceConstruction(CONSENSUS_NOW, store);
 
@@ -441,6 +447,42 @@ class HintsControllerImplTest {
                         .stage(CRSStage.COMPLETED)
                         .nextContributingNodeId(null)
                         .contributionEndTime((Timestamp) null)
+                        .crs(INITIAL_CRS)
+                        .build());
+    }
+
+    @Test
+    void repeatProcessIfThresholdNotMet() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+
+        given(store.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
+                        .crs(INITIAL_CRS)
+                        .build());
+        given(store.getCrsPublicationsByNodeIds(any()))
+                .willReturn(
+                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 2L, CrsPublicationTransactionBody.DEFAULT));
+        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
+        given(weights.sourceWeightOf(0L)).willReturn(8L);
+        given(weights.sourceWeightOf(2L)).willReturn(1L);
+        subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
+        subject.advanceConstruction(CONSENSUS_NOW, store);
+
+        verify(store, never())
+                .setCRSState(CRSState.newBuilder()
+                        .stage(CRSStage.COMPLETED)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime((Timestamp) null)
+                        .crs(INITIAL_CRS)
+                        .build());
+        verify(store)
+                .setCRSState(CRSState.newBuilder()
+                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                        .nextContributingNodeId(0L)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(10))))
                         .crs(INITIAL_CRS)
                         .build());
     }

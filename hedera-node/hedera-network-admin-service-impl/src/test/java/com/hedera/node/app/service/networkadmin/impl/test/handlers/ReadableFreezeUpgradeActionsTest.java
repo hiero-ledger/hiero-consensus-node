@@ -438,7 +438,7 @@ class ReadableFreezeUpgradeActionsTest {
 
         final var node1 = new Node(
                 1,
-                asAccount(3),
+                asAccount(0L, 0L, 3),
                 "node2",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.1", 1234),
@@ -451,7 +451,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node2 = new Node(
                 2,
-                asAccount(4),
+                asAccount(0L, 0L, 4),
                 "node3",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.2", 1245),
@@ -464,7 +464,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node3 = new Node(
                 3,
-                asAccount(6),
+                asAccount(0L, 0L, 6),
                 "node4",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.3", 1245),
@@ -477,7 +477,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node4 = new Node(
                 4,
-                asAccount(8),
+                asAccount(0L, 0L, 8),
                 "node5",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.4", 1445),
@@ -563,7 +563,7 @@ class ReadableFreezeUpgradeActionsTest {
 
         final var node1 = new Node(
                 0,
-                asAccount(3),
+                asAccount(0L, 0L, 3),
                 "node2",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.1", 1234),
@@ -576,7 +576,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node2 = new Node(
                 1,
-                asAccount(4),
+                asAccount(0L, 0L, 4),
                 "node3",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.2", 1245),
@@ -589,7 +589,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node3 = new Node(
                 2,
-                asAccount(6),
+                asAccount(0L, 0L, 6),
                 "node4",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.3", 1245),
@@ -602,7 +602,7 @@ class ReadableFreezeUpgradeActionsTest {
                 A_COMPLEX_KEY);
         final var node4 = new Node(
                 3,
-                asAccount(8),
+                asAccount(0L, 0L, 8),
                 "node5",
                 List.of(
                         V053AddressBookSchema.endpointFor("127.0.0.4", 1445),
