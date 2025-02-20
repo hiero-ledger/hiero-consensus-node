@@ -26,14 +26,12 @@ package com.swirlds.demo.hello;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * This holds the current state of the swirld. For this simple "hello swirld" code, each transaction is just
@@ -41,7 +39,7 @@ import java.util.function.Function;
  * order that they were handled.
  */
 @ConstructableIgnored
-public class HelloSwirldDemoState extends PlatformMerkleStateRoot {
+public class HelloSwirldDemoState extends MerkleStateRoot<HelloSwirldDemoState> implements MerkleNodeState {
 
     /**
      * The version history of this class.
@@ -88,8 +86,8 @@ public class HelloSwirldDemoState extends PlatformMerkleStateRoot {
 
     // ///////////////////////////////////////////////////////////////////
 
-    public HelloSwirldDemoState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public HelloSwirldDemoState() {
+        // no-op
     }
 
     private HelloSwirldDemoState(final HelloSwirldDemoState sourceState) {
@@ -97,6 +95,7 @@ public class HelloSwirldDemoState extends PlatformMerkleStateRoot {
         this.strings = new ArrayList<>(sourceState.strings);
     }
 
+    @NonNull
     @Override
     public synchronized HelloSwirldDemoState copy() {
         throwIfImmutable();
@@ -117,5 +116,10 @@ public class HelloSwirldDemoState extends PlatformMerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.MIGRATE_TO_SERIALIZABLE;
+    }
+
+    @Override
+    protected HelloSwirldDemoState copyingConstructor() {
+        return new HelloSwirldDemoState(this);
     }
 }

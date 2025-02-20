@@ -16,6 +16,7 @@
 
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -34,6 +35,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -127,7 +129,8 @@ public class ConsensusServiceFeesSuite {
     @HapiTest
     @DisplayName("Topic get info base USD fee as expected")
     final Stream<DynamicTest> tokenGetTopicInfoBaseUSDFee() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(PAYER),
                 createTopic(TOPIC_NAME).adminKeyName(PAYER),
                 getTopicInfo(TOPIC_NAME).payingWith(PAYER).via("getTopic"),

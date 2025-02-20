@@ -30,7 +30,7 @@ import java.util.Random;
  * A base graph generator class that provides most functionality of a graph generator except for determining how to
  * generate the next event.
  */
-public abstract class AbstractGraphGenerator<T extends AbstractGraphGenerator<T>> implements GraphGenerator<T> {
+public abstract class AbstractGraphGenerator implements GraphGenerator {
 
     /**
      * The total number of events that have been emitted by this generator.
