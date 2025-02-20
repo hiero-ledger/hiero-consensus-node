@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.KeyValueWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
@@ -130,14 +131,15 @@ public class UpdateDecoder {
     }
 
     /**
-     * Decodes a call to {@link UpdateTranslator#TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA} into a synthetic {@link TransactionBody}.
+     * Decodes a call to {@link ./address_0x16c.UpdateTranslator#TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA} into a synthetic {@link TransactionBody}.
      *
      * @param attempt the attempt
      * @return the synthetic transaction body
      */
     public TransactionBody decodeTokenUpdateWithMetadata(@NonNull final HtsCallAttempt attempt) {
-        final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.decodeCall(
-                attempt.input().toArrayUnsafe());
+        final var call = com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c
+                .UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA
+                .decodeCall(attempt.input().toArrayUnsafe());
         final var decoded = decodeUpdateWithMeta(call, attempt.addressIdConverter());
         return TransactionBody.newBuilder().tokenUpdate(decoded).build();
     }

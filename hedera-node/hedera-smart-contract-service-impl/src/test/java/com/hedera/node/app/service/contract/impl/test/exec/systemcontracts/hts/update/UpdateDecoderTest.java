@@ -16,6 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
@@ -31,7 +32,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateNFTsMetadataTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator;
 import java.time.Instant;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,9 +127,8 @@ class UpdateDecoderTest {
 
         @Test
         void updateWithMetadataWorks() {
-            final var encoded =
-                    Bytes.wrapByteBuffer(UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.encodeCallWithArgs(
-                            FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaTokenWithMetadata));
+            final var encoded = Bytes.wrapByteBuffer(TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.encodeCallWithArgs(
+                    FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaTokenWithMetadata));
             given(attempt.input()).willReturn(encoded);
 
             final var body = subject.decodeTokenUpdateWithMetadata(attempt);
