@@ -126,7 +126,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .normalize();
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "dd098e8377787782d042a075d4a57342222f169e54780ede64c8901e37c94aacf566a9c63d468a5a57c7aeabfd824148"),
+                        "1bb51baa3df53b5f547fddca4aa655dced1307e3e5a57cca3294dbbecfa1aec9e3a427f4439eadb38a9f0bd3773fbed0"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("config.txt"),
                 node0Dir.resolve("data/config/application.properties"),
@@ -256,7 +256,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 if (item.hasStateChanges()) {
                     final var changes = item.stateChangesOrThrow();
                     final var at = asInstant(changes.consensusTimestampOrThrow());
-                    System.out.println("@ " + at);
                     if (lastStateChanges != null && at.isBefore(requireNonNull(lastStateChangesTime))) {
                         Assertions.fail("State changes are not in chronological order - last changes were \n "
                                 + lastStateChanges + "\ncurrent changes are \n  " + changes);
@@ -461,9 +460,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                     mapState.remove(mapKeyFor(stateChange.mapDeleteOrThrow().keyOrThrow()));
                     final var keyToRemove =
                             mapKeyFor(stateChange.mapDeleteOrThrow().keyOrThrow());
-                    System.out.println("--- MAP_DELETE (" + stateName + ") ---");
-                    System.out.println(keyToRemove);
-                    System.out.println("------------------");
                     entityChanges.get(stateName).remove(keyToRemove);
                     stateChangesSummary.countMapDelete(serviceName, stateKey);
                 }
