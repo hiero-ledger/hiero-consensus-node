@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.util.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -56,7 +41,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -68,16 +52,12 @@ import javax.inject.Singleton;
 @Singleton
 public class AtomicBatchHandler implements TransactionHandler {
     private final Supplier<FeeCharging> appFeeCharging;
-    private final Function<Transaction, TransactionBody> bodyParser;
 
     /**
      * Constructs a {@link AtomicBatchHandler}
      */
     @Inject
-    public AtomicBatchHandler(
-            @NonNull final AppContext appContext, @NonNull final Function<Transaction, TransactionBody> bodyParser) {
-        requireNonNull(appContext);
-        this.bodyParser = requireNonNull(bodyParser);
+    public AtomicBatchHandler(@NonNull final AppContext appContext) {
         this.appFeeCharging = appContext.feeChargingSupplier();
     }
 
@@ -117,15 +97,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         if (!context.configuration().getConfigData(AtomicBatchConfig.class).isEnabled()) {
             throw new HandleException(NOT_SUPPORTED);
         }
-        final var txnBodies = new ArrayList<TransactionBody>();
-        for (final var transaction : op.transactions()) {
-            try {
-                txnBodies.add(bodyParser.apply(transaction));
-            } catch (HandleException e) {
-                // Do we need to keep the specific ResponseCodeEnum here?
-                throw new HandleException(INNER_TRANSACTION_FAILED);
-            }
-        }
+        final var txnBodies = op.transactions().stream().map(Transaction::body).toList();
         // The parsing check, timebox, and duplication checks are done in the pre-handle workflow
         // So, no need to repeat here
         // dispatch all the inner transactions

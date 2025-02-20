@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.gui;
 
 import com.swirlds.platform.event.PlatformEvent;
@@ -27,14 +12,14 @@ import java.util.Objects;
  * Provides events for the GUI by generating them using a {@link GraphGenerator}
  */
 public class GeneratorEventProvider implements GuiEventProvider {
-    private final GraphGenerator<?> graphGenerator;
+    private final GraphGenerator graphGenerator;
 
     /**
      * Constructor
      *
      * @param graphGenerator the graph generator
      */
-    public GeneratorEventProvider(@NonNull final GraphGenerator<?> graphGenerator) {
+    public GeneratorEventProvider(@NonNull final GraphGenerator graphGenerator) {
         Objects.requireNonNull(graphGenerator);
         this.graphGenerator = graphGenerator;
     }

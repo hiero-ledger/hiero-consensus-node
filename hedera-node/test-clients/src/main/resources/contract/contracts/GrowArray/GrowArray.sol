@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.5.0;
 
 // Contract to grow storage size gradually, since using storage size up to the limit in one go will

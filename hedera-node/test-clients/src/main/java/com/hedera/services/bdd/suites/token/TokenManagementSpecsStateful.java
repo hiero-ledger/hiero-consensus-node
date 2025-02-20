@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
@@ -53,6 +38,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 public class TokenManagementSpecsStateful {
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
+    public static final String INVALID_ACCOUNT = "999.999.999";
 
     @HapiTest
     final Stream<DynamicTest> freezeMgmtFailureCasesWork() {
@@ -76,7 +62,7 @@ public class TokenManagementSpecsStateful {
                         tokenFreeze(unfreezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY),
-                        tokenFreeze(freezableToken, "1.2.3").hasKnownStatus(INVALID_ACCOUNT_ID),
+                        tokenFreeze(freezableToken, INVALID_ACCOUNT).hasKnownStatus(INVALID_ACCOUNT_ID),
                         tokenFreeze(freezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(INVALID_SIGNATURE),
@@ -85,7 +71,7 @@ public class TokenManagementSpecsStateful {
                         tokenUnfreeze(unfreezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY),
-                        tokenUnfreeze(freezableToken, "1.2.3").hasKnownStatus(INVALID_ACCOUNT_ID),
+                        tokenUnfreeze(freezableToken, INVALID_ACCOUNT).hasKnownStatus(INVALID_ACCOUNT_ID),
                         tokenUnfreeze(freezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(INVALID_SIGNATURE))

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.swirlds.config.processor {
     provides javax.annotation.processing.Processor with
             com.swirlds.config.processor.ConfigDataAnnotationProcessor;
