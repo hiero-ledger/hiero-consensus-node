@@ -26,7 +26,5 @@ public record AtomicBatchConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean isEnabled,
         @ConfigProperty(defaultValue = "50") @NetworkProperty long maxNumberOfTransactions,
         @ConfigProperty(defaultValue =
-                "ConsensusSubmitMessage,CryptoTransfer,TokenCreate,TokenUpdate,TokenMint,TokenBurn,CryptoCreate,CryptoUpdate,"
-                        + "FileUpdate,SystemDelete,SystemUndelete,Freeze,ContractCall,ContractCreate,ContractUpdate,"
-                        + "ContractDelete,CryptoApproveAllowance")
-        @NetworkProperty HederaFunctionalitySet whitelist) {}
+                "Freeze,AtomicBatch")
+        @NetworkProperty HederaFunctionalitySet blacklist) {}
