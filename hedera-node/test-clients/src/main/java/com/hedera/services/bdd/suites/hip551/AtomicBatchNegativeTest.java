@@ -125,20 +125,16 @@ public class AtomicBatchNegativeTest {
             final var bob = "bob";
             final var dave = "dave";
             final var thresholdKey = "thresholdKey";
-            final var innerTxnId1 = "innerId1";
-            final var innerTxnId2 = "innerId2";
 
             final KeyShape threshKeyShape = KeyShape.threshOf(2, PREDEFINED_SHAPE, PREDEFINED_SHAPE);
 
             final var innerTxn1 = cryptoCreate("foo1")
                     .balance(ONE_HBAR)
-                    //                    .txnId(innerTxnId1)
                     .batchKey(thresholdKey)
                     .payingWith(alice);
 
             final var innerTxn2 = cryptoCreate("foo2")
                     .balance(ONE_HBAR)
-                    //                    .txnId(innerTxnId2)
                     .batchKey(thresholdKey)
                     .payingWith(alice);
 
@@ -147,8 +143,6 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(bob),
                     cryptoCreate(dave),
                     newKeyNamed(thresholdKey).shape(threshKeyShape.signedWith(sigs(bob, dave))),
-                    //                    usableTxnIdNamed(innerTxnId1).payerId(alice),
-                    //                    usableTxnIdNamed(innerTxnId2).payerId(alice),
                     atomicBatch(innerTxn1, innerTxn2)
                             .payingWith(bob) // Bob submits the transaction
                             .signedBy(bob) // Missing Dave’s key, you can't sign with the threshold key
@@ -156,61 +150,33 @@ public class AtomicBatchNegativeTest {
         }
 
         @HapiTest
-        @DisplayName("Batch transaction fails due to mismatched batch keys across inner transactions")
+        @DisplayName("Batch transaction passes when different batch keys signatures are present")
         // BATCH_71
-        public Stream<DynamicTest> mismatchedBatchKeysFails() { // TO-DO fxix as positive
+        public Stream<DynamicTest> differentNecessaryBatchKeysArePresent() {
             final var alice = "alice";
             final var bob = "bob";
             final var dave = "dave";
             final var thresholdKey = "thresholdKey";
-            final var innerTxnId1 = "innerId1";
-            final var innerTxnId2 = "innerId2";
 
             final KeyShape threshKeyShape = KeyShape.threshOf(2, PREDEFINED_SHAPE, PREDEFINED_SHAPE);
-
             final var innerTxn1 = cryptoCreate("foo1")
                     .balance(ONE_HBAR)
-                    //                    .txnId(innerTxnId1)
                     .batchKey(thresholdKey)
                     .payingWith(alice);
 
-            final var innerTxn2 = cryptoCreate("foo2")
-                    .balance(ONE_HBAR)
-                    //                    .txnId(innerTxnId2)
-                    .batchKey(bob)
-                    .payingWith(alice);
+            final var innerTxn2 =
+                    cryptoCreate("foo2").balance(ONE_HBAR).batchKey(bob).payingWith(alice);
 
             return hapiTest(
-                    cryptoCreate(alice), // creates account and creates key with alias "alice"
+                    cryptoCreate(alice),
                     cryptoCreate(bob),
                     cryptoCreate(dave),
                     newKeyNamed(thresholdKey).shape(threshKeyShape.signedWith(sigs(bob, dave))),
-                    //                    usableTxnIdNamed(innerTxnId1).payerId(alice),
-                    //                    usableTxnIdNamed(innerTxnId2).payerId(alice),
                     atomicBatch(innerTxn1, innerTxn2)
                             .payingWith(bob) // Bob submits the transaction
                             .signedBy(bob, dave), // Bob signs with the threshold key
                     getAccountBalance("foo1").hasTinyBars(ONE_HBAR),
                     getAccountBalance("foo2").hasTinyBars(ONE_HBAR));
-        }
-
-        @HapiTest
-        @DisplayName("Batch transaction fails when submitted with an incorrect signer")
-        // BATCH_72
-        public Stream<DynamicTest> batchWithIncorrectSignerFails() {
-            final var alice = "alice";
-            final var bob = "bob";
-            final var batchKeyBob = "batchKeyBob";
-            final var innerTxnId = "innerTxnId";
-
-            return hapiTest(
-                    //                    newKeyNamed(batchKeyBob),
-                    cryptoCreate(alice),
-                    cryptoCreate(bob),
-                    atomicBatch(cryptoCreate("foo").txnId(innerTxnId).batchKey(bob))
-                            .payingWith(alice) // Alice pays for the batch
-                            .signedBy(alice)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED)); // TO-DO add error message for batchKey
         }
 
         @HapiTest
@@ -225,10 +191,10 @@ public class AtomicBatchNegativeTest {
             final var innerTxnId2 = "innerTxnId2";
 
             return hapiTest(
-                    newKeyNamed(batchKey1),
-                    newKeyNamed(batchKey2),
                     cryptoCreate(alice),
                     cryptoCreate(bob),
+                    newKeyNamed(batchKey1),
+                    newKeyNamed(batchKey2),
                     usableTxnIdNamed(innerTxnId1).payerId(alice),
                     usableTxnIdNamed(innerTxnId2).payerId(alice),
                     atomicBatch(
@@ -236,7 +202,7 @@ public class AtomicBatchNegativeTest {
                                     cryptoCreate("foo2").txnId(innerTxnId2).batchKey(batchKey2))
                             .payingWith(alice) // Alice pays for the batch
                             .signedBy(batchKey1) // Alice signs with only batchKey1
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED)); // TO-DO add error message for batchKey
         }
 
         @HapiTest
