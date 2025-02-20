@@ -93,6 +93,6 @@ public final class BirthRoundStateMigration {
         platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
 
         state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state);
+        MerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
     }
 }

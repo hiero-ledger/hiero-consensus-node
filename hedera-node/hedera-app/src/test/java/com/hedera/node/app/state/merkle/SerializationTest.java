@@ -188,11 +188,11 @@ class SerializationTest extends MerkleTestBase {
             // Force flush the VMs to disk to test serialization and deserialization
             forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY));
             copy.copy(); // make a fast copy because we can only write to disk an immutable copy
-            CRYPTO.digestTreeSync(copy);
-            serializedBytes = writeTree(copy, dir);
+            CRYPTO.digestTreeSync(copy.getRoot());
+            serializedBytes = writeTree(copy.getRoot(), dir);
         } else {
-            CRYPTO.digestTreeSync(copy);
-            serializedBytes = writeTree(originalTree, dir);
+            CRYPTO.digestTreeSync(copy.getRoot());
+            serializedBytes = writeTree(originalTree.getRoot(), dir);
         }
 
         final TestMerkleStateRoot loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
@@ -248,8 +248,8 @@ class SerializationTest extends MerkleTestBase {
 
         forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY));
         copy.copy(); // make a fast copy because we can only write to disk an immutable copy
-        CRYPTO.digestTreeSync(copy);
-        final byte[] serializedBytes = writeTree(copy, dir);
+        CRYPTO.digestTreeSync(copy.getRoot());
+        final byte[] serializedBytes = writeTree(copy.getRoot(), dir);
 
         TestMerkleStateRoot loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
         ((OnDiskReadableKVState) originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY)).reset();

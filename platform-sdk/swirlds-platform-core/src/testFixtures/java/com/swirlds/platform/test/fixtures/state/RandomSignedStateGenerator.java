@@ -229,7 +229,7 @@ public class RandomSignedStateGenerator {
                 pcesRound,
                 platformStateFacade);
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance);
+        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
         if (stateHash != null) {
             stateInstance.setHash(stateHash);
         }
@@ -478,7 +478,7 @@ public class RandomSignedStateGenerator {
      */
     public static void releaseAllBuiltSignedStates() {
         builtSignedStates.get().forEach(signedState -> {
-            releaseReservable(signedState.getState());
+            releaseReservable(signedState.getState().getRoot());
         });
         builtSignedStates.get().clear();
     }
