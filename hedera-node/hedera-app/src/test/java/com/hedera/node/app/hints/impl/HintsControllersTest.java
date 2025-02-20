@@ -14,7 +14,6 @@ import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NodeInfo;
-import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +25,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class HintsControllersTest {
     private static final TssKeyPair BLS_KEY_PAIR = new TssKeyPair(Bytes.EMPTY, Bytes.EMPTY);
-    private static final Instant now = Instant.ofEpochSecond(1_234_567L);
 
     private static final HintsConstruction ONE_CONSTRUCTION =
             HintsConstruction.newBuilder().constructionId(1L).build();

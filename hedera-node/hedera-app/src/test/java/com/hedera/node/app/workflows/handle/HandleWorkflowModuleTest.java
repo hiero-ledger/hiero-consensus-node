@@ -264,6 +264,9 @@ class HandleWorkflowModuleTest {
     @Mock
     private UtilPrngHandler utilPrngHandler;
 
+    @Mock
+    private HintsKeyPublicationHandler keyPublicationHandler;
+
     @TempDir
     java.nio.file.Path tempDir;
 
