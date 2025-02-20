@@ -16,7 +16,6 @@
 
 package com.hedera.node.app.workflows.standalone;
 
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.workflows.standalone.impl.NoopVerificationStrategies.NOOP_VERIFICATION_STRATEGIES;
 import static java.util.Objects.requireNonNull;
@@ -27,7 +26,6 @@ import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
-import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -46,7 +44,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -69,7 +67,6 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
 public enum TransactionExecutors {
     TRANSACTION_EXECUTORS;
 
-    public static final NodeInfo DEFAULT_NODE_INFO = new NodeInfoImpl(0, asAccount(3L), 10, List.of(), Bytes.EMPTY);
     public static final String MAX_SIGNED_TXN_SIZE_PROPERTY = "executor.maxSignedTxnSize";
 
     /**
@@ -194,32 +191,16 @@ public enum TransactionExecutors {
      * @param properties the properties to use for the executor
      * @return a new {@link TransactionExecutor}
      */
-    public TransactionExecutor newExecutor(@NonNull final Properties properties) {
+    public TransactionExecutor newExecutor(
+            @NonNull final Properties properties, @NonNull final EntityIdFactory entityIdFactory) {
         requireNonNull(properties);
         return newExecutor(
                 properties.state(),
                 properties.appProperties(),
                 properties.customTracerBinding(),
                 properties.customOps(),
-                properties.softwareVersionFactory());
-    }
-
-    /**
-     * Creates a new {@link TransactionExecutor} based on the given {@link State} and properties.
-     * Prefer
-     *
-     * @param state the {@link State} to create the executor from
-     * @param properties the properties to use for the executor
-     * @param customTracerBinding if not null, the tracer binding to use
-     * @return a new {@link TransactionExecutor}
-     */
-    @Deprecated(since = "0.58")
-    public TransactionExecutor newExecutor(
-            @NonNull final State state,
-            @NonNull final Map<String, String> properties,
-            @Nullable final TracerBinding customTracerBinding,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
-        return newExecutor(state, properties, customTracerBinding, Set.of(), softwareVersionFactory);
+                properties.softwareVersionFactory(),
+                entityIdFactory);
     }
 
     /**
@@ -235,10 +216,12 @@ public enum TransactionExecutors {
             @NonNull final Map<String, String> properties,
             @Nullable final TracerBinding customTracerBinding,
             @NonNull final Set<Operation> customOps,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
         final var tracerBinding =
                 customTracerBinding != null ? customTracerBinding : DefaultTracerBinding.DEFAULT_TRACER_BINDING;
-        final var executor = newExecutorComponent(state, properties, tracerBinding, customOps, softwareVersionFactory);
+        final var executor = newExecutorComponent(
+                state, properties, tracerBinding, customOps, softwareVersionFactory, entityIdFactory);
         executor.stateNetworkInfo().initFrom(state);
         executor.initializer().accept(state);
         final var exchangeRateManager = executor.exchangeRateManager();
@@ -258,11 +241,15 @@ public enum TransactionExecutors {
             @NonNull final Map<String, String> properties,
             @NonNull final TracerBinding tracerBinding,
             @NonNull final Set<Operation> customOps,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
         final var bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         final var configProvider = new ConfigProviderImpl(false, null, properties);
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
+
+        var defaultNodeInfo = new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY);
+
         final var appContext = new AppContextImpl(
                 InstantSource.system(),
                 new AppSignatureVerifier(
@@ -271,7 +258,7 @@ public enum TransactionExecutors {
                         new SignatureVerifierImpl(CryptographyHolder.get())),
                 UNAVAILABLE_GOSSIP,
                 bootstrapConfigProvider::getConfiguration,
-                () -> DEFAULT_NODE_INFO,
+                () -> defaultNodeInfo,
                 () -> NO_OP_METRICS,
                 new AppThrottleFactory(
                         configProvider::getConfiguration,
@@ -280,7 +267,7 @@ public enum TransactionExecutors {
                         ThrottleAccumulator::new,
                         softwareVersionFactory),
                 () -> componentRef.get().appFeeCharging(),
-                new AppEntityIdFactory(bootstrapConfig));
+                entityIdFactory);
         final var contractService = new ContractServiceImpl(
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
         final var fileService = new FileServiceImpl();

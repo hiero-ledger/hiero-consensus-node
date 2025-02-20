@@ -42,6 +42,7 @@ val jackson = "2.18.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.15.2"
+val pbj = "0.9.17" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
 val protobuf = "4.29.3"
 val testContainers = "1.20.4"
 val tuweni = "2.4.2"
@@ -53,7 +54,7 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
         because("io.helidon.webclient.grpc")
     }
-    api("org.awaitility:awaitility:4.2.0") { because("awaitility") }
+    api("org.awaitility:awaitility:4.2.2") { because("awaitility") }
     api("com.fasterxml.jackson.core:jackson-core:$jackson") {
         because("com.fasterxml.jackson.core")
     }
@@ -63,9 +64,9 @@ dependencies.constraints {
     api("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:$jackson") {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
-    api("com.github.ben-manes.caffeine:caffeine:3.1.8") { because("com.github.benmanes.caffeine") }
+    api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.4.1") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.0") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.1") {
         because("com.github.spotbugs.annotations")
     }
     api("com.google.auto.service:auto-service-annotations:$autoService") {
@@ -79,9 +80,9 @@ dependencies.constraints {
     api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
-    api("com.hedera.pbj:pbj-runtime:0.9.2") { because("com.hedera.pbj.runtime") }
+    api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
-    api("net.java.dev.jna:jna:5.12.1") { because("com.sun.jna") }
+    api("net.java.dev.jna:jna:5.16.0") { because("com.sun.jna") }
     api("com.google.dagger:dagger:$dagger") { because("dagger") }
     api("com.google.dagger:dagger-compiler:$dagger") { because("dagger.compiler") }
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
@@ -100,13 +101,13 @@ dependencies.constraints {
     api("com.goterl:lazysodium-java:5.1.4") { because("lazysodium.java") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
-    api("commons-codec:commons-codec:1.17.1") { because("org.apache.commons.codec") }
+    api("commons-codec:commons-codec:1.18.0") { because("org.apache.commons.codec") }
     api("org.apache.commons:commons-collections4:4.4") {
         because("org.apache.commons.collections4")
     }
     api("commons-io:commons-io:2.18.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.17.0") { because("org.apache.commons.lang3") }
-    api("org.apache.commons:commons-compress:1.26.0") { because("org.apache.commons.compress") }
+    api("org.apache.commons:commons-compress:1.27.1") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
     api("org.apache.logging.log4j:log4j-core:$log4j") { because("org.apache.logging.log4j.core") }
     api("org.apache.logging.log4j:log4j-slf4j2-impl:$log4j") {
@@ -126,7 +127,7 @@ dependencies.constraints {
     api("org.hyperledger.besu:secp256k1:0.8.2") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
-    api("org.jetbrains:annotations:26.0.1") { because("org.jetbrains.annotations") }
+    api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
     api("org.json:json:20250107") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
@@ -138,7 +139,7 @@ dependencies.constraints {
     api("org.testcontainers:junit-jupiter:$testContainers") {
         because("org.testcontainers.junit.jupiter")
     }
-    api("org.yaml:snakeyaml:2.3") { because("org.yaml.snakeyaml") }
+    api("org.yaml:snakeyaml:2.4") { because("org.yaml.snakeyaml") }
     api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
     api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {

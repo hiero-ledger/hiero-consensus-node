@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import java.util.Random;
 /**
  * Emits events in a random (but topologically correct) order.
  */
-public class ShuffledEventEmitter extends BufferingEventEmitter<ShuffledEventEmitter> {
+public class ShuffledEventEmitter extends BufferingEventEmitter {
 
     /** Source of randomness for selecting the next event to emit. */
     private Random random;
@@ -39,7 +39,7 @@ public class ShuffledEventEmitter extends BufferingEventEmitter<ShuffledEventEmi
      * @param graphGenerator
      * 		creates the graph of events to be emitted
      */
-    public ShuffledEventEmitter(final GraphGenerator<?> graphGenerator, final long seed) {
+    public ShuffledEventEmitter(final GraphGenerator graphGenerator, final long seed) {
         super(graphGenerator);
         this.initialSeed = seed;
         random = new Random(seed);
