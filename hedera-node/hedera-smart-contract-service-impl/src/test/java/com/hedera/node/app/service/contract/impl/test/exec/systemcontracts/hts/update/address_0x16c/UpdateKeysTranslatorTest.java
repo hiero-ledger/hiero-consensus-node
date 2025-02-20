@@ -16,7 +16,9 @@
 
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update.address_0x16c;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
+import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorWithContractID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -68,7 +70,8 @@ class UpdateKeysTranslatorTest {
 
     @Test
     void matchesUpdateKeysTest() {
-        attempt = prepareHtsAttemptWithSelector(
+        attempt = prepareHtsAttemptWithSelectorWithContractID(
+                HTS_16C_CONTRACT_ID,
                 UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION,
                 subject,
                 enhancement,

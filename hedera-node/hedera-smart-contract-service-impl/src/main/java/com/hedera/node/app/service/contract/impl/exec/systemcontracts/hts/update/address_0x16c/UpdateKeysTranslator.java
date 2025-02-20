@@ -21,12 +21,13 @@ import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.TOKEN_KE
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_CONTRACT_ID;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateKeysCommonTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -40,8 +41,6 @@ public class UpdateKeysTranslator extends UpdateKeysCommonTranslator {
             .withCategories(SystemContractMethod.Category.UPDATE)
             .withSupportedAddress(HTS_16C_CONTRACT_ID);
 
-    private final UpdateDecoder decoder;
-
     /**
      * @param decoder the decoder to use for token update keys calls
      */
@@ -50,15 +49,13 @@ public class UpdateKeysTranslator extends UpdateKeysCommonTranslator {
             @NonNull final UpdateDecoder decoder,
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
-        super(systemContractMethodRegistry, contractMetrics);
-
-        this.decoder = decoder;
+        super(decoder, systemContractMethodRegistry, contractMetrics);
 
         registerMethods(TOKEN_UPDATE_KEYS_FUNCTION);
     }
 
     @Override
-    protected UpdateCommonDecoder getDecoder() {
-        return decoder;
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        return attempt.isMethod(TOKEN_UPDATE_KEYS_FUNCTION);
     }
 }

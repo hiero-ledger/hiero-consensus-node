@@ -16,8 +16,6 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update;
 
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ARRAY_BRACKETS;
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.TOKEN_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder.FAILURE_CUSTOMIZER;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -29,40 +27,28 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Optional;
 
 public abstract class UpdateKeysCommonTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 
-    /**
-     * Selector for updateTokenKeys(address, TOKEN_KEY[]) method.
-     */
-    public static final SystemContractMethod TOKEN_UPDATE_KEYS_FUNCTION = SystemContractMethod.declare(
-                    "updateTokenKeys(address," + TOKEN_KEY + ARRAY_BRACKETS + ")", ReturnTypes.INT)
-            .withCategories(SystemContractMethod.Category.UPDATE);
+    private final UpdateCommonDecoder decoder;
 
     public UpdateKeysCommonTranslator(
+            @NonNull final UpdateCommonDecoder decoder,
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
-
-        registerMethods(TOKEN_UPDATE_KEYS_FUNCTION);
-    }
-
-    @Override
-    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isMethod(TOKEN_UPDATE_KEYS_FUNCTION);
+        this.decoder = decoder;
     }
 
     @Override
     public Call callFrom(@NonNull final HtsCallAttempt attempt) {
         return new DispatchForResponseCodeHtsCall(
                 attempt,
-                getDecoder().decodeTokenUpdateKeys(attempt),
+                decoder.decodeTokenUpdateKeys(attempt),
                 UpdateKeysCommonTranslator::gasRequirement,
                 FAILURE_CUSTOMIZER);
     }
@@ -81,6 +67,4 @@ public abstract class UpdateKeysCommonTranslator extends AbstractCallTranslator<
             @NonNull final AccountID payerId) {
         return systemContractGasCalculator.gasRequirement(body, DispatchType.UPDATE, payerId);
     }
-
-    protected abstract UpdateCommonDecoder getDecoder();
 }
