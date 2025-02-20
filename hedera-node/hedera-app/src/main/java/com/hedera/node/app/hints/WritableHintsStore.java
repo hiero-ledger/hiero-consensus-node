@@ -20,6 +20,9 @@ import java.util.OptionalLong;
 public interface WritableHintsStore extends ReadableHintsStore {
     /**
      * If there is a known construction matching the active rosters, returns it; otherwise, null.
+     * @param activeRosters the active rosters
+     * @param now the current time
+     * @param tssConfig the TSS configuration
      */
     @NonNull
     HintsConstruction getOrCreateConstruction(
@@ -36,7 +39,7 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @param now        the adoption time
      * @return whether the key was immediately in use
      */
-    boolean setHintsKey(long nodeId, int partyId, int numParties, @NonNull Bytes hintsKey, @NonNull final Instant now);
+    boolean setHintsKey(long nodeId, int partyId, int numParties, @NonNull Bytes hintsKey, @NonNull Instant now);
 
     /**
      * Adds a preprocessing vote for the given node and construction.

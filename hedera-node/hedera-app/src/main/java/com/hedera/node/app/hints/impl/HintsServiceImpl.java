@@ -22,11 +22,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
- * Placeholder implementation of the {@link HintsService}.
+ * Default implementation of the {@link HintsService}.
  */
 public class HintsServiceImpl implements HintsService {
+    private static final Logger logger = LogManager.getLogger(HintsServiceImpl.class);
+
     @Deprecated
     private final Configuration bootstrapConfig;
 
@@ -58,6 +62,11 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
+    public boolean isReady() {
+        return component.signingContext().isReady();
+    }
+
+    @Override
     public void reconcile(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
@@ -82,7 +91,7 @@ public class HintsServiceImpl implements HintsService {
 
     @Override
     public @NonNull Bytes activeVerificationKeyOrThrow() {
-        throw new UnsupportedOperationException();
+        return component.signingContext().verificationKeyOrThrow();
     }
 
     @Override
@@ -101,20 +110,22 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
-    public boolean isReady() {
-        throw new UnsupportedOperationException();
+    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
+        requireNonNull(hintsStore);
+        component.signingContext().setConstruction(requireNonNull(hintsStore.getNextConstruction()));
     }
 
     @Override
     public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
-        requireNonNull(blockHash);
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
-        requireNonNull(hintsStore);
-        component.signingContext().setConstruction(requireNonNull(hintsStore.getNextConstruction()));
+        if (!isReady()) {
+            throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
+        }
+        final var signing = component.signings().computeIfAbsent(blockHash, component.signingContext()::newSigning);
+        component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
+            logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
+            return null;
+        });
+        return signing.future();
     }
 
     @Override

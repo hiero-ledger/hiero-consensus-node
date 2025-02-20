@@ -23,7 +23,7 @@ import com.hedera.node.app.blocks.impl.KVStateChangeListener;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
@@ -120,7 +120,7 @@ class IngestComponentTest {
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));
         final var hintsService = new HintsServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, mock(HintsLibrary.class), DEFAULT_CONFIG);
+                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl(), configuration);
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS,
                 ForkJoinPool.commonPool(),
@@ -149,6 +149,8 @@ class IngestComponentTest {
                 .boundaryStateChangeListener(new BoundaryStateChangeListener(
                         new StoreMetricsServiceImpl(metrics), () -> configProvider.getConfiguration()))
                 .migrationStateChanges(List.of())
+                .hintsService(hintsService)
+                .historyService(historyService)
                 .initialStateHash(new InitialStateHash(completedFuture(Bytes.EMPTY), 0))
                 .networkInfo(mock(NetworkInfo.class))
                 .startupNetworks(startupNetworks)
