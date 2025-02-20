@@ -55,7 +55,7 @@ module com.hedera.node.app {
     requires org.apache.commons.lang3;
     requires static com.github.spotbugs.annotations;
     requires static com.google.auto.service;
-    requires static java.compiler; // javax.annotation.processing.Generated
+    requires static java.compiler;
 
     exports com.hedera.node.app;
     exports com.hedera.node.app.state;
@@ -73,8 +73,8 @@ module com.hedera.node.app {
     exports com.hedera.node.app.info;
     exports com.hedera.node.app.grpc;
     exports com.hedera.node.app.hints;
-    exports com.hedera.node.app.hints.impl;
     exports com.hedera.node.app.hints.handlers;
+    exports com.hedera.node.app.hints.impl;
     exports com.hedera.node.app.history;
     exports com.hedera.node.app.history.handlers;
     exports com.hedera.node.app.history.impl;

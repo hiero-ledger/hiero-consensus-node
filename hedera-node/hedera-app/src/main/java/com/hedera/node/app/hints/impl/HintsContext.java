@@ -87,7 +87,7 @@ public class HintsContext {
     }
 
     /**
-     * Creates a new signing process for the given block hash.
+     * Creates a new asynchronous signing process for the given block hash.
      * @param blockHash the block hash
      * @return the signing process
      */
