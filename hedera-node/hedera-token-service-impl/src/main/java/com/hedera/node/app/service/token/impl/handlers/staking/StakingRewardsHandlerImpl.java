@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakeIdChangeType.FROM_ACCOUNT_TO_ACCOUNT;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.getAllRewardReceivers;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE;
@@ -35,7 +19,7 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.HederaConfig;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -59,6 +43,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
     private final StakingRewardsDistributor rewardsPayer;
     private final StakePeriodManager stakePeriodManager;
     private final StakeInfoHelper stakeInfoHelper;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * Default constructor for injection.
@@ -70,10 +55,12 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
     public StakingRewardsHandlerImpl(
             @NonNull final StakingRewardsDistributor rewardsPayer,
             @NonNull final StakePeriodManager stakePeriodManager,
-            @NonNull final StakeInfoHelper stakeInfoHelper) {
+            @NonNull final StakeInfoHelper stakeInfoHelper,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.rewardsPayer = requireNonNull(rewardsPayer);
         this.stakePeriodManager = requireNonNull(stakePeriodManager);
         this.stakeInfoHelper = requireNonNull(stakeInfoHelper);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     /** {@inheritDoc} */
@@ -88,9 +75,8 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         final var stakingRewardsStore = context.writableStore(WritableNetworkStakingRewardsStore.class);
         final var stakingInfoStore = context.writableStore(WritableStakingInfoStore.class);
         final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
-        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
-        final var stakingRewardAccountId =
-                asAccount(hederaConfig.shard(), hederaConfig.realm(), accountsConfig.stakingRewardAccount());
+
+        final var stakingRewardAccountId = entityIdFactory.newAccountId(accountsConfig.stakingRewardAccount());
         final var consensusNow = context.consensusTime();
         // When an account StakedIdType is FROM_ACCOUNT or TO_ACCOUNT, we need to assess if the staked accountId
         // could be in a reward situation. So add those staked accountIds to the list of possible reward receivers
