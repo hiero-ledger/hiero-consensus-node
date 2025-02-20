@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 open module com.swirlds.logging.test.fixtures {
     exports com.swirlds.logging.test.fixtures;
 
