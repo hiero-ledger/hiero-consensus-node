@@ -15,6 +15,14 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     private final FileBlockItemWriter fileBlockItemWriter;
     private final GrpcBlockItemWriter grpcBlockItemWriter;
 
+    /**
+     * Construct a new FileAndGrpcBlockItemWriter.
+     *
+     * @param configProvider configuration provider
+     * @param nodeInfo information about the current node
+     * @param fileSystem the file system to use for writing block files
+     * @param connectionManager the connection manager for the gRPC block stream service
+     */
     public FileAndGrpcBlockItemWriter(
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo nodeInfo,

@@ -21,6 +21,11 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     private final Map<Long, BlockState> blockStates = new ConcurrentHashMap<>();
     private volatile BlockState currentBlock;
 
+    /**
+     * Construct a new GrpcBlockItemWriter.
+     *
+     * @param connectionManager the connection manager for the gRPC block stream service
+     */
     public GrpcBlockItemWriter(@NonNull final BlockNodeConnectionManager connectionManager) {
         this.connectionManager = requireNonNull(connectionManager, "connectionManager must not be null");
     }
