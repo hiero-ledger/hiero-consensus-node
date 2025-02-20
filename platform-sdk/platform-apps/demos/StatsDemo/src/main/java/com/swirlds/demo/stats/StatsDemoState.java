@@ -26,12 +26,10 @@ package com.swirlds.demo.stats;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.Function;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the
@@ -41,7 +39,7 @@ import java.util.function.Function;
  * optional sequence number check.
  */
 @ConstructableIgnored
-public class StatsDemoState extends PlatformMerkleStateRoot {
+public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements MerkleNodeState {
 
     /**
      * The version history of this class.
@@ -62,8 +60,8 @@ public class StatsDemoState extends PlatformMerkleStateRoot {
 
     private static final long CLASS_ID = 0xc550a1cd94e91ca3L;
 
-    public StatsDemoState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public StatsDemoState() {
+        // no op
     }
 
     private StatsDemoState(final StatsDemoState sourceState) {
@@ -73,6 +71,7 @@ public class StatsDemoState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized StatsDemoState copy() {
         throwIfImmutable();
@@ -102,5 +101,10 @@ public class StatsDemoState extends PlatformMerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.MIGRATE_TO_SERIALIZABLE;
+    }
+
+    @Override
+    protected StatsDemoState copyingConstructor() {
+        return new StatsDemoState(this);
     }
 }

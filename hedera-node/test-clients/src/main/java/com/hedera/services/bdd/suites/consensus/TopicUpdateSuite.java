@@ -99,6 +99,32 @@ public class TopicUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> updatingAutoRenewAccountWithoutAdminFails() {
+        return hapiTest(
+                cryptoCreate("autoRenewAccount"),
+                cryptoCreate("payer"),
+                createTopic("testTopic").autoRenewAccountId("autoRenewAccount").payingWith("payer"),
+                updateTopic("testTopic").autoRenewAccountId("payer").hasKnownStatus(UNAUTHORIZED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updatingAutoRenewAccountWithAdminWorks() {
+        return hapiTest(
+                cryptoCreate("autoRenewAccount"),
+                cryptoCreate("newAutoRenewAccount"),
+                cryptoCreate("payer"),
+                newKeyNamed("adminKey"),
+                createTopic("testTopic")
+                        .adminKeyName("adminKey")
+                        .autoRenewAccountId("autoRenewAccount")
+                        .payingWith("payer"),
+                updateTopic("testTopic")
+                        .payingWith("payer")
+                        .autoRenewAccountId("newAutoRenewAccount")
+                        .signedBy("payer", "adminKey", "newAutoRenewAccount"));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> topicUpdateSigReqsEnforcedAtConsensus() {
         long PAYER_BALANCE = 199_999_999_999L;
         Function<String[], HapiTopicUpdate> updateTopicSignedBy = (signers) -> updateTopic("testTopic")

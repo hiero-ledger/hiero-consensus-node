@@ -161,7 +161,7 @@ public class ConsensusTestOrchestrator {
      * Configures the graph generators of all nodes with the given configurator. This must be done for all nodes so that
      * the generators generate the same graphs
      */
-    public ConsensusTestOrchestrator configGenerators(final Consumer<GraphGenerator<?>> configurator) {
+    public ConsensusTestOrchestrator configGenerators(final Consumer<GraphGenerator> configurator) {
         for (final ConsensusTestNode node : nodes) {
             configurator.accept(node.getEventEmitter().getGraphGenerator());
         }

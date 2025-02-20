@@ -89,6 +89,12 @@ public interface MigrationContext {
     StartupNetworks startupNetworks();
 
     /**
+     * Returns the startup networks in use.
+     */
+    @NonNull
+    EntityIdFactory entityIdFactory();
+
+    /**
      * Consumes and returns the next entity number. For use by migrations that need to create entities.
      * @return the next entity number
      */

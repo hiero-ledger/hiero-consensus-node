@@ -67,9 +67,8 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
         try {
             logger.info(STARTUP.getMarker(), "Registering StressTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    StressTestingToolState.class,
-                    () -> new StressTestingToolState(version -> new BasicSoftwareVersion(version.major()))));
+            constructableRegistry.registerConstructable(
+                    new ClassConstructorPair(StressTestingToolState.class, () -> new StressTestingToolState()));
             registerMerkleStateRootClassIds();
             logger.info(STARTUP.getMarker(), "StressTestingToolState is registered with ConstructableRegistry");
         } catch (final ConstructableRegistryException e) {
@@ -253,9 +252,8 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
     }
 
     @Override
-    public StressTestingToolState newMerkleStateRoot() {
-        final StressTestingToolState state =
-                new StressTestingToolState(version -> new BasicSoftwareVersion(SOFTWARE_VERSION.getSoftwareVersion()));
+    public StressTestingToolState newStateRoot() {
+        final StressTestingToolState state = new StressTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }

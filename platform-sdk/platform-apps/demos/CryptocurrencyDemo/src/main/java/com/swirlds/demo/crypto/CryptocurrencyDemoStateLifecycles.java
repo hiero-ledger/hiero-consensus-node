@@ -64,9 +64,7 @@ public class CryptocurrencyDemoStateLifecycles implements StateLifecycles<Crypto
                             stateSignatureTransactionCallback) {
         state.throwIfImmutable();
         round.forEachEventTransaction((event, transaction) -> {
-            if (transaction.isSystem()) {
-                return;
-            } else if (areTransactionBytesSystemOnes(transaction)) {
+            if (areTransactionBytesSystemOnes(transaction)) {
                 consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
             }
 
