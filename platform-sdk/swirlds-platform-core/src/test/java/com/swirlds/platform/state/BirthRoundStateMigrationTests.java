@@ -144,7 +144,7 @@ class BirthRoundStateMigrationTests {
 
         final long lastRoundMinimumJudgeGeneration = platformStateFacade
                 .consensusSnapshotOf(signedState.getState())
-                .getMinimumJudgeInfoList()
+                .minimumJudgeInfoList()
                 .getLast()
                 .minimumJudgeAncientThreshold();
 
@@ -167,7 +167,7 @@ class BirthRoundStateMigrationTests {
 
         // All of the judge info objects should now be using a birth round equal to the round of the state
         for (final MinimumJudgeInfo minimumJudgeInfo :
-                platformStateFacade.consensusSnapshotOf(signedState.getState()).getMinimumJudgeInfoList()) {
+                platformStateFacade.consensusSnapshotOf(signedState.getState()).minimumJudgeInfoList()) {
             assertEquals(signedState.getRound(), minimumJudgeInfo.minimumJudgeAncientThreshold());
         }
     }

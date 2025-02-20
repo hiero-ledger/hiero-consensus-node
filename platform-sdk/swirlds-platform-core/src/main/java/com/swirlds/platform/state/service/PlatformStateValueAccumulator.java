@@ -249,7 +249,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
                     "No minimum judge info found in state for round " + round + ", snapshot is null");
         }
 
-        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot.getMinimumJudgeInfoList();
+        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot.minimumJudgeInfoList();
         if (minimumJudgeInfo.isEmpty()) {
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + round + ", list is empty");

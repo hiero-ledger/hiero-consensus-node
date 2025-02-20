@@ -31,7 +31,7 @@ public class MerkleStateUtils {
         final Hash hashEventsCons = platformState.getLegacyRunningEventHash();
 
         final ConsensusSnapshotWrapper snapshot = platformState.getSnapshot();
-        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot == null ? null : snapshot.getMinimumJudgeInfoList();
+        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot == null ? null : snapshot.minimumJudgeInfoList();
 
         final StringBuilder sb = new StringBuilder();
 
