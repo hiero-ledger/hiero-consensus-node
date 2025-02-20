@@ -354,7 +354,7 @@ public class BaseTranslator {
         if (followsUserRecord && !parts.transactionIdOrThrow().scheduled()) {
             recordBuilder.parentConsensusTimestamp(asTimestamp(userTimestamp));
         }
-        if (parts.body().hasBatchKey()) {
+        if (followsUserRecord && parts.body().hasBatchKey()) {
             recordBuilder.parentConsensusTimestamp(parts.parentConsensusTimestamp());
         }
         if ((!followsUserRecord || parts.transactionIdOrThrow().scheduled())

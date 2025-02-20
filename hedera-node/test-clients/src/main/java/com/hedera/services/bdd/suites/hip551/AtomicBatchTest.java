@@ -281,8 +281,6 @@ public class AtomicBatchTest {
                 .payingWith(innerTnxPayer);
         return hapiTest(
                 // set up
-                uploadInitCode(contract),
-                contractCreate(contract),
                 newKeyNamed(alias),
                 cryptoCreate(batchOperator).balance(ONE_HBAR),
                 cryptoCreate(innerTnxPayer).balance(ONE_HUNDRED_HBARS),
