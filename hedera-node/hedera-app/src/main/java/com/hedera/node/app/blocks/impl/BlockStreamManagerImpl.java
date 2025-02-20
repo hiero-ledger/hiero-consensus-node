@@ -446,6 +446,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
             if (streamWriterType == BlockStreamWriterMode.FILE
+                    || streamWriterType == BlockStreamWriterMode.GRPC
                     || streamWriterType == BlockStreamWriterMode.FILE_AND_GRPC) {
                 block.writer().closeBlock();
             }

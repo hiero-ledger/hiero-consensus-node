@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import static com.hedera.hapi.block.protoc.PublishStreamResponseCode.STREAM_ITEMS_UNKNOWN;
-
 import com.hedera.hapi.block.protoc.PublishStreamRequest;
 import com.hedera.hapi.block.protoc.PublishStreamResponse;
 import com.hedera.node.internal.network.BlockNodeConfig;
@@ -72,10 +70,7 @@ public class BlockNodeConnection {
     }
 
     private void handleEndOfStream(PublishStreamResponse.EndOfStream endOfStream) {
-        if (endOfStream.getStatus().equals(STREAM_ITEMS_UNKNOWN)) {
-            logger.info(
-                    "Error returned from block node at block number {}: {}", endOfStream.getBlockNumber(), endOfStream);
-        }
+        logger.info("Error returned from block node at block number {}: {}", endOfStream.getBlockNumber(), endOfStream);
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {

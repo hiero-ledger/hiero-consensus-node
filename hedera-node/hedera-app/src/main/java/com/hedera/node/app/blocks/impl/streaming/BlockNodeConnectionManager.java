@@ -112,10 +112,12 @@ public class BlockNodeConnectionManager {
     }
 
     private synchronized void disconnectFromNode(@NonNull BlockNodeConfig node) {
-        BlockNodeConnection connection = activeConnections.remove(node);
-        if (connection != null) {
-            connection.close();
-            logger.info("Disconnected from block node {}:{}", node.address(), node.port());
+        synchronized (connectionLock) {
+            BlockNodeConnection connection = activeConnections.remove(node);
+            if (connection != null) {
+                connection.close();
+                logger.info("Disconnected from block node {}:{}", node.address(), node.port());
+            }
         }
     }
 

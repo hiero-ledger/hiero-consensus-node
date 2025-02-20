@@ -4,7 +4,6 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -22,7 +21,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     private final Map<Long, BlockState> blockStates = new ConcurrentHashMap<>();
     private volatile BlockState currentBlock;
 
-    public GrpcBlockItemWriter(BlockNodeConnectionManager connectionManager) {
+    public GrpcBlockItemWriter(@NonNull final BlockNodeConnectionManager connectionManager) {
         this.connectionManager = requireNonNull(connectionManager, "connectionManager must not be null");
     }
 
@@ -36,22 +35,16 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public BlockItemWriter writePbjItem(@NonNull Bytes bytes) {
+    public void writePbjItem(@NonNull Bytes bytes) {
         if (currentBlock == null) {
             throw new IllegalStateException("Received block item before opening block");
         }
         currentBlock.itemBytes().add(bytes);
-        return this;
     }
 
     @Override
-    public BlockItemWriter writeItem(@NonNull byte[] bytes) {
+    public void writeItem(@NonNull byte[] bytes) {
         throw new UnsupportedOperationException("writeItem is not supported in this implementation");
-    }
-
-    @Override
-    public BlockItemWriter writeItems(@NonNull BufferedData data) {
-        throw new UnsupportedOperationException("writeItems is not supported in this implementation");
     }
 
     @Override
