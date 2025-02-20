@@ -1119,7 +1119,7 @@ public class HapiSpec implements Runnable, Executable {
      * @param ops the operations
      * @return a {@link Stream} of {@link DynamicTest}s
      */
-    private static Stream<DynamicTest> propertyPreservingHapiTest(
+    public static Stream<DynamicTest> propertyPreservingHapiTest(
             @NonNull final List<String> propertiesToPreserve,
             @Nullable final Map<String, String> setupOverrides,
             @NonNull final SpecOperation... ops) {

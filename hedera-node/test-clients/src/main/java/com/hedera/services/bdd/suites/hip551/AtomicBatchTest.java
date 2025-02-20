@@ -18,6 +18,7 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.propertyPreservingHapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -84,6 +85,7 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
@@ -441,10 +443,9 @@ public class AtomicBatchTest {
             final var transferTxnId = "transferTxnId";
             final var batchOperator = "batchOperator";
 
-            return propertyPreservingHapiTest(
+            return customizedHapiTest(
                     // set the maxInnerTxn to 2
-                    List.of("atomicBatch.maxInnerTxn"),
-                    overriding("atomicBatch.maxInnerTxn", "2"),
+                     Map.of("atomicBatch.maxInnerTxn", "2"),
                     cryptoCreate(batchOperator),
                     cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
                     newKeyNamed("bar"),
@@ -524,9 +525,8 @@ public class AtomicBatchTest {
             final var function = "callme";
             final var payload = new byte[100];
             final var batchOperator = "batchOperator";
-            return propertyPreservingHapiTest(
-                    List.of("contracts.maxGasPerSec"),
-                    overriding("contracts.maxGasPerSec", "2000000"),
+            return customizedHapiTest(
+                    Map.of("contracts.maxGasPerSec", "2000000"),
                     cryptoCreate(batchOperator),
                     uploadInitCode(contract),
                     contractCreate(contract),
