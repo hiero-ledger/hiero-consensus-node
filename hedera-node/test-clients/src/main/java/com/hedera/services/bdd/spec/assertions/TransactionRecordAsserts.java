@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -204,6 +204,18 @@ public class TransactionRecordAsserts extends BaseErroringAssertsProvider<Transa
                         .setNanos(parentTime.getNanos() + nonce)
                         .build();
                 assertEquals(expectedTime, actualTime);
+            } catch (Throwable t) {
+                return List.of(t);
+            }
+            return EMPTY_LIST;
+        });
+        return this;
+    }
+
+    public TransactionRecordAsserts parentConsensusTime(final Timestamp parentTime) {
+        this.<Timestamp>registerTypedProvider("parentConsensusTimestamp", spec -> actualTime -> {
+            try {
+                assertEquals(parentTime, actualTime);
             } catch (Throwable t) {
                 return List.of(t);
             }

@@ -65,7 +65,6 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -553,6 +552,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             }
         }
         int nextNonceOffset = 1;
+        var parentConsensusTime = consensusTime;
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
             final var nonceOffset =
@@ -571,35 +571,19 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final var consensusNow = consensusTime.plusNanos((long) i - indexOfTopLevelRecord);
             lastAssignedConsenusTime = consensusNow;
             builder.consensusTimestamp(consensusNow);
-        }
 
-        var parentConsensus = consensusTime;
-        for (int i = 0; i < n; i++) {
-            final var builder = builders.get(i);
             if (i > indexOfTopLevelRecord) {
-                switch (builder.category()) {
-                    case SCHEDULED -> builder.exchangeRate(exchangeRates);
-                    case PRECEDING -> {
-                        // Get first non preceding transaction after this one in the list
-                        final var nextTime = builders.subList(indexOfTopLevelRecord + 1, n).stream()
-                                .skip(i - indexOfTopLevelRecord)
-                                .filter(b -> b.category() == BATCH)
-                                .findFirst()
-                                .map(StreamBuilder::getConsensusTimestamp);
-                        if (nextTime.isPresent()) {
-                            builder.parentConsensus(nextTime.get());
-                            parentConsensus = nextTime.get();
-                        }
-                    }
-                    case BATCH -> {
-                        parentConsensus = builder.getConsensusTimestamp();
-                        builder.parentConsensus(consensusTime);
-                    }
-                    case CHILD -> builder.parentConsensus(parentConsensus);
+                if (builder.category() == SCHEDULED) {
+                    // But for backward compatibility keep setting rates on scheduled receipts, c.f.
+                    // https://github.com/hashgraph/hedera-services/issues/15393
+                    builder.exchangeRate(exchangeRates);
+                } else if (builder.category() == BATCH) {
+                    builder.parentConsensus(consensusTime).exchangeRate(null);
+                    parentConsensusTime = consensusNow;
+                } else if (builder.category() == CHILD) {
+                    builder.parentConsensus(parentConsensusTime).exchangeRate(null);
                 }
             }
-
-            // atomic batch user txn, autocreation11, contract (batch1), child12, batch2, child21
             switch (streamMode) {
                 case RECORDS -> {
                     final var nextRecord = ((RecordStreamBuilder) builder).build();

@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.propertyPreservingHapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -43,10 +44,12 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -67,6 +70,7 @@ import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsL
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 
 import com.google.protobuf.ByteString;
@@ -80,6 +84,7 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -255,9 +260,13 @@ public class AtomicBatchTest {
         final var innerTnxPayer = "innerPayer";
         final var innerTxnId1 = "innerId1";
         final var innerTxnId2 = "innerId2";
+        final var innerTxnId3 = "innerId3";
         final var account2 = "foo2";
         final var atomicTxn = "atomicTxn";
         final var alias = "alias";
+        final var contract = "ConsTimeRepro";
+        final AtomicReference<Timestamp> parentConsTime = new AtomicReference<>();
+        final AtomicReference<Timestamp> contractChildConsTime = new AtomicReference<>();
 
         final var innerTxn1 = cryptoTransfer(movingHbar(10L).between(innerTnxPayer, alias))
                 .withProtoStructure(TxnProtoStructure.NORMALIZED)
@@ -270,29 +279,39 @@ public class AtomicBatchTest {
                 .txnId(innerTxnId2)
                 .batchKey(batchOperator)
                 .payingWith(innerTnxPayer);
-        final var validStart1 = Timestamp.newBuilder()
-                .setSeconds(Instant.now().getEpochSecond() + 1000)
-                .build();
-        final var validStart2 = Timestamp.newBuilder()
-                .setSeconds(Instant.now().getEpochSecond() + 2000)
-                .build();
-
         return hapiTest(
+                // set up
+                uploadInitCode(contract),
+                contractCreate(contract),
                 newKeyNamed(alias),
                 cryptoCreate(batchOperator).balance(ONE_HBAR),
                 cryptoCreate(innerTnxPayer).balance(ONE_HUNDRED_HBARS),
-                usableTxnIdNamed(innerTxnId1).validStart(validStart1).payerId(innerTnxPayer),
-                usableTxnIdNamed(innerTxnId2).validStart(validStart2).payerId(innerTnxPayer),
+                usableTxnIdNamed(innerTxnId1).payerId(innerTnxPayer),
+                usableTxnIdNamed(innerTxnId2).payerId(innerTnxPayer),
+                usableTxnIdNamed(innerTxnId3).payerId(innerTnxPayer),
+                // submit atomic batch with 3 inner txns
                 atomicBatch(innerTxn1, innerTxn2).via(atomicTxn),
-                getTxnRecord(atomicTxn).andAllChildRecords().logged(),
-                getTxnRecord(innerTxnId1)
+                getTxnRecord(atomicTxn)
+                        .exposingTo(record -> parentConsTime.set(record.getConsensusTimestamp()))
                         .andAllChildRecords()
-                        .assertingNothingAboutHashes()
+                        .hasNonStakingChildRecordCount(1)
+                        .hasChildRecords(recordWith().status(SUCCESS))
                         .logged(),
-                getTxnRecord(innerTxnId2)
+                // preceding transactions doesn't have parentConsTime set
+                sourcing(
+                        () -> childRecordsCheck(atomicTxn, SUCCESS, recordWith().status(SUCCESS))),
+                // All atomic batch transactions should have the same parentConsTime set
+                // the same as the batch user txn
+                sourcing(() -> getTxnRecord(innerTxnId1)
+                        .hasParentConsensusTime(parentConsTime.get())
                         .andAllChildRecords()
                         .assertingNothingAboutHashes()
-                        .logged());
+                        .logged()),
+                sourcing(() -> getTxnRecord(innerTxnId2)
+                        .hasParentConsensusTime(parentConsTime.get())
+                        .andAllChildRecords()
+                        .assertingNothingAboutHashes()
+                        .logged()));
     }
 
     @HapiTest
