@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.utils;
 
 import static com.hedera.hapi.streams.CallOperationType.OP_CALL;
@@ -234,6 +219,7 @@ class ActionStackTest {
         actionsStack.push(wrappedAction);
         given(parentFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
         given(parentFrame.getContractAddress()).willReturn(HTS_SYSTEM_CONTRACT_ADDRESS);
+        given(parentFrame.getWorldUpdater()).willReturn(worldUpdater);
 
         subject.finalizeLastStackActionAsPrecompile(parentFrame, SYSTEM, ActionStack.Validation.ON);
 
@@ -264,6 +250,7 @@ class ActionStackTest {
         actionsStack.push(wrappedAction);
         given(parentFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
         given(parentFrame.getContractAddress()).willReturn(HTS_SYSTEM_CONTRACT_ADDRESS);
+        given(parentFrame.getWorldUpdater()).willReturn(worldUpdater);
         given(helper.isValid(any())).willReturn(true);
 
         subject.finalizeLastStackActionAsPrecompile(parentFrame, PRECOMPILE, ActionStack.Validation.ON);
@@ -574,6 +561,7 @@ class ActionStackTest {
         given(parentFrame.getCurrentOperation()).willReturn(operation);
         given(parentFrame.getMessageFrameStack()).willReturn(frameStack);
         given(parentFrame.getContractAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(parentFrame.getWorldUpdater()).willReturn(worldUpdater);
         given(frameStack.peek()).willReturn(childFrame);
 
         given(childFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);

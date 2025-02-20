@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateSyntheticTxnFactory.createToken;
@@ -496,7 +481,7 @@ public class CreateDecoder {
         final var isSupplyTypeFinite = (Boolean) tokenCreateStruct.get(SUPPLY_TYPE);
         final var maxSupply = (long) tokenCreateStruct.get(MAX_SUPPLY);
         final var isFreezeDefault = (Boolean) tokenCreateStruct.get(FREEZE_DEFAULT);
-        final var tokenKeys = decodeTokenKeys(tokenCreateStruct.get(TOKEN_KEYS), addressIdConverter);
+        final var tokenKeys = decodeTokenKeys(tokenCreateStruct.get(TOKEN_KEYS), addressIdConverter, nativeOperations);
         final var tokenExpiry = decodeTokenExpiry(tokenCreateStruct.get(TOKEN_EXPIRY), addressIdConverter);
 
         final var tokenCreateWrapper = new TokenCreateWrapper(
@@ -636,7 +621,9 @@ public class CreateDecoder {
     }
 
     private List<TokenKeyWrapper> decodeTokenKeys(
-            @NonNull final Tuple[] tokenKeysTuples, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple[] tokenKeysTuples,
+            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HederaNativeOperations nativeOperations) {
 
         // TokenKey
         final int KEY_TYPE = 0;
@@ -653,11 +640,16 @@ public class CreateDecoder {
             final var keyType = ((BigInteger) tokenKeyTuple.get(KEY_TYPE)).intValue();
             final Tuple keyValueTuple = tokenKeyTuple.get(KEY_VALUE_TYPE);
             final var inheritAccountKey = (Boolean) keyValueTuple.get(INHERIT_ACCOUNT_KEY);
-            final var contractId = asNumericContractId(addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
+            final var contractId = asNumericContractId(
+                    nativeOperations.shard(),
+                    nativeOperations.realm(),
+                    addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
             final var ed25519 = (byte[]) keyValueTuple.get(ED25519);
             final var ecdsaSecp256K1 = (byte[]) keyValueTuple.get(ECDSA_SECP_256K1);
-            final var delegatableContractId =
-                    asNumericContractId(addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
+            final var delegatableContractId = asNumericContractId(
+                    nativeOperations.shard(),
+                    nativeOperations.realm(),
+                    addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
 
             tokenKeys.add(new TokenKeyWrapper(
                     keyType,

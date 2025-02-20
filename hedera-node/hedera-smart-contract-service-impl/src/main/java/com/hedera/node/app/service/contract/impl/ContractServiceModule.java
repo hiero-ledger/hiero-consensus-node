@@ -42,7 +42,6 @@ import com.hedera.node.app.service.contract.impl.exec.v038.V038Module;
 import com.hedera.node.app.service.contract.impl.exec.v046.V046Module;
 import com.hedera.node.app.service.contract.impl.exec.v050.V050Module;
 import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;

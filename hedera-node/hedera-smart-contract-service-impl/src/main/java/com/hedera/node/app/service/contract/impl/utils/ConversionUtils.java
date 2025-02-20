@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -104,11 +89,16 @@ public class ConversionUtils {
     /**
      * Given a numeric {@link AccountID}, returns its equivalent contract id.
      *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
      * @param accountId the numeric {@link AccountID}
      * @return the equivalent account id
      */
-    public static ContractID asNumericContractId(@NonNull final AccountID accountId) {
+    public static ContractID asNumericContractId(
+            final long shard, final long realm, @NonNull final AccountID accountId) {
         return ContractID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
                 .contractNum(accountId.accountNumOrThrow())
                 .build();
     }
@@ -124,8 +114,11 @@ public class ConversionUtils {
      * @return the implied token id
      */
     public static TokenID asTokenId(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        final var explicit = explicitFromHeadlong(address);
         return TokenID.newBuilder()
-                .tokenNum(numberOfLongZero(explicitFromHeadlong(address)))
+                .shardNum(realmOfLongZero(explicit))
+                .realmNum(realmOfLongZero(explicit))
+                .tokenNum(numberOfLongZero(explicit))
                 .build();
     }
 
@@ -562,6 +555,23 @@ public class ConversionUtils {
     }
 
     /**
+     * Converts a long-zero address to a PBJ {@link ScheduleID} using the address as the entity number
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
+     * @param address
+     * @return the PBJ {@link ScheduleID}
+     */
+    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
+            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        if (!isLongZero(shard, realm, address)) {
+            throw new IllegalArgumentException("Cannot extract id number from address " + address);
+        }
+        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
+                .setScheduleNum(address.value().longValueExact())
+                .build();
+    }
+
+    /**
      * Converts a headlong address to a PBJ {@link ScheduleID}.
      *
      * @param shard the shard of the Hedera network
@@ -746,6 +756,34 @@ public class ConversionUtils {
                 explicit[19]);
     }
 
+    /**
+     * Given an explicit 20-byte addresss, returns its shard value.
+     *
+     * @param explicit the explicit 20-byte address
+     * @return its shard value
+     */
+    public static long shardOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(
+                explicit[4],
+                explicit[5],
+                explicit[6],
+                explicit[7],
+                explicit[8],
+                explicit[9],
+                explicit[10],
+                explicit[11]);
+    }
+
+    /**
+     * Given an explicit 20-byte addresss, returns its realm value.
+     *
+     * @param explicit the explicit 20-byte address
+     * @return its realm value
+     */
+    public static long realmOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
+    }
+
     // too many arguments
     @SuppressWarnings("java:S107")
     private static long longFrom(
@@ -765,6 +803,10 @@ public class ConversionUtils {
                 | (b6 & 0xFFL) << 16
                 | (b7 & 0xFFL) << 8
                 | (b8 & 0xFFL);
+    }
+
+    private static long longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
+        return (b1 & 0xFFL) << 24 | (b2 & 0xFFL) << 16 | (b3 & 0xFFL) << 8 | (b4 & 0xFFL);
     }
 
     private static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {
