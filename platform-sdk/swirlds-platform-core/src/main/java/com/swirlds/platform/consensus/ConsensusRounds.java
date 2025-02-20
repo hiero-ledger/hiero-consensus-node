@@ -7,7 +7,7 @@ import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;

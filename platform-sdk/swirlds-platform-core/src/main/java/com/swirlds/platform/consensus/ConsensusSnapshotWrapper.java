@@ -5,9 +5,8 @@ import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -20,15 +19,8 @@ import com.swirlds.platform.state.service.PbjConverter;
  * continue from a particular point. Apart from this record, consensus needs all non-ancient events to continue.
  */
 public class ConsensusSnapshotWrapper {
-    private long round;
     private List<Hash> judgeHashes;
-    private List<MinimumJudgeInfo> minimumJudgeInfoList;
-    private long nextConsensusNumber;
-    private Instant consensusTimestamp;
-
     private final ConsensusSnapshot snapshot;
-
-    public ConsensusSnapshotWrapper() {}
 
     /**
      * @param round                the latest round for which fame has been decided
@@ -43,22 +35,16 @@ public class ConsensusSnapshotWrapper {
             @NonNull final List<MinimumJudgeInfo> minimumJudgeInfoList,
             final long nextConsensusNumber,
             @NonNull final Instant consensusTimestamp) {
-        this.round = round;
         this.judgeHashes = Objects.requireNonNull(judgeHashes);
-        this.minimumJudgeInfoList = Objects.requireNonNull(minimumJudgeInfoList);
-        this.nextConsensusNumber = nextConsensusNumber;
-        this.consensusTimestamp = Objects.requireNonNull(consensusTimestamp);
-
         this.snapshot = new ConsensusSnapshot(
                 round,
                 judgeHashes.stream().map(Hash::getBytes).collect(toList()),
-                minimumJudgeInfoList.stream()
-                        .map(PbjConverter::toPbjMinimumJudgeInfo)
-                        .collect(toList()),
+                minimumJudgeInfoList,
                 nextConsensusNumber,
                 toPbjTimestamp(consensusTimestamp));
     }
 
+    @NonNull
     public ConsensusSnapshot getSnapshot() {
         return snapshot;
     }
@@ -77,11 +63,8 @@ public class ConsensusSnapshotWrapper {
         return judgeHashes;
     }
 
-    /**
-     * @return for each non-ancient round, the minimum ancient indicator of the round's judges
-     */
     public @NonNull List<MinimumJudgeInfo> getMinimumJudgeInfoList() {
-        return minimumJudgeInfoList;
+        return snapshot.minimumJudgeInfoList();
     }
 
     /**
@@ -95,7 +78,7 @@ public class ConsensusSnapshotWrapper {
      * @return the consensus time of this snapshot
      */
     public @NonNull Instant consensusTimestamp() {
-        return consensusTimestamp;
+        return Objects.requireNonNull(PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp()));
     }
 
     /**
@@ -129,13 +112,7 @@ public class ConsensusSnapshotWrapper {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(this)
-                .append("round", round)
-                .append("judgeHashes", judgeHashes)
-                .append("minimumJudgeInfo", minimumJudgeInfoList)
-                .append("nextConsensusNumber", nextConsensusNumber)
-                .append("consensusTimestamp", consensusTimestamp)
-                .toString();
+        return snapshot.toString();
     }
 
     @Override
@@ -143,19 +120,14 @@ public class ConsensusSnapshotWrapper {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (!(o instanceof final ConsensusSnapshotWrapper that)) {
             return false;
         }
-        final ConsensusSnapshotWrapper snapshot = (ConsensusSnapshotWrapper) o;
-        return round == snapshot.round
-                && nextConsensusNumber == snapshot.nextConsensusNumber
-                && judgeHashes.equals(snapshot.judgeHashes)
-                && minimumJudgeInfoList.equals(snapshot.minimumJudgeInfoList)
-                && Objects.equals(consensusTimestamp, snapshot.consensusTimestamp);
+        return snapshot.equals(that.getSnapshot());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(round, judgeHashes, minimumJudgeInfoList, nextConsensusNumber, consensusTimestamp);
+        return snapshot.hashCode();
     }
 }

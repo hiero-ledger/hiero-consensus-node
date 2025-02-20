@@ -12,7 +12,7 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.hedera.hapi.platform.state.com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.SoftwareVersion;
