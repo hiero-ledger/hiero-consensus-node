@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus.framework;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,7 +14,7 @@ import java.util.Random;
 /** A type which is responsible for managing a node in a consensus test */
 public class ConsensusTestNode {
     /** The event emitter that produces events. */
-    private final EventEmitter<?> eventEmitter;
+    private final EventEmitter eventEmitter;
 
     /** The instance to apply events to. */
     private final TestIntake intake;
@@ -42,7 +27,7 @@ public class ConsensusTestNode {
      * @param eventEmitter the emitter of events
      * @param intake       the instance to apply events to
      */
-    public ConsensusTestNode(@NonNull final EventEmitter<?> eventEmitter, @NonNull final TestIntake intake) {
+    public ConsensusTestNode(@NonNull final EventEmitter eventEmitter, @NonNull final TestIntake intake) {
         this.eventEmitter = eventEmitter;
         this.intake = intake;
         this.random = new Random();
@@ -55,7 +40,7 @@ public class ConsensusTestNode {
      * @param eventEmitter    the emitter of events
      */
     public static @NonNull ConsensusTestNode genesisContext(
-            @NonNull final PlatformContext platformContext, @NonNull final EventEmitter<?> eventEmitter) {
+            @NonNull final PlatformContext platformContext, @NonNull final EventEmitter eventEmitter) {
         return new ConsensusTestNode(
                 eventEmitter,
                 new TestIntake(
@@ -82,7 +67,7 @@ public class ConsensusTestNode {
      */
     public @NonNull ConsensusTestNode reconnect(@NonNull final PlatformContext platformContext) {
         // create a new context
-        final EventEmitter<?> newEmitter = eventEmitter.cleanCopy(random.nextLong());
+        final EventEmitter newEmitter = eventEmitter.cleanCopy(random.nextLong());
         newEmitter.reset();
 
         final ConsensusTestNode consensusTestNode = new ConsensusTestNode(
@@ -111,7 +96,7 @@ public class ConsensusTestNode {
     /**
      * @return the event emitter that produces events
      */
-    public @NonNull EventEmitter<?> getEventEmitter() {
+    public @NonNull EventEmitter getEventEmitter() {
         return eventEmitter;
     }
 

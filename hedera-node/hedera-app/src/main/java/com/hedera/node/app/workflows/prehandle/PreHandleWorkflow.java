@@ -1,28 +1,15 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
 import static com.hedera.node.app.workflows.prehandle.PreHandleWorkflowImpl.isAtomicBatch;
-import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.util.ProtobufUtils;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
@@ -30,6 +17,8 @@ import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -119,16 +108,24 @@ public interface PreHandleWorkflow {
                 log.warn("The number of inner results in the atomic batch transaction does not match the number of "
                         + "inner transactions. Need to re-run pre-handle for all inner transactions.");
             }
+            final List<Bytes> serializedInnerTxn;
+            try {
+                serializedInnerTxn = ProtobufUtils.extractInnerTransactionBytes(
+                        result.txInfo().signedBytes());
+            } catch (IOException | ParseException e) {
+                // This should not happen
+                return PreHandleResult.nodeDueDiligenceFailure(
+                        creator, ResponseCodeEnum.INVALID_TRANSACTION, result.txInfo(), result.configVersion());
+            }
             for (int i = 0; i < innerTxns.size(); i++) {
-                final var innerTx = innerTxns.get(i);
                 final var innerResult = preHandleTransaction(
                         creator,
                         storeFactory,
                         accountStore,
-                        com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(innerTx),
+                        serializedInnerTxn.get(i),
                         useInnerResults ? maybeReusableResult.innerResults().get(i) : null,
                         ignore -> {});
-                requireNonNull(result.innerResults()).add(innerResult);
+                result.innerResults().add(innerResult);
             }
         }
         return result;

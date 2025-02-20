@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
@@ -46,9 +31,12 @@ import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.handlers.FileGetContentsHandler;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,14 +57,24 @@ class FileGetContentsHandlerTest extends FileTestBase {
 
     private FileGetContentsHandler subject;
 
+    private Configuration config;
+
     @BeforeEach
     void setUp() {
+        config = HederaTestConfigBuilder.create()
+                .withValue("cryptoCreateWithAlias.enabled", true)
+                .withValue("ledger.maxAutoAssociations", 5000)
+                .withValue("entities.limitTokenAssociations", false)
+                .withValue("tokens.maxPerAccount", 1000)
+                .withValue("hedera.shard", 5L)
+                .withValue("hedera.realm", 10L)
+                .getOrCreateConfig();
         subject = new FileGetContentsHandler(usageEstimator, genesisSchema);
     }
 
     @Test
     void extractsHeader() {
-        final var query = createGetFileContentQuery(fileId.fileNum());
+        final var query = createGetFileContentQuery(fileId);
         final var header = subject.extractHeader(query);
         final var op = query.fileGetContentsOrThrow();
         assertEquals(op.header(), header);
@@ -114,7 +112,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
     void validatesQueryWhenValidFile() {
         givenValidFile();
 
-        final var query = createGetFileContentQuery(fileId.fileNum());
+        final var query = createGetFileContentQuery(fileId);
         given(context.query()).willReturn(query);
 
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
@@ -167,7 +165,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
         given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
         readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 
-        final var query = createGetFileContentQuery(fileId.fileNum());
+        final var query = createGetFileContentQuery(fileId);
         when(context.query()).thenReturn(query);
 
         assertDoesNotThrow(() -> subject.validate(context));
@@ -179,7 +177,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.FAIL_FEE)
                 .build();
 
-        final var query = createGetFileContentQuery(fileId.fileNum());
+        final var query = createGetFileContentQuery(fileId);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 
@@ -196,8 +194,8 @@ class FileGetContentsHandlerTest extends FileTestBase {
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
                 .build();
         final var expectedContent = getExpectedContent();
-
-        final var query = createGetFileContentQuery(fileId.fileNum());
+        given(handleContext.configuration()).willReturn(config);
+        final var query = createGetFileContentQueryFromEntityId(fileId.fileNum());
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 
@@ -214,7 +212,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
                 .build();
 
-        final var query = createGetFileContentQuery(fileIdNotExist.fileNum());
+        final var query = createGetFileContentQuery(fileIdNotExist);
         when(context.query()).thenReturn(query);
         when(context.configuration()).thenReturn(DEFAULT_CONFIG);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
@@ -232,9 +230,28 @@ class FileGetContentsHandlerTest extends FileTestBase {
                 .build();
     }
 
-    private Query createGetFileContentQuery(final long fileId) {
+    private Query createGetFileContentQuery(final FileID fileId) {
+        return createGetFileContentQuery(fileId.fileNum());
+    }
+
+    private Query createGetFileContentQuery(long fileNum) {
+        final var fileId = FileID.newBuilder().fileNum(fileNum).build();
         final var data = FileGetContentsQuery.newBuilder()
-                .fileID(FileID.newBuilder().fileNum(fileId).build())
+                .fileID(fileId)
+                .header(QueryHeader.newBuilder().payment(Transaction.DEFAULT).build())
+                .build();
+
+        return Query.newBuilder().fileGetContents(data).build();
+    }
+
+    private Query createGetFileContentQueryFromEntityId(long fileNum) {
+
+        final FileID fileID = new FakeEntityIdFactoryImpl(
+                        Long.parseLong(config.getValue("hedera.shard")),
+                        Long.parseLong(config.getValue("hedera.realm")))
+                .newFileId(fileNum);
+        final var data = FileGetContentsQuery.newBuilder()
+                .fileID(fileID)
                 .header(QueryHeader.newBuilder().payment(Transaction.DEFAULT).build())
                 .build();
 

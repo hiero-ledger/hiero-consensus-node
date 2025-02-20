@@ -25,7 +25,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -35,7 +34,6 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
-import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
@@ -47,7 +45,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,9 +65,6 @@ class AtomicBatchHandlerTest {
     @Mock
     private FeeCharging feeCharging;
 
-    @Mock
-    private Function<Transaction, TransactionBody> bodyParser;
-
     private AtomicBatchHandler subject;
 
     private final Timestamp consensusTimestamp =
@@ -90,20 +84,17 @@ class AtomicBatchHandlerTest {
         given(handleContext.configuration()).willReturn(config);
         given(appContext.feeChargingSupplier()).willReturn(() -> feeCharging);
 
-        subject = new AtomicBatchHandler(appContext, bodyParser);
+        subject = new AtomicBatchHandler(appContext);
     }
 
     @Test
     void innerTransactionDispatchFailed() {
-        final var transaction = mock(Transaction.class);
+        final var innerTxnBody = newTxnBodyBuilder(payerId1, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT);
+        final var transaction = Transaction.newBuilder().body(innerTxnBody).build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
-        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
-                .consensusCreateTopic(
-                        ConsensusCreateTopicTransactionBody.newBuilder().build())
-                .build();
         given(handleContext.body()).willReturn(txnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
-        given(bodyParser.apply(any())).willReturn(innerTxnBody);
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(UNKNOWN);
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -112,38 +103,30 @@ class AtomicBatchHandlerTest {
 
     @Test
     void handleDispatched() {
-        final var transaction = mock(Transaction.class);
-        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
-                .consensusCreateTopic(
-                        ConsensusCreateTopicTransactionBody.newBuilder().build())
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
                 .build();
+        final var innerTxn = Transaction.newBuilder().body(innerTxnBody).build();
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, innerTxn);
         given(handleContext.body()).willReturn(txnBody);
         given(handleContext.dispatch(argThat(options -> options.payerId().equals(payerId2)
                         && options.body().equals(innerTxnBody)
                         && options.streamBuilderType().equals(ReplayableFeeStreamBuilder.class))))
                 .willReturn(recordBuilder);
-        given(bodyParser.apply(any())).willReturn(innerTxnBody);
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);
     }
 
     @Test
     void handleMultipleDispatched() {
-        final var batchKey = SIMPLE_KEY_A;
-        final var transaction1 = mock(Transaction.class);
-        final var transaction2 = mock(Transaction.class);
-        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2);
-        final var innerTxnBody1 = newTxnBodyBuilder(payerId2, consensusTimestamp, batchKey)
-                .consensusCreateTopic(
-                        ConsensusCreateTopicTransactionBody.newBuilder().build())
-                .build();
-        final var innerTxnBody2 = newTxnBodyBuilder(payerId3, consensusTimestamp, batchKey)
-                .consensusDeleteTopic(
-                        ConsensusDeleteTopicTransactionBody.newBuilder().build())
-                .build();
+        final var innerTxnBody1 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT);
+        final var innerTxn1 = Transaction.newBuilder().body(innerTxnBody1).build();
+        final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT);
+        final var innerTxn2 = Transaction.newBuilder().body(innerTxnBody2).build();
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, innerTxn1, innerTxn2);
         given(handleContext.body()).willReturn(txnBody);
-        given(bodyParser.apply(any())).willReturn(innerTxnBody1).willReturn(innerTxnBody2);
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);
