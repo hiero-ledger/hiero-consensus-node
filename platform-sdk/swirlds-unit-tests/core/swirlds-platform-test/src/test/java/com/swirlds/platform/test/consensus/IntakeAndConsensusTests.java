@@ -67,10 +67,11 @@ class IntakeAndConsensusTests {
 
         // the generated events are first fed into consensus so that round created is calculated before we start
         // using them
-        final List<StandardEventSource> eventSources =
-                Stream.generate(StandardEventSource::new).limit(numNodes).toList();
+        final List<EventSource> eventSources =
+                Stream.generate(StandardEventSource::new)
+                        .map(ses->(EventSource)ses).limit(numNodes).toList();
         final StandardGraphGenerator generator =
-                new StandardGraphGenerator(platformContext, seed, (List<EventSource<?>>) (List<?>) eventSources);
+                new StandardGraphGenerator(platformContext, seed, eventSources);
         final TestIntake node1 = new TestIntake(platformContext, generator.getAddressBook());
         final TestIntake node2 = new TestIntake(platformContext, generator.getAddressBook());
 
