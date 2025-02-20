@@ -263,6 +263,7 @@ public enum TransactionExecutors {
                 .appContext(appContext)
                 .configProviderImpl(configProvider)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
+                .hintsService(hintsService)
                 .fileServiceImpl(fileService)
                 .scheduleService(scheduleService)
                 .contractServiceImpl(contractService)

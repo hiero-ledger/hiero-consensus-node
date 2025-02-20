@@ -36,11 +36,6 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
-        delegate.initSigningForNextScheme(hintsStore);
-    }
-
-    @Override
     public boolean isReady() {
         return delegate.isReady();
     }
@@ -48,6 +43,16 @@ public class FakeHintsService implements HintsService {
     @Override
     public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
         return delegate.signFuture(blockHash);
+    }
+
+    @Override
+    public HintsHandlers handlers() {
+        return delegate.handlers();
+    }
+
+    @Override
+    public void stop() {
+        delegate.stop();
     }
 
     @Override
@@ -60,13 +65,8 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void stop() {
-        delegate.stop();
-    }
-
-    @Override
-    public HintsHandlers handlers() {
-        return delegate.handlers();
+    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
+        delegate.initSigningForNextScheme(hintsStore);
     }
 
     @Override

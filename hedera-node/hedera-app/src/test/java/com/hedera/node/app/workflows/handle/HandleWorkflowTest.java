@@ -62,6 +62,12 @@ class HandleWorkflowTest {
     private static final Timestamp BLOCK_TIME = new Timestamp(1_234_567L, 890);
 
     @Mock
+    private HintsService hintsService;
+
+    @Mock
+    private HistoryService historyService;
+
+    @Mock
     private NetworkInfo networkInfo;
 
     @Mock
@@ -129,12 +135,6 @@ class HandleWorkflowTest {
 
     @Mock
     private UserTxnFactory userTxnFactory;
-
-    @Mock
-    private HintsService hintsService;
-
-    @Mock
-    private HistoryService historyService;
 
     @Mock
     private CongestionMetrics congestionMetrics;

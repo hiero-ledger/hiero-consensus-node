@@ -100,6 +100,7 @@ class ActiveRostersTest {
         assertThrows(IllegalStateException.class, activeRosters::targetRosterHash);
         assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
         assertThrows(IllegalStateException.class, activeRosters::transitionWeights);
+        assertThrows(IllegalStateException.class, activeRosters::removedNodeIds);
     }
 
     @Test

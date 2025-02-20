@@ -37,7 +37,7 @@ public class HintsControllers {
     private final HintsSubmissions submissions;
     private final HintsContext context;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
-    private Supplier<Configuration> configurationSupplier;
+    private final Supplier<Configuration> configurationSupplier;
 
     /**
      * May be null if the node has just started, or if the network has completed the most up-to-date
