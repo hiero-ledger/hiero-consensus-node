@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.hapi.utils {
     exports com.hedera.node.app.hapi.utils.fee;
     exports com.hedera.node.app.hapi.utils.forensics;
@@ -37,5 +38,5 @@ module com.hedera.node.app.hapi.utils {
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }
