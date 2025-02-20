@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import com.swirlds.config.api.spi.ConfigurationBuilderFactory;
 
 module com.swirlds.config.api {
