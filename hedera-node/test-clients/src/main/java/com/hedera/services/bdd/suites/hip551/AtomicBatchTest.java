@@ -371,6 +371,7 @@ public class AtomicBatchTest {
         final var innerTnxPayer = "innerPayer";
         final var innerTxnId = "innerId";
         final var innerTxn = cryptoCreate("foo")
+                .withProtoStructure(TxnProtoStructure.NORMALIZED)
                 .balance(ONE_HBAR)
                 .txnId(innerTxnId)
                 .batchKey(batchOperator)
@@ -381,9 +382,10 @@ public class AtomicBatchTest {
                 cryptoCreate(innerTnxPayer).balance(ONE_HBAR),
                 usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
                 atomicBatch(innerTxn).batchKey(batchOperator).hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                newKeyNamed("newKey"),
                 cryptoCreate("anotherTest")
                         .balance(ONE_HBAR)
-                        .batchKey(batchOperator)
+                        .batchKey("newKey")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION));
     }

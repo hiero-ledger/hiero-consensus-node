@@ -181,7 +181,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final Bytes applicationTxBytes,
             @Nullable PreHandleResult previousResult,
             @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
-            boolean isInnerTransaction) {
+            @NonNull final InnerTransaction innerTransaction) {
         // 0. Ignore the previous result if it was computed using different node configuration
         if (!wasComputedWithCurrentNodeConfiguration(previousResult)) {
             previousResult = null;
@@ -209,7 +209,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             transactionChecker.checkParsed(txInfo);
 
             // Check batch key on non-inner transactions,
-            if (!isInnerTransaction && txInfo.txBody().hasBatchKey()) {
+            if (innerTransaction == InnerTransaction.NO && txInfo.txBody().hasBatchKey()) {
                 return preHandleFailure(
                         creator,
                         null,
