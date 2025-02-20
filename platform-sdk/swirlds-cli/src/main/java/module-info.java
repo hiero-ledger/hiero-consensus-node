@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.swirlds.cli {
     exports com.swirlds.cli;
     exports com.swirlds.cli.commands;
