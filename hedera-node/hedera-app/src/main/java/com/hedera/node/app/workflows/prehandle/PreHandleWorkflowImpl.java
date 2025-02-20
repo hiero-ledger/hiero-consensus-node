@@ -191,19 +191,6 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             // But we still re-check for node diligence failures
             transactionChecker.checkParsed(txInfo);
 
-            // Check batch key on non-inner transactions,
-            if (innerTransaction == InnerTransaction.NO && txInfo.txBody().hasBatchKey()) {
-                return preHandleFailure(
-                        creator,
-                        null,
-                        BATCH_KEY_SET_ON_NON_INNER_TRANSACTION,
-                        txInfo,
-                        Set.of(),
-                        Set.of(),
-                        Set.of(),
-                        Map.of());
-            }
-
             // The transaction account ID MUST have matched the creator!
             if (innerTransaction == InnerTransaction.NO
                     && !creator.equals(txInfo.txBody().nodeAccountID())) {
@@ -259,7 +246,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         }
 
         // 3. Expand and verify signatures
-        return expandAndVerifySignatures(txInfo, payer, payerAccount, storeFactory, previousResult);
+        return expandAndVerifySignatures(txInfo, payer, payerAccount, storeFactory, previousResult, innerTransaction);
     }
 
     /**
@@ -277,7 +264,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             final AccountID payer,
             final Account payerAccount,
             final ReadableStoreFactory storeFactory,
-            @Nullable final PreHandleResult previousResult) {
+            @Nullable final PreHandleResult previousResult,
+            @NonNull final InnerTransaction innerTransaction) {
         // 1a. Create the PreHandleContext. This will get reused across several calls to the transaction handlers
         final PreHandleContext context;
         final VersionedConfiguration configuration = configProvider.getConfiguration();
@@ -313,6 +301,10 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
         // 2b. Call Pre-Transaction Handlers
         try {
+            // Check batch key on non-inner transactions,
+            if (innerTransaction == InnerTransaction.NO && txInfo.txBody().hasBatchKey()) {
+                throw new PreCheckException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+            }
             // First, perform semantic checks on the transaction
             final var pureChecksContext =
                     new PureChecksContextImpl(txBody, configuration, dispatcher, transactionChecker);

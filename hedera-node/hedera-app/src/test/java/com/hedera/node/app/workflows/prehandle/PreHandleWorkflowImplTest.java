@@ -578,8 +578,6 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
 
             final PreHandleResult result = platformTx.getMetadata();
             assertThat(result.responseCode()).isEqualTo(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
-            assertThat(result.payer()).isEqualTo(NODE_1.nodeAccountID());
-            verifyNoInteractions(deduplicationCache);
         }
     }
 

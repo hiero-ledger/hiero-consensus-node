@@ -434,8 +434,11 @@ public class AtomicBatchTest {
                 cryptoCreate(innerTnxPayer).balance(FIVE_HBARS),
                 cryptoCreate(basicPayer).balance(FIVE_HBARS),
                 usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
-                //
-                // atomicBatch(innerTxn).batchKey(batchPayer).payingWith(batchPayer).via("batchTxn").hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                atomicBatch(innerTxn)
+                        .batchKey(batchPayer)
+                        .payingWith(batchPayer)
+                        .via("batchTxn")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
                 newKeyNamed("newKey"),
                 cryptoCreate("foo2")
                         .balance(ONE_HBAR)
@@ -444,11 +447,10 @@ public class AtomicBatchTest {
                         .payingWith(basicPayer)
                         .via("basicTxn")
                         .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
-                //                getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
+                getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
                 getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
-                //                validateChargedUsd("batchTxn", 0.000),
-                //                validateChargedUsd("innerTxn", 0.000),
-                validateChargedUsd("basicTxn", 0.000));
+                validateChargedUsd("batchTxn", 0.001),
+                validateChargedUsd("basicTxn", 0.05, 10));
     }
 
     @Nested
