@@ -21,7 +21,7 @@ import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
@@ -212,7 +212,7 @@ public class SignedState implements SignedStateInfo {
                 platformContext.getMetrics(),
                 platformContext.getMerkleCryptography(),
                 () -> {
-                    final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
+                    final ConsensusSnapshotWrapper consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
                     return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
                 });
     }

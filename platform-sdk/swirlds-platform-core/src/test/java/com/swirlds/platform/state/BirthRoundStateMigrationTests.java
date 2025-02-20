@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
@@ -64,7 +64,7 @@ class BirthRoundStateMigrationTests {
             generation += random.nextLong(1, 100);
         }
 
-        final ConsensusSnapshot snapshot = new ConsensusSnapshot(
+        final ConsensusSnapshotWrapper snapshot = new ConsensusSnapshotWrapper(
                 round, judgeHashes, minimumJudgeInfoList, nextConsensusNumber, consensusTimestamp);
 
         return new RandomSignedStateGenerator(random)

@@ -1,31 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
+import static java.util.stream.Collectors.toList;
+
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import com.swirlds.platform.state.service.PbjConverter;
 
 /**
  * A snapshot of consensus at a particular round. This is all the information (except events) consensus needs to
  * continue from a particular point. Apart from this record, consensus needs all non-ancient events to continue.
  */
-public class ConsensusSnapshot {
+public class ConsensusSnapshotWrapper {
     private long round;
     private List<Hash> judgeHashes;
     private List<MinimumJudgeInfo> minimumJudgeInfoList;
     private long nextConsensusNumber;
     private Instant consensusTimestamp;
 
-    public ConsensusSnapshot() {}
+    private final ConsensusSnapshot snapshot;
+
+    public ConsensusSnapshotWrapper() {}
 
     /**
      * @param round                the latest round for which fame has been decided
@@ -34,7 +37,7 @@ public class ConsensusSnapshot {
      * @param nextConsensusNumber  the consensus order of the next event that will reach consensus
      * @param consensusTimestamp   the consensus time of this snapshot
      */
-    public ConsensusSnapshot(
+    public ConsensusSnapshotWrapper(
             final long round,
             @NonNull final List<Hash> judgeHashes,
             @NonNull final List<MinimumJudgeInfo> minimumJudgeInfoList,
@@ -45,13 +48,26 @@ public class ConsensusSnapshot {
         this.minimumJudgeInfoList = Objects.requireNonNull(minimumJudgeInfoList);
         this.nextConsensusNumber = nextConsensusNumber;
         this.consensusTimestamp = Objects.requireNonNull(consensusTimestamp);
+
+        this.snapshot = new ConsensusSnapshot(
+                round,
+                judgeHashes.stream().map(Hash::getBytes).collect(toList()),
+                minimumJudgeInfoList.stream()
+                        .map(PbjConverter::toPbjMinimumJudgeInfo)
+                        .collect(toList()),
+                nextConsensusNumber,
+                toPbjTimestamp(consensusTimestamp));
+    }
+
+    public ConsensusSnapshot getSnapshot() {
+        return snapshot;
     }
 
     /**
      * @return the round number of this snapshot
      */
     public long round() {
-        return round;
+        return snapshot.round();
     }
 
     /**
@@ -72,7 +88,7 @@ public class ConsensusSnapshot {
      * @return the consensus order of the next event that will reach consensus
      */
     public long nextConsensusNumber() {
-        return nextConsensusNumber;
+        return snapshot.nextConsensusNumber();
     }
 
     /**
@@ -130,7 +146,7 @@ public class ConsensusSnapshot {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        final ConsensusSnapshot snapshot = (ConsensusSnapshot) o;
+        final ConsensusSnapshotWrapper snapshot = (ConsensusSnapshotWrapper) o;
         return round == snapshot.round
                 && nextConsensusNumber == snapshot.nextConsensusNumber
                 && judgeHashes.equals(snapshot.judgeHashes)

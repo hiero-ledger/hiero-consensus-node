@@ -8,7 +8,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
@@ -24,7 +24,7 @@ class ConsensusRoundTests {
     @Test
     void testConstructor() {
         final Randotron r = Randotron.create();
-        final ConsensusSnapshot snapshot = mock(ConsensusSnapshot.class);
+        final ConsensusSnapshotWrapper snapshot = mock(ConsensusSnapshotWrapper.class);
 
         when(snapshot.round()).thenReturn(1L);
 
@@ -68,7 +68,7 @@ class ConsensusRoundTests {
                 events,
                 mock(PlatformEvent.class),
                 mock(EventWindow.class),
-                mock(ConsensusSnapshot.class),
+                mock(ConsensusSnapshotWrapper.class),
                 false,
                 Instant.now());
 

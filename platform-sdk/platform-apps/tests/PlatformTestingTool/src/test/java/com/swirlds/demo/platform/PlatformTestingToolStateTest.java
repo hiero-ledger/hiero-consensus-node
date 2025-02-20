@@ -37,7 +37,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeysAndCerts;
@@ -208,7 +208,7 @@ class PlatformTestingToolStateTest {
                 List.of(platformEvent),
                 platformEvent,
                 eventWindow,
-                new ConsensusSnapshot(),
+                new ConsensusSnapshotWrapper(),
                 false,
                 Instant.now());
 
@@ -309,7 +309,7 @@ class PlatformTestingToolStateTest {
                 List.of(platformEvent),
                 platformEvent,
                 eventWindow,
-                new ConsensusSnapshot(),
+                new ConsensusSnapshotWrapper(),
                 false,
                 Instant.now());
     }

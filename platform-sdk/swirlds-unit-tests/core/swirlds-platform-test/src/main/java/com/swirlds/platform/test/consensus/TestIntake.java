@@ -16,7 +16,7 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.AncientMode;
@@ -136,7 +136,7 @@ public class TestIntake {
         return output.getConsensusRounds().getLast();
     }
 
-    public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
+    public void loadSnapshot(@NonNull final ConsensusSnapshotWrapper snapshot) {
         final EventWindow eventWindow = new EventWindow(
                 snapshot.round(),
                 snapshot.getAncientThreshold(roundsNonAncient),

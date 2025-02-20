@@ -18,7 +18,7 @@ public final class SyntheticSnapshot {
     private SyntheticSnapshot() {}
 
     /**
-     * Generate a {@link ConsensusSnapshot} based on the supplied data. This snapshot is not the result of consensus
+     * Generate a {@link ConsensusSnapshotWrapper} based on the supplied data. This snapshot is not the result of consensus
      * but is instead generated to be used as a starting point for consensus. The snapshot will contain a single
      * judge whose generation will be almost ancient. All events older than the judge will be considered ancient.
      * The judge is the only event needed to continue consensus operations. Once the judge is added to
@@ -33,7 +33,7 @@ public final class SyntheticSnapshot {
      * @param judge the judge event
      * @return the synthetic snapshot
      */
-    public static @NonNull ConsensusSnapshot generateSyntheticSnapshot(
+    public static @NonNull ConsensusSnapshotWrapper generateSyntheticSnapshot(
             final long round,
             final long lastConsensusOrder,
             @NonNull final Instant roundTimestamp,
@@ -44,7 +44,7 @@ public final class SyntheticSnapshot {
                         RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)
                 .mapToObj(r -> new MinimumJudgeInfo(r, judge.getAncientIndicator(ancientMode)))
                 .toList();
-        return new ConsensusSnapshot(
+        return new ConsensusSnapshotWrapper(
                 round,
                 List.of(judge.getHash()),
                 minimumJudgeInfos,

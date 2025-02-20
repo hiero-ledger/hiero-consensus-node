@@ -10,7 +10,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateAccessor;
@@ -199,22 +199,12 @@ public final class PbjConverter {
 
     @Nullable
     public static com.hedera.hapi.platform.state.ConsensusSnapshot toPbjConsensusSnapshot(
-            @Nullable final ConsensusSnapshot consensusSnapshot) {
-        if (consensusSnapshot == null) {
-            return null;
-        }
-        return new com.hedera.hapi.platform.state.ConsensusSnapshot(
-                consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes().stream().map(Hash::getBytes).collect(toList()),
-                consensusSnapshot.getMinimumJudgeInfoList().stream()
-                        .map(PbjConverter::toPbjMinimumJudgeInfo)
-                        .collect(toList()),
-                consensusSnapshot.nextConsensusNumber(),
-                toPbjTimestamp(consensusSnapshot.consensusTimestamp()));
+            @Nullable final ConsensusSnapshotWrapper consensusSnapshot) {
+        return consensusSnapshot == null ? null : consensusSnapshot.getSnapshot();
     }
 
     @Nullable
-    public static ConsensusSnapshot fromPbjConsensusSnapshot(
+    public static ConsensusSnapshotWrapper fromPbjConsensusSnapshot(
             @Nullable final com.hedera.hapi.platform.state.ConsensusSnapshot consensusSnapshot) {
         if (consensusSnapshot == null) {
             return null;
@@ -222,7 +212,7 @@ public final class PbjConverter {
         Instant consensusTimestamp = fromPbjTimestamp(consensusSnapshot.consensusTimestamp());
         requireNonNull(consensusTimestamp);
 
-        return new ConsensusSnapshot(
+        return new ConsensusSnapshotWrapper(
                 consensusSnapshot.round(),
                 consensusSnapshot.judgeHashes().stream().map(Hash::new).collect(toList()),
                 consensusSnapshot.minimumJudgeInfoList().stream()
@@ -307,7 +297,7 @@ public final class PbjConverter {
     }
 
     @NonNull
-    private static com.hedera.hapi.platform.state.MinimumJudgeInfo toPbjMinimumJudgeInfo(
+    public static com.hedera.hapi.platform.state.MinimumJudgeInfo toPbjMinimumJudgeInfo(
             @NonNull final MinimumJudgeInfo v) {
         return new com.hedera.hapi.platform.state.MinimumJudgeInfo(v.round(), v.minimumJudgeAncientThreshold());
     }

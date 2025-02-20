@@ -13,6 +13,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.Round;
@@ -183,7 +184,7 @@ public class PlatformStateFacade {
      * @return the consensus snapshot, or null if the state is a genesis state
      */
     @Nullable
-    public com.swirlds.platform.consensus.ConsensusSnapshot consensusSnapshotOf(@NonNull final State root) {
+    public ConsensusSnapshotWrapper consensusSnapshotOf(@NonNull final State root) {
         return readablePlatformStateStore(root).getSnapshot();
     }
 
@@ -299,7 +300,7 @@ public class PlatformStateFacade {
      * @param snapshot the consensus snapshot for this round
      */
     public void setSnapshotTo(
-            @NonNull final State state, @NonNull com.swirlds.platform.consensus.ConsensusSnapshot snapshot) {
+            @NonNull final State state, @NonNull ConsensusSnapshotWrapper snapshot) {
         getWritablePlatformStateOf(state).setSnapshot(snapshot);
     }
 

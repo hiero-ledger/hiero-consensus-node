@@ -20,7 +20,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.internal.CryptoUtils;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.swirlds.platform.state.MinimumJudgeInfo;
@@ -79,7 +79,7 @@ class PbjConverterTest {
 
     @Test
     void testToPbjConsensusSnapshot() {
-        final ConsensusSnapshot snapshot = randomSnapshot(randotron);
+        final ConsensusSnapshotWrapper snapshot = randomSnapshot(randotron);
         final com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot =
                 PbjConverter.toPbjConsensusSnapshot(snapshot);
         assertSnapshot(snapshot, pbjSnapshot);
@@ -134,7 +134,7 @@ class PbjConverterTest {
     @Test
     void testFromPbjConsensusSnapshot() {
         final com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot = randomPbjSnapshot();
-        final ConsensusSnapshot snapshot = PbjConverter.fromPbjConsensusSnapshot(pbjSnapshot);
+        final ConsensusSnapshotWrapper snapshot = PbjConverter.fromPbjConsensusSnapshot(pbjSnapshot);
         assertSnapshot(snapshot, pbjSnapshot);
     }
 
@@ -520,7 +520,7 @@ class PbjConverterTest {
     }
 
     private void assertSnapshot(
-            ConsensusSnapshot snapshot, com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot) {
+            ConsensusSnapshotWrapper snapshot, com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot) {
         assertEquals(snapshot.round(), pbjSnapshot.round());
         assertEquals(snapshot.judgeHashes().size(), pbjSnapshot.judgeHashes().size());
         assertEquals(
@@ -546,8 +546,8 @@ class PbjConverterTest {
         }
     }
 
-    private static ConsensusSnapshot randomSnapshot(Randotron randotron) {
-        return new ConsensusSnapshot(
+    private static ConsensusSnapshotWrapper randomSnapshot(Randotron randotron) {
+        return new ConsensusSnapshotWrapper(
                 nextInt(),
                 asList(randomHash(), randomHash()),
                 asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())),

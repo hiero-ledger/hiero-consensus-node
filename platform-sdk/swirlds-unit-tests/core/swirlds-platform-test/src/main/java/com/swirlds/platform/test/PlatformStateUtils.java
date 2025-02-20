@@ -5,7 +5,7 @@ import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -45,7 +45,7 @@ public final class PlatformStateUtils {
         }
         platformStateFacade.setSnapshotTo(
                 state,
-                new ConsensusSnapshot(
+                new ConsensusSnapshotWrapper(
                         random.nextLong(),
                         List.of(randomHash(random), randomHash(random), randomHash(random)),
                         minimumJudgeInfo,

@@ -19,7 +19,7 @@ import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.consensus.ConsensusRounds;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
@@ -238,7 +238,7 @@ public class ConsensusImpl implements Consensus {
      * once all the required events are provided.
      */
     @Override
-    public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
+    public void loadSnapshot(@NonNull final ConsensusSnapshotWrapper snapshot) {
         reset();
         initJudges = new InitJudges(snapshot.round(), new HashSet<>(snapshot.judgeHashes()));
         rounds.loadFromMinimumJudge(snapshot.getMinimumJudgeInfoList());
@@ -738,7 +738,7 @@ public class ConsensusImpl implements Consensus {
                 consensusEvents,
                 recentEvents.getLast().getBaseEvent(),
                 new EventWindow(decidedRoundNumber, nonAncientThreshold, nonExpiredThreshold, ancientMode),
-                new ConsensusSnapshot(
+                new ConsensusSnapshotWrapper(
                         decidedRoundNumber,
                         ConsensusUtils.getHashes(judges),
                         rounds.getMinimumJudgeInfoList(),

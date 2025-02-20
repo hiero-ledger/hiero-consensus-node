@@ -2,7 +2,7 @@
 package com.swirlds.platform.state;
 
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -68,7 +68,7 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
     /**
      * @param snapshot the consensus snapshot for this round
      */
-    void setSnapshot(@NonNull ConsensusSnapshot snapshot);
+    void setSnapshot(@NonNull ConsensusSnapshotWrapper snapshot);
 
     /**
      * Sets the instant after which the platform will enter FREEZING status. When consensus timestamp of a signed state

@@ -4,7 +4,7 @@ package com.swirlds.platform.publisher;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
@@ -22,7 +22,7 @@ public class DefaultPlatformPublisher implements PlatformPublisher {
     private final Consumer<PlatformEvent> preconsensusEventConsumer;
     private boolean preconsensusEventConsumerErrorLogged = false;
 
-    private final Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
+    private final Consumer<ConsensusSnapshotWrapper> snapshotOverrideConsumer;
     private boolean snapshotOverrideConsumerErrorLogged = false;
 
     private final Consumer<PlatformEvent> staleEventConsumer;
@@ -59,7 +59,7 @@ public class DefaultPlatformPublisher implements PlatformPublisher {
      * {@inheritDoc}
      */
     @Override
-    public void publishSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
+    public void publishSnapshotOverride(@NonNull final ConsensusSnapshotWrapper snapshot) {
         if (snapshotOverrideConsumer == null) {
             if (!snapshotOverrideConsumerErrorLogged) {
                 // One log is sufficient to alert test validators, no need generate spam beyond the first log.
