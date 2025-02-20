@@ -27,7 +27,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
+import static com.hedera.node.app.service.util.impl.handlers.HandlerUtility.functionalityForType;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -46,6 +48,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -135,8 +138,12 @@ public class AtomicBatchHandler implements TransactionHandler {
         requireNonNull(context);
         final var atomicBatchTransactionBody = context.body().atomicBatchOrThrow();
         final List<Transaction> transactions = atomicBatchTransactionBody.transactions();
+        final var config = context.configuration();
+        final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
 
         for (final var txBody : getTransactionBodies(transactions)) {
+            validateFalsePreCheck(
+                    isNotAllowedFunction(txBody, atomicBatchConfig), BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
             context.requireKeyOrThrow(txBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
@@ -189,6 +196,16 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
     }
 
+    private boolean isNotAllowedFunction(
+            @NonNull final TransactionBody transactionBody, @NonNull final AtomicBatchConfig config) {
+        final var hederaFunctionality =
+                functionalityForType(transactionBody.data().kind());
+        System.out.println(transactionBody.data().kind());
+        System.out.println(hederaFunctionality);
+
+        return config.blacklist().functionalitySet().contains(hederaFunctionality);
+    }
+
     private @NonNull List<TransactionBody> getTransactionBodies(@NonNull List<Transaction> transactions)
             throws PreCheckException {
         try {
@@ -213,15 +230,15 @@ public class AtomicBatchHandler implements TransactionHandler {
      */
     static class RecordedFeeCharging implements FeeCharging {
         /**
-         * Represents a charge that can be replayed on a {@link FeeCharging.Context}.
+         * Represents a charge that can be replayed on a {@link Context}.
          */
         public record Charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable AccountID nodeAccountId) {
             /**
-             * Replays the charge on the given {@link FeeCharging.Context}.
+             * Replays the charge on the given {@link Context}.
              * @param ctx the context to replay the charge on
              * @param cb the callback to be used in the replay
              */
-            public void replay(@NonNull final FeeCharging.Context ctx, @NonNull ObjLongConsumer<AccountID> cb) {
+            public void replay(@NonNull final Context ctx, @NonNull ObjLongConsumer<AccountID> cb) {
                 if (nodeAccountId == null) {
                     ctx.charge(payerId, fees, cb);
                 } else {
@@ -277,7 +294,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                 @NonNull final TransactionBody body,
                 final boolean isDuplicate,
                 @NonNull final HederaFunctionality function,
-                @NonNull final HandleContext.TransactionCategory category) {
+                @NonNull final TransactionCategory category) {
             return delegate.validate(payer, creatorId, fees, body, isDuplicate, function, category);
         }
 
@@ -319,7 +336,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             }
 
             @Override
-            public HandleContext.TransactionCategory category() {
+            public TransactionCategory category() {
                 return delegate.category();
             }
         }

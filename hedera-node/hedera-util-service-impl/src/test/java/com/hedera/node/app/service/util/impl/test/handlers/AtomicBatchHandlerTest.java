@@ -241,6 +241,46 @@ class AtomicBatchHandlerTest {
     }
 
     @Test
+    void preHandleFailFreezeTransaction() {
+        final var batchKey = SIMPLE_KEY_A;
+        final var transaction1 = mock(Transaction.class);
+        final var transaction2 = mock(Transaction.class);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2);
+        final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp, batchKey)
+                .freeze(FreezeTransactionBody.newBuilder().build())
+                .build();
+        final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, batchKey)
+                .consensusDeleteTopic(
+                        ConsensusDeleteTopicTransactionBody.newBuilder().build())
+                .build();
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
+        given(bodyParser.apply(transaction2)).willReturn(innerTxnBody2);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
+    }
+
+    @Test
+    void preHandleFailAtomicBatchTransaction() {
+        final var batchKey = SIMPLE_KEY_A;
+        final var transaction1 = mock(Transaction.class);
+        final var transaction2 = mock(Transaction.class);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2);
+        final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp, batchKey)
+                .atomicBatch(AtomicBatchTransactionBody.newBuilder().build())
+                .build();
+        final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, batchKey)
+                .consensusDeleteTopic(
+                        ConsensusDeleteTopicTransactionBody.newBuilder().build())
+                .build();
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
+        given(bodyParser.apply(transaction2)).willReturn(innerTxnBody2);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
+    }
+
+    @Test
     void preHandleValidScenario() {
         final var batchKey = SIMPLE_KEY_A;
         final var transaction1 = mock(Transaction.class);
