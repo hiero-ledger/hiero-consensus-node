@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractRequired;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -99,7 +101,7 @@ public class CustomCallOperation extends CallOperation {
     }
 
     private boolean impliesLazyCreation(@NonNull final MessageFrame frame, @NonNull final Address toAddress) {
-        return !isLongZero(toAddress)
+        return !isLongZero(shardOf(frame), realmOf(frame), toAddress)
                 && value(frame).greaterThan(Wei.ZERO)
                 && !addressChecks.isPresent(toAddress, frame);
     }

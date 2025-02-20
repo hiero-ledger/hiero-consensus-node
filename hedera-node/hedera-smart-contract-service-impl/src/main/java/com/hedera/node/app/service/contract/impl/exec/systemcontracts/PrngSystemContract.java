@@ -63,8 +63,9 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     // random256BitGenerator(uint256)
     static final int PSEUDORANDOM_SEED_GENERATOR_SELECTOR = 0xd83bf9a1;
     public static final String PRNG_PRECOMPILE_ADDRESS = "0x169";
+    // The system contract ID always uses shard 0 and realm 0
     public static final ContractID PRNG_CONTRACT_ID =
-            asNumberedContractId(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS));
+            asNumberedContractId(0, 0, Address.fromHexString(PRNG_PRECOMPILE_ADDRESS));
     private long gasRequirement;
 
     @Inject

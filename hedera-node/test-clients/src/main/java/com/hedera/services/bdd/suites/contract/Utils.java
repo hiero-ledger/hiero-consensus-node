@@ -17,6 +17,7 @@
 package com.hedera.services.bdd.suites.contract;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
@@ -39,6 +40,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -488,5 +490,23 @@ public class Utils {
     @NonNull
     public static String defaultContractsRoot(@NonNull final String variant) {
         return variant.isEmpty() ? DEFAULT_CONTRACTS_ROOT : DEFAULT_CONTRACTS_ROOT + "_" + requireNonNull(variant);
+    }
+
+    /**
+     * Converts a long-zero address to a {@link ScheduleID} with id number instead of alias.
+     *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
+     * @param address the EVM address
+     * @return the {@link ScheduleID}
+     */
+    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
+            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        if (!isLongZero(shard, realm, address)) {
+            throw new IllegalArgumentException("Cannot extract id number from address " + address);
+        }
+        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
+                .setScheduleNum(address.value().longValueExact())
+                .build();
     }
 }

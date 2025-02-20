@@ -48,8 +48,10 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
     public static final int TO_TINYCENTS_SELECTOR = 0x43a88229;
 
     public static final String EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS = "0x168";
+
+    // The system contract ID always uses shard 0 and realm 0
     public static final ContractID EXCHANGE_RATE_CONTRACT_ID =
-            asNumberedContractId(Address.fromHexString(EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS));
+            asNumberedContractId(0, 0, Address.fromHexString(EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS));
 
     private long gasRequirement;
 

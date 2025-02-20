@@ -170,7 +170,9 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                         .build();
             } else {
                 if (!contractMustBePresent) {
-                    return isLongZero(address) ? asNumberedContractId(address) : asEvmContractId(address);
+                    return isLongZero(shard(), realm(), address)
+                            ? asNumberedContractId(shard(), realm(), address)
+                            : asEvmContractId(address);
                 }
                 throw new IllegalArgumentException("No contract pending or extant at " + address);
             }
@@ -350,11 +352,16 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             enhancement
                     .operations()
                     .createContract(
-                            number, requireNonNull(pendingCreation.body()), pendingCreation.aliasIfApplicable());
+                            number,
+                            requireNonNull(pendingCreation.body()),
+                            pendingCreation.aliasIfApplicable(shard(), realm()));
         } else {
             enhancement
                     .operations()
-                    .createContract(number, pendingCreation.parentNumber(), pendingCreation.aliasIfApplicable());
+                    .createContract(
+                            number,
+                            pendingCreation.parentNumber(),
+                            pendingCreation.aliasIfApplicable(shard(), realm()));
         }
         return evmFrameState.getMutableAccount(pendingCreation.address());
     }
@@ -364,7 +371,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     @Override
     public void deleteAccount(@NonNull final Address address) {
-        if (isLongZero(address)) {
+        if (isLongZero(shard(), realm(), address)) {
             enhancement.operations().deleteUnaliasedContract(numberOfLongZero(address));
         } else {
             enhancement.operations().deleteAliasedContract(aliasFrom(address));

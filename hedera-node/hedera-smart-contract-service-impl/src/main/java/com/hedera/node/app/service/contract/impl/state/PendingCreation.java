@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ public record PendingCreation(
     }
 
     @Nullable
-    public Bytes aliasIfApplicable() {
-        return isLongZero(address) ? null : aliasFrom(address);
+    public Bytes aliasIfApplicable(final long shard, final long realm) {
+        return isLongZero(shard, realm, address) ? null : aliasFrom(address);
     }
 }

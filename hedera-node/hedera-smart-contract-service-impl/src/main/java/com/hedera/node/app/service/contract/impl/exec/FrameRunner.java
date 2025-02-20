@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -55,13 +56,15 @@ import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 @Singleton
 public class FrameRunner {
     private final CustomGasCalculator gasCalculator;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * @param gasCalculator the gas calculator to be used
      */
     @Inject
-    public FrameRunner(@NonNull final CustomGasCalculator gasCalculator) {
+    public FrameRunner(@NonNull final CustomGasCalculator gasCalculator, @NonNull final EntityIdFactory entityIdFactory) {
         this.gasCalculator = gasCalculator;
+        this.entityIdFactory = entityIdFactory;
     }
 
     /**
@@ -124,8 +127,9 @@ public class FrameRunner {
 
     private RecipientMetadata computeRecipientMetadata(
             @NonNull final MessageFrame frame, @NonNull final Address address) {
-        if (isLongZero(address)) {
-            return new RecipientMetadata(false, asNumberedContractId(address));
+        if (isLongZero(entityIdFactory.getShard(), entityIdFactory.getRealm(), address)) {
+            return new RecipientMetadata(
+                    false, asNumberedContractId(entityIdFactory.getShard(), entityIdFactory.getRealm(), address));
         } else {
             final var updater = proxyUpdaterFor(frame);
             return new RecipientMetadata(updater.getPendingCreation() != null, updater.getHederaContractId(address));

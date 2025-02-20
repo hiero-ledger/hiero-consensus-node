@@ -32,6 +32,7 @@ import com.hedera.node.app.service.contract.impl.schemas.V0500ContractSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -94,7 +95,8 @@ public class ContractServiceImpl implements ContractService {
                         addOnTracers,
                         contractMetrics,
                         systemContractMethodRegistry,
-                        customOps);
+                        customOps,
+                        appContext.idFactory());
     }
 
     @Override

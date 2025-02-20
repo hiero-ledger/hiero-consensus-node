@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import javax.inject.Inject;
@@ -40,14 +41,18 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class QueryHederaNativeOperations implements HederaNativeOperations {
     private final QueryContext context;
 
+    //private final EntityIdFactory entityIdFactory;
+
     @Override
     public boolean checkForCustomFees(@NonNull final CryptoTransferTransactionBody op) {
         throw new UnsupportedOperationException("Cannot dispatch child transfers in query context");
     }
 
     @Inject
-    public QueryHederaNativeOperations(@NonNull final QueryContext context) {
+    public QueryHederaNativeOperations(
+            @NonNull final QueryContext context) {
         this.context = Objects.requireNonNull(context);
+        //this.entityIdFactory = Objects.requireNonNull(entityIdFactory);
     }
 
     /**
@@ -163,5 +168,15 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public TransactionID getTransactionID() {
         throw new UnsupportedOperationException("Cannot get top level transaction ID in query context");
+    }
+
+    @Override
+    public long shard() {
+        return 0;
+    }
+
+    @Override
+    public long realm() {
+        return 0;
     }
 }

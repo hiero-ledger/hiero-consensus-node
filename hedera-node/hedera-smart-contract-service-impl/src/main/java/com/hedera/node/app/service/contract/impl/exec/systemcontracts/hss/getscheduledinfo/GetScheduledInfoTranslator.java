@@ -83,7 +83,10 @@ public class GetScheduledInfoTranslator extends AbstractCallTranslator<HssCallAt
                 attempt.systemContractGasCalculator(),
                 attempt.enhancement(),
                 attempt.configuration(),
-                addressToScheduleID(scheduleAddress));
+                addressToScheduleID(
+                        attempt.nativeOperations().shard(),
+                        attempt.nativeOperations().realm(),
+                        scheduleAddress));
     }
 
     private Call getNonFungibleTokenCreateCall(@NonNull final HssCallAttempt attempt) {
@@ -93,6 +96,9 @@ public class GetScheduledInfoTranslator extends AbstractCallTranslator<HssCallAt
                 attempt.systemContractGasCalculator(),
                 attempt.enhancement(),
                 attempt.configuration(),
-                addressToScheduleID(scheduleAddress));
+                addressToScheduleID(
+                        attempt.nativeOperations().shard(),
+                        attempt.nativeOperations().realm(),
+                        scheduleAddress));
     }
 }

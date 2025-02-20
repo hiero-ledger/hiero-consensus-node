@@ -21,6 +21,8 @@ import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeO
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.swirlds.common.utility.CommonUtils.unhex;
@@ -363,8 +365,8 @@ public class ConversionUtils {
      * @param address the address to get the id number of
      * @return the id number of the given address's Hedera id
      */
-    public static long hederaIdNumberIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
-        return isLongZero(address)
+    private static long hederaIdNumberIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
+        return isLongZero(shardOf(frame), realmOf(frame), address)
                 ? numberOfLongZero(address)
                 : proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow();
     }
@@ -432,23 +434,50 @@ public class ConversionUtils {
     }
 
     /**
-     * Given an EVM address, returns whether it is long-zero.
+     * Given an Besu EVM address, returns whether it is long-zero.
      *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
      * @param address the EVM address (as a BESU {@link org.hyperledger.besu.datatypes.Address})
      * @return whether it is long-zero
      */
-    public static boolean isLongZero(@NonNull final Address address) {
-        return isLongZeroAddress(address.toArrayUnsafe());
+    public static boolean isLongZero(final long shard, final long realm, @NonNull final Address address) {
+        return isLongZeroAddress(shard, realm, address.toArrayUnsafe());
     }
 
     /**
-     * Given an EVM address, returns whether it is long-zero.
+     * Given an headlong EVM address, returns whether it is long-zero.
      *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
      * @param address the EVM address (as a headlong {@link com.esaulpaugh.headlong.abi.Address})
      * @return whether it is long-zero
      */
-    public static boolean isLongZero(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        return isLongZeroAddress(explicitFromHeadlong(address));
+    public static boolean isLongZero(
+            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        return isLongZeroAddress(shard, realm, explicitFromHeadlong(address));
+    }
+
+    /**
+     * Given an explicit 20-byte array, returns whether it is a long-zero address.
+     * True if the first 4 bytes matches the shard and if the next 8 bytes match the realm.
+     *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
+     * @param explicit the explicit 20-byte array
+     * @return whether it is a long-zero address
+     */
+    public static boolean isLongZeroAddress(final long shard, final long realm, final byte[] explicit) {
+        // check if first bytes are matching the shard and the realm
+        final byte[] shardAndRealm = new byte[12];
+        arraycopy(Ints.toByteArray((int) shard), 0, shardAndRealm, 0, 4);
+        arraycopy(Longs.toByteArray(realm), 0, shardAndRealm, 4, 8);
+        for (int i = 0; i < NUM_LONG_ZEROS; i++) {
+            if (explicit[i] != shardAndRealm[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -505,11 +534,13 @@ public class ConversionUtils {
     /**
      * Converts a long-zero address to a PBJ {@link AccountID} with id number instead of alias.
      *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
      * @param address the EVM address
      * @return the PBJ {@link AccountID}
      */
-    public static AccountID asNumberedAccountId(@NonNull final Address address) {
-        if (!isLongZero(address)) {
+    public static AccountID asNumberedAccountId(final long shard, final long realm, @NonNull final Address address) {
+        if (!isLongZero(shard, realm, address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
         return AccountID.newBuilder().accountNum(numberOfLongZero(address)).build();
@@ -518,31 +549,34 @@ public class ConversionUtils {
     /**
      * Converts a long-zero address to a PBJ {@link ContractID} with id number instead of alias.
      *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
      * @param address the EVM address
      * @return the PBJ {@link ContractID}
      */
-    public static ContractID asNumberedContractId(@NonNull final Address address) {
-        if (!isLongZero(address)) {
+    public static ContractID asNumberedContractId(final long shard, final long realm, @NonNull final Address address) {
+        if (!isLongZero(shard, realm, address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
         return ContractID.newBuilder().contractNum(numberOfLongZero(address)).build();
     }
 
-    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
-            @NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        if (!isLongZero(address)) {
-            throw new IllegalArgumentException("Cannot extract id number from address " + address);
-        }
-        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
-                .setScheduleNum(address.value().longValueExact())
-                .build();
-    }
-
-    public static ScheduleID addressToScheduleID(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        if (!isLongZero(address)) {
+    /**
+     * Converts a headlong address to a PBJ {@link ScheduleID}.
+     *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
+     * @param address the schedule address
+     * @return the PBJ {@link ScheduleID}
+     */
+    public static ScheduleID addressToScheduleID(
+            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        if (!isLongZero(shard, realm, address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
         return ScheduleID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
                 .scheduleNum(address.value().longValueExact())
                 .build();
     }
@@ -685,21 +719,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Given an explicit 20-byte array, returns whether it is a long-zero address.
-     *
-     * @param explicit the explicit 20-byte array
-     * @return whether it is a long-zero address
-     */
-    public static boolean isLongZeroAddress(final byte[] explicit) {
-        for (int i = 0; i < NUM_LONG_ZEROS; i++) {
-            if (explicit[i] != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * Given a headlong address, returns its explicit 20-byte array.
      *
      * @param address the headlong address
@@ -754,7 +773,7 @@ public class ConversionUtils {
     }
 
     private static Address longZeroAddressIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
-        return isLongZero(address)
+        return isLongZero(shardOf(frame), realmOf(frame), address)
                 ? address
                 : asLongZeroAddress(
                         proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
@@ -762,7 +781,7 @@ public class ConversionUtils {
 
     private static long maybeMissingNumberOf(
             @NonNull final byte[] explicit, @NonNull final HederaNativeOperations nativeOperations) {
-        if (isLongZeroAddress(explicit)) {
+        if (isLongZeroAddress(nativeOperations.shard(), nativeOperations.realm(), explicit)) {
             return longFrom(
                     explicit[12],
                     explicit[13],

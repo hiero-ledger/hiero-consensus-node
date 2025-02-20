@@ -54,6 +54,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.InstantSource;
 import java.util.function.Function;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -113,6 +114,9 @@ class ContractCallLocalHandlerTest {
     @Mock
     private GasCalculator gasCalculator;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private final ContractID invalidContract =
             ContractID.newBuilder().evmAddress(Bytes.fromHex("abcdabcd")).build();
 
@@ -122,7 +126,7 @@ class ContractCallLocalHandlerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ContractCallLocalHandler(() -> factory, gasCalculator, instantSource);
+        subject = new ContractCallLocalHandler(() -> factory, gasCalculator, instantSource, entityIdFactory);
     }
 
     @Test
@@ -258,7 +262,7 @@ class ContractCallLocalHandlerTest {
 
     @Test
     void findResponsePositiveTest() {
-        given(factory.create(any(), any(), eq(HederaFunctionality.CONTRACT_CALL_LOCAL)))
+        given(factory.create(any(), any(), eq(HederaFunctionality.CONTRACT_CALL_LOCAL), any()))
                 .willReturn(component);
         given(component.contextQueryProcessor()).willReturn(processor);
         final var expectedResult = SUCCESS_RESULT.asQueryResult();

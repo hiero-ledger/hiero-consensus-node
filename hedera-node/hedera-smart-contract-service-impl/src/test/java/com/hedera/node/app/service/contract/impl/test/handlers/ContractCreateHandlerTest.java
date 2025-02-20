@@ -55,6 +55,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.List;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,6 +103,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private ContractsConfig contractsConfig;
+
+    @Mock
+    private EntityIdFactory entityIdFactory;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 

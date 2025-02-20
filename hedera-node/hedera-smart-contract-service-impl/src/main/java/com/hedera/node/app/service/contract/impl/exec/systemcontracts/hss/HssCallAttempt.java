@@ -16,7 +16,7 @@
 
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss;
 
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
@@ -155,19 +155,11 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
      */
     public @Nullable Schedule linkedSchedule(@NonNull final Address scheduleAddress) {
         requireNonNull(scheduleAddress);
-        return linkedSchedule(scheduleAddress.toArray());
-    }
-
-    /**
-     * Returns the {@link Schedule} at the given EVM address, if it exists.
-     *
-     * @param evmAddress the headlong address of the schedule to look up. This should be encoded as a long zero
-     * @return the schedule that is the target of this redirect, or null if it didn't exist
-     */
-    public @Nullable Schedule linkedSchedule(@NonNull final byte[] evmAddress) {
-        requireNonNull(evmAddress);
-        if (isLongZeroAddress(evmAddress)) {
-            return enhancement.nativeOperations().getSchedule(numberOfLongZero(evmAddress));
+        if (isLongZero(
+                enhancement.nativeOperations().shard(),
+                enhancement.nativeOperations().realm(),
+                scheduleAddress)) {
+            return enhancement.nativeOperations().getSchedule(numberOfLongZero(scheduleAddress.toArray()));
         }
         return null;
     }

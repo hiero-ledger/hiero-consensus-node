@@ -40,10 +40,11 @@ public class HtsSystemContract extends AbstractNativeSystemContract implements H
     public static final String HTS_SYSTEM_CONTRACT_NAME = "HTS";
     public static final String HTS_167_EVM_ADDRESS = "0x167";
     public static final String HTS_16C_EVM_ADDRESS = "0x16C";
+    // The system contract ID always uses shard 0 and realm 0
     public static final ContractID HTS_167_CONTRACT_ID =
-            asNumberedContractId(Address.fromHexString(HTS_167_EVM_ADDRESS));
+            asNumberedContractId(0, 0, Address.fromHexString(HTS_167_EVM_ADDRESS));
     public static final ContractID HTS_16C_CONTRACT_ID =
-            asNumberedContractId(Address.fromHexString(HTS_16C_EVM_ADDRESS));
+            asNumberedContractId(0, 0, Address.fromHexString(HTS_16C_EVM_ADDRESS));
 
     @Inject
     public HtsSystemContract(

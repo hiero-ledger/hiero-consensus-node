@@ -318,9 +318,10 @@ public class FrameUtils {
         requireNonNull(featureFlags);
 
         Long maybeGrandfatheredNumber = null;
-        if (isLongZero(address)) {
+        if (isLongZero(shardOf(frame), realmOf(frame), address)) {
             try {
-                maybeGrandfatheredNumber = asNumberedContractId(address).contractNum();
+                maybeGrandfatheredNumber = asNumberedContractId(shardOf(frame), realmOf(frame), address)
+                        .contractNum();
             } catch (final ArithmeticException ignore) {
                 // Not a valid numbered contract id
             }
@@ -367,7 +368,7 @@ public class FrameUtils {
     }
 
     private static boolean isQualifiedDelegate(@NonNull final Address recipient, @NonNull final MessageFrame frame) {
-        return isLongZero(recipient)
+        return isLongZero(shardOf(frame), realmOf(frame), recipient)
                 && contractsConfigOf(frame).permittedDelegateCallers().contains(numberOfLongZero(recipient));
     }
 
@@ -378,5 +379,25 @@ public class FrameUtils {
                 .filter(precompileAddress::equals)
                 .findAny()
                 .isEmpty();
+    }
+
+    /**
+     * Returns the shard number of the Hedera network
+     *
+     * @param frame the frame whose sender's shard number is desired
+     * @return the shard number of the Hedera network
+     */
+    public static long shardOf(@NonNull final MessageFrame frame) {
+        return proxyUpdaterFor(frame).shard();
+    }
+
+    /**
+     * Returns the realm number of the Hedera network
+     *
+     * @param frame the frame whose sender's realm number is desired
+     * @return the realm number of the Hedera network
+     */
+    public static long realmOf(@NonNull final MessageFrame frame) {
+        return proxyUpdaterFor(frame).realm();
     }
 }

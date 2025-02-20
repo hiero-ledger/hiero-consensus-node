@@ -89,4 +89,15 @@ public class FakeEntityIdFactoryImpl implements EntityIdFactory {
                 .contractNum(number)
                 .build();
     }
+
+
+    @Override
+    public long getShard() {
+        return shard;
+    }
+
+    @Override
+    public long getRealm() {
+        return realm;
+    }
 }

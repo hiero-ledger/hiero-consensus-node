@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -290,4 +290,22 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * This is to improve Ethereum equivalence.
      */
     void setContractNotRequired();
+
+    /**
+     * Returns the shard number of the Hedera network
+     *
+     * @return the shard number
+     */
+    default long shard() {
+        return enhancement().nativeOperations().shard();
+    }
+
+    /**
+     * Returns the realm number of the Hedera network
+     *
+     * @return the realm number
+     */
+    default long realm() {
+        return enhancement().nativeOperations().realm();
+    }
 }

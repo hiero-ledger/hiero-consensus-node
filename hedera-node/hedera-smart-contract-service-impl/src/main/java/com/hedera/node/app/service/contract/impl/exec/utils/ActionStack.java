@@ -23,6 +23,8 @@ import static com.hedera.hapi.streams.ContractActionType.CREATE;
 import static com.hedera.hapi.streams.codec.ContractActionProtoCodec.RECIPIENT_UNSET;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfContractIn;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfOriginatorIn;
@@ -155,7 +157,7 @@ public class ActionStack {
             @NonNull final ContractActionType type,
             @NonNull final Validation validation) {
         internalFinalize(validation, frame, action -> action.copyBuilder()
-                .recipientContract(asNumberedContractId(frame.getContractAddress()))
+                .recipientContract(asNumberedContractId(shardOf(frame), realmOf(frame), frame.getContractAddress()))
                 .callType(type)
                 .build());
     }

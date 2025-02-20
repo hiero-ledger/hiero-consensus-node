@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -95,7 +96,7 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateFT", autoRenew, treasury)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = ConversionUtils.asScheduleId(scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateFT", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateFT");
         }));
@@ -112,7 +113,7 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateFTWithDesignatedPayer", autoRenew, treasury, designatedPayer)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = ConversionUtils.asScheduleId(scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateFTDesignatedPayer", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateFTDesignatedPayer");
         }));
@@ -129,7 +130,7 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateNFT", autoRenew, treasury)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = ConversionUtils.asScheduleId(scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateNFT", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateNFT");
         }));
@@ -146,7 +147,7 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateNFTWithDesignatedPayer", autoRenew, treasury, designatedPayer)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = ConversionUtils.asScheduleId(scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateNFTDesignatedPayer", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateNFTDesignatedPayer");
         }));
@@ -171,7 +172,7 @@ public class ScheduleCreateTokenTest {
                                     "")
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = ConversionUtils.asScheduleId(scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledUpdateToken", scheduleID);
             assertScheduleAndSign(spec, "scheduledUpdateToken");
         }));
@@ -199,7 +200,7 @@ public class ScheduleCreateTokenTest {
                                     designatedPayer)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = ConversionUtils.asScheduleId(scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledUpdateToken", scheduleID);
             assertScheduleAndSign(spec, "scheduledUpdateToken");
         }));

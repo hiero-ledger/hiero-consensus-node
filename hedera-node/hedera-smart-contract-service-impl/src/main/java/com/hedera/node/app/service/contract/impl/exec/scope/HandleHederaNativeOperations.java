@@ -42,6 +42,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.SortedSet;
@@ -58,10 +59,16 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Nullable
     private final Key maybeEthSenderKey;
 
+    private final EntityIdFactory entityIdFactory;
+
     @Inject
-    public HandleHederaNativeOperations(@NonNull final HandleContext context, @Nullable final Key maybeEthSenderKey) {
+    public HandleHederaNativeOperations(
+            @NonNull final HandleContext context,
+            @Nullable final Key maybeEthSenderKey,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.context = requireNonNull(context);
         this.maybeEthSenderKey = maybeEthSenderKey;
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     /**
@@ -198,5 +205,15 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public TransactionID getTransactionID() {
         return context.body().transactionIDOrThrow();
+    }
+
+    @Override
+    public long shard() {
+        return entityIdFactory.getShard();
+    }
+
+    @Override
+    public long realm() {
+        return entityIdFactory.getRealm();
     }
 }
