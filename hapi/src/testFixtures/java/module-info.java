@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.hapi.test.fixtures {
     exports com.hedera.node.hapi.fixtures;
 

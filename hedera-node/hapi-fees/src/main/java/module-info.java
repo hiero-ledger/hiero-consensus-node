@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.hapi.fees {
     exports com.hedera.node.app.hapi.fees.pricing;
     exports com.hedera.node.app.hapi.fees.usage.crypto;
