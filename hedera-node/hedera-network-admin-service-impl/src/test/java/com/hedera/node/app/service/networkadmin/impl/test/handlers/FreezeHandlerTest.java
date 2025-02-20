@@ -45,6 +45,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -87,6 +88,9 @@ class FreezeHandlerTest {
     @Mock
     private ReadableStakingInfoStore stakingInfoStore;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private final FileID fileUpgradeFileId = FileID.newBuilder().fileNum(150L).build();
     private final FileID anotherFileUpgradeFileId =
             FileID.newBuilder().fileNum(157).build();
@@ -98,11 +102,18 @@ class FreezeHandlerTest {
             .build();
     private final AccountID nonAdminAccount =
             AccountID.newBuilder().accountNum(9999L).build();
-    private final FreezeHandler subject = new FreezeHandler(new ForkJoinPool(
-            1, ForkJoinPool.defaultForkJoinWorkerThreadFactory, Thread.getDefaultUncaughtExceptionHandler(), true));
+    private FreezeHandler subject;
 
     @BeforeEach
     void setUp() {
+        subject = new FreezeHandler(
+                new ForkJoinPool(
+                        1,
+                        ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+                        Thread.getDefaultUncaughtExceptionHandler(),
+                        true),
+                entityIdFactory);
+
         Configuration config = HederaTestConfigBuilder.createConfig();
         given(preHandleContext.configuration()).willReturn(config);
 

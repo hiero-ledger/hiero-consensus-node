@@ -37,6 +37,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
@@ -69,6 +70,9 @@ public class EndOfStakingPeriodUpdaterTest {
     @Mock
     private NodeStakeUpdateStreamBuilder nodeStakeUpdateRecordBuilder;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private ReadableAccountStore accountStore;
 
     @LoggingSubject
@@ -86,7 +90,7 @@ public class EndOfStakingPeriodUpdaterTest {
                 .tinybarBalance(100_000_000_000L)
                 .build());
         subject = new EndOfStakingPeriodUpdater(
-                new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER), DEFAULT_CONFIG_PROVIDER);
+                new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER), DEFAULT_CONFIG_PROVIDER, entityIdFactory);
     }
 
     @Test
