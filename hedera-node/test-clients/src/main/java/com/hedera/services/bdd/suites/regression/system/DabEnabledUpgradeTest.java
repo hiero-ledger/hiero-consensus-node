@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
@@ -63,6 +48,7 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -105,6 +91,9 @@ import org.junit.jupiter.api.TestMethodOrder;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class DabEnabledUpgradeTest implements LifecycleTest {
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
+
     // To test BirthRoundStateMigration, use,
     //    Map.of("event.useBirthRoundAncientThreshold", "true")
     private static final Map<String, String> ENV_OVERRIDES = Map.of();
@@ -300,6 +289,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     private static String classicFeeCollectorIdLiteralFor(final long nodeId) {
-        return "0.0." + (nodeId + 3L);
+        return String.format("%s.%s.%d", SHARD, REALM, (nodeId + 3L));
     }
 }

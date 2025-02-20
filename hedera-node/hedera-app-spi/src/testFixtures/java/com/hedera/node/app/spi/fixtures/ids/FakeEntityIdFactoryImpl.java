@@ -17,19 +17,23 @@
 package com.hedera.node.app.spi.fixtures.ids;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Fixed shard/realm implementation of {@link EntityIdFactory}.
  */
-public class EntityIdFactoryImpl implements EntityIdFactory {
+public class FakeEntityIdFactoryImpl implements EntityIdFactory {
     private final long shard;
     private final long realm;
 
-    public EntityIdFactoryImpl(final long shard, final long realm) {
+    public FakeEntityIdFactoryImpl(final long shard, final long realm) {
         this.shard = shard;
         this.realm = realm;
     }
@@ -55,6 +59,34 @@ public class EntityIdFactoryImpl implements EntityIdFactory {
                 .shardNum(shard)
                 .realmNum(realm)
                 .accountNum(number)
+                .build();
+    }
+
+    @Override
+    public AccountID newAccountIdWithAlias(@NonNull Bytes alias) {
+        return AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .alias(alias)
+                .build();
+    }
+
+    @Override
+    public AccountID newDefaultAccountId() {
+        return AccountID.newBuilder().shardNum(shard).realmNum(realm).build();
+    }
+
+    @Override
+    public FileID newFileId(long number) {
+        return new FileID(shard, realm, number);
+    }
+
+    @Override
+    public ContractID newContractId(long number) {
+        return ContractID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .contractNum(number)
                 .build();
     }
 }

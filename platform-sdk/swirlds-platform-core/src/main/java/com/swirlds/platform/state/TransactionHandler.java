@@ -1,34 +1,16 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.metrics.StateMetrics;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.apache.logging.log4j.LogManager;
@@ -59,23 +41,10 @@ public class TransactionHandler {
      * 		the stateLifecycles to apply {@code round} to
      * @param stateRoot the state root to apply {@code round} to
      */
-    public <T extends PlatformMerkleStateRoot> Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleRound(
-            final ConsensusRound round, final StateLifecycles<T> stateLifecycles, final T stateRoot) {
+    public <T extends MerkleNodeState> Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleRound(
+            final ConsensusRound round, final StateLifecycles<MerkleNodeState> stateLifecycles, final T stateRoot) {
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();
-
-        final List<PlatformEvent> events = round.getConsensusEvents();
-        for (final PlatformEvent event : events) {
-            for (final EventTransaction eventTransaction :
-                    event.getGossipEvent().eventTransaction()) {
-                if (eventTransaction.hasStateSignatureTransaction()) {
-                    scopedSystemTransactions.add(new ScopedSystemTransaction<>(
-                            event.getCreatorId(),
-                            event.getSoftwareVersion(),
-                            eventTransaction.stateSignatureTransaction()));
-                }
-            }
-        }
 
         try {
             final Instant timeOfHandle = Instant.now();

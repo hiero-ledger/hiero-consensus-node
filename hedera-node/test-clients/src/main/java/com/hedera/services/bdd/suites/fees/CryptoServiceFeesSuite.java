@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -63,6 +49,7 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -116,7 +103,8 @@ public class CryptoServiceFeesSuite {
     final Stream<DynamicTest> cryptoDeleteBaseUSDFee() {
         final var cryptoCreate = "cryptoCreate";
         final var cryptoDelete = "cryptoDelete";
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(cryptoCreate).balance(5 * ONE_HUNDRED_HBARS).key(CIVILIAN),
                 cryptoDelete(cryptoCreate)
                         .via(cryptoDelete)
@@ -484,7 +472,8 @@ public class CryptoServiceFeesSuite {
     final Stream<DynamicTest> cryptoCryptoGetAccountRecordsBaseUSDFee() {
         final var nonTreasurySender = "nonTreasurySender";
 
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(nonTreasurySender).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("GetAccountRecordsTest").key(nonTreasurySender).payingWith(nonTreasurySender),
                 getAccountRecords("GetAccountRecordsTest")
@@ -510,7 +499,8 @@ public class CryptoServiceFeesSuite {
     @HapiTest
     @DisplayName("CryptoGetAccountInfo query has expected base fee")
     final Stream<DynamicTest> cryptoGetAccountInfoBaseUSDFee() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 getAccountInfo(CIVILIAN).via("basicGetInfo").payingWith(FEES_ACCOUNT),
                 sleepFor(1000),
                 validateChargedUsd("basicGetInfo", BASE_FEE_CRYPTO_GET_ACCOUNT_INFO));

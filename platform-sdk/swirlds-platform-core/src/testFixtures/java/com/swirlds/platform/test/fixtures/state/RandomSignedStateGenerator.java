@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -40,8 +25,8 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -75,7 +60,7 @@ public class RandomSignedStateGenerator {
 
     final Random random;
 
-    private PlatformMerkleStateRoot state;
+    private MerkleNodeState state;
     private Long round;
     private Hash legacyRunningEventHash;
     private Roster roster;
@@ -146,7 +131,7 @@ public class RandomSignedStateGenerator {
             softwareVersionInstance = softwareVersion;
         }
 
-        final PlatformMerkleStateRoot stateInstance;
+        final MerkleNodeState stateInstance;
         registerMerkleStateRootClassIds();
         final long roundInstance;
         if (round == null) {
@@ -160,9 +145,13 @@ public class RandomSignedStateGenerator {
             if (useBlockingState) {
                 stateInstance = new BlockingState(platformStateFacade);
             } else {
-                stateInstance = new PlatformMerkleStateRoot(version -> new BasicSoftwareVersion(version.major()));
+                stateInstance = new TestMerkleStateRoot();
             }
-            stateInstance.init(Time.getCurrent(), new NoOpMetrics(), MerkleCryptoFactory.getInstance());
+            stateInstance.init(
+                    Time.getCurrent(),
+                    new NoOpMetrics(),
+                    MerkleCryptoFactory.getInstance(),
+                    () -> platformStateFacade.roundOf(stateInstance));
         } else {
             stateInstance = state;
         }
@@ -240,7 +229,7 @@ public class RandomSignedStateGenerator {
                 pcesRound,
                 platformStateFacade);
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.cast());
+        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance);
         if (stateHash != null) {
             stateInstance.setHash(stateHash);
         }
@@ -310,7 +299,7 @@ public class RandomSignedStateGenerator {
      *
      * @return this object
      */
-    public RandomSignedStateGenerator setState(final PlatformMerkleStateRoot state) {
+    public RandomSignedStateGenerator setState(final MerkleNodeState state) {
         this.state = state;
         return this;
     }

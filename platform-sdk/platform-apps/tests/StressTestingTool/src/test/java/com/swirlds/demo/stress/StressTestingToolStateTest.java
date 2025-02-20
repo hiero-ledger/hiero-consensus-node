@@ -1,23 +1,6 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stress;
 
-import static com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType.APPLICATION_TRANSACTION;
-import static com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType.STATE_SIGNATURE_TRANSACTION;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -25,10 +8,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
@@ -60,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -82,7 +62,7 @@ class StressTestingToolStateTest {
 
     @BeforeEach
     void setUp() throws NoSuchAlgorithmException, KeyStoreException, KeyGeneratingException, NoSuchProviderException {
-        state = new StressTestingToolState(mock(Function.class));
+        state = new StressTestingToolState();
         stateLifecycles = new StressTestingToolStateLifecycles();
         main = new StressTestingToolMain();
         platformStateModifier = mock(PlatformStateModifier.class);
@@ -185,21 +165,6 @@ class StressTestingToolStateTest {
         assertThat(consumedSystemTransactions.size()).isEqualTo(3);
     }
 
-    @Test
-    void handleConsensusRoundWithDeprecatedSystemTransaction() {
-        // Given
-        givenRoundAndEvent();
-
-        when(transaction.getApplicationTransaction()).thenReturn(Bytes.EMPTY);
-        when(transaction.isSystem()).thenReturn(true);
-
-        // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions.size()).isZero();
-    }
-
     @ParameterizedTest
     @ValueSource(ints = {100, 440, 600})
     void preHandleConsensusRoundWithApplicationTransaction(final Integer transactionSize) {
@@ -208,10 +173,8 @@ class StressTestingToolStateTest {
 
         final var pool = new TransactionPool(1, transactionSize);
 
-        final var eventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, Bytes.wrap(pool.transaction())));
         final var eventCore = mock(EventCore.class);
-        final var gossipEvent = new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
+        final var gossipEvent = new GossipEvent(eventCore, null, List.of(Bytes.wrap(pool.transaction())));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 
@@ -228,10 +191,8 @@ class StressTestingToolStateTest {
         givenRoundAndEvent();
 
         final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        final var eventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
         final var eventCore = mock(EventCore.class);
-        final var gossipEvent = new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
+        final var gossipEvent = new GossipEvent(eventCore, null, List.of(stateSignatureTransactionBytes));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 
@@ -249,18 +210,14 @@ class StressTestingToolStateTest {
 
         final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
 
-        final var eventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
-        final var secondEventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
-        final var thirdEventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
         final var eventCore = mock(EventCore.class);
         final var gossipEvent = new GossipEvent(
                 eventCore,
                 null,
-                List.of(eventTransaction, secondEventTransaction, thirdEventTransaction),
-                Collections.emptyList());
+                List.of(
+                        stateSignatureTransactionBytes,
+                        stateSignatureTransactionBytes,
+                        stateSignatureTransactionBytes));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 
@@ -269,27 +226,6 @@ class StressTestingToolStateTest {
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(3);
-    }
-
-    @Test
-    void preHandleConsensusRoundWithDeprecatedSystemTransaction() {
-        // Given
-        givenRoundAndEvent();
-        when(transaction.isSystem()).thenReturn(true);
-
-        final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        final var eventTransaction =
-                new EventTransaction(new OneOf<>(STATE_SIGNATURE_TRANSACTION, stateSignatureTransactionBytes));
-        final var eventCore = mock(EventCore.class);
-        final var gossipEvent = new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
-        when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
-        event = new PlatformEvent(gossipEvent);
-
-        // When
-        stateLifecycles.onPreHandle(event, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions.size()).isZero();
     }
 
     @Test

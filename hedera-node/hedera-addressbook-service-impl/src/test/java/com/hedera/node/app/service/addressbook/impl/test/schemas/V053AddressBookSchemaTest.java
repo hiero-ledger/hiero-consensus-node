@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test.schemas;
 
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.ACCOUNTS_KEY;
@@ -34,6 +19,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase;
@@ -270,6 +256,8 @@ class V053AddressBookSchemaTest extends AddressBookTestBase {
 
     @Test
     void failedNullNetworkinfo() {
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(migrationContext.appConfig()).willReturn(config);
         given(migrationContext.genesisNetworkInfo()).willReturn(null);
         assertThatCode(() -> subject.migrate(migrationContext))
                 .isInstanceOf(IllegalStateException.class)
@@ -310,8 +298,7 @@ class V053AddressBookSchemaTest extends AddressBookTestBase {
     private void setupMigrationContext2() {
         setupMigrationContext();
         accounts.put(
-                AccountID.newBuilder().accountNum(55).build(),
-                Account.newBuilder().key(anotherKey).build());
+                idFactory.newAccountId(55), Account.newBuilder().key(anotherKey).build());
         writableStates = MapWritableStates.builder()
                 .state(writableAccounts)
                 .state(writableNodes)
@@ -332,6 +319,8 @@ class V053AddressBookSchemaTest extends AddressBookTestBase {
                 .withValue("accounts.addressBookAdmin", "55")
                 .getOrCreateConfig();
         given(migrationContext.appConfig()).willReturn(config);
+        final var entityIdFactory = new AppEntityIdFactory(config);
+        given(migrationContext.entityIdFactory()).willReturn(entityIdFactory);
     }
 
     private void setupMigrationContext3() {
@@ -352,7 +341,7 @@ class V053AddressBookSchemaTest extends AddressBookTestBase {
         final Bytes fileContent = NodeAddressBook.PROTOBUF.toBytes(
                 NodeAddressBook.newBuilder().nodeAddress(nodeDetails).build());
         files.put(
-                FileID.newBuilder().fileNum(102).build(),
+                idFactory.newFileId(102),
                 File.newBuilder().contents(fileContent).build());
         writableStates = MapWritableStates.builder()
                 .state(writableAccounts)
@@ -367,13 +356,15 @@ class V053AddressBookSchemaTest extends AddressBookTestBase {
                 .withValue("files.nodeDetails", "102")
                 .getOrCreateConfig();
         given(migrationContext.appConfig()).willReturn(config);
+        final var entityIdFactory = new AppEntityIdFactory(config);
+        given(migrationContext.entityIdFactory()).willReturn(entityIdFactory);
     }
 
     private void setupMigrationContext4() {
         setupMigrationContext2();
 
         files.put(
-                FileID.newBuilder().fileNum(102).build(),
+                idFactory.newFileId(102),
                 File.newBuilder().contents(Bytes.wrap("NotGoodNodeDetailFile")).build());
         writableStates = MapWritableStates.builder()
                 .state(writableAccounts)
@@ -388,6 +379,8 @@ class V053AddressBookSchemaTest extends AddressBookTestBase {
                 .withValue("files.nodeDetails", "102")
                 .getOrCreateConfig();
         given(migrationContext.appConfig()).willReturn(config);
+        final var entityIdFactory = new AppEntityIdFactory(config);
+        given(migrationContext.entityIdFactory()).willReturn(entityIdFactory);
     }
 
     private String nodeAdminKeysJson() {

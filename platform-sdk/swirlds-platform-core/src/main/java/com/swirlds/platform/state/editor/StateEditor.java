@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.editor;
 
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatNodeType;
@@ -25,6 +10,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.interfaces.MerkleTraversable;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.common.merkle.route.MerkleRouteUtils;
@@ -123,7 +109,9 @@ public class StateEditor {
             MerkleNode target = null;
             while (true) {
                 try (final ReservedSignedState reservedSignedState = getState("StateEditor.start()")) {
-                    target = reservedSignedState.get().getState().getNodeAtRoute(currentWorkingRoute);
+                    final MerkleTraversable merkleTraversable =
+                            reservedSignedState.get().getState();
+                    target = merkleTraversable.getNodeAtRoute(currentWorkingRoute);
                     break;
                 } catch (final NoSuchElementException e) {
                     // This is possible of the current location gets deleted
@@ -175,7 +163,9 @@ public class StateEditor {
      */
     public void setCurrentWorkingRoute(final MerkleRoute currentWorkingRoute) {
         try (final ReservedSignedState reservedSignedState = getState("StateEditor.setCurrentWorkingRoute()")) {
-            reservedSignedState.get().getState().getNodeAtRoute(currentWorkingRoute); // throws if invalid
+            final MerkleTraversable merkleTraversable =
+                    reservedSignedState.get().getState();
+            merkleTraversable.getNodeAtRoute(currentWorkingRoute); // throws if invalid
             this.currentWorkingRoute = currentWorkingRoute;
         }
     }
@@ -223,7 +213,9 @@ public class StateEditor {
      */
     public MerkleNode getRelativeNode(final String path) {
         try (final ReservedSignedState reservedSignedState = getState("StateEditor.getRelativeNode()")) {
-            return reservedSignedState.get().getState().getNodeAtRoute(getRelativeRoute(path));
+            final MerkleTraversable merkleTraversable =
+                    reservedSignedState.get().getState();
+            return merkleTraversable.getNodeAtRoute(getRelativeRoute(path));
         }
     }
 
@@ -249,7 +241,9 @@ public class StateEditor {
         final int indexInParent = route.getStep(-1);
 
         try (final ReservedSignedState reservedSignedState = signedState.getAndReserve("StateEditor.getParentInfo()")) {
-            final MerkleNode parent = reservedSignedState.get().getState().getNodeAtRoute(parentPath);
+            final MerkleTraversable merkleTraversable =
+                    reservedSignedState.get().getState();
+            final MerkleNode parent = merkleTraversable.getNodeAtRoute(parentPath);
             if (parent == null) {
                 throw new IllegalArgumentException("The node at " + formatRoute(parentPath) + " is null.");
             }

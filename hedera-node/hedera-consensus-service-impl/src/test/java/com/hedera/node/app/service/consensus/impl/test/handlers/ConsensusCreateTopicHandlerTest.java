@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
@@ -24,6 +9,7 @@ import static com.hedera.node.app.service.consensus.impl.test.handlers.Consensus
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -57,9 +43,8 @@ import com.hedera.node.app.service.consensus.impl.validators.ConsensusCustomFees
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -71,6 +56,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -114,7 +100,7 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
     @Mock
     private WritableEntityCounters entityCounters;
 
-    private final EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    private final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
 
     private WritableTopicStore topicStore;
     private Configuration config;
@@ -531,6 +517,52 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
         assertEquals(1_234_567L + op.autoRenewPeriod().seconds(), actualTopic.expirationSecond());
         assertEquals(op.autoRenewPeriod().seconds(), actualTopic.autoRenewPeriod());
         assertEquals(autoRenewId, actualTopic.autoRenewAccountId());
+        final var topicID = idFactory.newTopicId(1_234L);
+        verify(recordBuilder).topicID(topicID);
+        assertNotNull(topicStore.getTopic(topicID));
+    }
+
+    @Test
+    @DisplayName("Handle works as expected with auto-renew account and without adminKey set")
+    void autoRenewAccountSetWithoutAdminKey() {
+        final var customFees = List.of(FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(1).build())
+                .feeCollectorAccountId(AccountID.DEFAULT)
+                .build());
+        final var feeExemptKeyList = List.of(SIMPLE_KEY_A, SIMPLE_KEY_B);
+        final var txnBody = newCreateTxn(null, null, true, customFees, feeExemptKeyList);
+        given(handleContext.body()).willReturn(txnBody);
+        given(accountStore.getAliasedAccountById(any())).willReturn(Account.DEFAULT);
+
+        // mock validators
+        given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
+        given(handleContext.attributeValidator()).willReturn(validator);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(entityNumGenerator.newEntityNum()).willReturn(1_234L);
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        final var op = txnBody.consensusCreateTopic();
+        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
+                .willReturn(new ExpiryMeta(
+                        1_234_567L + op.autoRenewPeriod().seconds(),
+                        op.autoRenewPeriod().seconds(),
+                        op.autoRenewAccount()));
+
+        subject.handle(handleContext);
+
+        final var createdTopic = topicStore.getTopic(TopicID.newBuilder()
+                .shardNum(SHARD)
+                .realmNum(REALM)
+                .topicNum(1_234L)
+                .build());
+
+        assertNotNull(createdTopic);
+        assertEquals(0L, createdTopic.sequenceNumber());
+        assertEquals(memo, createdTopic.memo());
+        assertFalse(createdTopic.hasAdminKey());
+        assertEquals(1_234_567L + op.autoRenewPeriod().seconds(), createdTopic.expirationSecond());
+        assertEquals(op.autoRenewPeriod().seconds(), createdTopic.autoRenewPeriod());
+        assertEquals(autoRenewId, createdTopic.autoRenewAccountId());
+
         final var topicID = idFactory.newTopicId(1_234L);
         verify(recordBuilder).topicID(topicID);
         assertNotNull(topicStore.getTopic(topicID));

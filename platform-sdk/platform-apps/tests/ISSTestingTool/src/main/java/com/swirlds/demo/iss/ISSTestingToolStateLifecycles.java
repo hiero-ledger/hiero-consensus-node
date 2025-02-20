@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
 import static com.swirlds.common.utility.CompareTo.isGreaterThan;
@@ -111,17 +96,6 @@ public class ISSTestingToolStateLifecycles implements StateLifecycles<ISSTesting
             final var event = eventIterator.next();
             state.captureTimestamp(event);
             event.consensusTransactionIterator().forEachRemaining(transaction -> {
-                // We are not interested in handling any system transactions, as they are specific
-                // for the platform only.We also don't want to consume deprecated
-                // EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in the
-                // callback,since it's intended to be used only for the new form of encoded system
-                // transactions in Bytes.Thus, we can directly skip the current
-                // iteration, if it processes a deprecated system transaction with the
-                // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-                if (transaction.isSystem()) {
-                    return;
-                }
-
                 // We should consume in the callback the new form of system transactions in Bytes
                 if (areTransactionBytesSystemOnes(transaction)) {
                     consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
@@ -325,17 +299,6 @@ public class ISSTestingToolStateLifecycles implements StateLifecycles<ISSTesting
             @NonNull ISSTestingToolState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         event.forEachTransaction(transaction -> {
-            // We are not interested in pre-handling any system transactions, as they are
-            // specific for the platform only.We also don't want to consume deprecated
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in the
-            // callback,since it's intended to be used only for the new form of encoded system
-            // transactions in Bytes.Thus, we can directly skip the current
-            // iteration, if it processes a deprecated system transaction with the
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-            if (transaction.isSystem()) {
-                return;
-            }
-
             // We should consume in the callback the new form of system transactions in Bytes
             if (areTransactionBytesSystemOnes(transaction)) {
                 consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);

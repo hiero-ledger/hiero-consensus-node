@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
@@ -40,6 +25,7 @@ import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,6 +34,9 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
 public class TargetNetworkPrep {
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
+
     @LeakyHapiTest(requirement = {SYSTEM_ACCOUNT_BALANCES})
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithSystemDefaultFiles() {
         final var emptyKey =
@@ -90,7 +79,7 @@ public class TargetNetworkPrep {
                                 .noAlias()
                                 .noAllowances()),
                 withOpContext((spec, opLog) -> {
-                    final var genesisInfo = getAccountInfo("0.0.2");
+                    final var genesisInfo = getAccountInfo(String.format("%s.%s.2", SHARD, REALM));
                     allRunFor(spec, genesisInfo);
                     final var key = genesisInfo
                             .getResponse()
@@ -99,7 +88,7 @@ public class TargetNetworkPrep {
                             .getKey();
                     final var cloneConfirmations = inParallel(IntStream.rangeClosed(200, 750)
                             .filter(i -> i < 350 || i >= 400)
-                            .mapToObj(i -> getAccountInfo("0.0." + i)
+                            .mapToObj(i -> getAccountInfo(String.format("%s.%s.%d", SHARD, REALM, i))
                                     .noLogging()
                                     .payingWith(GENESIS)
                                     .has(AccountInfoAsserts.accountWith().key(key)))

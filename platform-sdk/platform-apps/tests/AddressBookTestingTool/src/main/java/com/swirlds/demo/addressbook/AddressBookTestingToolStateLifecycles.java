@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.addressbook;
 
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
@@ -37,8 +22,8 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -98,6 +83,15 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
     private Platform platform = null;
     private PlatformContext context = null;
 
+    private final PlatformStateFacade platformStateFacade;
+
+    /**
+     * @param platformStateFacade platform state facade
+     */
+    public AddressBookTestingToolStateLifecycles(@NonNull final PlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
+    }
+
     @Override
     public void onStateInitialized(
             @NonNull AddressBookTestingToolState state,
@@ -137,8 +131,6 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
         requireNonNull(round, "the round cannot be null");
         requireNonNull(state, "the state cannot be null");
         state.throwIfImmutable();
-        PlatformStateModifier platformState = state.getWritablePlatformState();
-        requireNonNull(platformState, "the platform state cannot be null");
 
         if (state.getRoundsHandled() == 0 && !freezeAfterGenesis.equals(Duration.ZERO)) {
             // This is the first round after genesis.
@@ -146,24 +138,15 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
                     STARTUP.getMarker(),
                     "Setting freeze time to {} seconds after genesis.",
                     freezeAfterGenesis.getSeconds());
-            platformState.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+            platformStateFacade.bulkUpdateOf(state, v -> {
+                v.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+            });
         }
 
         state.incrementRoundsHandled();
 
         for (final var event : round) {
             event.consensusTransactionIterator().forEachRemaining(transaction -> {
-                // We are not interested in handling any system transactions, as they are
-                // specific for the platform only.We also don't want to consume deprecated
-                // EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in the
-                // callback, since it's intended to be used only for the new form of encoded system
-                // transactions in Bytes. Thus, we can directly skip the current
-                // iteration, if it processes a deprecated system transaction with the
-                // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-                if (transaction.isSystem()) {
-                    return;
-                }
-
                 // We should consume in the callback the new form of system transactions in Bytes
                 if (state.areTransactionBytesSystemOnes(transaction)) {
                     consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
@@ -190,9 +173,6 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
      */
     private void handleTransaction(
             @NonNull final ConsensusTransaction transaction, @NonNull final AddressBookTestingToolState state) {
-        if (transaction.isSystem()) {
-            return;
-        }
         final int delta =
                 ByteUtils.byteArrayToInt(transaction.getApplicationTransaction().toByteArray(), 0);
         state.incrementRunningSum(delta);
@@ -802,17 +782,6 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
             @NonNull AddressBookTestingToolState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         event.transactionIterator().forEachRemaining(transaction -> {
-            // We are not interested in pre-handling any system transactions, as they are
-            // specific for the platform only.We also don't want to consume deprecated
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION system transactions in the
-            // callback,since it's intended to be used only for the new form of encoded system
-            // transactions in Bytes. Thus, we can directly skip the current
-            // iteration, if it processes a deprecated system transaction with the
-            // EventTransaction.STATE_SIGNATURE_TRANSACTION type.
-            if (transaction.isSystem()) {
-                return;
-            }
-
             // We should consume in the callback the new form of system transactions in Bytes
             if (state.areTransactionBytesSystemOnes(transaction)) {
                 consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
