@@ -40,9 +40,11 @@ class SignedStateTests {
     /**
      * Generate a signed state.
      */
-    private SignedState generateSignedState(
-            final Random random, final MerkleNodeState state) {
-        return new RandomSignedStateGenerator(random).setState(state).buildWithFacade().left();
+    private SignedState generateSignedState(final Random random, final MerkleNodeState state) {
+        return new RandomSignedStateGenerator(random)
+                .setState(state)
+                .buildWithFacade()
+                .left();
     }
 
     @BeforeEach
