@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.acco
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -33,8 +34,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -57,12 +61,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
@@ -469,6 +476,111 @@ public class AtomicBatchNegativeTest {
                 final var op = cryptoCreate("foo").batchKey("invalidKey").hasPrecheck(NOT_SUPPORTED);
                 allRunFor(spec, op);
             }));
+        }
+    }
+
+    @Nested
+    @DisplayName("Fees - NEGATIVE")
+    class FeesNegative {
+
+        @HapiTest
+        @DisplayName("Batch containing failing transfer still charges inner txn payer")
+        // BATCH_64
+        public Stream<DynamicTest> failingBatchStillChargesFees() {
+            return hapiTest(
+                    // create accounts and tokens
+                    cryptoCreate("Alice").balance(ONE_HBAR),
+                    cryptoCreate("Bob").balance(ONE_HBAR),
+                    cryptoCreate("receiver"),
+                    cryptoCreate("collector"),
+                    cryptoCreate("treasury"),
+                    tokenCreate("ftC").treasury("treasury"),
+                    tokenCreate("ftB").treasury("treasury"),
+                    tokenAssociate("collector", "ftB"),
+                    tokenCreate("ftA")
+                            .withCustom(fixedHtsFee(1, "ftB", "collector"))
+                            .treasury("treasury"),
+                    tokenAssociate("Bob", "ftA", "ftB", "ftC"),
+                    tokenAssociate("receiver", "ftA", "ftB"),
+                    cryptoTransfer(TokenMovement.moving(1, "ftA").between("treasury", "Bob")),
+                    cryptoTransfer(TokenMovement.moving(1, "ftB").between("treasury", "Bob")),
+                    cryptoTransfer(TokenMovement.moving(1, "ftC").between("treasury", "Bob")),
+                    // batch txn
+                    atomicBatch(
+                                    cryptoTransfer(TokenMovement.moving(1, "ftA")
+                                                    .between("Bob", "receiver"))
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("Alice")
+                                            .payingWith("Bob")
+                                            .signedBy("Bob"),
+                                    // will fail because receiver is not associated with ftC
+                                    cryptoTransfer(TokenMovement.moving(1, "ftC")
+                                                    .between("Bob", "receiver"))
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("Alice")
+                                            .payingWith("Bob")
+                                            .signedBy("Bob"))
+                            .payingWith("Alice")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED)
+                            .via("batchTxn"),
+                    // asserts
+                    getAccountRecords("Bob").exposingTo(records -> assertEquals(2, records.size())),
+                    getAccountRecords("Alice").exposingTo(records -> assertEquals(1, records.size())),
+                    getAccountBalance("collector").hasTokenBalance("ftB", 0),
+                    getAccountBalance("receiver").hasTokenBalance("ftA", 0),
+                    getAccountBalance("receiver").hasTokenBalance("ftC", 0));
+        }
+
+        @HapiTest
+        @DisplayName("Batch containing expired transaction charges on rollback")
+        // BATCH_66
+        public Stream<DynamicTest> failingWithExpiryStillChargesFees() {
+            return hapiTest(
+                    // create accounts and tokens
+                    cryptoCreate("Alice").balance(ONE_HBAR),
+                    // batch txn
+                    atomicBatch(
+                                    tokenCreate("ftA")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("Alice")
+                                            .payingWith("Alice"),
+                                    tokenCreate("ftB")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .withTxnTransform(txn -> TxnUtils.replaceTxnDuration(txn, -1L))
+                                            .batchKey("Alice")
+                                            .payingWith("Alice"))
+                            .payingWith("Alice")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED)
+                            .via("batchTxn"),
+                    // asserts
+                    getAccountRecords("Alice").exposingTo(records -> assertEquals(2, records.size())));
+        }
+
+        @HapiTest
+        @DisplayName("Expired batch does not charge fees")
+        // BATCH_68
+        public Stream<DynamicTest> failingBatchWithExpiryDoesNotChargeFees() {
+            return hapiTest(
+                    // create accounts and tokens
+                    cryptoCreate("Alice").balance(ONE_HBAR),
+                    cryptoCreate("Bob").balance(ONE_HBAR),
+                    // batch txn
+                    atomicBatch(
+                                    tokenCreate("ftA")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("Alice")
+                                            .payingWith("Bob"),
+                                    tokenCreate("ftB")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("Alice")
+                                            .payingWith("Bob"))
+                            .payingWith("Alice")
+                            .withTxnTransform(txn -> TxnUtils.replaceTxnDuration(txn, -1L))
+                            .hasPrecheck(INVALID_TRANSACTION_DURATION)
+                            .via("batchTxn"),
+                    // asserts
+                    getAccountBalance("Alice").hasTinyBars(ONE_HBAR),
+                    getAccountBalance("Bob").hasTinyBars(ONE_HBAR));
         }
     }
 }
