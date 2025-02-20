@@ -18,6 +18,7 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungibleMovement;
@@ -86,6 +87,7 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -775,7 +777,8 @@ public class TokenServiceFeesSuite {
     @DisplayName("FT happy path")
     final Stream<DynamicTest> tokenAssociateDissociateChargedAsExpected() {
         final var account = "account";
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 newKeyNamed(MULTI_KEY),
                 cryptoCreate(account),
                 cryptoCreate(MULTI_KEY).balance(ONE_HUNDRED_HBARS),
@@ -830,9 +833,9 @@ public class TokenServiceFeesSuite {
     @HapiTest
     final Stream<DynamicTest> tokenGetInfoFeeChargedAsExpected() {
         final var expectedTokenGetInfo = 0.0001;
-        final var account = "account";
 
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(FUNGIBLE_FREEZE_KEY),
                 tokenCreate(FUNGIBLE_TOKEN)
@@ -849,7 +852,8 @@ public class TokenServiceFeesSuite {
     final Stream<DynamicTest> tokenGetNftInfoFeeChargedAsExpected() {
         final var expectedTokenGetNftInfo = 0.0001;
 
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(WIPE_KEY),
                 newKeyNamed(METADATA_KEY),
