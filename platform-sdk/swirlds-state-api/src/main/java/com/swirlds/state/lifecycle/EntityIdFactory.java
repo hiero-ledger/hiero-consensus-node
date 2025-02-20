@@ -17,6 +17,7 @@
 package com.swirlds.state.lifecycle;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
@@ -60,8 +61,19 @@ public interface EntityIdFactory {
     AccountID newAccountIdWithAlias(@NonNull Bytes alias);
 
     /**
+     * Returns a default account id with account num UNSET.
+     */
+    AccountID newDefaultAccountId();
+
+    /**
      * Returns a file id for the given number.
      * @param number the number
      */
     FileID newFileId(long number);
+
+    /**
+     * Returns a contract id for the given number.
+     * @param number the number
+     */
+    ContractID newContractId(long number);
 }

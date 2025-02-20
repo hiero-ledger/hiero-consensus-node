@@ -17,8 +17,10 @@
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -73,6 +75,7 @@ import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
@@ -208,8 +211,10 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate("acct3").setNode(asEntityString(3)).via("txnId1"),
                 sleepFor(2000),
                 cryptoCreate("acctWithDuplicateTxnId")
@@ -285,7 +290,8 @@ public class IssueRegressionTests {
 
     @HapiTest
     final Stream<DynamicTest> transferAccountCannotBeDeleted() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(PAYER),
                 cryptoCreate(TRANSFER),
                 cryptoCreate("tbd"),
