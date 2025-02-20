@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
@@ -36,10 +21,12 @@ import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
@@ -105,7 +92,7 @@ public class SignedState implements SignedStateInfo {
     /**
      * The root of the merkle state.
      */
-    private final PlatformMerkleStateRoot state;
+    private final MerkleNodeState state;
 
     /**
      * The timestamp of when this object was created.
@@ -192,17 +179,16 @@ public class SignedState implements SignedStateInfo {
     public SignedState(
             @NonNull final Configuration configuration,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final PlatformMerkleStateRoot state,
+            @NonNull final MerkleNodeState state,
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
             final boolean pcesRound,
             @NonNull final PlatformStateFacade platformStateFacade) {
         this.platformStateFacade = platformStateFacade;
-        state.reserve();
-
         this.signatureVerifier = requireNonNull(signatureVerifier);
         this.state = requireNonNull(state);
+        state.reserve();
 
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         if (stateConfig.stateHistoryEnabled()) {
@@ -221,7 +207,14 @@ public class SignedState implements SignedStateInfo {
     }
 
     public void init(@NonNull PlatformContext platformContext) {
-        state.init(platformContext.getTime(), platformContext.getMetrics(), platformContext.getMerkleCryptography());
+        state.init(
+                platformContext.getTime(),
+                platformContext.getMetrics(),
+                platformContext.getMerkleCryptography(),
+                () -> {
+                    final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
+                    return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+                });
     }
 
     /**
@@ -289,7 +282,7 @@ public class SignedState implements SignedStateInfo {
      *
      * @return the state contained in the signed state
      */
-    public @NonNull PlatformMerkleStateRoot getState() {
+    public @NonNull MerkleNodeState getState() {
         return state;
     }
 

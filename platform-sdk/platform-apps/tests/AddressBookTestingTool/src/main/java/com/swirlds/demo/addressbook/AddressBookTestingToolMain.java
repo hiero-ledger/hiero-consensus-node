@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.addressbook;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
@@ -31,6 +16,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -67,9 +53,8 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
         try {
             logger.info(STARTUP.getMarker(), "Registering AddressBookTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    AddressBookTestingToolState.class,
-                    () -> new AddressBookTestingToolState(version -> new BasicSoftwareVersion(version.major()))));
+            constructableRegistry.registerConstructable(
+                    new ClassConstructorPair(AddressBookTestingToolState.class, AddressBookTestingToolState::new));
             registerMerkleStateRootClassIds();
             logger.info(STARTUP.getMarker(), "AddressBookTestingToolState is registered with ConstructableRegistry");
         } catch (ConstructableRegistryException e) {
@@ -126,9 +111,8 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
      */
     @Override
     @NonNull
-    public AddressBookTestingToolState newMerkleStateRoot() {
-        final AddressBookTestingToolState state = new AddressBookTestingToolState(
-                version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+    public AddressBookTestingToolState newStateRoot() {
+        final AddressBookTestingToolState state = new AddressBookTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }
@@ -136,7 +120,7 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
     @Override
     @NonNull
     public StateLifecycles<AddressBookTestingToolState> newStateLifecycles() {
-        return new AddressBookTestingToolStateLifecycles();
+        return new AddressBookTestingToolStateLifecycles(new PlatformStateFacade((v) -> getSoftwareVersion()));
     }
 
     /**

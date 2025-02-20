@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.records;
 
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -31,7 +16,8 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextAdhocPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -51,6 +37,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -62,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.Assertions;
@@ -154,7 +143,7 @@ public class RecordsSuite {
                 uploadInitCode(contract),
                 contractCreate(contract),
                 // Ensure we submit these two transactions in the same block
-                waitUntilNextBlock().withBackgroundTraffic(true),
+                waitUntilStartOfNextAdhocPeriod(2_000),
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -230,7 +219,7 @@ public class RecordsSuite {
                 getTxnRecord(AUTO_ACCOUNT).andAllChildRecords(),
                 uploadInitCode(contract),
                 contractCreate(contract),
-                waitUntilNextBlock().withBackgroundTraffic(true),
+                waitUntilStartOfNextAdhocPeriod(2_000L),
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -242,7 +231,7 @@ public class RecordsSuite {
                         .deferStatusResolution()
                         .hasKnownStatus(ResponseCodeEnum.SUCCESS),
                 // Make sure we submit the next transaction in the next block
-                waitUntilNextBlock().withBackgroundTraffic(true),
+                waitUntilStartOfNextAdhocPeriod(2_000L),
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -312,13 +301,14 @@ public class RecordsSuite {
                 cryptoCreate(RECEIVER),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 withOpContext((spec, opLog) -> {
-                    createNBlocks(spec, 256);
+                    doNTransfers(spec, 256);
+                    waitUntilStartOfNextAdhocPeriod(2_000L);
                     final var ethCall = ethereumCall(contract, "getAllBlockHashes")
                             .logged()
                             .gasLimit(4_000_000L)
                             .via("blockHashes");
                     final var blockHashRes = getTxnRecord("blockHashes").logged();
-                    allRunFor(spec, ethCall, waitUntilNextBlock().withBackgroundTraffic(true), blockHashRes);
+                    allRunFor(spec, ethCall, waitUntilStartOfNextAdhocPeriod(2_000L), blockHashRes);
                     assertTrue(blockHashRes
                             .getResponseRecord()
                             .getContractCallResult()
@@ -334,11 +324,18 @@ public class RecordsSuite {
                 }));
     }
 
-    // Helper method to create N blocks, amount is divided by 2 to account waiting for next block each iteration
-    private void createNBlocks(final HapiSpec spec, final int amount) {
-        for (int i = 0; i < amount / 2; i++) {
-            allRunFor(spec, waitUntilNextBlock().withBackgroundTraffic(true));
-        }
+    // Helper method to perform multiple transfers and simulate multiple block creations
+    private void doNTransfers(@NonNull final HapiSpec spec, final int amount) {
+        allRunFor(
+                spec,
+                Stream.iterate(1, i -> i + 1)
+                        .limit(amount)
+                        .mapMulti((Integer i, Consumer<HapiSpecOperation> consumer) -> {
+                            consumer.accept(sleepFor(2_000L));
+                            consumer.accept(
+                                    cryptoTransfer(TokenMovement.movingHbar(i).between(ACCOUNT, RECEIVER)));
+                        })
+                        .toArray(HapiSpecOperation[]::new));
     }
 
     /**

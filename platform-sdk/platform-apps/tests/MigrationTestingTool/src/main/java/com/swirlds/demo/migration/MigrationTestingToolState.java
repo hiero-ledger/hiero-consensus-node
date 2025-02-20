@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.merkle.MerkleNode;
@@ -33,19 +17,18 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 @ConstructableIgnored
-public class MigrationTestingToolState extends PlatformMerkleStateRoot {
+public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingToolState> implements MerkleNodeState {
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolState.class);
 
     /**
@@ -95,8 +78,7 @@ public class MigrationTestingToolState extends PlatformMerkleStateRoot {
         public static final int OLD_CHILD_COUNT = 3;
     }
 
-    public MigrationTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public MigrationTestingToolState() {
         allocateSpaceForChild(ChildIndices.CHILD_COUNT);
     }
 
@@ -222,6 +204,7 @@ public class MigrationTestingToolState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public MigrationTestingToolState copy() {
         throwIfImmutable();
@@ -251,5 +234,10 @@ public class MigrationTestingToolState extends PlatformMerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.VIRTUAL_MAP;
+    }
+
+    @Override
+    protected MigrationTestingToolState copyingConstructor() {
+        return new MigrationTestingToolState(this);
     }
 }

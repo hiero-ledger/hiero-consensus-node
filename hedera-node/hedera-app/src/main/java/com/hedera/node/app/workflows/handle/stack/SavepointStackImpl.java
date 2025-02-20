@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
@@ -55,6 +40,10 @@ import com.hedera.node.app.workflows.handle.stack.savepoints.FirstChildSavepoint
 import com.hedera.node.app.workflows.handle.stack.savepoints.FirstRootSavepoint;
 import com.hedera.node.app.workflows.handle.stack.savepoints.FollowingSavepoint;
 import com.hedera.node.config.types.StreamMode;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -69,6 +58,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 /**
  * A stack of savepoints scoped to a dispatch. Each savepoint captures the state of the {@link State} at the time
@@ -202,6 +192,11 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         setupFirstSavepoint(category);
         baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, streamMode, true);
         presetIdsAllowed = false;
+    }
+
+    @Override
+    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+        state.init(time, metrics, merkleCryptography, roundSupplier);
     }
 
     @Override
@@ -603,5 +598,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         } else {
             stack.push(new FirstRootSavepoint(new WrappedState(state), requireNonNull(builderSink)));
         }
+    }
+
+    @Override
+    public void setHash(Hash hash) {
+        state.setHash(hash);
     }
 }

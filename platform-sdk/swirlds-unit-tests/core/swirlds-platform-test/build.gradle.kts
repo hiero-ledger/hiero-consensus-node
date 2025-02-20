@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 plugins {
     id("java-library")
     id("jacoco")
@@ -43,14 +28,13 @@ testModuleInfo {
     requires("com.hedera.pbj.runtime")
     requires("com.swirlds.merkle")
     requires("com.swirlds.base.test.fixtures")
-    requires("awaitility")
     requires("com.swirlds.state.impl")
+    requires("awaitility")
     requires("org.junit.jupiter.params")
     requires("org.mockito.junit.jupiter")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.event.creator")
     requires("org.hiero.event.creator.impl")
-    requires("com.swirlds.state.impl")
     requires("org.mockito")
     requires("org.hiero.consensus.gossip")
     requiresStatic("com.github.spotbugs.annotations")

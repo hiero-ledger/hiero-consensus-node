@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.comparator;
 
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.ACCOUNT_AMOUNT_COMPARATOR;
@@ -33,8 +18,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class TokenComparatorsTest {
-    private static final AccountID ACCOUNT_1234_ID = asAccount(1234);
-    private static final AccountID ACCOUNT_9876_ID = asAccount(9876);
+
+    private static final AccountID ACCOUNT_1234_ID = asAccount(0L, 0L, 1234);
+    private static final AccountID ACCOUNT_9876_ID = asAccount(0L, 0L, 9876);
 
     @Nested
     class AccountAmountComparatorTest {
@@ -115,23 +101,23 @@ class TokenComparatorsTest {
     @Nested
     class NftTransferComparatorTest {
         private static final NftTransfer NFT_TRANSFER_LIST_1 = NftTransfer.newBuilder()
-                .senderAccountID(asAccount(1111))
-                .receiverAccountID(asAccount(2222))
+                .senderAccountID(asAccount(0L, 0L, 1111))
+                .receiverAccountID(asAccount(0L, 0L, 2222))
                 .serialNumber(1)
                 .build();
         private static final NftTransfer NFT_TRANSFER_LIST_2 = NftTransfer.newBuilder()
-                .senderAccountID(asAccount(1111))
-                .receiverAccountID(asAccount(2222))
+                .senderAccountID(asAccount(0L, 0L, 1111))
+                .receiverAccountID(asAccount(0L, 0L, 2222))
                 .serialNumber(2)
                 .build();
         private static final NftTransfer NFT_TRANSFER_LIST_3 = NftTransfer.newBuilder()
-                .senderAccountID(asAccount(3333))
-                .receiverAccountID(asAccount(2222))
+                .senderAccountID(asAccount(0L, 0L, 3333))
+                .receiverAccountID(asAccount(0L, 0L, 2222))
                 .serialNumber(2)
                 .build();
         private static final NftTransfer NFT_TRANSFER_LIST_4 = NftTransfer.newBuilder()
-                .senderAccountID(asAccount(1111))
-                .receiverAccountID(asAccount(3333))
+                .senderAccountID(asAccount(0L, 0L, 1111))
+                .receiverAccountID(asAccount(0L, 0L, 3333))
                 .serialNumber(2)
                 .build();
 

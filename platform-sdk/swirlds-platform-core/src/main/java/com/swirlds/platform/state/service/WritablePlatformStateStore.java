@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.toPbjAddressBook;
@@ -31,7 +16,7 @@ import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -50,7 +35,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
 
     /**
      * Constructor that supports getting full {@link SoftwareVersion} information from the platform state. Must
-     * be used from within {@link MerkleStateRoot}.
+     * be used from within {@link State}.
      * @param writableStates the writable states
      * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
      */

@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
@@ -64,7 +50,8 @@ public class MiscellaneousFeesSuite {
     @HapiTest
     @DisplayName("USD base fee as expected for get version info")
     final Stream<DynamicTest> miscGetInfoBaseUSDFee() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                 getVersionInfo()
                         .signedBy(BOB)
@@ -90,7 +77,8 @@ public class MiscellaneousFeesSuite {
     final Stream<DynamicTest> miscGetTransactionRecordBaseUSDFee() {
         String baseTransactionGetRecord = "baseTransactionGetRecord";
         String createTxn = "createTxn";
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(ALICE).balance(ONE_BILLION_HBARS),
                 cryptoCreate(BOB)
                         .balance(ONE_HUNDRED_HBARS)

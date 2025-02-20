@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
@@ -94,8 +79,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -106,6 +90,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
@@ -409,7 +394,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     protected Account zeroAccount;
 
     /* ---------- Ids ---------- */
-    protected EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
+    protected EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
 
     /* ---------- Maps for updating both readable and writable stores ---------- */
     private Map<AccountID, Account> accountsMap;
@@ -479,7 +464,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
 
         aliasesMap = new HashMap<>();
         aliasesMap.put(new ProtoBytes(alias.alias()), payerId);
-        aliasesMap.put(new ProtoBytes(contractAlias.evmAddress()), asAccount(contract.contractNum()));
+        aliasesMap.put(new ProtoBytes(contractAlias.evmAddress()), asAccount(0L, 0L, contract.contractNum()));
 
         tokenRelsMap = new HashMap<>();
         tokenRelsMap.put(fungiblePair, fungibleTokenRelation);

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
@@ -30,7 +15,7 @@ import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
@@ -58,7 +43,7 @@ public class ReconnectLearner {
 
     private final Connection connection;
     private final Roster roster;
-    private final PlatformMerkleStateRoot currentState;
+    private final MerkleNodeState currentState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
     private final SignedStateValidationData stateValidationData;
@@ -94,7 +79,7 @@ public class ReconnectLearner {
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
             @NonNull final Roster roster,
-            @NonNull final PlatformMerkleStateRoot currentState,
+            @NonNull final MerkleNodeState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
             @NonNull final PlatformStateFacade platformStateFacade) {
@@ -211,7 +196,7 @@ public class ReconnectLearner {
                 platformContext.getMetrics());
         synchronizer.synchronize();
 
-        final PlatformMerkleStateRoot state = (PlatformMerkleStateRoot) synchronizer.getRoot();
+        final MerkleNodeState state = (MerkleNodeState) synchronizer.getRoot();
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),
                 CryptoStatic::verifySignature,

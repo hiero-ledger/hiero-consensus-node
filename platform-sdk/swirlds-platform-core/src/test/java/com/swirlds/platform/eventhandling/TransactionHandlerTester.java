@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -26,7 +11,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
@@ -52,9 +37,9 @@ public class TransactionHandlerTester {
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
-    private final StateLifecycles<PlatformMerkleStateRoot> stateLifecycles;
+    private final StateLifecycles<MerkleNodeState> stateLifecycles;
     private final TestPlatformStateFacade platformStateFacade;
-    private final PlatformMerkleStateRoot consensusState;
+    private final MerkleNodeState consensusState;
 
     /**
      * Constructs a new {@link TransactionHandlerTester} with the given {@link AddressBook}.
@@ -66,12 +51,11 @@ public class TransactionHandlerTester {
                 TestPlatformContextBuilder.create().build();
         platformState = new PlatformStateValueAccumulator();
 
-        consensusState = mock(PlatformMerkleStateRoot.class);
+        consensusState = mock(MerkleNodeState.class);
         platformStateFacade = mock(TestPlatformStateFacade.class);
 
         stateLifecycles = mock(StateLifecycles.class);
         when(consensusState.copy()).thenReturn(consensusState);
-        when(consensusState.cast()).thenReturn(consensusState);
         when(platformStateFacade.getWritablePlatformStateOf(consensusState)).thenReturn(platformState);
 
         when(stateLifecycles.onSealConsensusRound(any(), any())).thenReturn(true);
@@ -121,7 +105,7 @@ public class TransactionHandlerTester {
     }
 
     /**
-     * @return a list of all {@link Round}s that have been provided to the {@link PlatformMerkleStateRoot} for handling
+     * @return a list of all {@link Round}s that have been provided to the {@link State} for handling
      */
     public List<Round> getHandledRounds() {
         return handledRounds;
@@ -137,7 +121,7 @@ public class TransactionHandlerTester {
     /**
      * @return the {@link StateLifecycles} used by this tester
      */
-    public StateLifecycles<PlatformMerkleStateRoot> getStateLifecycles() {
+    public StateLifecycles<MerkleNodeState> getStateLifecycles() {
         return stateLifecycles;
     }
 

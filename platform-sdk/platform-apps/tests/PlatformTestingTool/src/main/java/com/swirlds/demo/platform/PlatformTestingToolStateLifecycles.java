@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
 import static com.swirlds.base.units.UnitConstants.MICROSECONDS_TO_NANOSECONDS;
@@ -72,8 +57,8 @@ import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -83,6 +68,7 @@ import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -179,6 +165,7 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
     private static RunningAverageMetric htFCQRecords;
 
     private static long htFCQRecordsCount;
+    private final PlatformStateFacade platformStateFacade;
     ///////////////////////////////////////////
     // Non copyable shared variables
     private Platform platform;
@@ -201,6 +188,10 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
      * Handles quorum determinations for all {@link ControlTransaction} processed by the handle method.
      */
     private QuorumTriggeredAction<ControlAction> controlQuorum;
+
+    public PlatformTestingToolStateLifecycles(@NonNull final PlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
+    }
 
     /**
      * startup any statistics
@@ -701,10 +692,9 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
     /**
      * Handle the freeze transaction type.
      */
-    private void handleFreezeTransaction(
-            final TestTransaction testTransaction, final PlatformStateModifier platformState) {
+    private void handleFreezeTransaction(final TestTransaction testTransaction, final State state) {
         final FreezeTransaction freezeTx = testTransaction.getFreezeTransaction();
-        FreezeTransactionHandler.freeze(freezeTx, platformState);
+        FreezeTransactionHandler.freeze(freezeTx, platformStateFacade, state);
     }
 
     /**
@@ -721,10 +711,6 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
             final Event event,
             final PlatformTestingToolState state,
             Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-        if (transaction.isSystem()) {
-            return;
-        }
-
         try {
             final byte[] payloadBytes = transaction.getApplicationTransaction().toByteArray();
             final TestTransactionWrapper testTransactionWrapper = TestTransactionWrapper.parseFrom(payloadBytes);
@@ -788,9 +774,6 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
             final long roundNum,
             final PlatformTestingToolState state,
             final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-        if (trans.isSystem()) {
-            return;
-        }
         try {
             waitForSignatureValidation(trans);
             handleTransaction(
@@ -930,7 +913,7 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
                 handleControlTransaction(testTransaction.get(), id, timestamp, state);
                 break;
             case FREEZETRANSACTION:
-                handleFreezeTransaction(testTransaction.get(), state.getWritablePlatformState());
+                handleFreezeTransaction(testTransaction.get(), state);
                 break;
             case SIMPLEACTION:
                 handleSimpleAction(testTransaction.get().getSimpleAction(), state);
