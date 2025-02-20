@@ -71,6 +71,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 class PlatformTestingToolStateTest {
 
@@ -208,7 +209,7 @@ class PlatformTestingToolStateTest {
                 List.of(platformEvent),
                 platformEvent,
                 eventWindow,
-                new ConsensusSnapshotWrapper(),
+                Mockito.mock(ConsensusSnapshotWrapper.class),
                 false,
                 Instant.now());
 
@@ -309,7 +310,7 @@ class PlatformTestingToolStateTest {
                 List.of(platformEvent),
                 platformEvent,
                 eventWindow,
-                new ConsensusSnapshotWrapper(),
+                Mockito.mock(ConsensusSnapshotWrapper.class),
                 false,
                 Instant.now());
     }

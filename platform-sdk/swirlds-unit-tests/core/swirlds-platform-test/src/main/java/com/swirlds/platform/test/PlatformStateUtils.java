@@ -6,7 +6,7 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 
 import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
-import com.hedera.hapi.platform.state.com.swirlds.platform.state.MinimumJudgeInfo;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
