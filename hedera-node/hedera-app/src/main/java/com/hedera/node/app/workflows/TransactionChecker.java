@@ -197,7 +197,7 @@ public class TransactionChecker {
      */
     @NonNull
     @VisibleForTesting
-    TransactionInfo check(@NonNull final Transaction tx, @Nullable Bytes serializedTx) throws PreCheckException {
+    TransactionInfo check(@NonNull final Transaction tx, @NonNull Bytes serializedTx) throws PreCheckException {
         // NOTE: Since we've already parsed the transaction, we assume that the
         // transaction was not too many bytes. This is a safe assumption because
         // the code that receives the transaction bytes and parses/ the transaction
@@ -210,7 +210,7 @@ public class TransactionChecker {
         if (tx.hasBody()) {
             txBody = tx.bodyOrThrow();
             try {
-                bodyBytes = serializedTx == null ? Bytes.EMPTY : ProtobufUtils.extractBodyBytes(serializedTx);
+                bodyBytes = ProtobufUtils.extractBodyBytes(serializedTx);
             } catch (IOException | ParseException e) {
                 throw new PreCheckException(INVALID_TRANSACTION);
             }
