@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -53,19 +52,11 @@ public final class TransactionStateLogger {
      */
     public static void logStartRound(final Round round) {
         if (logger.isDebugEnabled()) {
-            AtomicBoolean isAllSystem = new AtomicBoolean(true);
-            round.forEachEventTransaction((event, tx) -> {
-                if (!tx.isSystem()) {
-                    isAllSystem.set(false);
-                }
-            });
-            if (!isAllSystem.get()) {
-                logger.debug(
-                        "Starting round {} of {} events at {}",
-                        round.getRoundNum(),
-                        round.getEventCount(),
-                        round.getConsensusTimestamp());
-            }
+            logger.debug(
+                    "Starting round {} of {} events at {}",
+                    round.getRoundNum(),
+                    round.getEventCount(),
+                    round.getConsensusTimestamp());
         }
     }
 
@@ -76,19 +67,11 @@ public final class TransactionStateLogger {
      */
     public static void logStartEvent(final ConsensusEvent event, final NodeInfo creator) {
         if (logger.isDebugEnabled()) {
-            AtomicBoolean isAllSystem = new AtomicBoolean(true);
-            event.forEachTransaction(tx -> {
-                if (!tx.isSystem()) {
-                    isAllSystem.set(false);
-                }
-            });
-            if (!isAllSystem.get()) {
-                logger.debug(
-                        "  Starting event {} at {} from node {}",
-                        event.getConsensusOrder(),
-                        event.getConsensusTimestamp(),
-                        creator.nodeId());
-            }
+            logger.debug(
+                    "  Starting event {} at {} from node {}",
+                    event.getConsensusOrder(),
+                    event.getConsensusTimestamp(),
+                    creator.nodeId());
         }
     }
 

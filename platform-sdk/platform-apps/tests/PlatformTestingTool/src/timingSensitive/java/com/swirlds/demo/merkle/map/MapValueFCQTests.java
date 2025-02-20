@@ -19,6 +19,7 @@ package com.swirlds.demo.merkle.map;
 import static com.swirlds.demo.platform.TestUtil.generateRandomContent;
 import static com.swirlds.demo.platform.TestUtil.generateTxRecord;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType.FCQ;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,7 +80,7 @@ public class MapValueFCQTests {
 
         mapKey = new MapKey(0, 0, random.nextLong());
         state = Mockito.spy(PlatformTestingToolState.class);
-        lifecycles = new PlatformTestingToolStateLifecycles();
+        lifecycles = new PlatformTestingToolStateLifecycles(DEFAULT_PLATFORM_STATE_FACADE);
         final Platform platform = Mockito.mock(Platform.class);
         when(platform.getSelfId()).thenReturn(NodeId.of(0L));
         final Roster roster = RandomRosterBuilder.create(RANDOM).withSize(4).build();

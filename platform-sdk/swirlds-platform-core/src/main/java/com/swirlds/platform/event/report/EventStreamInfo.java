@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,10 +28,6 @@ import java.time.Instant;
  * 		the timestamp at the end of the period reported
  * @param eventCount
  * 		the number of events in this period
- * @param transactionCount
- * 		the total number of transactions in this period
- * @param systemTransactionCount
- * 		the number of system transactions in this period
  * @param applicationTransactionCount
  * 		the number of application transactions in this period
  * @param fileCount
@@ -50,8 +46,6 @@ public record EventStreamInfo(
         Instant end,
         long roundCount,
         long eventCount,
-        long transactionCount,
-        long systemTransactionCount,
         long applicationTransactionCount,
         long fileCount,
         long byteCount,

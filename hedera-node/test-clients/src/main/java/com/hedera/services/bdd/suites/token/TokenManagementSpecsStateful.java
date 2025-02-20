@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 public class TokenManagementSpecsStateful {
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
+    public static final String INVALID_ACCOUNT = "999.999.999";
 
     @HapiTest
     final Stream<DynamicTest> freezeMgmtFailureCasesWork() {
@@ -76,7 +77,7 @@ public class TokenManagementSpecsStateful {
                         tokenFreeze(unfreezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY),
-                        tokenFreeze(freezableToken, "1.2.3").hasKnownStatus(INVALID_ACCOUNT_ID),
+                        tokenFreeze(freezableToken, INVALID_ACCOUNT).hasKnownStatus(INVALID_ACCOUNT_ID),
                         tokenFreeze(freezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(INVALID_SIGNATURE),
@@ -85,7 +86,7 @@ public class TokenManagementSpecsStateful {
                         tokenUnfreeze(unfreezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY),
-                        tokenUnfreeze(freezableToken, "1.2.3").hasKnownStatus(INVALID_ACCOUNT_ID),
+                        tokenUnfreeze(freezableToken, INVALID_ACCOUNT).hasKnownStatus(INVALID_ACCOUNT_ID),
                         tokenUnfreeze(freezableToken, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(INVALID_SIGNATURE))

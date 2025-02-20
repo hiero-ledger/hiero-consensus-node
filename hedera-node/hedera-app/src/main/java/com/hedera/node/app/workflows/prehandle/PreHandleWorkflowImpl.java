@@ -145,7 +145,6 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
         // In parallel, we will pre-handle each transaction.
         transactions.parallel().forEach(tx -> {
-            if (tx.isSystem()) return;
             try {
                 tx.setMetadata(preHandleTransaction(
                         creator, readableStoreFactory, accountStore, tx, stateSignatureTxnCallback));
