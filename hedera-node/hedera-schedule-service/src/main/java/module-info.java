@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.schedule {
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;

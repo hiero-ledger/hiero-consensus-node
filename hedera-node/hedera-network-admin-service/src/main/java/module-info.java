@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.network.admin {
     exports com.hedera.node.app.service.networkadmin;
 
