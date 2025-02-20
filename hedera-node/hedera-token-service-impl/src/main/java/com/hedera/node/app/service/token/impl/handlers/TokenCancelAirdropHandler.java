@@ -12,10 +12,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_REPE
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.IdType.SENDER;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.standardizeAirdropIds;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -29,11 +27,10 @@ import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -57,7 +54,7 @@ public class TokenCancelAirdropHandler extends BaseTokenHandler implements Trans
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenCancelAirdropOrThrow();
@@ -68,36 +65,36 @@ public class TokenCancelAirdropHandler extends BaseTokenHandler implements Trans
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         requireNonNull(txn, "Transaction body cannot be null");
         final var op = txn.tokenCancelAirdropOrThrow();
 
-        validateFalsePreCheck(op.pendingAirdrops().isEmpty(), EMPTY_PENDING_AIRDROP_ID_LIST);
+        validateFalse(op.pendingAirdrops().isEmpty(), EMPTY_PENDING_AIRDROP_ID_LIST);
         final var uniquePendingAirdrops = new HashSet<PendingAirdropId>();
         for (final var airdrop : op.pendingAirdrops()) {
             if (!uniquePendingAirdrops.add(airdrop)) {
-                throw new PreCheckException(PENDING_AIRDROP_ID_REPEATED);
+                throw new WorkflowException(PENDING_AIRDROP_ID_REPEATED);
             }
             validateAccountID(airdrop.receiverId(), INVALID_PENDING_AIRDROP_ID);
             validateAccountID(airdrop.senderId(), INVALID_PENDING_AIRDROP_ID);
 
             if (airdrop.hasFungibleTokenType()) {
                 final var tokenID = airdrop.fungibleTokenType();
-                validateTruePreCheck(tokenID != null && !tokenID.equals(TokenID.DEFAULT), INVALID_TOKEN_ID);
+                validateTrue(tokenID != null && !tokenID.equals(TokenID.DEFAULT), INVALID_TOKEN_ID);
             }
             if (airdrop.hasNonFungibleToken()) {
                 final var nftID = airdrop.nonFungibleTokenOrThrow();
-                validateTruePreCheck(nftID.tokenId() != null, INVALID_NFT_ID);
-                validateTruePreCheck(nftID.serialNumber() > 0, INVALID_TOKEN_NFT_SERIAL_NUMBER);
+                validateTrue(nftID.tokenId() != null, INVALID_NFT_ID);
+                validateTrue(nftID.serialNumber() > 0, INVALID_TOKEN_NFT_SERIAL_NUMBER);
             }
         }
     }
 
     @SuppressWarnings("java:S3864")
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenCancelAirdropOrThrow();

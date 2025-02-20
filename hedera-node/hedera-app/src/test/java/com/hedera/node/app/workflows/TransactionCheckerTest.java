@@ -38,7 +38,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fixtures.AppTestBase;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -198,24 +198,24 @@ final class TransactionCheckerTest extends AppTestBase {
         @DisplayName("`parseAndCheck` bytes must have no more than the configured MaxSignedTxnSize bytes")
         void parseAndCheckWithTooManyBytes() {
             assertThatThrownBy(() -> checker.parse(randomBytes(MAX_TX_SIZE + 1)))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TRANSACTION_OVERSIZE));
 
             // NOTE: I'm going to also try a number of bytes that JUST FITS. But these are not real transaction
             //       bytes, so they will fail to parse. But that is OK, as long as it is not TRANSACTION_OVERSIZE.
             assertThatThrownBy(() -> checker.parse(randomBytes(MAX_TX_SIZE)))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
         }
 
         @Test
         @DisplayName("A transaction with no bytes at all fails")
-        void parseAndCheckWithNoBytes() throws PreCheckException {
+        void parseAndCheckWithNoBytes() {
             // Given a transaction with no bytes at all
-            // Then the checker should throw a PreCheckException
+            // Then the checker should throw a WorkflowException
             final var transaction = checker.parse(Bytes.EMPTY);
             assertThatThrownBy(() -> checker.check(transaction, null))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
         }
 
@@ -223,11 +223,11 @@ final class TransactionCheckerTest extends AppTestBase {
          * This test verifies that, given a valid transaction encoded as bytes, the {@link TransactionChecker} will
          * parse it correctly. The transaction in this case is using the "signed transaction bytes" fields.
          *
-         * @throws PreCheckException Not throw by this test if all goes well
+         * @throws WorkflowException Not throw by this test if all goes well
          */
         @Test
         @DisplayName("A valid transaction passes parse and check")
-        void happyPath() throws PreCheckException {
+        void happyPath() {
             // Given a valid serialized transaction, when we parseStrict and check
             final var transaction = checker.parse(inputBuffer);
             final var info = checker.check(transaction, null);
@@ -246,11 +246,11 @@ final class TransactionCheckerTest extends AppTestBase {
          * This test is the same as {@link #happyPath()} except that instead of
          * using "signed transaction bytes" in the transaction, it uses the deprecated fields.
          *
-         * @throws PreCheckException Not throw by this test if all goes well
+         * @throws WorkflowException Not throw by this test if all goes well
          */
         @Test
         @DisplayName("A transaction with deprecated fields passes parse and check")
-        void happyDeprecatedPath() throws PreCheckException {
+        void happyDeprecatedPath() {
             // Given a transaction using the deprecated fields
             final var localTx = Transaction.newBuilder()
                     .bodyBytes(signedTx.bodyBytes())
@@ -277,7 +277,7 @@ final class TransactionCheckerTest extends AppTestBase {
         @Test
         @DisplayName("A transaction with super deprecated fields alone will throw")
         @SuppressWarnings("deprecation")
-        void parseAndCheckWithSuperDeprecatedFields() throws PreCheckException {
+        void parseAndCheckWithSuperDeprecatedFields() {
             // Given a transaction using the super deprecated fields
             final var sig = Signature.newBuilder().ed25519(randomBytes(64)).build();
             final var localTx = Transaction.newBuilder()
@@ -286,10 +286,10 @@ final class TransactionCheckerTest extends AppTestBase {
                     .build();
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
-            // When we check, then we get a PreCheckException with INVALID_TRANSACTION_BODY
+            // When we check, then we get a WorkflowException with INVALID_TRANSACTION_BODY
             final var transaction = checker.parse(inputBuffer);
             assertThatThrownBy(() -> checker.check(transaction, null))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
 
             // And the super deprecation counter has been incremented
@@ -306,7 +306,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             // When we parse and check, then the parsing fails because this is an INVALID_TRANSACTION
             assertThatThrownBy(() -> checker.parse(inputBuffer))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TRANSACTION));
         }
 
@@ -318,7 +318,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             // When we parse and check, then the parsing fails because has unknown fields
             assertThatThrownBy(() -> checker.parse(inputBuffer))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
         }
     }
@@ -344,11 +344,11 @@ final class TransactionCheckerTest extends AppTestBase {
              * This test verifies that, given a valid transaction, the {@link TransactionChecker} will succeed in
              * checking a valid transaction.
              *
-             * @throws PreCheckException Not throw by this test if all goes well
+             * @throws WorkflowException Not throw by this test if all goes well
              */
             @Test
             @DisplayName("A valid transaction passes parseAndCheck with a BufferedData")
-            void happyPath() throws PreCheckException {
+            void happyPath() {
                 // Given a valid serialized transaction, when we parse and check
                 final var info = checker.check(tx, null);
 
@@ -365,11 +365,11 @@ final class TransactionCheckerTest extends AppTestBase {
             /**
              * This test is the same as {@link #happyPath()} but with deprecated fields.
              *
-             * @throws PreCheckException Not throw by this test if all goes well
+             * @throws WorkflowException Not throw by this test if all goes well
              */
             @Test
             @DisplayName("A transaction with deprecated fields passes check")
-            void happyWithDeprecatedFields() throws PreCheckException {
+            void happyWithDeprecatedFields() {
                 // Given a transaction using the deprecated fields
                 final var localTx = Transaction.newBuilder()
                         .bodyBytes(signedTx.bodyBytes())
@@ -402,9 +402,9 @@ final class TransactionCheckerTest extends AppTestBase {
                         .sigs(SignatureList.newBuilder().sigs(sig).build())
                         .build();
 
-                // When we check, then we get a PreCheckException with INVALID_TRANSACTION_BODY
+                // When we check, then we get a WorkflowException with INVALID_TRANSACTION_BODY
                 assertThatThrownBy(() -> checker.check(localTx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(INVALID_TRANSACTION_BODY));
 
                 // And the super deprecation counter has been incremented
@@ -417,7 +417,7 @@ final class TransactionCheckerTest extends AppTestBase {
             @DisplayName(
                     "A transaction with super deprecated fields and signedTransactionBytes ignores super deprecated fields")
             @SuppressWarnings("deprecation")
-            void checkWithSuperDeprecatedFieldsAndSignedTransactionBytes() throws PreCheckException {
+            void checkWithSuperDeprecatedFieldsAndSignedTransactionBytes() {
                 // Given a transaction using the super deprecated fields and signedTransactionBytes
                 final var sig = Signature.newBuilder().ed25519(randomBytes(64)).build();
                 final var localTx = Transaction.newBuilder()
@@ -442,7 +442,7 @@ final class TransactionCheckerTest extends AppTestBase {
             @DisplayName(
                     "A transaction with super deprecated fields and deprecated fields ignores super deprecated fields")
             @SuppressWarnings("deprecation")
-            void checkWithSuperDeprecatedFieldsAndDeprecatedFields() throws PreCheckException {
+            void checkWithSuperDeprecatedFieldsAndDeprecatedFields() {
                 // Given a transaction using the super deprecated fields and signedTransactionBytes
                 final var sig = Signature.newBuilder().ed25519(randomBytes(64)).build();
                 final var localTx = Transaction.newBuilder()
@@ -479,7 +479,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
                 // When we check the transaction, then we find it is invalid
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(INVALID_TRANSACTION));
 
                 // And the deprecation counter is incremented, but not the super-deprecation counter
@@ -497,9 +497,9 @@ final class TransactionCheckerTest extends AppTestBase {
                         .sigMap(signatureMap)
                         .build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(INVALID_TRANSACTION));
 
                 // And the deprecation counter is incremented, but not the super-deprecation counter
@@ -552,7 +552,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
                 // When we check the transaction, we find it is invalid due to duplicate prefixes
                 assertThatThrownBy(() -> checker.check(localTx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(KEY_PREFIX_MISMATCH));
             }
         }
@@ -570,7 +570,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
                 // When we parse and check, then the parsing fails because this is an INVALID_TRANSACTION
                 assertThatThrownBy(() -> checker.check(localTx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(INVALID_TRANSACTION));
             }
 
@@ -585,7 +585,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
                 // When we parse and check, then the parsing fails because has unknown fields
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
             }
         }
@@ -609,7 +609,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
                 // When we parse and check, then the parsing fails because has unknown fields
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(INVALID_TRANSACTION_BODY));
             }
 
@@ -630,7 +630,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
                 // When we parse and check, then the parsing fails because this is an TRANSACTION_HAS_UNKNOWN_FIELDS
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
             }
 
@@ -641,15 +641,15 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder((TransactionID) null);
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(INVALID_TRANSACTION_ID));
             }
 
             @Test
             @DisplayName("Aliased Payer accountID should be rejected")
-            void testCheckTransactionBodyWithAliasAsPayer() throws PreCheckException {
+            void testCheckTransactionBodyWithAliasAsPayer() {
                 // Given a transaction ID with an alias as the payer
                 final var payerId =
                         AccountID.newBuilder().alias(Bytes.wrap("alias")).build();
@@ -657,7 +657,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
 
@@ -670,9 +670,9 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder(txIdBuilder().accountID(payerId));
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
 
@@ -686,9 +686,9 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder(txIdBuilder().accountID(payerId));
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
 
@@ -702,9 +702,9 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder(txIdBuilder().accountID(payerId));
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
 
@@ -714,9 +714,9 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder(txIdBuilder().scheduled(true));
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(TRANSACTION_ID_FIELD_NOT_ALLOWED));
             }
 
@@ -726,9 +726,9 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder(txIdBuilder().nonce(1));
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(TRANSACTION_ID_FIELD_NOT_ALLOWED));
             }
 
@@ -740,10 +740,10 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder(txIdBuilder()).memo(memo);
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", MEMO_TOO_LONG);
+                        .isInstanceOf(WorkflowException.class)
+                        .hasFieldOrPropertyWithValue("status", MEMO_TOO_LONG);
             }
 
             // NOTE! This test will not be the case forever! We have an issue to fix
@@ -756,10 +756,10 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder(txIdBuilder()).memo(memo);
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                // Then the checker should throw a PreCheckException
+                // Then the checker should throw a WorkflowException
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", INVALID_ZERO_BYTE_IN_STRING);
+                        .isInstanceOf(WorkflowException.class)
+                        .hasFieldOrPropertyWithValue("status", INVALID_ZERO_BYTE_IN_STRING);
             }
 
             @ParameterizedTest
@@ -776,8 +776,8 @@ final class TransactionCheckerTest extends AppTestBase {
 
                 // When we check the transaction body
                 assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", INSUFFICIENT_TX_FEE);
+                        .isInstanceOf(WorkflowException.class)
+                        .hasFieldOrPropertyWithValue("status", INSUFFICIENT_TX_FEE);
             }
         }
 
@@ -799,8 +799,8 @@ final class TransactionCheckerTest extends AppTestBase {
                 // When we check the transaction body
                 assertThatThrownBy(() -> checker.checkTimeBox(
                                 body, consensusNow, TransactionChecker.RequireMinValidLifetimeBuffer.YES))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION_DURATION);
+                        .isInstanceOf(WorkflowException.class)
+                        .hasFieldOrPropertyWithValue("status", INVALID_TRANSACTION_DURATION);
             }
 
             @Test
@@ -817,8 +817,8 @@ final class TransactionCheckerTest extends AppTestBase {
                 // When we check the transaction body
                 assertThatThrownBy(() -> checker.checkTimeBox(
                                 body, consensusNow, TransactionChecker.RequireMinValidLifetimeBuffer.YES))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION_DURATION);
+                        .isInstanceOf(WorkflowException.class)
+                        .hasFieldOrPropertyWithValue("status", INVALID_TRANSACTION_DURATION);
             }
 
             @Test
@@ -834,8 +834,8 @@ final class TransactionCheckerTest extends AppTestBase {
                 // When we check the transaction body
                 assertThatThrownBy(() -> checker.checkTimeBox(
                                 body, consensusNow, TransactionChecker.RequireMinValidLifetimeBuffer.YES))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", TRANSACTION_EXPIRED);
+                        .isInstanceOf(WorkflowException.class)
+                        .hasFieldOrPropertyWithValue("status", TRANSACTION_EXPIRED);
             }
 
             @Test
@@ -851,8 +851,8 @@ final class TransactionCheckerTest extends AppTestBase {
                 // When we check the transaction body
                 assertThatThrownBy(() -> checker.checkTimeBox(
                                 body, consensusNow, TransactionChecker.RequireMinValidLifetimeBuffer.YES))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION_START);
+                        .isInstanceOf(WorkflowException.class)
+                        .hasFieldOrPropertyWithValue("status", INVALID_TRANSACTION_START);
             }
         }
 
@@ -868,8 +868,8 @@ final class TransactionCheckerTest extends AppTestBase {
 
                     // When we parse and check, then the parsing fails due to the exception
                     assertThatThrownBy(() -> checker.check(tx, null))
-                            .isInstanceOf(PreCheckException.class)
-                            .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION_BODY);
+                            .isInstanceOf(WorkflowException.class)
+                            .hasFieldOrPropertyWithValue("status", INVALID_TRANSACTION_BODY);
                 }
             }
         }

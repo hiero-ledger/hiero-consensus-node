@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.spi.key.KeyUtils;
 import com.hedera.node.app.spi.validation.AttributeValidator;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -37,14 +37,14 @@ public class CryptoCreateValidator {
      * Validates the key.
      *
      * <p>If the key is dispatched internally, then it is allowed to use {@link KeyUtils#IMMUTABILITY_SENTINEL_KEY} as
-     * its key. Otherwise, this key is disallowed. Otherwise, we throw {@link HandleException} with
+     * its key. Otherwise, this key is disallowed. Otherwise, we throw {@link WorkflowException} with
      * {@link ResponseCodeEnum#BAD_ENCODING} if the key is empty or exceeds the maximum key depth. All other invalid
-     * scenarios throw {@link HandleException} with {@link ResponseCodeEnum#INVALID_ADMIN_KEY}.
+     * scenarios throw {@link WorkflowException} with {@link ResponseCodeEnum#INVALID_ADMIN_KEY}.
      *
      * @param key                The key to validate
      * @param attributeValidator AttributeValidator
      * @param isInternalDispatch Whether this is a hollow account creation (permits empty key list)
-     * @throws HandleException If the inputs are not invalid
+     * @throws WorkflowException If the inputs are not invalid
      */
     public void validateKey(
             @NonNull final Key key,
@@ -54,7 +54,7 @@ public class CryptoCreateValidator {
         final var isSentinel = IMMUTABILITY_SENTINEL_KEY.equals(key);
         if (isSentinel && !isInternalDispatch) {
             // IMMUTABILITY_SENTINEL_KEY is only allowed for internal dispatches.
-            throw new HandleException(KEY_REQUIRED);
+            throw new WorkflowException(KEY_REQUIRED);
         } else if (!isSentinel) {
             // If it is not the sentinel key, we need to validate the key, no matter whether internal or HAPI.
             //
@@ -65,7 +65,7 @@ public class CryptoCreateValidator {
             // right exceptions are thrown, without breaking key validation steps down in a granular way which would be
             // hard to maintain.
             if (!isValid(key)) {
-                throw new HandleException(INVALID_ADMIN_KEY);
+                throw new WorkflowException(INVALID_ADMIN_KEY);
             } else {
                 attributeValidator.validateKey(key);
             }

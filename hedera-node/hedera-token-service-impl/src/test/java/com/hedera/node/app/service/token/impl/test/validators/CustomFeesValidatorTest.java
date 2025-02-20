@@ -32,7 +32,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,7 +67,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         nullCollectorFee))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
 
@@ -82,7 +82,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         missingFeeCollectorFee))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
 
@@ -97,7 +97,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         missingFeeCollectorFee))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
 
@@ -116,7 +116,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
         feeWithRoyalty.add(withRoyaltyFee(royaltyFee));
         assertThatThrownBy(() -> subject.validateForFeeScheduleUpdate(
                         fungibleToken, readableAccountStore, readableTokenRelStore, writableTokenStore, feeWithRoyalty))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_ROYALTY_FEE_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE));
     }
 
@@ -151,7 +151,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         feeWithRoyalty))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_ID_IN_CUSTOM_FEES));
     }
 
@@ -175,7 +175,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         feeWithRoyalty))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON));
     }
 
@@ -195,7 +195,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                                 .copyBuilder()
                                 .fallbackFee(htsFixedFee)
                                 .build()))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
     }
 
@@ -210,7 +210,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         feeWithFractional))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_FRACTIONAL_FEE_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON));
     }
 
@@ -243,7 +243,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFixedFee(hbarFixedFee), withFractionalFee(fractionalFee))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
     }
 
@@ -261,7 +261,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFractionalFee(fractionalFee))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
     }
 
@@ -281,7 +281,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFixedFee(newFee))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON));
     }
 
@@ -320,7 +320,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFractionalFee(fractionalFeeWithZeroDenominator))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage("FRACTION_DIVIDES_BY_ZERO");
     }
 
@@ -340,7 +340,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFractionalFee(fractionalFeeWithNegativeNumerator))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage("CUSTOM_FEE_MUST_BE_POSITIVE");
     }
 
@@ -360,7 +360,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFractionalFee(fractionalFeeWithNegativeMinimumAmount))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage("CUSTOM_FEE_MUST_BE_POSITIVE");
     }
 
@@ -380,7 +380,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFractionalFee(fractionalFeeWithNegativeMaximumAmount))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage("CUSTOM_FEE_MUST_BE_POSITIVE");
     }
 
@@ -397,7 +397,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFixedFee(htsFixedFeeWithNegativeAmount))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage("CUSTOM_FEE_MUST_BE_POSITIVE");
     }
 
@@ -417,7 +417,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(withFractionalFee(fractionalFeeWithWrongMinMaxAmount))))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage("FRACTIONAL_FEE_MAX_AMOUNT_LESS_THAN_MIN_AMOUNT");
     }
 
@@ -431,7 +431,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         List.of(CustomFee.newBuilder()
                                 .feeCollectorAccountId(AccountID.newBuilder().accountNum(accountNum.longValue()))
                                 .build())))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage("CUSTOM_FEE_NOT_FULLY_SPECIFIED");
     }
 
@@ -477,7 +477,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         nullCollectorFee,
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
 
@@ -493,7 +493,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         missingFeeCollectorFee,
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
 
@@ -509,7 +509,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         missingFeeCollectorFee,
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
 
@@ -538,7 +538,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         feeWithRoyalty,
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_ROYALTY_FEE_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE));
     }
 
@@ -575,7 +575,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         feeWithRoyalty,
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_ID_IN_CUSTOM_FEES));
     }
 
@@ -599,7 +599,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         feeWithRoyalty,
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON));
     }
 
@@ -620,7 +620,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                                 .fallbackFee(htsFixedFee)
                                 .build())),
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
     }
 
@@ -636,7 +636,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         feeWithFractional,
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_FRACTIONAL_FEE_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON));
     }
 
@@ -670,7 +670,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         List.of(withFixedFee(htsFixedFee)),
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
     }
 
@@ -689,7 +689,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         List.of(withFixedFee(newFee)),
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON));
     }
 
@@ -741,7 +741,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                                 .feeCollectorAccountId(AccountID.newBuilder().accountNum(accountNum.longValue()))
                                 .build()),
                         expiryValidator))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(CUSTOM_FEE_NOT_FULLY_SPECIFIED));
     }
 

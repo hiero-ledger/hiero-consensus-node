@@ -9,7 +9,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.InvalidKeyException;
 import java.time.Instant;
@@ -25,7 +24,7 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
     private static final Timestamp VALID_START = new Timestamp(1_234_567L, 890);
 
     @BeforeEach
-    void setUp() throws PreCheckException, InvalidKeyException {
+    void setUp() throws InvalidKeyException {
         setUpBase();
     }
 

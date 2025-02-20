@@ -13,8 +13,8 @@ import com.hedera.hapi.node.token.CryptoGetStakersResponse;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.service.token.impl.handlers.CryptoGetStakersHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,7 +57,7 @@ class CryptoGetStakersHandlerTest {
     @Test
     void validateThrowsPreCheck() {
         assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
 

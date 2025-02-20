@@ -85,9 +85,8 @@ import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStr
 import com.hedera.node.app.spi.workflows.DispatchOptions.StakingRewards;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ServiceApiFactory;
@@ -301,7 +300,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Test
     void dispatchComputeThrowsWithMissingBody() {
         Assertions.assertThatThrownBy(() -> subject.dispatchComputeFees(MISSING_FUNCTION_TXN_BODY, PAYER_ACCOUNT_ID))
-                .isInstanceOf(HandleException.class);
+                .isInstanceOf(WorkflowException.class);
     }
 
     @Test
@@ -437,7 +436,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         }
 
         @Test
-        void testAllKeysForTransactionSuccess() throws PreCheckException {
+        void testAllKeysForTransactionSuccess() {
             doAnswer(invocation -> {
                         final var innerContext = invocation.getArgument(0, PreHandleContext.class);
                         innerContext.requireKey(BOB.account().key());
@@ -456,24 +455,24 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         }
 
         @Test
-        void testAllKeysForTransactionWithFailingPureCheck() throws PreCheckException {
-            doThrow(new PreCheckException(INVALID_TRANSACTION_BODY))
+        void testAllKeysForTransactionWithFailingPureCheck() {
+            doThrow(new WorkflowException(INVALID_TRANSACTION_BODY))
                     .when(dispatcher)
                     .dispatchPureChecks(any());
             assertThatThrownBy(() -> subject.allKeysForTransaction(txBody, ERIN.accountID()))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
         }
 
         @Test
-        void testAllKeysForTransactionWithFailingPreHandle() throws PreCheckException {
-            doThrow(new PreCheckException(INSUFFICIENT_ACCOUNT_BALANCE))
+        void testAllKeysForTransactionWithFailingPreHandle() {
+            doThrow(new WorkflowException(INSUFFICIENT_ACCOUNT_BALANCE))
                     .when(dispatcher)
                     .dispatchPreHandle(any());
 
             // gathering keys should not throw exceptions except for inability to read a key.
             assertThatThrownBy(() -> subject.allKeysForTransaction(txBody, ERIN.accountID()))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(UNRESOLVABLE_REQUIRED_SIGNERS));
         }
     }
@@ -611,12 +610,12 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
         @ParameterizedTest
         @MethodSource("createContextDispatchers")
-        void testDispatchPreHandleFails(final Consumer<HandleContext> contextDispatcher) throws PreCheckException {
+        void testDispatchPreHandleFails(final Consumer<HandleContext> contextDispatcher) {
             final var txBody = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder().accountID(ALICE.accountID()))
                     .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.DEFAULT)
                     .build();
-            doThrow(new PreCheckException(ResponseCodeEnum.INVALID_TOPIC_ID))
+            doThrow(new WorkflowException(ResponseCodeEnum.INVALID_TOPIC_ID))
                     .when(dispatcher)
                     .dispatchPureChecks(any());
             final var context = createContext(txBody, HandleContext.TransactionCategory.USER);

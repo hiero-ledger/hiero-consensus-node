@@ -29,8 +29,8 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -139,7 +139,7 @@ class ContractGetInfoHandlerTest {
         when(context.createStore(ReadableAccountStore.class)).thenReturn(accountStore);
 
         assertThatThrownBy(() -> handler.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessageContaining(INVALID_CONTRACT_ID.toString());
     }
 

@@ -5,8 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -18,10 +18,10 @@ import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -41,13 +41,13 @@ public class TokenPauseHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().tokenPause();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
         if (tokenMeta == null) {
-            throw new PreCheckException(INVALID_TOKEN_ID);
+            throw new WorkflowException(INVALID_TOKEN_ID);
         }
         if (tokenMeta.hasPauseKey()) {
             context.requireKey(tokenMeta.pauseKey());
@@ -79,12 +79,12 @@ public class TokenPauseHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenPauseOrThrow();
         if (!op.hasToken()) {
-            throw new PreCheckException(INVALID_TOKEN_ID);
+            throw new WorkflowException(INVALID_TOKEN_ID);
         }
     }
 

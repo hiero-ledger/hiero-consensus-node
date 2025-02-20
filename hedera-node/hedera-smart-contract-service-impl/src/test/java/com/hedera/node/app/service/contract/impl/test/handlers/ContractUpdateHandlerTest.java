@@ -54,9 +54,8 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -126,7 +125,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void sigRequiredWithoutKeyFails() throws PreCheckException {
+    void sigRequiredWithoutKeyFails() {
         final var txn = TransactionBody.newBuilder()
                 .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder())
                 .transactionID(transactionID)
@@ -137,7 +136,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void invalidAutoRenewAccountIdFails() throws PreCheckException {
+    void invalidAutoRenewAccountIdFails() {
         when(payerAccount.keyOrThrow()).thenReturn(AN_ED25519_KEY);
         when(accountStore.getContractById(targetContract)).thenReturn(payerAccount);
 
@@ -155,7 +154,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void callsKey2xIfAdminKeyRequired() throws PreCheckException {
+    void callsKey2xIfAdminKeyRequired() {
         when(payerAccount.keyOrThrow()).thenReturn(AN_ED25519_KEY);
         when(accountStore.getContractById(targetContract)).thenReturn(payerAccount);
 
@@ -175,7 +174,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void callsKey1xIfAdminKeyNotRequired() throws PreCheckException {
+    void callsKey1xIfAdminKeyNotRequired() {
         final var txn = TransactionBody.newBuilder()
                 .contractUpdateInstance(
                         ContractUpdateTransactionBody.newBuilder()
@@ -280,7 +279,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         when(accountStore.getContractById(targetContract)).thenReturn(contract);
         doReturn(attributeValidator).when(context).attributeValidator();
-        doThrow(HandleException.class).when(attributeValidator).validateExpiry(expirationTime);
+        doThrow(WorkflowException.class).when(attributeValidator).validateExpiry(expirationTime);
         when(contract.expiredAndPendingRemoval()).thenReturn(true);
 
         given(context.storeFactory()).willReturn(storeFactory);

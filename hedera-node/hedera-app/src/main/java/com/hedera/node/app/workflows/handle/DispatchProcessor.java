@@ -21,7 +21,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -118,7 +118,7 @@ public class DispatchProcessor {
 
     /**
      * Tries to the transaction logic for the given dispatch. If the logic fails and
-     * throws HandleException, it will rollback the stack and charge the payer for the
+     * throws WorkflowException, it will rollback the stack and charge the payer for the
      * fees. If it is throttled, it will charge the payer for the fees and return
      * FEE_ONLY as work done. If it catches an unexpected exception, it will charge
      * the payer for the fees and return FEE_ONLY as work done.
@@ -132,7 +132,7 @@ public class DispatchProcessor {
             dispatcher.dispatchHandle(dispatch.handleContext());
             dispatch.recordBuilder().status(SUCCESS);
             handleSystemUpdates(dispatch);
-        } catch (HandleException e) {
+        } catch (WorkflowException e) {
             // In case of a ContractCall when it reverts, the gas charged should not be rolled back
             rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.recordBuilder());
             if (e.shouldRollbackStack()) {
@@ -240,7 +240,7 @@ public class DispatchProcessor {
      * Rolls back the stack and sets the status of the transaction in case of a failure.
      *
      * @param rollbackStack whether to rollback the stack. Will be false when the failure is due to a
-     * {@link HandleException} that is due to a contract call revert.
+     * {@link WorkflowException} that is due to a contract call revert.
      * @param status the status to set
      * @param stack the save point stack to rollback
      */
@@ -282,7 +282,7 @@ public class DispatchProcessor {
     }
 
     /**
-     * Asserts that the dispatch is authorized. If the dispatch is not authorized, it will throw a {@link HandleException}.
+     * Asserts that the dispatch is authorized. If the dispatch is not authorized, it will throw a {@link WorkflowException}.
      *
      * @param dispatch the dispatch to be processed
      */
@@ -312,7 +312,7 @@ public class DispatchProcessor {
     }
 
     /**
-     * Asserts that the signatures are valid. If the signatures are not valid, it will throw a {@link HandleException}.
+     * Asserts that the signatures are valid. If the signatures are not valid, it will throw a {@link WorkflowException}.
      *
      * @param dispatch the dispatch to be processed
      */

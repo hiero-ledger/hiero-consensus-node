@@ -18,7 +18,6 @@ import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.VersionConfig;
@@ -68,7 +67,7 @@ public class NetworkGetVersionInfoHandler extends PaidQueryHandler {
     }
 
     @Override
-    public void validate(@NonNull final QueryContext context) throws PreCheckException {
+    public void validate(@NonNull final QueryContext context) {
         requireNonNull(context);
         final var query = context.query();
         query.networkGetVersionInfoOrThrow();

@@ -45,9 +45,8 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.ParityTestBase;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import java.time.Instant;
 import java.util.List;
 import org.assertj.core.api.Assertions;
@@ -92,7 +91,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(pureChecksContext.body()).willReturn(txn);
 
             assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
         }
 
@@ -102,7 +101,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(pureChecksContext.body()).willReturn(txn);
 
             assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_ID_REPEATED_IN_TOKEN_LIST));
         }
     }
@@ -116,7 +115,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
         }
 
@@ -139,7 +138,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(expiryValidator.expirationStatus(eq(EntityType.ACCOUNT), eq(true), anyLong()))
                     .willReturn(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL);
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL));
         }
 
@@ -161,7 +160,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ACCOUNT_DELETED));
         }
 
@@ -172,7 +171,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
         }
 
@@ -195,7 +194,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_IS_PAUSED));
         }
 
@@ -220,7 +219,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ACCOUNT_IS_TREASURY));
         }
 
@@ -244,7 +243,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ACCOUNT_FROZEN_FOR_TOKEN));
         }
 
@@ -270,7 +269,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ACCOUNT_STILL_OWNS_NFTS));
         }
 
@@ -390,7 +389,7 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES));
         }
 

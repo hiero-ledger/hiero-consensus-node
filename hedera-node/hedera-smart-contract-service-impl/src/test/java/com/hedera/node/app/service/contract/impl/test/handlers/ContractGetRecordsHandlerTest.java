@@ -5,8 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.node.app.service.contract.impl.handlers.ContractGetRecordsHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,7 +21,7 @@ class ContractGetRecordsHandlerTest {
     void validatesAsNotSupported() {
         final var subject = new ContractGetRecordsHandler();
 
-        final var e = assertThrows(PreCheckException.class, () -> subject.validate(context));
-        assertEquals(NOT_SUPPORTED, e.responseCode());
+        final var e = assertThrows(WorkflowException.class, () -> subject.validate(context));
+        assertEquals(NOT_SUPPORTED, e.getStatus());
     }
 }

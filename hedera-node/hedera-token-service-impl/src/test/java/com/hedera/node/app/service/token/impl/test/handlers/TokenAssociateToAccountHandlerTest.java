@@ -45,9 +45,8 @@ import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -101,27 +100,27 @@ class TokenAssociateToAccountHandlerTest {
         }
 
         @Test
-        void txnWithoutAccountThrows() throws PreCheckException {
+        void txnWithoutAccountThrows() {
             final var txn = newAssociateTxn(null, List.of(TOKEN_300));
             final var preHandleContext = new FakePreHandleContext(readableAccountStore, txn);
 
             assertThatThrownBy(() -> subject.preHandle(preHandleContext))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
         }
 
         @Test
-        void txnWithRepeatedTokenIdsThrows() throws PreCheckException {
+        void txnWithRepeatedTokenIdsThrows() {
             final var txn = newAssociateTxn(ACCOUNT_888, List.of(TOKEN_300, TOKEN_400, TOKEN_300));
             given(pureChecksContext.body()).willReturn(txn);
 
             assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_ID_REPEATED_IN_TOKEN_LIST));
         }
 
         @Test
-        void txnWithEmptyTokenIdsSucceeds() throws PreCheckException {
+        void txnWithEmptyTokenIdsSucceeds() {
             final var txn = newAssociateTxn(ACCOUNT_888, Collections.emptyList());
             final var preHandleContext = new FakePreHandleContext(readableAccountStore, txn);
 
@@ -168,7 +167,7 @@ class TokenAssociateToAccountHandlerTest {
             given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED));
         }
 
@@ -190,7 +189,7 @@ class TokenAssociateToAccountHandlerTest {
             given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
         }
 
@@ -204,7 +203,7 @@ class TokenAssociateToAccountHandlerTest {
             given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TOKEN_ID));
         }
 
@@ -218,7 +217,7 @@ class TokenAssociateToAccountHandlerTest {
             given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_WAS_DELETED));
         }
 
@@ -232,7 +231,7 @@ class TokenAssociateToAccountHandlerTest {
             given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_IS_PAUSED));
         }
 
@@ -248,7 +247,7 @@ class TokenAssociateToAccountHandlerTest {
             given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED));
         }
 
@@ -262,7 +261,7 @@ class TokenAssociateToAccountHandlerTest {
             given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT));
         }
 

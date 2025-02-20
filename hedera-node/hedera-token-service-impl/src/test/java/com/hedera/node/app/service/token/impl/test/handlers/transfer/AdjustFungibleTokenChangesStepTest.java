@@ -25,7 +25,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.EnsureAliasesSte
 import com.hedera.node.app.service.token.impl.handlers.transfer.ReplaceAliasesWithIDsInOp;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -170,7 +170,7 @@ class AdjustFungibleTokenChangesStepTest extends StepsBase {
         adjustFungibleTokenChangesStep = new AdjustFungibleTokenChangesStep(replacedOp.tokenTransfers(), payerId);
 
         assertThatThrownBy(() -> adjustFungibleTokenChangesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(UNEXPECTED_TOKEN_DECIMALS));
     }
 
@@ -204,7 +204,7 @@ class AdjustFungibleTokenChangesStepTest extends StepsBase {
                 .build());
 
         assertThatThrownBy(() -> adjustFungibleTokenChangesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE));
     }
 
@@ -238,7 +238,7 @@ class AdjustFungibleTokenChangesStepTest extends StepsBase {
                 .build());
 
         assertThatThrownBy(() -> adjustFungibleTokenChangesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE));
     }
 

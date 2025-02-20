@@ -205,7 +205,7 @@ signatures are waived. If not, it validates and adds the required keys.
 ### handle
 
 The ```handle``` method is responsible for executing the main logic of each Handler.
-It takes a ```HandleContext``` as an argument and throws a ```HandleException``` if any issue happens during the handling process.
+It takes a ```HandleContext``` as an argument and throws a ```WorkflowException``` if any issue happens during the handling process.
 
 ### calculateFees
 
@@ -236,7 +236,7 @@ The `consensusSubmitMessageHandler` is responsible for handling the submission o
 
 ## Network Response Messages
 
-Specific network response messages (```ResponseCodeEnum```) are wrapped by ```HandleException``` and the codes relevant to the Consensus
+Specific network response messages (```ResponseCodeEnum```) are wrapped by ```WorkflowException``` and the codes relevant to the Consensus
 Service are:
 
 - ```OK;```: The transaction or query was successful

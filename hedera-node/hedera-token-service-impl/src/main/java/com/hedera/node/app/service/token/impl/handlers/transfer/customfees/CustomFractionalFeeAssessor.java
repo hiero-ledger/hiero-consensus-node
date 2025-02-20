@@ -9,7 +9,7 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.customfee
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.getFungibleTokenCredits;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.safeFractionMultiply;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFeeExemptions.isPayerExempt;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
@@ -17,7 +17,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -193,7 +193,7 @@ public class CustomFractionalFeeAssessor {
         try {
             nominalFee = safeFractionMultiply(numerator, denominator, givenUnits);
         } catch (final ArithmeticException e) {
-            throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
+            throw new WorkflowException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
         }
         long effectiveFee = Math.max(nominalFee, fractionalFee.minimumAmount());
         if (fractionalFee.maximumAmount() > 0) {
@@ -225,7 +225,7 @@ public class CustomFractionalFeeAssessor {
                 credits.put(account, creditAmount - toReclaimHere);
                 amountReclaimed += toReclaimHere;
             } catch (final ArithmeticException e) {
-                throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
+                throw new WorkflowException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
             }
         }
 

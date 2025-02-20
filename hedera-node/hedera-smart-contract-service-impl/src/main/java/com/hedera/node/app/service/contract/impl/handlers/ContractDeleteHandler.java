@@ -12,10 +12,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PERMANENT_REMOVAL_REQUI
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumericContractId;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -30,11 +28,10 @@ import com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -56,21 +53,21 @@ public class ContractDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.contractDeleteInstanceOrThrow();
-        validateFalsePreCheck(op.permanentRemoval(), PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION);
+        validateFalse(op.permanentRemoval(), PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION);
 
         // The contract ID must be present on the transaction
         final var contractID = op.contractID();
         mustExist(contractID, INVALID_CONTRACT_ID);
 
-        validateTruePreCheck(op.hasTransferAccountID() || op.hasTransferContractID(), OBTAINER_REQUIRED);
+        validateTrue(op.hasTransferAccountID() || op.hasTransferContractID(), OBTAINER_REQUIRED);
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().contractDeleteInstanceOrThrow();
         // A contract corresponding to that contract ID must exist in state (otherwise we have nothing to delete)
@@ -80,8 +77,7 @@ public class ContractDeleteHandler implements TransactionHandler {
         // be signed by the admin key.
         context.requireKeyOrThrow(contract.key(), MODIFYING_IMMUTABLE_CONTRACT);
         final var adminKey = contract.keyOrThrow();
-        validateFalsePreCheck(
-                adminKey.hasContractID() || adminKey.hasDelegatableContractId(), MODIFYING_IMMUTABLE_CONTRACT);
+        validateFalse(adminKey.hasContractID() || adminKey.hasDelegatableContractId(), MODIFYING_IMMUTABLE_CONTRACT);
         // If there is a transfer account ID, and IF that account has receiverSigRequired set, then the transaction
         // must be signed by that account's key. Same if instead it uses a contract as the transfer target.
         if (op.hasTransferAccountID()) {
@@ -92,7 +88,7 @@ public class ContractDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         final var op = context.body().contractDeleteInstanceOrThrow();
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
         final var toBeDeleted = requireNonNull(accountStore.getContractById(op.contractIDOrThrow()));
@@ -100,7 +96,7 @@ public class ContractDeleteHandler implements TransactionHandler {
         final var obtainer = getObtainer(accountStore, op);
         validateTrue(obtainer != null, OBTAINER_DOES_NOT_EXIST);
         if (obtainer.deleted()) {
-            throw new HandleException(obtainer.smartContract() ? INVALID_CONTRACT_ID : OBTAINER_DOES_NOT_EXIST);
+            throw new WorkflowException(obtainer.smartContract() ? INVALID_CONTRACT_ID : OBTAINER_DOES_NOT_EXIST);
         }
         validateFalse(toBeDeleted.accountIdOrThrow().equals(obtainer.accountIdOrThrow()), OBTAINER_SAME_CONTRACT_ID);
         final var recordBuilder = context.savepointStack().getBaseBuilder(ContractDeleteStreamBuilder.class);

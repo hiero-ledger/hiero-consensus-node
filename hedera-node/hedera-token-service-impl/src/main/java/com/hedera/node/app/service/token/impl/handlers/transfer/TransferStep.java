@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import com.hedera.hapi.node.base.Key;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import java.util.Set;
 
 /**
@@ -21,7 +22,7 @@ public interface TransferStep {
     /**
      * Perform the step and commit changes to the modifications in state.
      * @param transferContext the context of the transfer
-     * @throws com.hedera.node.app.spi.workflows.HandleException if the step fails
+     * @throws WorkflowException if the step fails
      */
     void doIn(TransferContext transferContext);
 }

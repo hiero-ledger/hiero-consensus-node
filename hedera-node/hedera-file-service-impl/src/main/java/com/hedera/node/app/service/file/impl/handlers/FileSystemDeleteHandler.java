@@ -17,11 +17,10 @@ import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -49,13 +48,13 @@ public class FileSystemDeleteHandler implements TransactionHandler {
      * @param context the {@link PureChecksContext} which collects all information
      */
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var transactionBody = txn.systemDeleteOrThrow();
 
         if (transactionBody.fileID() == null) {
-            throw new PreCheckException(INVALID_FILE_ID);
+            throw new WorkflowException(INVALID_FILE_ID);
         }
     }
 
@@ -69,7 +68,7 @@ public class FileSystemDeleteHandler implements TransactionHandler {
      * @throws NullPointerException if any of the arguments are {@code null}
      */
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
 
         final var transactionBody = context.body().systemDeleteOrThrow();
@@ -79,12 +78,12 @@ public class FileSystemDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void handle(@NonNull final HandleContext handleContext) throws HandleException {
+    public void handle(@NonNull final HandleContext handleContext) throws WorkflowException {
         requireNonNull(handleContext);
 
         final var systemDeleteTransactionBody = handleContext.body().systemDeleteOrThrow();
         if (!systemDeleteTransactionBody.hasFileID()) {
-            throw new HandleException(INVALID_FILE_ID);
+            throw new WorkflowException(INVALID_FILE_ID);
         }
         var fileId = systemDeleteTransactionBody.fileIDOrThrow();
 

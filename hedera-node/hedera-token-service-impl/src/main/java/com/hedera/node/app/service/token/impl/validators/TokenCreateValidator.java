@@ -15,10 +15,8 @@ import static com.hedera.hapi.node.base.TokenSupplyType.FINITE;
 import static com.hedera.hapi.node.base.TokenSupplyType.INFINITE;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -31,7 +29,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -57,9 +55,9 @@ public class TokenCreateValidator {
     /**
      * Validations needed in pre-handle for {@link TokenCreateTransactionBody} are done here.
      * @param op token create transaction body
-     * @throws PreCheckException if any of the validations fail
+     * @throws WorkflowException if any of the validations fail
      */
-    public void pureChecks(@NonNull final TokenCreateTransactionBody op) throws PreCheckException {
+    public void pureChecks(@NonNull final TokenCreateTransactionBody op) {
         requireNonNull(op);
         final var initialSupply = op.initialSupply();
         final var maxSupply = op.maxSupply();
@@ -70,14 +68,14 @@ public class TokenCreateValidator {
         validateTokenType(tokenType, initialSupply, decimals);
         validateSupplyType(supplyType, maxSupply);
 
-        validateFalsePreCheck(maxSupply > 0 && initialSupply > maxSupply, INVALID_TOKEN_INITIAL_SUPPLY);
-        validateTruePreCheck(op.hasTreasury(), INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
+        validateFalse(maxSupply > 0 && initialSupply > maxSupply, INVALID_TOKEN_INITIAL_SUPPLY);
+        validateTrue(op.hasTreasury(), INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
 
         if (tokenType == NON_FUNGIBLE_UNIQUE) {
-            validateTruePreCheck(op.hasSupplyKey(), TOKEN_HAS_NO_SUPPLY_KEY);
+            validateTrue(op.hasSupplyKey(), TOKEN_HAS_NO_SUPPLY_KEY);
         }
         if (op.freezeDefault()) {
-            validateTruePreCheck(op.hasFreezeKey(), TOKEN_HAS_NO_FREEZE_KEY);
+            validateTrue(op.hasFreezeKey(), TOKEN_HAS_NO_FREEZE_KEY);
         }
     }
 
@@ -129,17 +127,16 @@ public class TokenCreateValidator {
      * @param type token type
      * @param initialSupply initial supply
      * @param decimals decimals
-     * @throws PreCheckException if validation fails
+     * @throws WorkflowException if validation fails
      */
-    private void validateTokenType(@NonNull final TokenType type, final long initialSupply, final int decimals)
-            throws PreCheckException {
-        validateTruePreCheck(type == FUNGIBLE_COMMON || type == NON_FUNGIBLE_UNIQUE, NOT_SUPPORTED);
+    private void validateTokenType(@NonNull final TokenType type, final long initialSupply, final int decimals) {
+        validateTrue(type == FUNGIBLE_COMMON || type == NON_FUNGIBLE_UNIQUE, NOT_SUPPORTED);
         if (type == FUNGIBLE_COMMON) {
-            validateTruePreCheck(initialSupply >= 0, INVALID_TOKEN_INITIAL_SUPPLY);
-            validateTruePreCheck(decimals >= 0, INVALID_TOKEN_DECIMALS);
+            validateTrue(initialSupply >= 0, INVALID_TOKEN_INITIAL_SUPPLY);
+            validateTrue(decimals >= 0, INVALID_TOKEN_DECIMALS);
         } else {
-            validateTruePreCheck(initialSupply == 0, INVALID_TOKEN_INITIAL_SUPPLY);
-            validateTruePreCheck(decimals == 0, INVALID_TOKEN_DECIMALS);
+            validateTrue(initialSupply == 0, INVALID_TOKEN_INITIAL_SUPPLY);
+            validateTrue(decimals == 0, INVALID_TOKEN_DECIMALS);
         }
     }
 
@@ -147,14 +144,14 @@ public class TokenCreateValidator {
      * Validates supply type and max supply.
      * @param supplyType supply type
      * @param maxSupply max supply
-     * @throws PreCheckException if validation fails
+     * @throws WorkflowException if validation fails
      */
-    private void validateSupplyType(final TokenSupplyType supplyType, final long maxSupply) throws PreCheckException {
-        validateTruePreCheck(supplyType == INFINITE || supplyType == FINITE, NOT_SUPPORTED);
+    private void validateSupplyType(final TokenSupplyType supplyType, final long maxSupply) {
+        validateTrue(supplyType == INFINITE || supplyType == FINITE, NOT_SUPPORTED);
         if (supplyType == INFINITE) {
-            validateTruePreCheck(maxSupply == 0, INVALID_TOKEN_MAX_SUPPLY);
+            validateTrue(maxSupply == 0, INVALID_TOKEN_MAX_SUPPLY);
         } else {
-            validateTruePreCheck(maxSupply > 0, INVALID_TOKEN_MAX_SUPPLY);
+            validateTrue(maxSupply > 0, INVALID_TOKEN_MAX_SUPPLY);
         }
     }
 

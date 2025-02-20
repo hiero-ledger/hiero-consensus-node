@@ -12,8 +12,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID_IN_CUSTOM_FEES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ROYALTY_FRACTION_CANNOT_EXCEED_ONE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -26,7 +26,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -159,7 +159,7 @@ public class CustomFeesValidator {
                 validateFractionalFeeForFeeScheduleUpdate(token, tokenRelationStore, collectorId, fee);
                 case ROYALTY_FEE -> // royalty fee can be only applied to non-fungible unique tokens
                 validateRoyaltyFee(tokenType, fee, tokenRelationStore, tokenStore);
-                default -> throw new HandleException(CUSTOM_FEE_NOT_FULLY_SPECIFIED);
+                default -> throw new WorkflowException(CUSTOM_FEE_NOT_FULLY_SPECIFIED);
             }
         }
     }

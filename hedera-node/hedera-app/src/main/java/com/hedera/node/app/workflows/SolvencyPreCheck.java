@@ -30,7 +30,7 @@ import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.InsufficientNetworkFeeException;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
 import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,24 +71,24 @@ public class SolvencyPreCheck {
      *
      * @param storeFactory the {@link ReadableStoreFactory} used to access readable state
      * @param accountID the {@link AccountID} of the payer
-     * @throws PreCheckException if the payer account is invalid
+     * @throws WorkflowException if the payer account is invalid
      */
     @NonNull
-    public Account getPayerAccount(@NonNull final ReadableStoreFactory storeFactory, @NonNull final AccountID accountID)
-            throws PreCheckException {
+    public Account getPayerAccount(
+            @NonNull final ReadableStoreFactory storeFactory, @NonNull final AccountID accountID) {
         final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
         final var account = accountStore.getAccountById(accountID);
 
         if (account == null) {
-            throw new PreCheckException(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND);
+            throw new WorkflowException(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND);
         }
 
         if (account.deleted()) {
-            throw new PreCheckException(ResponseCodeEnum.PAYER_ACCOUNT_DELETED);
+            throw new WorkflowException(ResponseCodeEnum.PAYER_ACCOUNT_DELETED);
         }
 
         if (account.smartContract()) {
-            throw new PreCheckException(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND);
+            throw new WorkflowException(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND);
         }
 
         return account;
@@ -110,8 +110,7 @@ public class SolvencyPreCheck {
             @NonNull final Fees fees,
             // This is to match mono and pass HapiTest. Should reconsider later.
             // FUTURE ('#9550')
-            @NonNull final WorkflowCheck workflowCheck)
-            throws PreCheckException {
+            @NonNull final WorkflowCheck workflowCheck) {
         checkSolvency(
                 txInfo.txBody(),
                 txInfo.payerID(),
@@ -134,7 +133,7 @@ public class SolvencyPreCheck {
      * @param fees the fees to use for the check
      * @param workflowCheck if IS_INGEST, the check is being performed during an ingest workflow.
      * @param offeredFeeCheck if CHECK_OFFERED_FEE, the offered fee is checked against the total fee.
-     * @throws PreCheckException if the payer account cannot afford the fees. The exception will have a status of
+     * @throws WorkflowException if the payer account cannot afford the fees. The exception will have a status of
      * {@code INSUFFICIENT_PAYER_BALANCE} and the fee amount that would have satisfied the check.
      */
     public void checkSolvency(
@@ -146,8 +145,7 @@ public class SolvencyPreCheck {
             // This is to match mono and pass HapiTest. Should reconsider later.
             // FUTURE ('#9550')
             @NonNull final WorkflowCheck workflowCheck,
-            @NonNull OfferedFeeCheck offeredFeeCheck)
-            throws PreCheckException {
+            @NonNull OfferedFeeCheck offeredFeeCheck) {
         final var isIngest = workflowCheck.equals(INGEST);
         final var checkOfferedFee = offeredFeeCheck.equals(CHECK_OFFERED_FEE);
         // Skip solvency check for privileged transactions or superusers

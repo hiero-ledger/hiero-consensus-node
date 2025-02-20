@@ -12,7 +12,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.SY
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TINYBAR_VALUES_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TRACKER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;

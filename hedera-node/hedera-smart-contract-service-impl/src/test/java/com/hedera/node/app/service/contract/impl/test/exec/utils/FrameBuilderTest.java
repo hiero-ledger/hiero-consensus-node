@@ -44,7 +44,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhance
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
@@ -207,7 +207,7 @@ class FrameBuilderTest {
                 .getOrCreateConfig();
 
         assertThrows(
-                HandleException.class,
+                WorkflowException.class,
                 () -> subject.buildInitialFrameWith(
                         transaction,
                         worldUpdater,

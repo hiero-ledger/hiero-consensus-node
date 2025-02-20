@@ -31,7 +31,6 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.Assertions;
 import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -49,7 +48,7 @@ class ScheduleGetInfoHandlerTest extends ScheduleHandlerTestBase {
     private ScheduleGetInfoHandler subject;
 
     @BeforeEach
-    void setUp() throws PreCheckException, InvalidKeyException {
+    void setUp() throws InvalidKeyException {
         setUpBase();
         subject = new ScheduleGetInfoHandler(new ScheduleOpsUsage());
     }

@@ -22,10 +22,8 @@ import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -49,11 +47,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -83,18 +80,18 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoUpdateAccountOrThrow();
-        validateTruePreCheck(op.hasAccountIDToUpdate(), ACCOUNT_ID_DOES_NOT_EXIST);
-        validateFalsePreCheck(
+        validateTrue(op.hasAccountIDToUpdate(), ACCOUNT_ID_DOES_NOT_EXIST);
+        validateFalse(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         requireNonNull(waivers);
         final var txn = context.body();
@@ -124,7 +121,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method is called during the handle workflow. It executes the actual transaction.
      * @param context the {@link HandleContext} which collects all information
-     * @throws HandleException if any of the checks fail
+     * @throws WorkflowException if any of the checks fail
      * @throws NullPointerException if any of the arguments are null
      */
     @Override

@@ -35,8 +35,8 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
 import com.hedera.node.app.spi.records.RecordCache;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.assertj.core.api.Assertions;
@@ -133,7 +133,7 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
                         .build());
 
         Assertions.assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TRANSACTION_BODY));
     }
 
@@ -145,7 +145,7 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
                 QueryHeader.newBuilder().responseType(ANSWER_ONLY).build());
 
         Assertions.assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_ACCOUNT_ID));
     }
 
@@ -158,7 +158,7 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
                 QueryHeader.newBuilder().responseType(ANSWER_ONLY).build());
 
         Assertions.assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.ACCOUNT_DELETED));
     }
 
@@ -170,7 +170,7 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
                 id, QueryHeader.newBuilder().responseType(ANSWER_STATE_PROOF).build());
 
         Assertions.assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_ACCOUNT_ID));
     }
 

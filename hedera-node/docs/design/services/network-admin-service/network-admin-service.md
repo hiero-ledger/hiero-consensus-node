@@ -1,21 +1,22 @@
 # Network and Freeze Service
 
-The Network and Freeze Services are responsible for managing network operations and freeze 
-transactions respectively. When the Hedera network is entering a maintenance window for a software upgrade 
+The Network and Freeze Services are responsible for managing network operations and freeze
+transactions respectively. When the Hedera network is entering a maintenance window for a software upgrade
 the Freeze service is utilized to facilitate the upgrade process.
 
 ### Table of Contents
+
 - [Architecture Overview](#Architecture-Overview)
 - [Protobuf Definitions](#Protobuf-Definitions)
   - [Network Service](#Network-Service)
-      - [NetworkGetVersionInfoQuery](#NetworkGetVersionInfoQuery)
-      - [NetworkGetExecutionTimeQuery](#NetworkGetExecutionTimeQuery)
-      - [GetAccountDetailsQuery](#GetAccountDetailsQuery)
-      - [TransactionGetReceiptQuery](#TransactionGetReceiptQuery)
-      - [TransactionGetRecordQuery](#TransactionGetRecordQuery)
+    - [NetworkGetVersionInfoQuery](#NetworkGetVersionInfoQuery)
+    - [NetworkGetExecutionTimeQuery](#NetworkGetExecutionTimeQuery)
+    - [GetAccountDetailsQuery](#GetAccountDetailsQuery)
+    - [TransactionGetReceiptQuery](#TransactionGetReceiptQuery)
+    - [TransactionGetRecordQuery](#TransactionGetRecordQuery)
   - [Freeze Service](#Freeze-Service)
-      - [FreezeTransactionBody](#FreezeTransactionBody)
-      - [FreezeType](#FreezeType)
+    - [FreezeTransactionBody](#FreezeTransactionBody)
+    - [FreezeType](#FreezeType)
 - [Handlers](#Handlers)
   - [Network Service Handlers](#Network-Service-Handlers)
     - [NetworkGetAccountDetailsHandler](#NetworkGetAccountDetailsHandler)
@@ -24,31 +25,32 @@ the Freeze service is utilized to facilitate the upgrade process.
     - [NetworkTransactionGetReceiptHandler](#NetworkTransactionGetReceiptHandler)
     - [NetworkTransactionGetRecordHandler](#NetworkTransactionGetRecordHandler)
   - [Freeze Service Handlers](#Freeze-Service-Handlers)
-      - [FreezeHandler](#FreezeHandler)
+    - [FreezeHandler](#FreezeHandler)
 - [Network Response Messages](#Network-Response-Messages)
 
 ## Architecture Overview
 
-The Network and Freeze Services are designed to handle transactions and queries related to network operations and 
-freeze transactions respectively. They provide a set of operations that allow users to retrieve network information, 
+The Network and Freeze Services are designed to handle transactions and queries related to network operations and
+freeze transactions respectively. They provide a set of operations that allow users to retrieve network information,
 execute network operations, and manage freeze transactions. The main components of the Network and Freeze Services are:
 
-1. `Protobuf Definitions`: These are used to define the structure of our transactions and queries. They ensure that 
-the data sent between the client and the server is structured and typed.
+1. `Protobuf Definitions`: These are used to define the structure of our transactions and queries. They ensure that
+   the data sent between the client and the server is structured and typed.
 
-2. `Handlers`: These are responsible for executing the transactions and queries. Each type of transaction or query 
-has its own handler. Handlers interact with the Network and Freeze Services to perform the required operations.
+2. `Handlers`: These are responsible for executing the transactions and queries. Each type of transaction or query
+   has its own handler. Handlers interact with the Network and Freeze Services to perform the required operations.
 
-3. `Network and Freeze Services`: These are interfaces that define methods for interacting with the network and 
-managing freeze transactions. They provide the functionality for the various operations that can be performed.
+3. `Network and Freeze Services`: These are interfaces that define methods for interacting with the network and
+   managing freeze transactions. They provide the functionality for the various operations that can be performed.
 
-4. `NetworkAdminInjectionModule`: This is a Dagger module that provides dependency injection for the Network and 
-Freeze Services. It ensures that the correct implementations of interfaces are used at runtime.
+4. `NetworkAdminInjectionModule`: This is a Dagger module that provides dependency injection for the Network and
+   Freeze Services. It ensures that the correct implementations of interfaces are used at runtime.
 
-The Network and Freeze Services are designed to be stateless, meaning that they do not store any 
+The Network and Freeze Services are designed to be stateless, meaning that they do not store any
 client-specific data between requests.
 
 ## Protobuf Definitions
+
 Protobuf, or Protocol Buffers, is a method of serializing structured
 data. Here are some of the Protobuf definitions used in the Network & Freeze Service's:
 
@@ -63,85 +65,85 @@ The Network Service is defined in the `network_service.proto` file. It includes 
 
 #### NetworkGetVersionInfoQuery
 
-`NetworkGetVersionInfoQuery` is a protobuf message type used to retrieve the active versions of Hedera Services 
-and HAPI proto. It is defined in the `network_service.proto` file. This query does not require any specific 
+`NetworkGetVersionInfoQuery` is a protobuf message type used to retrieve the active versions of Hedera Services
+and HAPI proto. It is defined in the `network_service.proto` file. This query does not require any specific
 fields to be set as it is a request for information.
 
 The `NetworkGetVersionInfoQuery` message has the following field:
 
-- `header`: This field is used to set the standard info sent from client to node including the signed payment, 
-and what kind of response is requested (cost, state proof, both, or neither).
+- `header`: This field is used to set the standard info sent from client to node including the signed payment,
+  and what kind of response is requested (cost, state proof, both, or neither).
 
-Please note that this query is used to retrieve the active versions of Hedera Services and HAPI proto. 
+Please note that this query is used to retrieve the active versions of Hedera Services and HAPI proto.
 The response to this query will contain the version information.
 
 #### NetworkGetExecutionTimeQuery
 
-`NetworkGetExecutionTimeQuery` is a protobuf message type defined in the 
-`network_get_execution_time.proto` file. It is used to retrieve the time in nanoseconds spent 
-in `handleTransaction` for one or more TransactionIDs. This information is useful for performance 
+`NetworkGetExecutionTimeQuery` is a protobuf message type defined in the
+`network_get_execution_time.proto` file. It is used to retrieve the time in nanoseconds spent
+in `handleTransaction` for one or more TransactionIDs. This information is useful for performance
 analysis and debugging purposes.
 
 The `NetworkGetExecutionTimeQuery` message has the following fields:
 
-- `header`: This field is used to set the standard info sent from client to node including the signed payment, 
-and what kind of response is requested (cost, state proof, both, or neither).
+- `header`: This field is used to set the standard info sent from client to node including the signed payment,
+  and what kind of response is requested (cost, state proof, both, or neither).
 
-- `transaction_ids`: This field is used to set one or more TransactionIDs for which the execution time is to be 
-retrieved. It is a required field.
+- `transaction_ids`: This field is used to set one or more TransactionIDs for which the execution time is to be
+  retrieved. It is a required field.
 
-Please note that the execution times are kept in-memory and are available only for a limited number of recent 
-transactions. The number of execution times that are kept in-memory depends on the value of the 
+Please note that the execution times are kept in-memory and are available only for a limited number of recent
+transactions. The number of execution times that are kept in-memory depends on the value of the
 node-local property `stats.executionTimesToTrack`.
 
 #### GetAccountDetailsQuery
 
-`GetAccountDetailsQuery` is a protobuf message type defined in the `network_service.proto` file. 
+`GetAccountDetailsQuery` is a protobuf message type defined in the `network_service.proto` file.
 It is used to retrieve all the information about an account, including balance and allowances.
 
 The `GetAccountDetailsQuery` message has the following fields:
 
-- `header`: This field is used to set the standard info sent from client to node including the signed 
-payment, and what kind of response is requested (cost, state proof, both, or neither).
+- `header`: This field is used to set the standard info sent from client to node including the signed
+  payment, and what kind of response is requested (cost, state proof, both, or neither).
 
-- `account_id`: This field is used to set the ID of the account for which the details are to be 
-retrieved. It is a required field.
+- `account_id`: This field is used to set the ID of the account for which the details are to be
+  retrieved. It is a required field.
 
 #### TransactionGetReceiptQuery
 
-`TransactionGetReceiptQuery` is a protobuf message type defined in the `transaction_receipt.proto` file. 
-It is used to retrieve the receipt of a transaction, which includes the status of the transaction, 
+`TransactionGetReceiptQuery` is a protobuf message type defined in the `transaction_receipt.proto` file.
+It is used to retrieve the receipt of a transaction, which includes the status of the transaction,
 whether it succeeded or failed, and additional information depending on the transaction type.
 
 The `TransactionGetReceiptQuery` message has the following fields:
 
-- `header`: This field is used to set the standard info sent from client to node including the signed payment, 
-and what kind of response is requested (cost, state proof, both, or neither).
+- `header`: This field is used to set the standard info sent from client to node including the signed payment,
+  and what kind of response is requested (cost, state proof, both, or neither).
 
-- `transactionID`: This field is used to set the ID of the transaction for which the receipt is to be retrieved. 
-It is a required field.
+- `transactionID`: This field is used to set the ID of the transaction for which the receipt is to be retrieved.
+  It is a required field.
 
-Please note that the receipt of a transaction is only available after the transaction has reached consensus. 
-The receipt includes the status of the transaction, which indicates whether the transaction succeeded or failed. 
+Please note that the receipt of a transaction is only available after the transaction has reached consensus.
+The receipt includes the status of the transaction, which indicates whether the transaction succeeded or failed.
 For some types of transactions, the receipt may also include additional information.
 
 #### TransactionGetRecordQuery
 
-`TransactionGetRecordQuery` is a protobuf message type defined in the `transaction_record.proto` file. It is used to 
-retrieve the record of a transaction, which includes the receipt of the transaction, the consensus timestamp, the 
+`TransactionGetRecordQuery` is a protobuf message type defined in the `transaction_record.proto` file. It is used to
+retrieve the record of a transaction, which includes the receipt of the transaction, the consensus timestamp, the
 transaction hash, and other information.
 
 The `TransactionGetRecordQuery` message has the following fields:
 
-- `header`: This field is used to set the standard info sent from client to node including the signed payment, and 
-what kind of response is requested (cost, state proof, both, or neither).
+- `header`: This field is used to set the standard info sent from client to node including the signed payment, and
+  what kind of response is requested (cost, state proof, both, or neither).
 
-- `transactionID`: This field is used to set the ID of the transaction for which the record is to be retrieved. It 
-is a required field.
+- `transactionID`: This field is used to set the ID of the transaction for which the record is to be retrieved. It
+  is a required field.
 
-Please note that the record of a transaction is only available after the transaction has reached consensus. The record 
-includes the receipt of the transaction, which indicates whether the transaction succeeded or failed, the consensus 
-timestamp at which the transaction was processed, the transaction hash, and other information. For some types of 
+Please note that the record of a transaction is only available after the transaction has reached consensus. The record
+includes the receipt of the transaction, which indicates whether the transaction succeeded or failed, the consensus
+timestamp at which the transaction was processed, the transaction hash, and other information. For some types of
 transactions, the record may also include additional information.
 
 ### Freeze Service
@@ -168,12 +170,13 @@ The `FreezeTransactionBody` message has the following fields:
 
 - `freeze_type`: This field is used to specify the type of network freeze or upgrade operation to perform. It is an enum of type `FreezeType`.
 
-Please note that the `startHour`, `startMin`, `endHour`, and `endMin` fields are deprecated and any values 
-specified for these fields will be ignored. The `start_time` field must be provided and must reference a 
-future time. The `update_file` and `file_hash` fields are optional and are used for network software updates 
+Please note that the `startHour`, `startMin`, `endHour`, and `endMin` fields are deprecated and any values
+specified for these fields will be ignored. The `start_time` field must be provided and must reference a
+future time. The `update_file` and `file_hash` fields are optional and are used for network software updates
 during the maintenance window.
 
 #### FreezeType
+
 `FreezeType` is a protobuf enum defined in the `freeze_type.proto` file. It is used to specify the type of network freeze or upgrade operation to be performed. It has several values:
 
 - `UNKNOWN_FREEZE_TYPE`: An (invalid) default value for this enum, to ensure the client explicitly sets the intended type of freeze transaction.
@@ -193,46 +196,46 @@ through their inheritance structure. If the latter, they provide an implementati
 
 ### Network Service Handlers
 
-Network Service Handlers are responsible for executing the transactions and queries 
-related to the Network Service. Each type of transaction or query has its own 
+Network Service Handlers are responsible for executing the transactions and queries
+related to the Network Service. Each type of transaction or query has its own
 handler.
 
 #### NetworkGetAccountDetailsHandler
 
-`NetworkGetAccountDetailsHandler` is responsible for handling `GetAccountDetailsQuery`. It retrieves all the 
+`NetworkGetAccountDetailsHandler` is responsible for handling `GetAccountDetailsQuery`. It retrieves all the
 information about an account, including balance and allowances.
 
 #### NetworkGetExecutionTimeHandler
 
-`NetworkGetExecutionTimeHandler` is responsible for handling `NetworkGetExecutionTimeQuery`. It retrieves the time in 
+`NetworkGetExecutionTimeHandler` is responsible for handling `NetworkGetExecutionTimeQuery`. It retrieves the time in
 nanoseconds spent in `handleTransaction` for one or more TransactionIDs.
 
 #### NetworkGetVersionInfoHandler
 
-`NetworkGetVersionInfoHandler` is responsible for handling `NetworkGetVersionInfoQuery`. It retrieves the active 
+`NetworkGetVersionInfoHandler` is responsible for handling `NetworkGetVersionInfoQuery`. It retrieves the active
 versions of Hedera Services and HAPI proto.
 
 #### NetworkTransactionGetReceiptHandler
 
-`NetworkTransactionGetReceiptHandler` is responsible for handling `TransactionGetReceiptQuery`. It retrieves the 
-receipt of a transaction, which includes the status of the transaction, whether it succeeded or failed, and 
+`NetworkTransactionGetReceiptHandler` is responsible for handling `TransactionGetReceiptQuery`. It retrieves the
+receipt of a transaction, which includes the status of the transaction, whether it succeeded or failed, and
 additional information depending on the transaction type.
 
 #### NetworkTransactionGetRecordHandler
 
-`NetworkTransactionGetRecordHandler` is responsible for handling `TransactionGetRecordQuery`. It retrieves the 
-record of a transaction, which includes the receipt of the transaction, the consensus timestamp, the transaction 
+`NetworkTransactionGetRecordHandler` is responsible for handling `TransactionGetRecordQuery`. It retrieves the
+record of a transaction, which includes the receipt of the transaction, the consensus timestamp, the transaction
 hash, and other information.
 
 ### Freeze Service Handlers
 
-Freeze Service Handlers are responsible for executing the transactions related to the Freeze Service. 
+Freeze Service Handlers are responsible for executing the transactions related to the Freeze Service.
 Each type of transaction has its own handler.
 
 #### FreezeHandler
 
-`FreezeHandler` is a class responsible for handling `FreezeTransactionBody`. 
-It may set the consensus time at which the Hedera network should stop creating events and accepting transactions, 
+`FreezeHandler` is a class responsible for handling `FreezeTransactionBody`.
+It may set the consensus time at which the Hedera network should stop creating events and accepting transactions,
 thereby entering a maintenance window. This class is defined in the `FreezeHandler.java` file.
 
 The `handle` method in `FreezeHandler` is responsible for executing the logic based on the `FreezeType` specified in the `FreezeTransactionBody`. The `FreezeType` is an enum that specifies the type of network freeze or upgrade operation to be performed.
@@ -249,10 +252,11 @@ The `handle` method contains a switch statement that executes different logic ba
 
 - `FREEZE_ONLY`: If the `FreezeType` is `FREEZE_ONLY`, the method schedules a freeze at the specified start time.
 
-- `UNKNOWN_FREEZE_TYPE`: If the `FreezeType` is `UNKNOWN_FREEZE_TYPE`, the method throws a `HandleException` with `ResponseCodeEnum.INVALID_FREEZE_TRANSACTION_BODY`.
+- `UNKNOWN_FREEZE_TYPE`: If the `FreezeType` is `UNKNOWN_FREEZE_TYPE`, the method throws a `WorkflowException` with `ResponseCodeEnum.INVALID_FREEZE_TRANSACTION_BODY`.
 
 ## Network Response Messages
-Specific network response messages (```ResponseCodeEnum```) are wrapped by ```HandleException``` or ```PreCheckException```
+
+Specific network response messages (```ResponseCodeEnum```) are wrapped by ```WorkflowException``` or ```PreCheckException```
 and the codes relevant to the Network and Freeze Service are:
 
 - `INVALID_FREEZE_TRANSACTION_BODY`: FreezeTransactionBody is invalid

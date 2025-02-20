@@ -123,7 +123,7 @@ functionality regarding deleteNode. It is a privileged transaction, requiring co
 
 ## Network Response Messages
 
-Specific network response messages (```ResponseCodeEnum```) are wrapped by ```HandleException``` or ```PreCheckException```.
+Specific network response messages (```ResponseCodeEnum```) are wrapped by ```WorkflowException``` or ```PreCheckException```.
 The response codes relevant to the Addressbook Service are:
 
 - `INVALID_ADMIN_KEY`: A provided admin key was invalid. Verify the bytes for an Ed25519 public key are exactly 32 bytes; and the bytes for a compressed ECDSA(secp256k1) key are exactly 33 bytes, with the first byte either 0x02 or 0x03.

@@ -26,7 +26,7 @@ import com.hedera.node.app.blocks.impl.PairedStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.ReadonlyStatesWrapper;
 import com.hedera.node.app.state.SingleTransactionRecord;
@@ -430,7 +430,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * waiting to the end of the transaction.
      * @param isLastAllowed whether the stack should refuse to create more preset ids after this one
      * @return the next expected transaction ID
-     * @throws HandleException if the last allowed preset id was already created, or if the nonce
+     * @throws WorkflowException if the last allowed preset id was already created, or if the nonce
      * changed from negative to positive, indicating there are no more nonces left for the base id
      * @throws NullPointerException if this is called before the base builder was given an id
      */
@@ -440,7 +440,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             return parent.nextPresetTxnId(isLastAllowed);
         }
         if (!presetIdsAllowed) {
-            throw new HandleException(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION);
+            throw new WorkflowException(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION);
         }
         numPresetIds++;
         if (isLastAllowed) {
@@ -449,7 +449,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         final var baseId = requireNonNull(baseBuilder.transactionID());
         final var presetNonce = baseId.nonce() + numPresetIds * noncesToSkipPerPresetId;
         if (baseId.nonce() < 0 && presetNonce >= 0) {
-            throw new HandleException(RECURSIVE_SCHEDULING_LIMIT_REACHED);
+            throw new WorkflowException(RECURSIVE_SCHEDULING_LIMIT_REACHED);
         }
         return baseId.copyBuilder().nonce(presetNonce).build();
     }

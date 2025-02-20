@@ -35,8 +35,8 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
@@ -144,7 +144,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     @DisplayName("Adds valid admin key")
-    void validAdminKey() throws PreCheckException {
+    void validAdminKey() {
         final var txn = contractCreateTransaction(adminKey, null);
         final var context = new FakePreHandleContext(accountStore, txn);
         subject.preHandle(context);
@@ -157,7 +157,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     @DisplayName("admin key with contractID is not added")
-    void adminKeyWithContractID() throws PreCheckException {
+    void adminKeyWithContractID() {
         final var txn = contractCreateTransaction(adminContractKey, null);
         final var context = new FakePreHandleContext(accountStore, txn);
         subject.preHandle(context);
@@ -168,7 +168,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     @DisplayName("autoRenew account key is added")
-    void autoRenewAccountIdAdded() throws PreCheckException {
+    void autoRenewAccountIdAdded() {
         final var txn = contractCreateTransaction(adminContractKey, autoRenewAccountId);
         final var context = new FakePreHandleContext(accountStore, txn);
         subject.preHandle(context);
@@ -180,7 +180,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     @DisplayName("autoRenew account key is not added when it is sentinel value")
-    void autoRenewAccountIdAsSentinelNotAdded() throws PreCheckException {
+    void autoRenewAccountIdAsSentinelNotAdded() {
         final var txn = contractCreateTransaction(adminContractKey, asAccount("0.0.0"));
         final var context = new FakePreHandleContext(accountStore, txn);
         subject.preHandle(context);
@@ -192,7 +192,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     @DisplayName("autoRenew account and adminKey both added")
-    void autoRenewAccountIdAndAdminBothAdded() throws PreCheckException {
+    void autoRenewAccountIdAndAdminBothAdded() {
         final var txn = contractCreateTransaction(adminKey, autoRenewAccountId);
         final var context = new FakePreHandleContext(accountStore, txn);
         subject.preHandle(context);
@@ -212,7 +212,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
         given(pureChecksContext.body()).willReturn(txn1);
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
     private TransactionBody contractCreateTransaction(final Key adminKey, final AccountID autoRenewId) {

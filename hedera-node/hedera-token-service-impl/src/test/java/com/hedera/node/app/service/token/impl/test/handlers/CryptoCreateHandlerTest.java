@@ -69,9 +69,8 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
@@ -172,7 +171,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
     @Test
     @DisplayName("preHandle works when there is a receiverSigRequired")
-    void preHandleCryptoCreateVanilla() throws PreCheckException {
+    void preHandleCryptoCreateVanilla() {
         final var context = new FakePreHandleContext(readableStore, txn);
         given(pureChecksContext.body()).willReturn(txn);
         subject.pureChecks(pureChecksContext);
@@ -187,8 +186,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     void whenInitialBalanceIsNegative() {
         txn = new CryptoCreateBuilder().withInitialBalance(-1L).build();
         given(pureChecksContext.body()).willReturn(txn);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(INVALID_INITIAL_BALANCE).isEqualTo(msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(INVALID_INITIAL_BALANCE).isEqualTo(msg.getStatus());
     }
 
     @Test
@@ -197,8 +196,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         txn = new CryptoCreateBuilder().withNoAutoRenewPeriod().build();
         given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(INVALID_RENEWAL_PERIOD).isEqualTo(msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(INVALID_RENEWAL_PERIOD).isEqualTo(msg.getStatus());
     }
 
     @Test
@@ -263,43 +262,43 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         txn = new CryptoCreateBuilder().withMaxAutoAssociations(-5).build();
         given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(INVALID_MAX_AUTO_ASSOCIATIONS);
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_MAX_AUTO_ASSOCIATIONS);
     }
 
     @Test
     @DisplayName("pureChecks fail when negative send record threshold is specified")
-    void sendRecordThresholdIsNegative() throws PreCheckException {
+    void sendRecordThresholdIsNegative() {
         txn = new CryptoCreateBuilder().withSendRecordThreshold(-1).build();
         given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(INVALID_SEND_RECORD_THRESHOLD);
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_SEND_RECORD_THRESHOLD);
     }
 
     @Test
     @DisplayName("pureChecks fail when negative receive record threshold is specified")
-    void receiveRecordThresholdIsNegative() throws PreCheckException {
+    void receiveRecordThresholdIsNegative() {
         txn = new CryptoCreateBuilder().withReceiveRecordThreshold(-1).build();
         given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(INVALID_RECEIVE_RECORD_THRESHOLD);
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_RECEIVE_RECORD_THRESHOLD);
     }
 
     @Test
     @DisplayName("pureChecks fail when proxy accounts id is specified")
-    void whenProxyAccountIdIsSpecified() throws PreCheckException {
+    void whenProxyAccountIdIsSpecified() {
         txn = new CryptoCreateBuilder().withProxyAccountNum(1).build();
         given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.getStatus()).isEqualTo(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
     }
 
     @Test
     @DisplayName("preHandle succeeds when initial balance is zero")
-    void preHandleWorksWhenInitialBalanceIsZero() throws PreCheckException {
+    void preHandleWorksWhenInitialBalanceIsZero() {
         txn = new CryptoCreateBuilder().withInitialBalance(0L).build();
         given(pureChecksContext.body()).willReturn(txn);
 
@@ -313,7 +312,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
     @Test
     @DisplayName("preHandle succeeds when has non zero evm alias")
-    void preHandleWorksWhenHasEvmAlias() throws PreCheckException {
+    void preHandleWorksWhenHasEvmAlias() {
         final byte[] evmAddress = CommonUtils.unhex("6aeb3773ea468a814d954e6dec795bfee7d76e26");
         txn = new CryptoCreateBuilder()
                 .withAlias(Bytes.wrap(evmAddress))
@@ -328,7 +327,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
     @Test
     @DisplayName("preHandle fails when invalid alias key")
-    void preHandleWorksWhenHasAlias() throws PreCheckException {
+    void preHandleWorksWhenHasAlias() {
         final Bytes SENDER_ALIAS =
                 Bytes.fromHex("3a21030edcc130e13fb5102e7c883535af8c2b0a5a617231f77fd127ce5f3b9a620591");
         txn = new CryptoCreateBuilder()
@@ -337,13 +336,13 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
                 .build();
         final var context = new FakePreHandleContext(readableStore, txn);
         assertThatThrownBy(() -> subject.preHandle(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ALIAS_KEY));
     }
 
     @Test
     @DisplayName("preHandle works when there is no receiverSigRequired")
-    void noReceiverSigRequiredPreHandleCryptoCreate() throws PreCheckException {
+    void noReceiverSigRequiredPreHandleCryptoCreate() {
         final var noReceiverSigTxn =
                 new CryptoCreateBuilder().withReceiverSigReq(false).build();
         final var expected = new FakePreHandleContext(readableStore, noReceiverSigTxn);
@@ -529,7 +528,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         assertFalse(writableStore.modifiedAccountsInState().contains(accountID(id.accountNum())));
         assertEquals(payerBalance, writableStore.get(id).tinybarBalance());
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(INSUFFICIENT_PAYER_BALANCE, msg.getStatus());
 
         verify(recordBuilder, never()).accountID(any());
@@ -547,7 +546,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         changeAccountToDeleted();
         setupConfig();
         setupExpiryValidator();
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ACCOUNT_DELETED, msg.getStatus());
 
         verify(recordBuilder, never()).accountID(any());
@@ -568,7 +567,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         setupConfig();
         setupExpiryValidator();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(INVALID_PAYER_ACCOUNT_ID, msg.getStatus());
 
         verify(recordBuilder, never()).accountID(any());
@@ -618,10 +617,10 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
                 .withMemo("some long memo that is too long")
                 .build();
         given(handleContext.body()).willReturn(txn);
-        doThrow(new HandleException(MEMO_TOO_LONG)).when(attributeValidator).validateMemo(any());
+        doThrow(new WorkflowException(MEMO_TOO_LONG)).when(attributeValidator).validateMemo(any());
         setupConfig();
         setupExpiryValidator();
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(MEMO_TOO_LONG, msg.getStatus());
     }
 
@@ -632,8 +631,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         setupExpiryValidator();
         given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(KEY_REQUIRED, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(KEY_REQUIRED, msg.getStatus());
     }
 
     @Test
@@ -647,8 +646,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         setupExpiryValidator();
         given(pureChecksContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(INVALID_ALIAS_KEY, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(INVALID_ALIAS_KEY, msg.getStatus());
     }
 
     @Test
@@ -664,7 +663,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         setupConfig();
         setupExpiryValidator();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(INVALID_ALIAS_KEY, msg.getStatus());
     }
 
@@ -682,7 +681,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.configuration()).willReturn(config);
         setupExpiryValidator();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(NOT_SUPPORTED, msg.getStatus());
     }
 
@@ -702,7 +701,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.configuration()).willReturn(config);
         setupExpiryValidator();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(INVALID_ALIAS_KEY, msg.getStatus());
     }
 
@@ -736,7 +735,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         setupConfig();
         setupExpiryValidator();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(INVALID_ALIAS_KEY, msg.getStatus());
     }
 
@@ -756,20 +755,20 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         writableStore = new WritableAccountStore(writableStates, entityCounters);
         when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableStore);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ALIAS_ALREADY_ASSIGNED, msg.getStatus());
     }
 
     @Test
     void validateAutoRenewPeriod() {
         txn = new CryptoCreateBuilder().withStakedAccountId(3).build();
-        doThrow(new HandleException(AUTORENEW_DURATION_NOT_IN_RANGE))
+        doThrow(new WorkflowException(AUTORENEW_DURATION_NOT_IN_RANGE))
                 .when(attributeValidator)
                 .validateAutoRenewPeriod(anyLong());
         given(handleContext.body()).willReturn(txn);
         setupConfig();
         setupExpiryValidator();
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(AUTORENEW_DURATION_NOT_IN_RANGE, msg.getStatus());
     }
 
@@ -783,7 +782,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         setupConfig();
         setupExpiryValidator();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED, msg.getStatus());
     }
 

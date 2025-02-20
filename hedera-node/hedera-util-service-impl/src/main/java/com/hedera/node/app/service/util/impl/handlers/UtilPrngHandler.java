@@ -8,10 +8,10 @@ import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.UtilPrngConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -44,15 +44,15 @@ public class UtilPrngHandler implements TransactionHandler {
      * {@inheritDoc}
      */
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         // nothing to do
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         // Negative ranges are not allowed
         if (context.body().utilPrngOrThrow().range() < 0) {
-            throw new PreCheckException(ResponseCodeEnum.INVALID_PRNG_RANGE);
+            throw new WorkflowException(ResponseCodeEnum.INVALID_PRNG_RANGE);
         }
     }
 

@@ -8,9 +8,9 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -98,7 +98,7 @@ public class CacheWarmer {
         try {
             final Bytes buffer = platformTransaction.getApplicationTransaction();
             return checker.parseAndCheck(buffer).txBody();
-        } catch (PreCheckException ex) {
+        } catch (WorkflowException ex) {
             return null;
         }
     }

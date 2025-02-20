@@ -62,9 +62,8 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -143,7 +142,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void cryptoUpdateVanilla() throws PreCheckException {
+    void cryptoUpdateVanilla() {
         final var txn = new CryptoUpdateBuilder().build();
 
         given(waivers.isNewKeySignatureWaived(txn, id)).willReturn(false);
@@ -157,7 +156,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void cryptoUpdateMissingAccountID() throws PreCheckException {
+    void cryptoUpdateMissingAccountID() {
         final var txn = new CryptoUpdateBuilder().withTarget(null).build();
 
         given(waivers.isNewKeySignatureWaived(txn, id)).willReturn(false);
@@ -168,7 +167,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void cryptoUpdateNewSignatureKeyWaivedVanilla() throws PreCheckException {
+    void cryptoUpdateNewSignatureKeyWaivedVanilla() {
         final var txn = new CryptoUpdateBuilder().withKey(key).build();
 
         given(waivers.isNewKeySignatureWaived(txn, id)).willReturn(true);
@@ -182,7 +181,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void cryptoUpdateTargetSignatureKeyWaivedVanilla() throws PreCheckException {
+    void cryptoUpdateTargetSignatureKeyWaivedVanilla() {
         final var newKey = B_COMPLEX_KEY;
         final var txn = new CryptoUpdateBuilder().withKey(newKey).build();
         given(waivers.isNewKeySignatureWaived(any(), any())).willReturn(false);
@@ -197,7 +196,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void cryptoUpdateUpdateAccountMissingFails() throws PreCheckException {
+    void cryptoUpdateUpdateAccountMissingFails() {
         final var txn = new CryptoUpdateBuilder().build();
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
@@ -212,14 +211,14 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void proxySetFailsInPureChecks() throws PreCheckException {
+    void proxySetFailsInPureChecks() {
         final var txn =
                 new CryptoUpdateBuilder().withProxyAccountNum(id.accountNum()).build();
         givenTxnWith(txn);
         given(pureChecksContext.body()).willReturn(txn);
 
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED));
     }
 
@@ -258,7 +257,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(txn);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_STAKING_ID));
     }
 
@@ -269,7 +268,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.networkInfo()).willReturn(networkInfo);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_STAKING_ID));
     }
 
@@ -315,7 +314,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn2 = new CryptoUpdateBuilder().withStakedAccountId(-2).build();
         givenTxnWith(txn2);
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_STAKING_ID));
         assertNull(writableStore.get(updateAccountId).stakedAccountId());
     }
@@ -338,7 +337,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn2 = new CryptoUpdateBuilder().withStakedNodeId(-2).build();
         givenTxnWith(txn2);
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_STAKING_ID));
         assertEquals(-1, writableStore.get(updateAccountId).stakedNodeId());
     }
@@ -353,7 +352,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(STAKING_NOT_ENABLED));
         assertNull(writableStore.get(updateAccountId).stakedNodeId());
     }
@@ -369,7 +368,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.configuration()).willReturn(config);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(STAKING_NOT_ENABLED));
         assertNull(writableStore.get(updateAccountId).stakedNodeId());
     }
@@ -480,7 +479,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         // changing to less than 2 slots will fail
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT));
         assertEquals(10, writableStore.get(updateAccountId).maxAutoAssociations());
     }
@@ -495,7 +494,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         // changing to less than 2 slots will fail
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT));
         assertEquals(10, writableStore.get(updateAccountId).maxAutoAssociations());
     }
@@ -513,7 +512,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         // changing to less than 2 slots will fail
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT));
         assertEquals(10, writableStore.get(updateAccountId).maxAutoAssociations());
     }
@@ -530,7 +529,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         // changing to less than 2 slots will fail
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT));
         assertEquals(10, writableStore.get(updateAccountId).maxAutoAssociations());
     }
@@ -572,10 +571,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn = new CryptoUpdateBuilder().withKey(defaultkey()).build();
         givenTxnWith(txn);
         assertEquals(otherKey, writableStore.get(updateAccountId).key());
-        doThrow(new HandleException(BAD_ENCODING)).when(attributeValidator).validateKey(any());
+        doThrow(new WorkflowException(BAD_ENCODING)).when(attributeValidator).validateKey(any());
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(BAD_ENCODING));
         assertEquals(otherKey, writableStore.get(updateAccountId).key());
     }
@@ -585,10 +584,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn = new CryptoUpdateBuilder().withKey(emptyKey()).build();
         givenTxnWith(txn);
         assertEquals(otherKey, writableStore.get(updateAccountId).key());
-        doThrow(new HandleException(BAD_ENCODING)).when(attributeValidator).validateKey(any());
+        doThrow(new WorkflowException(BAD_ENCODING)).when(attributeValidator).validateKey(any());
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(BAD_ENCODING));
         assertEquals(otherKey, writableStore.get(updateAccountId).key());
     }
@@ -604,12 +603,12 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 .withValue("ledger.maxMemoUtf8Bytes", 2)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
-        doThrow(new HandleException(MEMO_TOO_LONG)).when(attributeValidator).validateMemo(any());
+        doThrow(new WorkflowException(MEMO_TOO_LONG)).when(attributeValidator).validateMemo(any());
 
         assertEquals("testAccount", writableStore.get(updateAccountId).memo());
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(MEMO_TOO_LONG));
         assertEquals("testAccount", writableStore.get(updateAccountId).memo());
     }
@@ -618,14 +617,14 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     void rejectsInvalidAutoRenewPeriod() {
         final var txn = new CryptoUpdateBuilder().withAutoRenewPeriod(10L).build();
         givenTxnWith(txn);
-        doThrow(new HandleException(AUTORENEW_DURATION_NOT_IN_RANGE))
+        doThrow(new WorkflowException(AUTORENEW_DURATION_NOT_IN_RANGE))
                 .when(attributeValidator)
                 .validateAutoRenewPeriod(anyLong());
 
         assertEquals(72000L, writableStore.get(updateAccountId).autoRenewSeconds());
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
@@ -651,7 +650,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         given(expiryValidator.isDetached(any(), anyBoolean(), anyLong())).willReturn(true);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL));
     }
 
@@ -660,10 +659,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn = new CryptoUpdateBuilder().withExpiration(1234567).build();
         givenTxnWith(txn);
         given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
-                .willThrow(new HandleException(INVALID_EXPIRATION_TIME));
+                .willThrow(new WorkflowException(INVALID_EXPIRATION_TIME));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_EXPIRATION_TIME));
     }
 
@@ -693,10 +692,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(txn);
         assertEquals(1234567L, writableStore.get(updateAccountId).expirationSecond());
         given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
-                .willThrow(new HandleException(EXPIRATION_REDUCTION_NOT_ALLOWED));
+                .willThrow(new WorkflowException(EXPIRATION_REDUCTION_NOT_ALLOWED));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(EXPIRATION_REDUCTION_NOT_ALLOWED));
     }
 
@@ -714,7 +713,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         assertTrue(writableStore.get(updateAccountId).smartContract());
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ACCOUNT_ID));
     }
 
@@ -726,7 +725,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(txn);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ACCOUNT_ID));
     }
 
@@ -742,7 +741,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(txn);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_DELETED));
     }
 

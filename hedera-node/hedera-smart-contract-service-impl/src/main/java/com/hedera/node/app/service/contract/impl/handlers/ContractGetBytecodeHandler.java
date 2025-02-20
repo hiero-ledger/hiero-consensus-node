@@ -6,7 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -22,7 +22,6 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -57,11 +56,11 @@ public class ContractGetBytecodeHandler extends PaidQueryHandler {
     }
 
     @Override
-    public void validate(@NonNull final QueryContext context) throws PreCheckException {
+    public void validate(@NonNull final QueryContext context) {
         requireNonNull(context);
         final var contract = contractFrom(context);
-        validateFalsePreCheck(contract == null, INVALID_CONTRACT_ID);
-        validateFalsePreCheck(requireNonNull(contract).deleted(), CONTRACT_DELETED);
+        validateFalse(contract == null, INVALID_CONTRACT_ID);
+        validateFalse(requireNonNull(contract).deleted(), CONTRACT_DELETED);
     }
 
     @Override

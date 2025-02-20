@@ -40,9 +40,8 @@ import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import org.assertj.core.api.AssertionsForClassTypes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -70,7 +69,7 @@ class TokenFreezeAccountHandlerTest {
         private PureChecksContext pureChecksContext;
 
         @Test
-        void tokenFreezeWithNoToken() throws PreCheckException {
+        void tokenFreezeWithNoToken() {
             final var theTxn = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_13257))
                     .tokenFreeze(TokenFreezeAccountTransactionBody.newBuilder().account(ACCOUNT_13257))
@@ -139,7 +138,7 @@ class TokenFreezeAccountHandlerTest {
             given(context.body()).willReturn(noTokenTxn);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TOKEN_ID));
             verifyNoPut();
         }
@@ -154,7 +153,7 @@ class TokenFreezeAccountHandlerTest {
             given(readableTokenStore.getTokenMeta(pbjToken)).willReturn(tokenMetaWithFreezeKey());
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
             verifyNoPut();
         }
@@ -166,13 +165,13 @@ class TokenFreezeAccountHandlerTest {
             given(context.body()).willReturn(txn);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TOKEN_ID));
             verifyNoPut();
         }
 
         @Test
-        void tokenPaused() throws HandleException {
+        void tokenPaused() throws WorkflowException {
             final var token = toPbj(KNOWN_TOKEN_WITH_FREEZE);
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).paused(true).build());
@@ -180,13 +179,13 @@ class TokenFreezeAccountHandlerTest {
             given(context.body()).willReturn(txn);
 
             AssertionsForClassTypes.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_IS_PAUSED));
             verifyNoPut();
         }
 
         @Test
-        void tokenDeleted() throws HandleException {
+        void tokenDeleted() throws WorkflowException {
             final var token = toPbj(KNOWN_TOKEN_WITH_FREEZE);
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).deleted(true).build());
@@ -194,7 +193,7 @@ class TokenFreezeAccountHandlerTest {
             given(context.body()).willReturn(txn);
 
             AssertionsForClassTypes.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_WAS_DELETED));
             verifyNoPut();
         }
@@ -209,7 +208,7 @@ class TokenFreezeAccountHandlerTest {
             given(context.body()).willReturn(txn);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_HAS_NO_FREEZE_KEY));
             verifyNoPut();
         }
@@ -228,13 +227,13 @@ class TokenFreezeAccountHandlerTest {
             given(context.body()).willReturn(txn);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
             verifyNoPut();
         }
 
         @Test
-        void tokenRelNotFound() throws HandleException {
+        void tokenRelNotFound() throws WorkflowException {
             final var token = toPbj(KNOWN_TOKEN_WITH_FREEZE);
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).build());
@@ -248,7 +247,7 @@ class TokenFreezeAccountHandlerTest {
             given(context.body()).willReturn(txn);
 
             assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
             verifyNoPut();
         }

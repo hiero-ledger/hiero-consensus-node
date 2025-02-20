@@ -37,8 +37,8 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.TokenGetInfoHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -102,7 +102,7 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
         when(context.createStore(ReadableTokenStore.class)).thenReturn(store);
 
         assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOKEN_ID));
     }
 
@@ -117,7 +117,7 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
         when(context.createStore(ReadableTokenStore.class)).thenReturn(store);
 
         assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOKEN_ID));
     }
 

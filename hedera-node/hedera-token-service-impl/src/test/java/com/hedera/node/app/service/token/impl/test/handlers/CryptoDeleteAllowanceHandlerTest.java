@@ -33,9 +33,8 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -72,7 +71,7 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void cryptoDeleteAllowanceVanilla() throws PreCheckException {
+    void cryptoDeleteAllowanceVanilla() {
         final var txn = cryptoDeleteAllowanceTransaction(payerId);
         final var context = new FakePreHandleContext(readableAccountStore, txn);
         subject.preHandle(context);
@@ -82,7 +81,7 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void cryptoDeleteAllowanceDoesntAddIfOwnerSameAsPayer() throws PreCheckException {
+    void cryptoDeleteAllowanceDoesntAddIfOwnerSameAsPayer() {
         final var txn = cryptoDeleteAllowanceTransaction(ownerId);
         final var context = new FakePreHandleContext(readableAccountStore, txn);
         subject.preHandle(context);
@@ -153,7 +152,7 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
 
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(EMPTY_ALLOWANCES));
     }
 
@@ -179,7 +178,7 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
 
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(EMPTY_ALLOWANCES));
     }
 
@@ -264,7 +263,7 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         assertThat(writableNftStore.get(nftIdSl2).spenderId()).isEqualTo(spenderId);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO));
     }
 

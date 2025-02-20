@@ -5,9 +5,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionResponse;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -80,12 +79,8 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             submissionManager.submit(transactionInfo.txBody(), requestBuffer);
         } catch (final InsufficientBalanceException e) {
             estimatedFee = e.getEstimatedFee();
-            result = e.responseCode();
-        } catch (final PreCheckException e) {
-            result = e.responseCode();
-        } catch (final HandleException e) {
-            // Conceptually, this should never happen, because we should use PreCheckException only during pre-checks
-            // But we catch it here to play it safe
+            result = e.getStatus();
+        } catch (final WorkflowException e) {
             result = e.getStatus();
         } catch (final Exception e) {
             logger.error("Possibly CATASTROPHIC failure while running the ingest workflow", e);

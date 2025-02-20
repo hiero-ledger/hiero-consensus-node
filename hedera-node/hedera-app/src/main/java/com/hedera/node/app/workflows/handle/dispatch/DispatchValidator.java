@@ -21,7 +21,7 @@ import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -165,8 +165,8 @@ public class DispatchValidator {
                     dispatch.txnInfo().txBody(),
                     dispatch.consensusNow(),
                     TransactionChecker.RequireMinValidLifetimeBuffer.NO);
-        } catch (PreCheckException e) {
-            return e.responseCode();
+        } catch (WorkflowException e) {
+            return e.getStatus();
         }
         return null;
     }

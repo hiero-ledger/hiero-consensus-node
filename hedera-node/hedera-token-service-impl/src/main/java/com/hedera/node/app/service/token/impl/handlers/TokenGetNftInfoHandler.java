@@ -7,8 +7,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -26,7 +26,6 @@ import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -63,17 +62,17 @@ public class TokenGetNftInfoHandler extends PaidQueryHandler {
     }
 
     @Override
-    public void validate(@NonNull final QueryContext context) throws PreCheckException {
+    public void validate(@NonNull final QueryContext context) {
         requireNonNull(context);
         final var query = context.query();
         final var nftStore = context.createStore(ReadableNftStore.class);
         final var op = query.tokenGetNftInfoOrThrow();
         final var nftId = op.nftIDOrThrow();
-        validateTruePreCheck(nftId.hasTokenId(), INVALID_TOKEN_ID);
-        validateTruePreCheck(nftId.serialNumber() > 0, INVALID_TOKEN_NFT_SERIAL_NUMBER);
+        validateTrue(nftId.hasTokenId(), INVALID_TOKEN_ID);
+        validateTrue(nftId.serialNumber() > 0, INVALID_TOKEN_NFT_SERIAL_NUMBER);
 
         final var nft = nftStore.get(nftId.tokenIdOrThrow(), nftId.serialNumber());
-        validateFalsePreCheck(nft == null, INVALID_NFT_ID);
+        validateFalse(nft == null, INVALID_NFT_ID);
     }
 
     @Override

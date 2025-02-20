@@ -86,7 +86,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -278,7 +278,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationFailsOnOutOfRangeDuration() {
-        doThrow(new HandleException(AUTORENEW_DURATION_NOT_IN_RANGE))
+        doThrow(new WorkflowException(AUTORENEW_DURATION_NOT_IN_RANGE))
                 .when(attributeValidator)
                 .validateAutoRenewPeriod(SOME_DURATION.seconds());
         assertCreateFailsWith(AUTORENEW_DURATION_NOT_IN_RANGE, b -> b.autoRenewPeriod(SOME_DURATION));
@@ -320,7 +320,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationValidatesStaking() {
-        doThrow(new HandleException(INVALID_STAKING_ID))
+        doThrow(new WorkflowException(INVALID_STAKING_ID))
                 .when(tokenServiceApi)
                 .assertValidStakingElectionForCreation(
                         DEFAULT_STAKING_CONFIG.isEnabled(),
@@ -338,7 +338,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationValidatesMemo() {
-        doThrow(new HandleException(MEMO_TOO_LONG)).when(attributeValidator).validateMemo(SOME_MEMO);
+        doThrow(new WorkflowException(MEMO_TOO_LONG)).when(attributeValidator).validateMemo(SOME_MEMO);
         assertCreateFailsWith(MEMO_TOO_LONG, b -> b.memo(SOME_MEMO)
                 .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
@@ -347,7 +347,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationValidatesKeyWithSerializationFailedStatus() {
-        doThrow(new HandleException(BAD_ENCODING)).when(attributeValidator).validateKey(AN_ED25519_KEY);
+        doThrow(new WorkflowException(BAD_ENCODING)).when(attributeValidator).validateKey(AN_ED25519_KEY);
         assertCreateFailsWith(SERIALIZATION_FAILED, b -> b.memo(SOME_MEMO)
                 .adminKey(AN_ED25519_KEY)
                 .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
@@ -358,7 +358,7 @@ class HevmTransactionFactoryTest {
     @Test
     void fromHapiCreationValidatesAutoRenewId() {
         final var createMeta = new ExpiryMeta(NA, SOME_DURATION.seconds(), NON_SYSTEM_ACCOUNT_ID);
-        doThrow(new HandleException(INVALID_AUTORENEW_ACCOUNT))
+        doThrow(new WorkflowException(INVALID_AUTORENEW_ACCOUNT))
                 .when(expiryValidator)
                 .resolveCreationAttempt(true, createMeta, HederaFunctionality.CONTRACT_CREATE);
         assertCreateFailsWith(INVALID_AUTORENEW_ACCOUNT, b -> b.memo(SOME_MEMO)
@@ -682,7 +682,7 @@ class HevmTransactionFactoryTest {
                         .transactionID(TransactionID.newBuilder())
                         .contractCall(callWith(spec))
                         .build(),
-                new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+                new WorkflowException(ResponseCodeEnum.INVALID_CONTRACT_ID));
     }
 
     private ContractCreateTransactionBody createWith(final Consumer<ContractCreateTransactionBody.Builder> spec) {

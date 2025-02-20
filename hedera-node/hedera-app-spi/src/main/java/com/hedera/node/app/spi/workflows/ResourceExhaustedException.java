@@ -7,9 +7,9 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * A {@link HandleException} specialization that indicates that a resource limit has been exceeded.
+ * A {@link WorkflowException} specialization that indicates that a resource limit has been exceeded.
  */
-public class ResourceExhaustedException extends HandleException {
+public class ResourceExhaustedException extends WorkflowException {
     public ResourceExhaustedException(@NonNull final ResponseCodeEnum status) {
         super(requireNonNull(status));
     }

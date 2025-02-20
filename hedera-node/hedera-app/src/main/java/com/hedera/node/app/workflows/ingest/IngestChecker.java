@@ -15,7 +15,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
 import static java.util.Objects.requireNonNull;
@@ -39,7 +39,7 @@ import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
@@ -146,23 +146,23 @@ public final class IngestChecker {
     /**
      * Verifies the platform is active and this node should be processing HAPI operations.
      *
-     * @throws PreCheckException if the node is unable to process HAPI operations
+     * @throws WorkflowException if the node is unable to process HAPI operations
      */
-    public void verifyPlatformActive() throws PreCheckException {
+    public void verifyPlatformActive() {
         if (currentPlatformStatus.get() != ACTIVE) {
-            throw new PreCheckException(PLATFORM_NOT_ACTIVE);
+            throw new WorkflowException(PLATFORM_NOT_ACTIVE);
         }
     }
 
     /**
      * Verifies the network is ready to handle transactions.
      *
-     * @throws PreCheckException if the node is unable to process HAPI operations
+     * @throws WorkflowException if the node is unable to process HAPI operations
      */
-    public void verifyReadyForTransactions() throws PreCheckException {
+    public void verifyReadyForTransactions() {
         verifyPlatformActive();
         if (!blockStreamManager.hasLedgerId()) {
-            throw new PreCheckException(WAITING_FOR_LEDGER_ID);
+            throw new WorkflowException(WAITING_FOR_LEDGER_ID);
         }
     }
 
@@ -173,11 +173,10 @@ public final class IngestChecker {
      * @param tx the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
      * @return the {@link TransactionInfo} with the extracted information
-     * @throws PreCheckException if a check fails
+     * @throws WorkflowException if a check fails
      */
     public TransactionInfo runAllChecks(
-            @NonNull final State state, @NonNull final Transaction tx, @NonNull final Configuration configuration)
-            throws PreCheckException {
+            @NonNull final State state, @NonNull final Transaction tx, @NonNull final Configuration configuration) {
         // During ingest we approximate consensus time with wall clock time
         final var consensusTime = instantSource.instant();
 
@@ -188,7 +187,7 @@ public final class IngestChecker {
 
         // 1a. Verify the transaction has been sent to *this* node
         if (!nodeAccount.equals(txBody.nodeAccountID())) {
-            throw new PreCheckException(INVALID_NODE_ACCOUNT);
+            throw new WorkflowException(INVALID_NODE_ACCOUNT);
         }
 
         // 2. Check the time box of the transaction
@@ -201,7 +200,7 @@ public final class IngestChecker {
 
         // 3. Deduplicate
         if (deduplicationCache.contains(txInfo.transactionID())) {
-            throw new PreCheckException(DUPLICATE_TRANSACTION);
+            throw new WorkflowException(DUPLICATE_TRANSACTION);
         }
 
         // 4. Check throttles
@@ -209,7 +208,7 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         if (hederaConfig.ingestThrottleEnabled() && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state)) {
             workflowMetrics.incrementThrottled(functionality);
-            throw new PreCheckException(BUSY);
+            throw new WorkflowException(BUSY);
         }
 
         // 4a. Run pure checks
@@ -226,7 +225,7 @@ public final class IngestChecker {
         if (payerKey == null) {
             // FUTURE: Have an alert and metric in our monitoring tools to make sure we are aware if this happens
             logger.warn("Payer account {} has no key, indicating a problem with state", txInfo.payerID());
-            throw new PreCheckException(UNAUTHORIZED);
+            throw new WorkflowException(UNAUTHORIZED);
         }
 
         // 6. Verify payer's signatures
@@ -252,10 +251,9 @@ public final class IngestChecker {
     }
 
     private void assertThrottlingPreconditions(
-            @NonNull final TransactionInfo txInfo, @NonNull final Configuration configuration)
-            throws PreCheckException {
+            @NonNull final TransactionInfo txInfo, @NonNull final Configuration configuration) {
         if (UNSUPPORTED_TRANSACTIONS.contains(txInfo.functionality())) {
-            throw new PreCheckException(NOT_SUPPORTED);
+            throw new WorkflowException(NOT_SUPPORTED);
         }
         if (PRIVILEGED_TRANSACTIONS.contains(txInfo.functionality())) {
             final var payerNum =
@@ -267,7 +265,7 @@ public final class IngestChecker {
             // at consensus, and adding them to normal throttle buckets, c.f.
             // https://github.com/hashgraph/hedera-services/issues/12559
             if (payerNum >= hederaConfig.firstUserEntity()) {
-                throw new PreCheckException(NOT_SUPPORTED);
+                throw new WorkflowException(NOT_SUPPORTED);
             }
         }
     }
@@ -275,8 +273,7 @@ public final class IngestChecker {
     private void verifyPayerSignature(
             @NonNull final TransactionInfo txInfo,
             @NonNull final Account payer,
-            @NonNull final Configuration configuration)
-            throws PreCheckException {
+            @NonNull final Configuration configuration) {
         final var payerKey = payer.key();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var sigPairs = txInfo.signatureMap().sigPair();
@@ -294,9 +291,8 @@ public final class IngestChecker {
                                     pair.pubKeyPrefix().toByteArray()))
                             .equals(payer.alias()))
                     .findFirst();
-            validateTruePreCheck(originals.isPresent(), INVALID_SIGNATURE);
-            validateTruePreCheck(
-                    configuration.getConfigData(LazyCreationConfig.class).enabled(), INVALID_SIGNATURE);
+            validateTrue(originals.isPresent(), INVALID_SIGNATURE);
+            validateTrue(configuration.getConfigData(LazyCreationConfig.class).enabled(), INVALID_SIGNATURE);
             signatureExpander.expand(List.of(originals.get()), expandedSigs);
         }
 
@@ -311,7 +307,7 @@ public final class IngestChecker {
         }
         // This can happen if the signature map was missing a signature for the payer account.
         if (payerKeyVerification.failed()) {
-            throw new PreCheckException(INVALID_SIGNATURE);
+            throw new WorkflowException(INVALID_SIGNATURE);
         }
     }
 }

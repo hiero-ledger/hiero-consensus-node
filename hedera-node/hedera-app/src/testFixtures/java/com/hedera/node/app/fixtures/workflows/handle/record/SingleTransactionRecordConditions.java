@@ -2,14 +2,14 @@
 package com.hedera.node.app.fixtures.workflows.handle.record;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Predicate;
 import org.assertj.core.api.Condition;
 
 /**
- * A collection of {@link Condition} objects for asserting the state of {@link PreCheckException} objects.
+ * A collection of {@link Condition} objects for asserting the state of {@link WorkflowException} objects.
  */
 public class SingleTransactionRecordConditions {
 

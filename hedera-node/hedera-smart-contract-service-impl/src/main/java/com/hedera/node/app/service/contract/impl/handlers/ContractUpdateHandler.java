@@ -16,8 +16,8 @@ import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -37,11 +37,10 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.key.KeyUtils;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -74,7 +73,7 @@ public class ContractUpdateHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().contractUpdateInstanceOrThrow();
 
@@ -83,7 +82,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             final var targetId = op.contractIDOrThrow();
             final var maybeContract = accountStore.getContractById(targetId);
             if (maybeContract != null && maybeContract.keyOrThrow().key().kind() == Key.KeyOneOfType.CONTRACT_ID) {
-                throw new PreCheckException(MODIFYING_IMMUTABLE_CONTRACT);
+                throw new WorkflowException(MODIFYING_IMMUTABLE_CONTRACT);
             }
             context.requireKeyOrThrow(targetId, INVALID_CONTRACT_ID);
         }
@@ -96,14 +95,14 @@ public class ContractUpdateHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.contractUpdateInstanceOrThrow();
         mustExist(op.contractID(), INVALID_CONTRACT_ID);
 
         if (op.hasAdminKey() && processAdminKey(op)) {
-            throw new PreCheckException(INVALID_ADMIN_KEY);
+            throw new WorkflowException(INVALID_ADMIN_KEY);
         }
     }
 
@@ -122,7 +121,7 @@ public class ContractUpdateHandler implements TransactionHandler {
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         final var txn = requireNonNull(context).body();
         final var op = txn.contractUpdateInstanceOrThrow();
         final var target = op.contractIDOrThrow();
@@ -151,7 +150,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             try {
                 context.attributeValidator()
                         .validateExpiry(op.expirationTimeOrThrow().seconds());
-            } catch (HandleException e) {
+            } catch (WorkflowException e) {
                 validateFalse(contract.expiredAndPendingRemoval(), CONTRACT_EXPIRED_AND_PENDING_REMOVAL);
                 throw e;
             }

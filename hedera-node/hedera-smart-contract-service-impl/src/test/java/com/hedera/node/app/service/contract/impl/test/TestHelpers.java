@@ -77,8 +77,8 @@ import com.hedera.node.app.service.contract.impl.records.ContractOperationStream
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.spi.key.KeyUtils;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -565,7 +565,7 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+            new WorkflowException(ResponseCodeEnum.INVALID_CONTRACT_ID));
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = HederaEvmTransactionResult.successFrom(
             GAS_LIMIT / 2,
@@ -851,7 +851,7 @@ public class TestHelpers {
     }
 
     public static void assertFailsWith(@NonNull final ResponseCodeEnum status, @NonNull final Runnable something) {
-        final var ex = assertThrows(HandleException.class, something::run);
+        final var ex = assertThrows(WorkflowException.class, something::run);
         assertEquals(status, ex.getStatus());
     }
 

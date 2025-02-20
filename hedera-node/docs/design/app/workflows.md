@@ -193,7 +193,7 @@ methods in `DispatchHandleContext`, a new child dispatch is created and `Dispatc
    - If it is a user transaction, notifies if system file is updated and platform state is modified to
      the appropriate facilities
 5. **Exception Handling:** When any exception is thrown in the steps under 4, the following steps are executed:
-   - If any HandleException is thrown, rolls back the complete stack and
+   - If any WorkflowException is thrown, rolls back the complete stack and
      charges the payer. The payer is charged again because when stack is rolled back the previous
      charges to the payer are rolled back as well.
    - If there is a `ThrottleException` thrown, stack is rolled back and payer is charged without serviceFee.

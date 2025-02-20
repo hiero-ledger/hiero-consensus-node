@@ -6,8 +6,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_LIST
 import static com.hedera.node.app.service.contract.impl.exec.utils.PendingAirdropsHelper.decodePendingAirdrops;
 import static com.hedera.node.app.service.contract.impl.exec.utils.PendingAirdropsHelper.pendingFTAirdrop;
 import static com.hedera.node.app.service.contract.impl.exec.utils.PendingAirdropsHelper.pendingNFTAirdrop;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;

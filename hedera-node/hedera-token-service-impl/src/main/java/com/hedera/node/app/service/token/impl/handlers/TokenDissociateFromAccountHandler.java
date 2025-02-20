@@ -15,10 +15,8 @@ import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMA
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.hasAccountNumOrAlias;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -44,11 +42,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -76,7 +73,7 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var trxBody = context.body();
         final var op = trxBody.tokenDissociateOrThrow();
@@ -149,9 +146,9 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
 
                 if (tokenRelBalance > 0) {
                     if (token.tokenType() == NON_FUNGIBLE_UNIQUE) {
-                        throw new HandleException(ACCOUNT_STILL_OWNS_NFTS);
+                        throw new WorkflowException(ACCOUNT_STILL_OWNS_NFTS);
                     } else {
-                        throw new HandleException(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
+                        throw new WorkflowException(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
                     }
                 }
             }
@@ -195,15 +192,15 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final TokenDissociateTransactionBody op = txn.tokenDissociateOrThrow();
 
-        validateTruePreCheck(hasAccountNumOrAlias(op.account()), INVALID_ACCOUNT_ID);
-        validateFalsePreCheck(op.tokens().contains(TokenID.DEFAULT), INVALID_TOKEN_ID);
+        validateTrue(hasAccountNumOrAlias(op.account()), INVALID_ACCOUNT_ID);
+        validateFalse(op.tokens().contains(TokenID.DEFAULT), INVALID_TOKEN_ID);
 
-        validateTruePreCheck(!TokenListChecks.repeatsItself(op.tokens()), TOKEN_ID_REPEATED_IN_TOKEN_LIST);
+        validateTrue(!TokenListChecks.repeatsItself(op.tokens()), TOKEN_ID_REPEATED_IN_TOKEN_LIST);
     }
 
     /**

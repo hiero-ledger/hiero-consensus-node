@@ -11,8 +11,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOU
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -25,7 +25,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -78,9 +78,9 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
             // but this would break differential testing. So for now, we replicate the mono-service behaviour.
             try {
                 validateAutoRenew(creationMeta);
-            } catch (HandleException e) {
+            } catch (WorkflowException e) {
                 if (e.getStatus() == AUTORENEW_DURATION_NOT_IN_RANGE) {
-                    throw new HandleException(INVALID_RENEWAL_PERIOD);
+                    throw new WorkflowException(INVALID_RENEWAL_PERIOD);
                 } else {
                     throw e;
                 }
@@ -131,14 +131,14 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
             try {
                 context.attributeValidator().validateAutoRenewPeriod(updateMeta.autoRenewPeriod());
                 resolvedAutoRenewPeriod = updateMeta.autoRenewPeriod();
-            } catch (HandleException e) {
+            } catch (WorkflowException e) {
                 // In mono-service, INVALID_RENEWAL_PERIOD is thrown for token creation and update
                 // if the autoRenewPeriod is not in range.
                 // It would be more correct to throw AUTO_RENEW_DURATION_NOT_IN_RANGE like the other services do,
                 // but this would break differential testing. So for now, we replicate the mono-service behaviour.
                 // FUTURE: This condition should be removed after differential testing is done
                 if (isForTokenUpdate && e.getStatus() == AUTORENEW_DURATION_NOT_IN_RANGE) {
-                    throw new HandleException(INVALID_RENEWAL_PERIOD);
+                    throw new WorkflowException(INVALID_RENEWAL_PERIOD);
                 } else {
                     throw e;
                 }
@@ -198,7 +198,7 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
      * Helper to validate that the given account number is a valid auto-renew account.
      *
      * @param accountID the account id to validate
-     * @throws HandleException if the account number is invalid
+     * @throws WorkflowException if the account number is invalid
      */
     private void validateAutoRenewAccount(final AccountID accountID) {
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
@@ -214,10 +214,10 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
         try {
             final var account = accountStore.getAccountById(accountID);
             if (account == null || account.deleted()) {
-                throw new HandleException(INVALID_AUTORENEW_ACCOUNT);
+                throw new WorkflowException(INVALID_AUTORENEW_ACCOUNT);
             }
         } catch (final InvalidTransactionException e) {
-            throw new HandleException(CommonPbjConverters.toPbj(e.getResponseCode()));
+            throw new WorkflowException(CommonPbjConverters.toPbj(e.getResponseCode()));
         }
     }
 

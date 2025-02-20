@@ -13,7 +13,7 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferE
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -29,9 +29,8 @@ import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.LazyCreationConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -62,17 +61,16 @@ public class TransferExecutor extends BaseTokenHandler {
      * Pre-handle for crypto transfer transaction.
      * @param context handle context
      * @param op transaction body
-     * @throws PreCheckException if any error occurs during the process
+     * @throws WorkflowException if any error occurs during the process
      */
-    protected void preHandle(PreHandleContext context, CryptoTransferTransactionBody op) throws PreCheckException {
+    protected void preHandle(PreHandleContext context, CryptoTransferTransactionBody op) {
         preHandle(context, op, OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED);
     }
 
     private void preHandle(
             @NonNull final PreHandleContext context,
             @NonNull final CryptoTransferTransactionBody op,
-            @NonNull final OptionalKeyCheck receiverKeyCheck)
-            throws PreCheckException {
+            @NonNull final OptionalKeyCheck receiverKeyCheck) {
         final var accountStore = context.createStore(ReadableAccountStore.class);
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenTransfers = op.tokenTransfers();
@@ -80,7 +78,7 @@ public class TransferExecutor extends BaseTokenHandler {
 
         for (final var transfers : tokenTransfers) {
             final var tokenMeta = tokenStore.getTokenMeta(transfers.tokenOrElse(TokenID.DEFAULT));
-            if (tokenMeta == null) throw new PreCheckException(INVALID_TOKEN_ID);
+            if (tokenMeta == null) throw new WorkflowException(INVALID_TOKEN_ID);
             checkFungibleTokenTransfers(transfers.transfers(), context, accountStore, false, receiverKeyCheck);
             checkNftTransfers(transfers.nftTransfers(), context, tokenMeta, op, accountStore, receiverKeyCheck);
         }
@@ -94,10 +92,9 @@ public class TransferExecutor extends BaseTokenHandler {
      * on association and signature.
      * @param context handle context
      * @param op transaction body
-     * @throws PreCheckException if any error occurs during the process
+     * @throws WorkflowException if any error occurs during the process
      */
-    protected void preHandleWithOptionalReceiverSignature(PreHandleContext context, CryptoTransferTransactionBody op)
-            throws PreCheckException {
+    protected void preHandleWithOptionalReceiverSignature(PreHandleContext context, CryptoTransferTransactionBody op) {
         preHandle(context, op, OptionalKeyCheck.RECEIVER_KEY_IS_OPTIONAL);
     }
 
@@ -231,14 +228,14 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param context the given handle context
      * @param validator crypto transfer validator
      * @return the replaced transaction body with all aliases replaced with its account ids
-     * @throws HandleException if any error occurs during the process
+     * @throws WorkflowException if any error occurs during the process
      */
     private CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
             @NonNull final TransactionBody txn,
             @NonNull final TransferContextImpl transferContext,
             @NonNull final HandleContext context,
             @NonNull final CryptoTransferValidator validator)
-            throws HandleException {
+            throws WorkflowException {
         final var op = txn.cryptoTransferOrThrow();
 
         // ensure all aliases exist, if not create then if receivers
@@ -253,8 +250,8 @@ public class TransferExecutor extends BaseTokenHandler {
         // re-run pure checks on this op to see if there are no duplicates
         try {
             validator.pureChecks(replacedOp);
-        } catch (PreCheckException e) {
-            throw new HandleException(e.responseCode());
+        } catch (WorkflowException e) {
+            throw new WorkflowException(e.getStatus());
         }
         return replacedOp;
     }
@@ -332,8 +329,7 @@ public class TransferExecutor extends BaseTokenHandler {
             @NonNull final List<AccountAmount> transfers,
             @NonNull final PreHandleContext ctx,
             @NonNull final ReadableAccountStore accountStore,
-            final boolean hbarTransfer)
-            throws PreCheckException {
+            final boolean hbarTransfer) {
         checkFungibleTokenTransfers(transfers, ctx, accountStore, hbarTransfer, RECEIVER_KEY_IS_REQUIRED);
     }
 
@@ -347,15 +343,14 @@ public class TransferExecutor extends BaseTokenHandler {
      *                                 this argument.
      * @param receiverKeyCheck Since in airdrops receiver key is optional to sign the transaction, add it to
      *                         optional keys
-     * @throws PreCheckException If the transaction is invalid
+     * @throws WorkflowException If the transaction is invalid
      */
     private void checkFungibleTokenTransfers(
             @NonNull final List<AccountAmount> transfers,
             @NonNull final PreHandleContext ctx,
             @NonNull final ReadableAccountStore accountStore,
             final boolean hbarTransfer,
-            @NonNull final OptionalKeyCheck receiverKeyCheck)
-            throws PreCheckException {
+            @NonNull final OptionalKeyCheck receiverKeyCheck) {
         // We're going to iterate over all the transfers in the transfer list. Each transfer is known as an
         // "account amount". Each of these represents the transfer of hbar INTO a single account or OUT of a
         // single account.
@@ -375,7 +370,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 if (isStakingAccount(ctx.configuration(), account.accountId())
                         && (isDebit || (isCredit && !hbarTransfer))) {
                     // NOTE: should change to ACCOUNT_IS_IMMUTABLE after modularization
-                    throw new PreCheckException(INVALID_ACCOUNT_ID);
+                    throw new WorkflowException(INVALID_ACCOUNT_ID);
                 }
 
                 // We only need signing keys for accounts that are being debited OR those being credited
@@ -411,11 +406,11 @@ public class TransferExecutor extends BaseTokenHandler {
                 if (!isCredit || !isAlias(accountId)) {
                     // Interestingly, this means that if the transfer amount is exactly 0 and the account has a
                     // non-existent alias, then we fail.
-                    throw new PreCheckException(INVALID_ACCOUNT_ID);
+                    throw new WorkflowException(INVALID_ACCOUNT_ID);
                 }
             } else if (isDebit) {
                 // All debited accounts must be valid
-                throw new PreCheckException(INVALID_ACCOUNT_ID);
+                throw new WorkflowException(INVALID_ACCOUNT_ID);
             }
         }
     }
@@ -426,8 +421,7 @@ public class TransferExecutor extends BaseTokenHandler {
             final ReadableTokenStore.TokenMetadata tokenMeta,
             final CryptoTransferTransactionBody op,
             final ReadableAccountStore accountStore,
-            final OptionalKeyCheck receiverKeyCheck)
-            throws PreCheckException {
+            final OptionalKeyCheck receiverKeyCheck) {
         for (final var nftTransfer : nftTransfersList) {
             final var senderId = nftTransfer.senderAccountIDOrElse(AccountID.DEFAULT);
             validateAccountID(senderId, null);
