@@ -32,6 +32,11 @@ public interface PureChecksContext {
     @NonNull
     TransactionBody body();
 
+    /**
+     * Dispatches {@link TransactionHandler#pureChecks(PureChecksContext)} for the given {@link TransactionBody}.
+     * @param body
+     * @throws PreCheckException
+     */
     @NonNull
-    void executeInnerPureCheck(@NonNull TransactionBody body) throws PreCheckException;
+    void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException;
 }

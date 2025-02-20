@@ -16,8 +16,13 @@
 
 package com.hedera.node.app.service.util.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_EMPTY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -35,7 +40,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -96,19 +100,14 @@ public class AtomicBatchHandler implements TransactionHandler {
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
-        final TransactionBody txn = context.body();
-        requireNonNull(txn);
-        final AtomicBatchTransactionBody transactionBody = txn.atomicBatchOrThrow();
-
-        final List<Transaction> transactions = transactionBody.transactions();
-        requireNonNull(transactions);
-
-        if (transactions.isEmpty()) {
+        final List<Transaction> innerTxs = context.body().atomicBatchOrThrow().transactions();
+        if (innerTxs.isEmpty()) {
             throw new PreCheckException(BATCH_LIST_EMPTY);
         }
 
         Set<TransactionID> txIds = new HashSet<>();
-        for (final var txBody : getTransactionBodies(transactions)) {
+        for (final var txBody : getTransactionBodies(innerTxs)) {
+            // throw if more than one tx has the same transactionID
             validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
 
             // validate batch key exists on each inner transaction
@@ -121,7 +120,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             if (txBody.hasFreeze() || txBody.hasAtomicBatch())
                 throw new PreCheckException(BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
 
-            context.executeInnerPureCheck(txBody);
+            context.dispatchPureChecks(txBody);
         }
     }
 
@@ -134,10 +133,8 @@ public class AtomicBatchHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body();
-        final var atomicBatchTransactionBody = op.atomicBatchOrThrow();
-        requireNonNull(op);
-        List<Transaction> transactions = atomicBatchTransactionBody.transactions();
+        final var atomicBatchTransactionBody = context.body().atomicBatchOrThrow();
+        final List<Transaction> transactions = atomicBatchTransactionBody.transactions();
 
         for (final var txBody : getTransactionBodies(transactions)) {
             context.requireKeyOrThrow(txBody.batchKey(), INVALID_BATCH_KEY);

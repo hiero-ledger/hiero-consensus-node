@@ -53,7 +53,7 @@ public class PureChecksContextImpl implements PureChecksContext {
 
     @NonNull
     @Override
-    public void executeInnerPureCheck(@NonNull TransactionBody body) throws PreCheckException {
+    public void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException {
         final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
         dispatcher.dispatchPureChecks(pureChecksContext);
     }
