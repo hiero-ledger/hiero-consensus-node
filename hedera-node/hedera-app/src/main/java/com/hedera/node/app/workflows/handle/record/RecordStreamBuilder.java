@@ -355,11 +355,6 @@ public class RecordStreamBuilder
         return this;
     }
 
-    @Override
-    public Instant getConsensusTimestamp() {
-        return consensusNow;
-    }
-
     /**
      * Sets the transaction.
      *

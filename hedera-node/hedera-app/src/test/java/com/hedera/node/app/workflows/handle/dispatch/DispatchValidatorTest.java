@@ -393,7 +393,6 @@ class DispatchValidatorTest {
     void missingPayerIsFailInvalidForChildDispatch() {
         givenChildDispatch();
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
-        given(dispatch.txnInfo()).willReturn(TXN_INFO);
         givenMissingPayer();
         assertThrows(IllegalStateException.class, () -> subject.validateFeeChargingScenario(dispatch));
     }
@@ -420,7 +419,6 @@ class DispatchValidatorTest {
     void missingScheduledPayerIsFailInvalid() {
         givenScheduledDispatch();
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
-        given(dispatch.txnInfo()).willReturn(TXN_INFO);
         givenMissingPayer();
         assertThrows(IllegalStateException.class, () -> subject.validateFeeChargingScenario(dispatch));
     }

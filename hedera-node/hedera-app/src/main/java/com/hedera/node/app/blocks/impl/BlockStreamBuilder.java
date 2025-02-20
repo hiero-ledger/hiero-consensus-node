@@ -587,11 +587,6 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public Instant getConsensusTimestamp() {
-        return consensusNow;
-    }
-
-    @Override
     @NonNull
     public BlockStreamBuilder transaction(@NonNull final Transaction transaction) {
         this.transaction = requireNonNull(transaction);

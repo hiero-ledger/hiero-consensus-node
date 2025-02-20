@@ -176,12 +176,6 @@ public interface StreamBuilder {
     StreamBuilder consensusTimestamp(@NonNull final Instant now);
 
     /**
-     * Returns the consensus timestamp of the record.
-     * @return the consensus timestamp
-     */
-    Instant getConsensusTimestamp();
-
-    /**
      * Returns the transaction ID of the record.
      * @return the transaction ID
      */
