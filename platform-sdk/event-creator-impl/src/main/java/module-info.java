@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module org.hiero.event.creator.impl {
     exports org.hiero.event.creator.impl.rules;
     exports org.hiero.event.creator.impl;
