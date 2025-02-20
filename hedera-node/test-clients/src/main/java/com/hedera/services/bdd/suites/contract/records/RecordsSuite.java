@@ -139,7 +139,7 @@ public class RecordsSuite {
                 uploadInitCode(contract),
                 contractCreate(contract),
                 // Ensure we submit these two transactions in the same block
-                waitUntilNextBlock(),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -215,7 +215,7 @@ public class RecordsSuite {
                 getTxnRecord(AUTO_ACCOUNT).andAllChildRecords(),
                 uploadInitCode(contract),
                 contractCreate(contract),
-                waitUntilNextBlock(),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -227,7 +227,7 @@ public class RecordsSuite {
                         .deferStatusResolution()
                         .hasKnownStatus(ResponseCodeEnum.SUCCESS),
                 // Make sure we submit the next transaction in the next block
-                waitUntilNextBlock(),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -303,7 +303,7 @@ public class RecordsSuite {
                             .gasLimit(4_000_000L)
                             .via("blockHashes");
                     final var blockHashRes = getTxnRecord("blockHashes").logged();
-                    allRunFor(spec, ethCall, waitUntilNextBlock(), blockHashRes);
+                    allRunFor(spec, ethCall, waitUntilNextBlock().withBackgroundTraffic(true), blockHashRes);
                     assertTrue(blockHashRes
                             .getResponseRecord()
                             .getContractCallResult()
@@ -322,7 +322,7 @@ public class RecordsSuite {
     // Helper method to create N blocks, amount is divided by 2 to account waiting for next block each iteration
     private void createNBlocks(final HapiSpec spec, final int amount) {
         for (int i = 0; i < amount / 2; i++) {
-            allRunFor(spec, waitUntilNextBlock());
+            allRunFor(spec, waitUntilNextBlock().withBackgroundTraffic(true));
         }
     }
 
