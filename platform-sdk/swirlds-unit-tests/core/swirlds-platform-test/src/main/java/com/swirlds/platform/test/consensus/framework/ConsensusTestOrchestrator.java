@@ -153,6 +153,10 @@ public class ConsensusTestOrchestrator {
         }
     }
 
+    /**
+     * Simulates removing a node from the network at restart
+     * @param nodeId the node to remove
+     */
     public void removeNode(final NodeId nodeId) {
         nodes.forEach(node -> node.removeNode(nodeId));
     }

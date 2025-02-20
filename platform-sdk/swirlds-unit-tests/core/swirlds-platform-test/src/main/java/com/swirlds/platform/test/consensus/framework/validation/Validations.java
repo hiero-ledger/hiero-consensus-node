@@ -33,8 +33,6 @@ public class Validations {
             DIFFERENT_ORDER, InputEventsValidation::validateEventsAreInDifferentOrder,
             CONSENSUS_EVENTS, ConsensusRoundValidation::validateConsensusRounds,
             CONSENSUS_TIMESTAMPS, TimestampChecker::validateConsensusTimestamps));
-    // TODO validate ancient threshold always increasing
-    // TODO validate judges are never ancient
 
     public static @NonNull Validations standard() {
         return new Validations();

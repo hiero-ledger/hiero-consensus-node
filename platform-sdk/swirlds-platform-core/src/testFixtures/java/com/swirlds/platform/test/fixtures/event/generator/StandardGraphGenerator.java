@@ -45,7 +45,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -454,61 +453,54 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
                 getNextTimestamp(source, otherParentSource.getNodeId()),
                 birthRound);
 
+
+        new DefaultEventHasher().hashEvent(next.getBaseEvent());
+        updateConsensus(next);
+        return next;
+    }
+
+    private void updateConsensus(@NonNull final EventImpl e){
         // The event given to the internal consensus needs its own EventImpl & PlatformEvent for metadata to be kept
         // separate from the event that is returned to the caller.  This SimpleLinker wraps the event in an EventImpl
         // and links it. The event must be hashed and have a descriptor built for its use in the SimpleLinker.
-        new DefaultEventHasher().hashEvent(next.getBaseEvent());
-        final PlatformEvent tmp = next.getBaseEvent().copyGossipedData();
-        tmp.setHash(next.getBaseEvent().getHash());
-        final EventImpl linkedEvent = linker.linkEvent(tmp);
+        final PlatformEvent copy = e.getBaseEvent().copyGossipedData();
+        final EventImpl linkedEvent = linker.linkEvent(copy);
         if (linkedEvent == null) {
-            return next;
+            return;
         }
 
         final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
-        if (!consensusRounds.isEmpty()) {
-            consensusSnapshot = consensusRounds.getLast().getSnapshot();
-            linker.setNonAncientThreshold(
-                    consensusRounds.getLast().getEventWindow().getAncientThreshold());
+        if (consensusRounds.isEmpty()) {
+            return;
         }
-
-        return next;
+        // if we reach consensus, save the snapshot for future use
+        consensusSnapshot = consensusRounds.getLast().getSnapshot();
+        linker.setNonAncientThreshold(
+                consensusRounds.getLast().getEventWindow().getAncientThreshold());
     }
 
     @Override
     public void removeNode(@NonNull final NodeId nodeId) {
+        // currently, we only support removing a node at restart, so this process mimics what happens at restart
+
+        // remove the node from the address book and the sources
         final int nodeIndex = addressBook.getIndexOfNodeId(nodeId);
         sources.remove(nodeIndex);
         addressBook = addressBook.remove(nodeId);
         buildDefaultOtherParentAffinityMatrix();
-        consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
+        // save all non-ancient events
+        final List<EventImpl> nonAncientEvents = linker.getSortedNonAncientEvents();
+        // reinitialize the internal consensus with the last snapshot
+        initializeInternalConsensus();
         consensus.loadSnapshot(consensusSnapshot);
-        final List<EventImpl> nonAncientEvents = linker.getNonAncientEvents().stream()
-                .sorted(Comparator.comparing(EventImpl::getGeneration))
-                .toList();
-        linker.clear();
         linker.setNonAncientThreshold(consensusSnapshot.getAncientThreshold(platformContext
                 .getConfiguration()
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient()));
+        // re-add all non-ancient events
         for (final EventImpl event : nonAncientEvents) {
-            final var copy = event.getBaseEvent().copyGossipedData();
-            final EventImpl linkedEvent = linker.linkEvent(copy);
-            consensus.addEvent(Objects.requireNonNull(linkedEvent));
+            updateConsensus(event);
         }
-    }
-
-    public ConsensusImpl getConsensus() {
-        return consensus;
-    }
-
-    public SimpleLinker getLinker() {
-        return linker;
-    }
-
-    public GuiEventStorage createGuiEventStorage() {
-        return new GuiEventStorage(consensus, linker, platformContext.getConfiguration());
     }
 
     @SuppressWarnings("unused")// useful for debugging

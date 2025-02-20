@@ -77,7 +77,11 @@ public class ConsensusTestNode {
         intake.loadSnapshot(snapshot);
     }
 
-    public void removeNode(final NodeId nodeId) {
+    /**
+     * Simulates removing a node from the network at restart
+     * @param nodeId the node to remove
+     */
+    public void removeNode(@NonNull final NodeId nodeId) {
         eventEmitter.getGraphGenerator().removeNode(nodeId);
         final ConsensusSnapshot snapshot = Objects.requireNonNull(
                         getOutput().getConsensusRounds().peekLast())

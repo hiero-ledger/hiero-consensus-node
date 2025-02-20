@@ -124,13 +124,11 @@ class IntakeAndConsensusTests {
         }
         // now we add the event that was added to 1 but not to 2
         node2.addEvent(lastEvent.getBaseEvent());
+        final long consRoundBeforeLastBatch = node1.getConsensusRounds().getLast().getRoundNum();
         assertConsensusEvents(node1, node2);
 
         // now the partitions rejoin
         generator.setOtherParentAffinity(OtherParentMatrixFactory.createBalancedOtherParentMatrix(numNodes));
-
-        final long consRoundBeforeLastBatch =
-                node1.getConsensusRounds().getLast().getRoundNum();
 
         // now we generate more events and expect consensus to be the same
         final int secondBatchSize = 1000;
@@ -139,10 +137,10 @@ class IntakeAndConsensusTests {
             node1.addEvent(event.getBaseEvent());
             node2.addEvent(event.getBaseEvent());
         }
-        assertConsensusEvents(node1, node2);
         Assertions.assertTrue(
                 node1.getConsensusRounds().getLast().getRoundNum() > consRoundBeforeLastBatch,
                 "consensus did not advance after the partition rejoined");
+        assertConsensusEvents(node1, node2);
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {

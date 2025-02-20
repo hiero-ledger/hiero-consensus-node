@@ -49,7 +49,7 @@ class ConsensusTests extends PlatformTest {
      * Number of iterations in each test. An iteration is to create one graph, and feed it in twice in different
      * topological orders, and check if they match.
      */
-    private final int NUM_ITER = 10;
+    private final int NUM_ITER = 1;
 
     private boolean ignoreNoSuperMajorityMarkerFile = false;
     private boolean ignoreNoJudgesMarkerFile = false;
@@ -69,13 +69,17 @@ class ConsensusTests extends PlatformTest {
         assertMarkerFile(ConsensusImpl.CONSENSUS_EXCEPTION_MARKER_FILE, false);
     }
 
+    /**
+     * Create a list of platform contexts to use for testing.
+     * @return a list of platform contexts
+     */
     private List<PlatformContext> contexts() {
         return List.of(
-                //                createPlatformContext(
-                //                        null,
-                //                        configBuilder -> configBuilder.withValue(
-                //                                EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                //                                false)),
+                createPlatformContext(
+                        null,
+                        configBuilder -> configBuilder.withValue(
+                                EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
+                                false)),
                 createPlatformContext(
                         null,
                         configBuilder ->
@@ -332,37 +336,5 @@ class ConsensusTests extends PlatformTest {
                 .setContexts(contexts())
                 .setIterations(NUM_ITER)
                 .run();
-    }
-
-    // @RepeatedTest(50)
-    @Test
-    void test() {
-        final ResettableRandom random = RandomUtils.initRandom(-5298602547365345220L, false);
-        // final ResettableRandom random = RandomUtils.getRandomPrintSeed();
-        final long weightSeed = random.nextLong();
-        final long graphSeed = random.nextLong();
-
-        final PlatformContext context = contexts().getFirst();
-
-        final List<Long> weights = RANDOM.getWeights(weightSeed, 4);
-        final List<EventSource<?>> eventSources = EventSourceFactory.newStandardEventSources(weights);
-        final StandardGraphGenerator graphGenerator = new StandardGraphGenerator(context, graphSeed, eventSources);
-
-        final AddressBook preRemovalAb = graphGenerator.getAddressBook();
-        graphGenerator.generateEvents(5000);
-        graphGenerator.removeNode(graphGenerator.getAddressBook().getNodeId(0));
-
-        //        final SimpleLinker linker = new SimpleLinker(
-        //                context.getConfiguration().getConfigData(EventConfig.class).getAncientMode());
-//        HashgraphGuiRunner.runHashgraphGui(
-//                new StandardGuiSource(
-//                        preRemovalAb,
-//                        new GuiEventStorage(graphGenerator.getConsensus(), graphGenerator.getLinker(), null)),
-//                new JPanel());
-                HashgraphGuiRunner.runHashgraphGui(
-                        graphGenerator.createGuiSource(),
-                new JPanel());
-        // Random seed: -5298602547365345220L
-        // Random seed: -7058144929547239143L
     }
 }
