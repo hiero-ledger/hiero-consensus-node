@@ -35,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 
 class StatsSigningTestingToolStateTest {
 
@@ -64,7 +65,7 @@ class StatsSigningTestingToolStateTest {
         final var roster = new Roster(Collections.EMPTY_LIST);
         when(event.transactionIterator()).thenReturn(Collections.emptyIterator());
         round = new ConsensusRound(
-                roster, List.of(event), event, eventWindow, new ConsensusSnapshotWrapper(), false, Instant.now());
+                roster, List.of(event), event, eventWindow, Mockito.mock(ConsensusSnapshotWrapper.class), false, Instant.now());
 
         consumedSystemTransactions = new ArrayList<>();
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);
