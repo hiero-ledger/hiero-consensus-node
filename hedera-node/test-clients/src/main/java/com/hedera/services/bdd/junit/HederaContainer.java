@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.hedera.services.bdd.junit;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_RECORD_STREAM_DIR;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import java.io.File;
@@ -110,7 +111,13 @@ public class HederaContainer extends GenericContainer<HederaContainer> {
         recordStreamFolder.mkdirs();
         return this.withFileSystemBind(
                 recordPath.toString(),
-                Path.of(File.separator, "opt", "hedera", "META-INF/services", recordStreamFolderName, "record0.0.3")
+                Path.of(
+                                File.separator,
+                                "opt",
+                                "hedera",
+                                "META-INF/services",
+                                recordStreamFolderName,
+                                NODE_RECORD_STREAM_DIR)
                         .toString(),
                 BindMode.READ_WRITE);
     }

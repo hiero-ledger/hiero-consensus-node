@@ -61,6 +61,11 @@ public interface EntityIdFactory {
     AccountID newAccountIdWithAlias(@NonNull Bytes alias);
 
     /**
+     * Returns a default account id with account num UNSET.
+     */
+    AccountID newDefaultAccountId();
+
+    /**
      * Returns a file id for the given number.
      * @param number the number
      */
@@ -69,7 +74,6 @@ public interface EntityIdFactory {
     /**
      * Returns a contract id for the given number.
      * @param number the number
-     * @return a new ContractID instance
      */
     ContractID newContractId(long number);
 

@@ -21,16 +21,20 @@ import static java.lang.System.arraycopy;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import static com.swirlds.common.utility.CommonUtils.hex;
+import static java.lang.System.arraycopy;
 
 /**
  * Fixed shard/realm implementation of {@link EntityIdFactory}.
@@ -78,13 +82,22 @@ public class FakeEntityIdFactoryImpl implements EntityIdFactory {
     }
 
     @Override
+    public AccountID newDefaultAccountId() {
+        return AccountID.newBuilder().shardNum(shard).realmNum(realm).build();
+    }
+
+    @Override
     public FileID newFileId(long number) {
         return new FileID(shard, realm, number);
     }
 
     @Override
     public ContractID newContractId(long number) {
-        return new ContractID(shard, realm, new OneOf<>(ContractID.ContractOneOfType.CONTRACT_NUM, number));
+        return ContractID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .contractNum(number)
+                .build();
     }
 
     @Override

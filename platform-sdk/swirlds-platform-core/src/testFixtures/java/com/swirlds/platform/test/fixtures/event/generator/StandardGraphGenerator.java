@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,12 +45,12 @@ import java.util.Objects;
 /**
  * A utility class for generating a graph of events.
  */
-public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraphGenerator> {
+public class StandardGraphGenerator extends AbstractGraphGenerator {
 
     /**
      * A list of sources. There is one source per node that is being simulated.
      */
-    private final List<EventSource<?>> sources;
+    private final List<EventSource> sources;
 
     /**
      * Determines the probability that a node becomes the other parent of an event.
@@ -113,7 +113,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      * @param eventSources    One or more event sources.
      */
     public StandardGraphGenerator(
-            @NonNull final PlatformContext platformContext, final long seed, final EventSource<?>... eventSources) {
+            @NonNull final PlatformContext platformContext, final long seed, final EventSource... eventSources) {
         this(platformContext, seed, new ArrayList<>(Arrays.asList(eventSources)));
     }
 
@@ -125,14 +125,10 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      * @param eventSources    One or more event sources.
      */
     public StandardGraphGenerator(
-            @NonNull PlatformContext platformContext,
-            final long seed,
-            @NonNull final List<EventSource<?>> eventSources) {
+            @NonNull PlatformContext platformContext, final long seed, @NonNull final List<EventSource> eventSources) {
         super(seed);
         this.platformContext = Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(eventSources);
-
-        this.sources = eventSources;
+        this.sources = Objects.requireNonNull(eventSources);
         if (eventSources.isEmpty()) {
             throw new IllegalArgumentException("At least one event source is required");
         }
@@ -152,14 +148,13 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext,
             final long seed,
-            @NonNull final List<EventSource<?>> eventSources,
+            @NonNull final List<EventSource> eventSources,
             @NonNull final AddressBook addressBook) {
         super(seed);
         this.platformContext = Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(eventSources);
+        this.sources = Objects.requireNonNull(eventSources);
         Objects.requireNonNull(addressBook);
 
-        this.sources = eventSources;
         if (eventSources.isEmpty()) {
             throw new IllegalArgumentException("At least one event source is required");
         }
@@ -184,8 +179,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
 
         this.affinityMatrix = that.affinityMatrix.cleanCopy();
         this.sources = new ArrayList<>(that.sources.size());
-        for (final EventSource<?> sourceToCopy : that.sources) {
-            final EventSource<?> copy = sourceToCopy.copy();
+        for (final EventSource sourceToCopy : that.sources) {
+            final EventSource copy = sourceToCopy.copy();
             this.sources.add(copy);
         }
         this.addressBook = that.getAddressBook().copy();
@@ -208,7 +203,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      *
      * @param eventSources the event sources to initialize.
      */
-    private void buildAddressBookInitializeEventSources(@NonNull final List<EventSource<?>> eventSources) {
+    private void buildAddressBookInitializeEventSources(@NonNull final List<EventSource> eventSources) {
         final int eventSourceCount = eventSources.size();
 
         final AddressBook addressBook = RandomAddressBookBuilder.create(getRandom())
@@ -225,12 +220,12 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      * @param addressBook  the address book to use.
      */
     private void setAddressBookInitializeEventSources(
-            @NonNull final List<EventSource<?>> eventSources, @NonNull final AddressBook addressBook) {
+            @NonNull final List<EventSource> eventSources, @NonNull final AddressBook addressBook) {
         final int eventSourceCount = eventSources.size();
 
         this.addressBook = addressBook;
         for (int index = 0; index < eventSourceCount; index++) {
-            final EventSource<?> source = eventSources.get(index);
+            final EventSource source = eventSources.get(index);
             final NodeId nodeId = addressBook.getNodeId(index);
             addressBook.updateWeight(nodeId, source.getWeight());
             source.setNodeId(nodeId);
@@ -362,7 +357,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      * {@inheritDoc}
      */
     @Override
-    public EventSource<?> getSource(final NodeId nodeID) {
+    public EventSource getSource(final NodeId nodeID) {
         final int nodeIndex = addressBook.getIndexOfNodeId(nodeID);
         return sources.get(nodeIndex);
     }
@@ -372,7 +367,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      *
      * @return the event source
      */
-    public EventSource<?> getSourceByIndex(final int nodeIndex) {
+    public EventSource getSourceByIndex(final int nodeIndex) {
         return sources.get(nodeIndex);
     }
 
@@ -394,7 +389,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      */
     private List<Double> getSourceWeights(final long eventIndex) {
         final List<Double> sourceWeights = new ArrayList<>(sources.size());
-        for (final EventSource<?> source : sources) {
+        for (final EventSource source : sources) {
             sourceWeights.add(source.getNewEventWeight(getRandom(), eventIndex));
         }
 
@@ -414,7 +409,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      */
     @Override
     protected void resetInternalData() {
-        for (final EventSource<?> source : sources) {
+        for (final EventSource source : sources) {
             source.reset();
         }
         previousTimestamp = null;
@@ -425,7 +420,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
     /**
      * Get the next node that is creating an event.
      */
-    private EventSource<?> getNextEventSource(final long eventIndex) {
+    private EventSource getNextEventSource(final long eventIndex) {
         final int nodeIndex = weightedChoice(getRandom(), getSourceWeights(eventIndex));
         return sources.get(nodeIndex);
     }
@@ -435,7 +430,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      *
      * @param source The node that is creating the event.
      */
-    private EventSource<?> getNextOtherParentSource(final long eventIndex, final EventSource<?> source) {
+    private EventSource getNextOtherParentSource(final long eventIndex, final EventSource source) {
         final List<Double> affinityVector =
                 getOtherParentAffinityVector(eventIndex, addressBook.getIndexOfNodeId(source.getNodeId()));
         final int nodeIndex = weightedChoice(getRandom(), affinityVector);
@@ -445,7 +440,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
     /**
      * Get the next timestamp for the next event.
      */
-    private Instant getNextTimestamp(final EventSource<?> source, final NodeId otherParentId) {
+    private Instant getNextTimestamp(final EventSource source, final NodeId otherParentId) {
         if (previousTimestamp == null) {
             previousTimestamp = DEFAULT_FIRST_EVENT_TIME_CREATED;
             previousCreatorId = source.getNodeId();
@@ -483,8 +478,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator<StandardGraph
      */
     @Override
     public EventImpl buildNextEvent(final long eventIndex) {
-        final EventSource<?> source = getNextEventSource(eventIndex);
-        final EventSource<?> otherParentSource = getNextOtherParentSource(eventIndex, source);
+        final EventSource source = getNextEventSource(eventIndex);
+        final EventSource otherParentSource = getNextOtherParentSource(eventIndex, source);
 
         final long birthRound = consensus.getLastRoundDecided() + 1;
 
