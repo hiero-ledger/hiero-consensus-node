@@ -932,7 +932,7 @@ public class PlatformWiring {
     public ComponentWiring<AppNotifier, Void> getNotifierWiring() {
         return notifierWiring;
     }
-    
+
     /**
      * Get the output wiring for the state signature collector
      *
