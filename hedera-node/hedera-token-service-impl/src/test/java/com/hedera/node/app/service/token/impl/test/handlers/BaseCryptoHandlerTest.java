@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -48,14 +33,14 @@ public class BaseCryptoHandlerTest {
     @DisplayName("isStakingAccount Check if account is a staking reward account")
     void isStakingAccount_returnsTrue_whenAccountIsStakingRewardAccount() {
         when(accountsConfig.stakingRewardAccount()).thenReturn(1L);
-        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(1L)));
+        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(0L, 0L, 1L)));
     }
 
     @Test
     @DisplayName("isStakingAccount Check if account is a node reward account")
     void isStakingAccount_returnsTrue_whenAccountIsNodeRewardAccount() {
         when(accountsConfig.nodeRewardAccount()).thenReturn(1L);
-        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(1L)));
+        assertTrue(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(0L, 0L, 1L)));
     }
 
     @Test
@@ -63,13 +48,13 @@ public class BaseCryptoHandlerTest {
     void isStakingAccount_returnsFalse_whenAccountIsNotStakingOrNodeRewardAccount() {
         when(accountsConfig.stakingRewardAccount()).thenReturn(1L);
         when(accountsConfig.nodeRewardAccount()).thenReturn(2L);
-        assertFalse(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(3L)));
+        assertFalse(BaseCryptoHandler.isStakingAccount(configuration, BaseCryptoHandler.asAccount(0L, 0L, 3L)));
     }
 
     @DisplayName("asAccount Check if asAccount returns AccountID with given number")
     @Test
     void asAccountReturnsAccountIDWithGivenNumber() {
-        AccountID result = BaseCryptoHandler.asAccount(123);
+        AccountID result = BaseCryptoHandler.asAccount(0L, 0L, 123);
         assertEquals(123, result.accountNum());
     }
 

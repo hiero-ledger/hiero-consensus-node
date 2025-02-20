@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
@@ -31,9 +16,21 @@ import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.*;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.Duration;
+import com.hederahashgraph.api.proto.java.FileID;
+import com.hederahashgraph.api.proto.java.RealmID;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.ServiceEndpoint;
+import com.hederahashgraph.api.proto.java.ShardID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.*;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SplittableRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -127,6 +124,14 @@ public class HapiSpecSetup {
      */
     public void addOverrides(@NonNull final Map<String, String> props) {
         this.props = HapiPropertySource.inPriorityOrder(new MapPropertySource(props), this.props);
+    }
+
+    /**
+     * Returns whether the default transaction memo should be the name of the {@link HapiSpec}
+     * submitting the transaction.
+     */
+    public boolean useSpecName() {
+        return props.getBoolean("memo.useSpecName");
     }
 
     public FileID addressBookId() {

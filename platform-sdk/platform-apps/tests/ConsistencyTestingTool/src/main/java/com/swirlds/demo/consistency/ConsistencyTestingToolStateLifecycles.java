@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.demo.consistency.ConsistencyTestingToolState.isSystemTransaction;
@@ -25,8 +10,8 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -51,6 +36,9 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
 
+    @NonNull
+    private final PlatformStateFacade platformStateFacade;
+
     /**
      * If not zero, and we are handling the first round after genesis, configure a freeze this duration later.
      * <p>
@@ -58,6 +46,10 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
      * hash).
      */
     private Duration freezeAfterGenesis = null;
+
+    public ConsistencyTestingToolStateLifecycles(@NonNull final PlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
+    }
 
     @Override
     public void onStateInitialized(
@@ -103,16 +95,15 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         requireNonNull(round);
         requireNonNull(state);
-        PlatformStateModifier platformState = state.getWritablePlatformState();
-        requireNonNull(platformState);
-
         if (state.getRoundsHandled() == 0 && !freezeAfterGenesis.equals(Duration.ZERO)) {
             // This is the first round after genesis.
             logger.info(
                     STARTUP.getMarker(),
                     "Setting freeze time to {} seconds after genesis.",
                     freezeAfterGenesis.getSeconds());
-            platformState.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+            platformStateFacade.bulkUpdateOf(state, v -> {
+                v.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
+            });
         }
 
         state.processTransactions(round, stateSignatureTransactionCallback);
@@ -127,10 +118,6 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
             @NonNull ConsistencyTestingToolState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         event.forEachTransaction(transaction -> {
-            if (transaction.isSystem()) {
-                return;
-            }
-
             if (isSystemTransaction(transaction)) {
                 state.consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
                 return;

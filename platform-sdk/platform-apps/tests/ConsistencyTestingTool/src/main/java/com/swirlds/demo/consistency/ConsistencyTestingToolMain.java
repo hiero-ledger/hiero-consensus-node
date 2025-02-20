@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
@@ -27,6 +12,7 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -57,8 +43,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(
                     new ClassConstructorPair(ConsistencyTestingToolState.class, () -> {
-                        ConsistencyTestingToolState consistencyTestingToolState =
-                                new ConsistencyTestingToolState(version -> new BasicSoftwareVersion(version.major()));
+                        ConsistencyTestingToolState consistencyTestingToolState = new ConsistencyTestingToolState();
                         // Don't call FAKE_MERKLE_STATE_LIFECYCLES.initStates(consistencyTestingToolState) here.
                         // The stub states are automatically initialized upon loading the state from disk,
                         // or after finishing a reconnect.
@@ -115,9 +100,8 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
      */
     @Override
     @NonNull
-    public ConsistencyTestingToolState newMerkleStateRoot() {
-        final ConsistencyTestingToolState state =
-                new ConsistencyTestingToolState(version -> new BasicSoftwareVersion(softwareVersion.getVersion()));
+    public ConsistencyTestingToolState newStateRoot() {
+        final ConsistencyTestingToolState state = new ConsistencyTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
 
         return state;
@@ -129,7 +113,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     @NonNull
     public StateLifecycles<ConsistencyTestingToolState> newStateLifecycles() {
-        return new ConsistencyTestingToolStateLifecycles();
+        return new ConsistencyTestingToolStateLifecycles(new PlatformStateFacade((v) -> getSoftwareVersion()));
     }
 
     /**

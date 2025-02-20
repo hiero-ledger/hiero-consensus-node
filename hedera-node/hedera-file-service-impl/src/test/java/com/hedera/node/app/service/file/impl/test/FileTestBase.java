@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test;
 
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
@@ -36,6 +21,7 @@ import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.ReadableUpgradeFileStoreImpl;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -43,6 +29,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.FilteredReadableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
@@ -113,12 +100,15 @@ public class FileTestBase {
     protected final KeyList keys = A_KEY_LIST.keyList();
 
     protected final KeyList anotherKeys = B_KEY_LIST.keyList();
-    protected final FileID WELL_KNOWN_FILE_ID =
-            FileID.newBuilder().fileNum(1_234L).build();
-    protected final FileID WELL_KNOWN_UPGRADE_FILE_ID =
-            FileID.newBuilder().fileNum(150L).shardNum(0L).realmNum(0L).build();
-    protected final FileID WELL_KNOWN_SYSTEM_FILE_ID =
-            FileID.newBuilder().fileNum(122L).shardNum(0L).realmNum(0L).build();
+
+    private final long SHARD = 5L;
+    private final long REALM = 10L;
+
+    private final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
+
+    protected final FileID WELL_KNOWN_FILE_ID = idFactory.newFileId(1_234L);
+    protected final FileID WELL_KNOWN_UPGRADE_FILE_ID = idFactory.newFileId(150L);
+    protected final FileID WELL_KNOWN_SYSTEM_FILE_ID = idFactory.newFileId(122L);
     protected final FileID fileId = WELL_KNOWN_FILE_ID;
     protected final FileID fileIdNotExist = FileID.newBuilder().fileNum(6_789L).build();
     protected final FileID fileSystemFileId = WELL_KNOWN_SYSTEM_FILE_ID;

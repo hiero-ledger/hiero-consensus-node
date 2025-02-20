@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
@@ -185,13 +170,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         try {
             writableStreamingData.close();
             state = State.CLOSED;
-            // Write a .mf file to indicate that the block file is complete.
-            final Path markerFile = getBlockFilePath(blockNumber).resolveSibling(longToFileName(blockNumber) + ".mf");
-            if (Files.exists(markerFile)) {
-                logger.info("Skipping block marker file for {} as it already exists", markerFile);
-            } else {
-                Files.createFile(markerFile);
-            }
         } catch (final IOException e) {
             logger.error("Error closing the FileBlockItemWriter output stream", e);
             throw new UncheckedIOException(e);
@@ -216,7 +194,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * @return the 36-character string padded with leading zeros
      */
     @NonNull
-    public static String longToFileName(final long value) {
+    private static String longToFileName(final long value) {
         // Convert the signed long to an unsigned long using BigInteger for correct representation
         BigInteger unsignedValue =
                 BigInteger.valueOf(value & Long.MAX_VALUE).add(BigInteger.valueOf(Long.MIN_VALUE & value));
