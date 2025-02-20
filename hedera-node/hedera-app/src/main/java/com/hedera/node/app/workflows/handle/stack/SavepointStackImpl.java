@@ -557,8 +557,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final var builder = builders.get(i);
             final var nonceOffset =
                     switch (builder.category()) {
-                        case USER, SCHEDULED, NODE -> 0;
-                        case PRECEDING, CHILD, BATCH -> nextNonceOffset++;
+                        case USER, SCHEDULED, NODE, BATCH -> 0;
+                        case PRECEDING, CHILD -> nextNonceOffset++;
                     };
             final var txnId = builder.transactionID();
             // If the builder does not already have a transaction id, then complete with the next nonce offset
@@ -577,7 +577,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                     // But for backward compatibility keep setting rates on scheduled receipts, c.f.
                     // https://github.com/hashgraph/hedera-services/issues/15393
                     builder.exchangeRate(exchangeRates);
-                } else if (builder.category() == BATCH) {
+                } else if (builder.category() == BATCH || builder.category() == PRECEDING) {
                     builder.parentConsensus(consensusTime).exchangeRate(null);
                     parentConsensusTime = consensusNow;
                 } else if (builder.category() == CHILD) {

@@ -264,7 +264,7 @@ public class AtomicBatchTest {
         final var account2 = "foo2";
         final var atomicTxn = "atomicTxn";
         final var alias = "alias";
-        final var contract = "ConsTimeRepro";
+        final var contract = "HIP756Contract";
         final AtomicReference<Timestamp> parentConsTime = new AtomicReference<>();
         final AtomicReference<Timestamp> contractChildConsTime = new AtomicReference<>();
 
