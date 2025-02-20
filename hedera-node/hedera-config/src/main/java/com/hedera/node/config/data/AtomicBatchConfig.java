@@ -17,10 +17,16 @@
 package com.hedera.node.config.data;
 
 import com.hedera.node.config.NetworkProperty;
+import com.hedera.node.config.types.HederaFunctionalitySet;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 
 @ConfigData("atomicBatch")
 public record AtomicBatchConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean isEnabled,
-        @ConfigProperty(defaultValue = "50") @NetworkProperty long maxNumberOfTransactions) {}
+        @ConfigProperty(defaultValue = "50") @NetworkProperty long maxNumberOfTransactions,
+        @ConfigProperty(defaultValue =
+                "ConsensusSubmitMessage,CryptoTransfer,TokenCreate,TokenUpdate,TokenMint,TokenBurn,CryptoCreate,CryptoUpdate,"
+                        + "FileUpdate,SystemDelete,SystemUndelete,Freeze,ContractCall,ContractCreate,ContractUpdate,"
+                        + "ContractDelete,CryptoApproveAllowance")
+        @NetworkProperty HederaFunctionalitySet whitelist) {}
