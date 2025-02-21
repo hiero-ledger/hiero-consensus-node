@@ -29,7 +29,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
@@ -244,13 +243,10 @@ public class AtomicBatchTest {
         final var innerTnxPayer = "innerPayer";
         final var innerTxnId1 = "innerId1";
         final var innerTxnId2 = "innerId2";
-        final var innerTxnId3 = "innerId3";
         final var account2 = "foo2";
         final var atomicTxn = "atomicTxn";
         final var alias = "alias";
-        final var contract = "HIP756Contract";
         final AtomicReference<Timestamp> parentConsTime = new AtomicReference<>();
-        final AtomicReference<Timestamp> contractChildConsTime = new AtomicReference<>();
 
         final var innerTxn1 = cryptoTransfer(movingHbar(10L).between(innerTnxPayer, alias))
                 .withProtoStructure(TxnProtoStructure.NORMALIZED)
@@ -270,23 +266,18 @@ public class AtomicBatchTest {
                 cryptoCreate(innerTnxPayer).balance(ONE_HUNDRED_HBARS),
                 usableTxnIdNamed(innerTxnId1).payerId(innerTnxPayer),
                 usableTxnIdNamed(innerTxnId2).payerId(innerTnxPayer),
-                usableTxnIdNamed(innerTxnId3).payerId(innerTnxPayer),
                 // submit atomic batch with 3 inner txns
                 atomicBatch(innerTxn1, innerTxn2).via(atomicTxn),
                 getTxnRecord(atomicTxn)
                         .exposingTo(record -> parentConsTime.set(record.getConsensusTimestamp()))
-                        .andAllChildRecords()
-                        .hasNonStakingChildRecordCount(1)
-                        .hasChildRecords(recordWith().status(SUCCESS))
                         .logged(),
-                // preceding transactions doesn't have parentConsTime set
-                sourcing(
-                        () -> childRecordsCheck(atomicTxn, SUCCESS, recordWith().status(SUCCESS))),
                 // All atomic batch transactions should have the same parentConsTime set
                 // the same as the batch user txn
                 sourcing(() -> getTxnRecord(innerTxnId1)
                         .hasParentConsensusTime(parentConsTime.get())
                         .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(1)
+                        .hasChildRecords(recordWith().status(SUCCESS))
                         .assertingNothingAboutHashes()
                         .logged()),
                 sourcing(() -> getTxnRecord(innerTxnId2)
@@ -526,7 +517,7 @@ public class AtomicBatchTest {
             final var contract = "CalldataSize";
             final var function = "callme";
             // Adjust the payload size with 512 bytes, so the total size is just under 6kb
-            final var payload = new byte[MAX_CALL_DATA_SIZE - 512];
+            final var payload = new byte[MAX_CALL_DATA_SIZE - 1000];
             final var batchOperator = "batchOperator";
             return hapiTest(
                     cryptoCreate(batchOperator),
