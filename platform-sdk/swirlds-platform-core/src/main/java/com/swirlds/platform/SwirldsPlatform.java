@@ -36,8 +36,10 @@ import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
+import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
+import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.pool.TransactionPoolNexus;
@@ -71,6 +73,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -174,21 +177,29 @@ public class SwirldsPlatform implements Platform {
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
         modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
 
+        selfId = blocks.selfId();
+
         if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
             try {
                 // This method is a no-op if we have already completed birth round migration or if we are at genesis.
                 migratePcesToBirthRoundMode(
                         platformContext,
-                        blocks.selfId(),
+                        selfId,
                         initialState.getRound(),
                         platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(initialState.getState()));
+
+                // re-load the PCES files now that they have been migrated
+                final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
+                final Path databaseDir = PcesUtilities.getDatabaseDirectory(platformContext, selfId);
+                initialPcesFiles = PcesFileReader.readFilesFromDisk(
+                        platformContext, databaseDir, initialState.getRound(), pcesConfig.permitGaps(), ancientMode);
             } catch (final IOException e) {
                 throw new UncheckedIOException("Birth round migration failed during PCES migration.", e);
             }
+        } else {
+            initialPcesFiles = blocks.initialPcesFiles();
         }
 
-        selfId = blocks.selfId();
-        initialPcesFiles = blocks.initialPcesFiles();
         notificationEngine = blocks.notificationEngine();
 
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
