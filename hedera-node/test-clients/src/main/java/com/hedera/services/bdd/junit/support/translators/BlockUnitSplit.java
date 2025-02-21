@@ -165,7 +165,7 @@ public class BlockUnitSplit {
         }
         // Scheduled or batch inner transactions never begin a new transactional unit
         final var radicallyDifferent = !hasParentConsensusTimestamp
-                && !(nextId.scheduled() || parts.body().hasBatchKey())
+                && !nextId.scheduled()
                 && (!nextId.accountIDOrElse(AccountID.DEFAULT).equals(unitTxnId.accountIDOrElse(AccountID.DEFAULT))
                         || !nextId.transactionValidStartOrElse(Timestamp.DEFAULT)
                                 .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT))
