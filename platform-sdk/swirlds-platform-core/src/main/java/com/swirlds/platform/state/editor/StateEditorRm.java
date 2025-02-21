@@ -44,7 +44,7 @@ public class StateEditorRm extends StateEditorOperation {
 
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorRm.run()")) {
             final MerkleNodeState state = reservedSignedState.get().getState();
-            final MerkleNode child = state.getNodeAtRoute(destinationRoute);
+            final MerkleNode child = state.getRoot().getNodeAtRoute(destinationRoute);
 
             if (logger.isInfoEnabled(LogMarker.CLI.getMarker())) {
                 logger.info(
@@ -57,7 +57,7 @@ public class StateEditorRm extends StateEditorOperation {
             parent.setChild(indexInParent, null);
 
             // Invalidate hashes in path down from root
-            new MerkleRouteIterator(state, parent.getRoute()).forEachRemaining(Hashable::invalidateHash);
+            new MerkleRouteIterator(state.getRoot(), parent.getRoute()).forEachRemaining(Hashable::invalidateHash);
         }
     }
 }

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.roster.RosterRetriever;
@@ -52,6 +53,7 @@ public class TransactionHandlerTester {
         platformState = new PlatformStateValueAccumulator();
 
         consensusState = mock(MerkleNodeState.class);
+        when(consensusState.getRoot()).thenReturn(mock(MerkleNode.class));
         platformStateFacade = mock(TestPlatformStateFacade.class);
 
         stateLifecycles = mock(StateLifecycles.class);

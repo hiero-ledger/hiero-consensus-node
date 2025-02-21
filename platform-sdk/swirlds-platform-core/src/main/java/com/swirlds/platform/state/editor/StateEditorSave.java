@@ -45,7 +45,7 @@ public class StateEditorSave extends StateEditorOperation {
 
             logger.info(LogMarker.CLI.getMarker(), "Hashing state");
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(reservedSignedState.get().getState())
+                    .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
 
             if (logger.isInfoEnabled(LogMarker.CLI.getMarker())) {

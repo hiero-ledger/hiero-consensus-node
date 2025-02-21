@@ -66,9 +66,10 @@ class SwirldsStateManagerTests {
     void initialStateReferenceCount() {
         assertEquals(
                 1,
-                initialState.getReservationCount(),
+                initialState.getRoot().getReservationCount(),
                 "The initial state is copied and should be referenced once as the previous immutable state.");
-        Reservable consensusStateAsReservable = swirldStateManager.getConsensusState();
+        Reservable consensusStateAsReservable =
+                swirldStateManager.getConsensusState().getRoot();
         assertEquals(
                 1, consensusStateAsReservable.getReservationCount(), "The consensus state should have one reference.");
     }
@@ -85,7 +86,7 @@ class SwirldsStateManagerTests {
     @DisplayName("Load From Signed State - state reference counts")
     void loadFromSignedStateRefCount() {
         final SignedState ss1 = newSignedState();
-        final Reservable state1 = ss1.getState();
+        final Reservable state1 = ss1.getState().getRoot();
         MerkleDb.resetDefaultInstancePath();
         swirldStateManager.loadFromSignedState(ss1);
 
@@ -94,7 +95,8 @@ class SwirldsStateManagerTests {
                 state1.getReservationCount(),
                 "Loading from signed state should increment the reference count, because it is now referenced by the "
                         + "signed state and the previous immutable state in SwirldStateManager.");
-        final Reservable consensusState1 = swirldStateManager.getConsensusState();
+        final Reservable consensusState1 =
+                swirldStateManager.getConsensusState().getRoot();
         assertEquals(
                 1,
                 consensusState1.getReservationCount(),
@@ -104,9 +106,10 @@ class SwirldsStateManagerTests {
         final SignedState ss2 = newSignedState();
         MerkleDb.resetDefaultInstancePath();
         swirldStateManager.loadFromSignedState(ss2);
-        final Reservable consensusState2 = swirldStateManager.getConsensusState();
+        final Reservable consensusState2 =
+                swirldStateManager.getConsensusState().getRoot();
 
-        Reservable state2 = ss2.getState();
+        Reservable state2 = ss2.getState().getRoot();
         assertEquals(
                 2,
                 state2.getReservationCount(),
@@ -129,13 +132,13 @@ class SwirldsStateManagerTests {
 
         platformStateFacade.setCreationSoftwareVersionTo(state, new BasicSoftwareVersion(nextInt(1, 100)));
 
-        assertEquals(0, state.getReservationCount(), "A brand new state should have no references.");
+        assertEquals(0, state.getRoot().getReservationCount(), "A brand new state should have no references.");
         return state;
     }
 
     private static SignedState newSignedState() {
         final SignedState ss = new RandomSignedStateGenerator().build();
-        final Reservable state = ss.getState();
+        final Reservable state = ss.getState().getRoot();
         assertEquals(
                 1, state.getReservationCount(), "Creating a signed state should increment the state reference count.");
         return ss;

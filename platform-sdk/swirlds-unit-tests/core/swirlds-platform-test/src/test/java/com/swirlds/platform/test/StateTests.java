@@ -56,10 +56,10 @@ class StateTests {
         io.startReading();
 
         final MerkleNodeState decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
-        MerkleCryptoFactory.getInstance().digestTreeSync(decodedState);
+        MerkleCryptoFactory.getInstance().digestTreeSync(decodedState.getRoot());
 
         assertEquals(merkleStateRoot.getHash(), decodedState.getHash(), "expected trees to be equal");
-        assertTrue(areTreesEqual(merkleStateRoot, decodedState), "expected trees to be equal");
+        assertTrue(areTreesEqual(merkleStateRoot, decodedState.getRoot()), "expected trees to be equal");
     }
 
     @Test

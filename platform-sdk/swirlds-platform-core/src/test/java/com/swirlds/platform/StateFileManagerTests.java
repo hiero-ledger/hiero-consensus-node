@@ -148,8 +148,11 @@ class StateFileManagerTests {
         final DeserializedSignedState deserializedSignedState = readStateFile(
                 TestPlatformContextBuilder.create().build().getConfiguration(), stateFile, TEST_PLATFORM_STATE_FACADE);
         MerkleCryptoFactory.getInstance()
-                .digestTreeSync(
-                        deserializedSignedState.reservedSignedState().get().getState());
+                .digestTreeSync(deserializedSignedState
+                        .reservedSignedState()
+                        .get()
+                        .getState()
+                        .getRoot());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
         assertNotSame(

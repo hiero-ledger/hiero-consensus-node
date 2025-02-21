@@ -19,7 +19,7 @@ public class StateEditorRehash extends StateEditorOperation {
     @Override
     public void run() {
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorRehash.run()")) {
-            MerkleUtils.rehashTree(reservedSignedState.get().getState());
+            MerkleUtils.rehashTree(reservedSignedState.get().getState().getRoot());
         }
     }
 }

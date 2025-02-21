@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.wiring.components.StateAndRound;
@@ -30,8 +31,10 @@ public class DefaultStateHasherTests {
 
         // mock a state
         final SignedState signedState = mock(SignedState.class);
+        final MerkleNodeState merkleNodeState = mock(MerkleNodeState.class);
         final ReservedSignedState reservedSignedState = mock(ReservedSignedState.class);
         when(reservedSignedState.get()).thenReturn(signedState);
+        when(signedState.getState()).thenReturn(merkleNodeState);
 
         final StateAndRound stateAndRound =
                 new StateAndRound(reservedSignedState, mock(ConsensusRound.class), mock(ConcurrentLinkedQueue.class));

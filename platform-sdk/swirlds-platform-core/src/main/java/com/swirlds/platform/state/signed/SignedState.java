@@ -188,7 +188,7 @@ public class SignedState implements SignedStateInfo {
         this.platformStateFacade = platformStateFacade;
         this.signatureVerifier = requireNonNull(signatureVerifier);
         this.state = requireNonNull(state);
-        state.reserve();
+        state.getRoot().reserve();
 
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         if (stateConfig.stateHistoryEnabled()) {

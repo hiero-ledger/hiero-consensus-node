@@ -73,7 +73,7 @@ public final class SignedStateFileWriter {
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
-        final String hashInfo = new MerkleTreeVisualizer(state)
+        final String hashInfo = new MerkleTreeVisualizer(state.getRoot())
                 .setDepth(stateConfig.debugHashDepth())
                 .render();
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(hashInfoFile.toFile()))) {

@@ -122,7 +122,7 @@ final class ReconnectTest {
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
 
             final MerkleCryptography cryptography = MerkleCryptoFactory.getInstance();
-            cryptography.digestSync(signedState.getState());
+            cryptography.digestSync(signedState.getState().getRoot());
 
             final ReconnectLearner receiver = buildReceiver(
                     signedState.getState(),
