@@ -25,7 +25,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateKeysTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;

@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Cal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.address_0x16c.TokenTypeTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateKeysTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateTranslator;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.IntoSet;
@@ -46,6 +47,15 @@ public interface Hts0x16cTranslatorsModule {
     @IntoSet
     @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideUpdateKeysTranslator(@NonNull final UpdateKeysTranslator translator) {
+        return translator;
+    }
+
+    @Provides
+    @Singleton
+    @IntoSet
+    @Named("HtsTranslators")
+    static CallTranslator<HtsCallAttempt> provideUpdateTokenCommonTranslator(
+            @NonNull final UpdateTranslator translator) {
         return translator;
     }
 }
