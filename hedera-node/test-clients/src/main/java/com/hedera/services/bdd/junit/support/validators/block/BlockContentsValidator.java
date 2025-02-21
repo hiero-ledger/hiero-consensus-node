@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_BLOCK_STREAM_
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -16,6 +17,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
+/**
+ * Validates the structure of blocks.
+ */
 public class BlockContentsValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(BlockContentsValidator.class);
 
@@ -51,50 +55,113 @@ public class BlockContentsValidator implements BlockStreamValidator {
     }
 
     private static void validate(Block block) {
-        final var blockItems = block.items();
-
-        // A block SHALL start with a `header`.
-        if (!blockItems.getFirst().hasBlockHeader()) {
-            Assertions.fail("Block does not start with a block header");
+        final var items = block.items();
+        if (items.isEmpty()) {
+            Assertions.fail("Block is empty");
         }
 
-        // A block SHALL end with a `state_proof`.
-        if (!blockItems.getLast().hasBlockProof()) {
-            Assertions.fail("Block does not end with a block proof");
+        if (items.size() <= 2) {
+            Assertions.fail("Block contains insufficient number of block items");
         }
 
-        // In general, a `block_header` SHALL be followed by an `round_header`
-        if (!blockItems.get(1).hasRoundHeader()) {
-            Assertions.fail("Block header not followed by an round header");
+        // A block SHALL start with a `block_header`.
+        validateBlockHeader(items.getFirst());
+
+        validateRounds(items.subList(1, items.size() - 1));
+
+        // A block SHALL end with a `block_proof`.
+        validateBlockProof(items.getLast());
+    }
+
+    private static void validateBlockHeader(final BlockItem item) {
+        if (!item.hasBlockHeader()) {
+            Assertions.fail("Block must start with a block header");
+        }
+    }
+
+    private static void validateBlockProof(final BlockItem item) {
+        if (!item.hasBlockProof()) {
+            Assertions.fail("Block must end with a block proof");
+        }
+    }
+
+    private static void validateRounds(final List<BlockItem> roundItems) {
+        int currentIndex = 0;
+        while (currentIndex < roundItems.size()) {
+            currentIndex = validateSingleRound(roundItems, currentIndex);
+        }
+    }
+
+    /**
+     * Validates a single round within a block, starting at the given index.
+     * Returns the index of the next item after this round.
+     */
+    private static int validateSingleRound(final List<BlockItem> items, int startIndex) {
+        // Validate round header
+        if (!items.get(startIndex).hasRoundHeader()) {
+            logger.error("Expected round header at index {}, found: {}", startIndex, items.get(startIndex));
+            Assertions.fail("Round must start with a round header");
         }
 
-        // In general, a `round_header` SHALL be followed by an `event_header`, but for hapiTestRestart we get
-        // state change singleton update for BLOCK_INFO_VALUE because the post-restart State initialization changes
-        // state before any event has reached consensus
-        if (!blockItems.get(2).hasEventHeader() && !blockItems.get(2).hasStateChanges()) {
-            Assertions.fail("Round header not followed by an event header or state changes");
-        }
+        int currentIndex = startIndex + 1;
+        boolean hasEventOrStateChange = false;
 
-        if (blockItems.stream().noneMatch(BlockItem::hasEventTransaction)) { // block without a user transaction
-            // A block with no user transactions contains a `block_header`, `event_headers`, `state_changes` and
-            // `state_proof`.
-            if (blockItems.stream()
-                    .skip(2) // skip block_header and round_header
-                    .limit(blockItems.size() - 3L) // skip state_proof
-                    .anyMatch(item -> !item.hasEventHeader() && !item.hasStateChanges())) {
+        // Process items in this round until we hit the next round header or end of items
+        while (currentIndex < items.size() && !items.get(currentIndex).hasRoundHeader()) {
+            BlockItem item = items.get(currentIndex);
+
+            if (item.hasEventHeader() || item.hasStateChanges()) {
+                hasEventOrStateChange = true;
+                currentIndex++;
+            } else if (item.hasEventTransaction()) {
+                currentIndex = validateTransactionGroup(items, currentIndex);
+            } else if (item.hasTransactionResult() || item.hasTransactionOutput()) {
+                logger.error(
+                        "Found transaction result or output without preceding transaction at index {}", currentIndex);
                 Assertions.fail(
-                        "Block with no user transactions should contain items of type `block_header`, `event_headers`, `state_changes` or `state_proof`");
-            }
-
-            return;
-        }
-
-        for (int i = 0; i < blockItems.size(); i++) {
-            // An `event_transaction` SHALL be followed by a `transaction_result`.
-            if (blockItems.get(i).hasEventTransaction()
-                    && !blockItems.get(i + 1).hasTransactionResult()) {
-                Assertions.fail("Event transaction not followed by a transaction result");
+                        "Found transaction result or output without preceding transaction at index " + currentIndex);
+            } else {
+                logger.error("Invalid item type at index {}: {}", currentIndex, item);
+                Assertions.fail("Invalid item type at index " + currentIndex + ": " + item);
             }
         }
+
+        if (!hasEventOrStateChange) {
+            logger.error("Round starting at index {} has no event headers or state changes", startIndex);
+            Assertions.fail("Round starting at index " + startIndex + " has no event headers or state changes");
+        }
+
+        return currentIndex;
+    }
+
+    /**
+     * Validates a transaction group (transaction + result + optional outputs).
+     * Returns the index of the next item after this group.
+     */
+    private static int validateTransactionGroup(final List<BlockItem> items, int transactionIndex) {
+        if (transactionIndex + 1 >= items.size()) {
+            Assertions.fail("Event transaction at end of block with no result");
+        }
+
+        // Check for transaction result
+        BlockItem nextItem = items.get(transactionIndex + 1);
+        if (!nextItem.hasTransactionResult()) {
+            logger.error("Expected transaction result at index {}, found: {}", transactionIndex + 1, nextItem);
+            Assertions.fail("Event transaction must be followed by transaction result");
+        }
+
+        // Check for optional transaction outputs
+        int currentIndex = transactionIndex + 2;
+        while (currentIndex < items.size() && items.get(currentIndex).hasTransactionOutput()) {
+            // Check that transaction output is not equal to TransactionOutput.DEFAULT
+            if (TransactionOutput.DEFAULT.equals(items.get(currentIndex).transactionOutput())) {
+                logger.error("Transaction output at index {} is equal to TransactionOutput.DEFAULT", currentIndex);
+                Assertions.fail(
+                        "Transaction output at index " + currentIndex + " is equal to TransactionOutput.DEFAULT");
+            }
+            currentIndex++;
+        }
+
+        return currentIndex;
     }
 }

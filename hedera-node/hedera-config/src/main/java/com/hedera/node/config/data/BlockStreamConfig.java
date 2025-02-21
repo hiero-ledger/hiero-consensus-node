@@ -9,6 +9,7 @@ import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
+import java.time.Duration;
 
 /**
  * Configuration for the block stream.
@@ -34,13 +35,13 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean compressFilesOnCreation,
         @ConfigProperty(defaultValue = "32") @NetworkProperty int hashCombineBatchSize,
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
+        @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
         @ConfigProperty(defaultValue = "2") @NetworkProperty long waitPeriodForActiveConnection,
         @ConfigProperty(defaultValue = "localhost") String grpcAddress,
         @ConfigProperty(defaultValue = "8080") @Min(0) @Max(65535) int grpcPort) {
 
     /**
-     * Check if the given account is a superuser.
-     * @return true if the account is a superuser, false otherwise
+     * Whether to stream to block nodes.
      */
     public boolean streamToBlockNodes() {
         return writerMode != BlockStreamWriterMode.FILE;

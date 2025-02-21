@@ -518,11 +518,11 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         txn = new TokenUpdateBuilder()
                 .withSymbol("1234567890123456789012345678901234567890123456789012345678901234567890")
                 .build();
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.maxSymbolUtf8Bytes", "10")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configuration, 1));
+        given(handleContext.configuration()).willReturn(configOverride);
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configOverride, 1));
         given(handleContext.body()).willReturn(txn);
         given(pureChecksContext.body()).willReturn(txn);
 
@@ -563,11 +563,11 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         txn = new TokenUpdateBuilder()
                 .withName("1234567890123456789012345678901234567890123456789012345678901234567890")
                 .build();
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.maxTokenNameUtf8Bytes", "10")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configuration, 1));
+        given(handleContext.configuration()).willReturn(configOverride);
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configOverride, 1));
         given(handleContext.body()).willReturn(txn);
         given(pureChecksContext.body()).willReturn(txn);
 
@@ -1180,10 +1180,10 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 .copyBuilder()
                 .balance(1)
                 .build();
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.useTreasuryWildcards", "false")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         writableTokenRelStore.put(copyTokenRel);
         given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(writableTokenRelStore);
         txn = new TokenUpdateBuilder().withToken(nonFungibleTokenId).build();

@@ -159,7 +159,7 @@ public class Reference {
         }
         crc = crc8(dataUnscrambled);
         if (data[data.length - 1] != crc) {
-            throw new InvalidParameterException("Invalid string: fails the cyclic redundency check");
+            throw new InvalidParameterException("Invalid string: fails the cyclic redundancy check");
         }
     }
 

@@ -212,18 +212,44 @@ public enum BlockStreamAccess {
     }
 
     private static boolean isBlockFile(@NonNull final Path path) {
-        return path.toFile().isFile() && extractBlockNumber(path) != -1;
+        if (!path.toFile().isFile() || extractBlockNumber(path) == -1) {
+            return false;
+        }
+        // Check for marker file
+        final Path markerFile = path.resolveSibling(path.getFileName()
+                .toString()
+                .replace(COMPRESSED_FILE_EXT, ".mf")
+                .replace(UNCOMPRESSED_FILE_EXT, ".mf"));
+        return Files.exists(markerFile);
     }
 
-    private static long extractBlockNumber(@NonNull final Path path) {
+    /**
+     * Extracts the block number from the given path.
+     *
+     * @param path the path
+     * @return the block number
+     */
+    public static long extractBlockNumber(@NonNull final Path path) {
         return extractBlockNumber(path.getFileName().toString());
     }
 
+    /**
+     * Checks if the given file is a block file.
+     *
+     * @param file the file
+     * @return true if the file is a block file, false otherwise
+     */
     public static boolean isBlockFile(@NonNull final File file) {
         return file.isFile() && extractBlockNumber(file.getName()) != -1;
     }
 
-    private static long extractBlockNumber(@NonNull final String fileName) {
+    /**
+     * Extracts the block number from the given file name.
+     *
+     * @param fileName the file name
+     * @return the block number, or -1 if it cannot be extracted
+     */
+    public static long extractBlockNumber(@NonNull final String fileName) {
         try {
             final var blockNumber = fileName.substring(0, fileName.indexOf(UNCOMPRESSED_FILE_EXT));
             return Long.parseLong(blockNumber);
