@@ -130,14 +130,14 @@ class AtomicBatchHandlerTest {
     void failsOnInnerFreezeTx() {
         final var transaction = mock(Transaction.class);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
-        given(pureChecksContext.body()).willReturn(txnBody);
+        given(preHandleContext.body()).willReturn(txnBody);
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .freeze(FreezeTransactionBody.DEFAULT)
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
         given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
     }
 
@@ -145,14 +145,14 @@ class AtomicBatchHandlerTest {
     void failsOnInnerBatchTx() {
         final var transaction = mock(Transaction.class);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
-        given(pureChecksContext.body()).willReturn(txnBody);
+        given(preHandleContext.body()).willReturn(txnBody);
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .atomicBatch(AtomicBatchTransactionBody.DEFAULT)
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
         given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
     }
 
