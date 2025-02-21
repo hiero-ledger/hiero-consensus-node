@@ -20,6 +20,7 @@ import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ARRAY_BR
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.EXPIRY;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.EXPIRY_V2;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.TOKEN_KEY;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTokenCommons.updateMethodsSet;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
@@ -71,5 +72,7 @@ public class UpdateTranslator extends UpdateTokenCommonTranslator {
         updateMethodsMap.put(TOKEN_UPDATE_INFO_FUNCTION_V1, decoder::decodeTokenUpdateV1);
         updateMethodsMap.put(TOKEN_UPDATE_INFO_FUNCTION_V2, decoder::decodeTokenUpdateV2);
         updateMethodsMap.put(TOKEN_UPDATE_INFO_FUNCTION_V3, decoder::decodeTokenUpdateV3);
+
+        updateMethodsSet.addAll(updateMethodsMap.keySet());
     }
 }
