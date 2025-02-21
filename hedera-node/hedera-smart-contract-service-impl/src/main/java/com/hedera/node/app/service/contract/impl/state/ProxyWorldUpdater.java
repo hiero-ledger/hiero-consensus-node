@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
+import static com.hedera.node.app.service.contract.impl.state.ProxyLambdaAccount.HLS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.aliasFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
@@ -62,6 +63,9 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @Nullable
     private final WorldUpdater parent;
 
+    @Nullable
+    private ContractID lambdaContractId;
+
     /**
      * The {@link EvmFrameState} managing this {@code ProxyWorldUpdater}'s state.
      */
@@ -109,6 +113,14 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     /**
+     * Sets the contract ID for the in-scope lambda if this is a dispatch.
+     * @param lambdaContractId the contract ID for the in-scope lambda during a dispatch
+     */
+    public void setLambdaContractId(@NonNull final ContractID lambdaContractId) {
+        this.lambdaContractId = requireNonNull(lambdaContractId);
+    }
+
+    /**
      * Returns the pending creation, if any, for this updater.
      *
      * @return the pending creation, if any, for this updater
@@ -140,12 +152,12 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         return address == null ? null : (HederaEvmAccount) get(address);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public ContractID getHederaContractId(@NonNull final Address address) {
         requireNonNull(address);
+        if (lambdaContractId != null && HLS_EVM_ADDRESS.equals(address)) {
+            return lambdaContractId;
+        }
         final var account = (HederaEvmAccount) get(address);
         if (account == null) {
             // Also return ids for pending creations
@@ -171,6 +183,9 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @Override
     public @Nullable HederaEvmAccount getHederaAccount(@NonNull ContractID contractId) {
         requireNonNull(contractId);
+        if (contractId.equals(lambdaContractId)) {
+            return new ProxyLambdaAccount(contractId, evmFrameState);
+        }
         contractId = enhancement.operations().shardAndRealmValidated(contractId);
         final Address address;
         if (contractId.hasEvmAddress()) {
@@ -305,14 +320,17 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     @Override
     public @Nullable Account get(@NonNull final Address address) {
-        return evmFrameState.getAccount(address);
+        return getAccount(address);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public MutableAccount getAccount(@NonNull final Address address) {
+    public @Nullable MutableAccount getAccount(@NonNull final Address address) {
+        if (lambdaContractId != null && HLS_EVM_ADDRESS.equals(address)) {
+            return new ProxyLambdaAccount(lambdaContractId, evmFrameState);
+        }
         return evmFrameState.getMutableAccount(address);
     }
 
@@ -416,6 +434,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         if (this.pendingCreation != null) {
             child.pendingCreation = this.pendingCreation;
         }
+        child.lambdaContractId = this.lambdaContractId;
         child.contractMustBePresent = this.contractMustBePresent;
         return child;
     }

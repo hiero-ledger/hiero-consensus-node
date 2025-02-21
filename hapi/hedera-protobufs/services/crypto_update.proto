@@ -22,6 +22,7 @@ import "basic_types.proto";
 import "duration.proto";
 import "timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "hook_types.proto";
 
 /**
  * Modify the current state of an account.
@@ -216,4 +217,13 @@ message CryptoUpdateTransactionBody {
      */
     google.protobuf.BoolValue decline_reward = 18;
 
+    /**
+     * The hooks to install on the account.
+     */
+    repeated HookInstall hook_installs = 19;
+
+    /**
+     * The indexes of the hooks to uninstall from the account.
+     */
+    repeated uint64 hook_indexes_to_uninstall = 20;
 }

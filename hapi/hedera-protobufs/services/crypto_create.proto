@@ -20,6 +20,7 @@ option java_multiple_files = true;
 
 import "basic_types.proto";
 import "duration.proto";
+import "hook_types.proto";
 
 /*
  * Create a new account.
@@ -198,4 +199,9 @@ message CryptoCreateTransactionBody {
      * Once set, an account alias is immutable and MUST NOT be changed.
      */
     bytes alias = 18;
+
+    /**
+     * The hook installs to run immediately after creating this account.
+     */
+    repeated HookInstall hook_installs = 19;
 }

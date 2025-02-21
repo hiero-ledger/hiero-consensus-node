@@ -124,6 +124,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             final var tracer = addOnTracers != null
                     ? new AddOnEvmActionTracer(evmActionTracer, addOnTracers.get())
                     : evmActionTracer;
+            if (hevmTransaction.isLambdaDispatch()) {
+                rootProxyWorldUpdater.setLambdaContractId(requireNonNull(hevmTransaction.contractId()));
+            }
             var result = processor.processTransaction(
                     hevmTransaction, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, configuration);
 

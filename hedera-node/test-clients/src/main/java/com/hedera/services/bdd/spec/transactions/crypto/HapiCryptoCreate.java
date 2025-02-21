@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -17,6 +18,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoCreateMeta;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiPropertySource;
@@ -26,6 +28,7 @@ import com.hedera.services.bdd.spec.infrastructure.meta.InitialAccountIdentifier
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
+import com.hedera.services.bdd.spec.transactions.lambda.HookInstaller;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.Duration;
@@ -36,8 +39,11 @@ import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -83,6 +89,7 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
     private boolean setEvmAddressAliasFromKey = false;
     private Optional<ShardID> shardId = Optional.empty();
     private Optional<RealmID> realmId = Optional.empty();
+    private final List<HookInstaller> lambdaInstallers = new ArrayList<>();
 
     @Override
     public HederaFunctionality type() {
@@ -116,6 +123,12 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
 
     public HapiCryptoCreate rememberingNothing() {
         forgettingEverything = true;
+        return this;
+    }
+
+    public HapiCryptoCreate installing(@NonNull final HookInstaller installer) {
+        Objects.requireNonNull(installer);
+        lambdaInstallers.add(installer);
         return this;
     }
 
@@ -302,6 +315,10 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
+                            lambdaInstallers.forEach(installer -> {
+                                allRunFor(spec, installer.specSetupOp());
+                                b.addHookInstalls(CommonPbjConverters.fromPbj(installer.op()));
+                            });
                         });
         return b -> b.setCryptoCreateAccount(opBody);
     }
