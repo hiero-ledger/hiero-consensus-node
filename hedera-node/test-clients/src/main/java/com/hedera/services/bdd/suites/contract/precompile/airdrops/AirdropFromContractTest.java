@@ -436,7 +436,11 @@ public class AirdropFromContractTest {
                             .gas(1_500_000L)
                             .via("AirdropTxn"),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
-                    getTxnRecord("AirdropTxn").hasChildRecords(recordWith().pendingAirdropsCount(1)),
+                    getTxnRecord("AirdropTxn")
+                            .hasChildRecords(recordWith().pendingAirdropsCount(1))
+                            .hasChildRecords(recordWith()
+                                    .pendingAirdrops(includingFungiblePendingAirdrop(
+                                            moving(5L, token.name()).between(sender.name(), receiver.name())))),
                     sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)));
             allRunFor(
                     spec,
