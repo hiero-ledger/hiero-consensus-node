@@ -3,7 +3,6 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -93,6 +92,5 @@ public final class BirthRoundStateMigration {
         platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
 
         state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
     }
 }
