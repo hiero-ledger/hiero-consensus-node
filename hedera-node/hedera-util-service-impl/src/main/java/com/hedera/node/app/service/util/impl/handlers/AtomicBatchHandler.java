@@ -13,6 +13,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -117,9 +119,11 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var config = context.configuration();
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
 
-        for (final var innerTxBody : atomicBatchTransactionBody.transactions().stream()
-                .map(Transaction::bodyOrThrow)
-                .toList()) {
+        final var txnBodies = atomicBatchTransactionBody.transactions().stream()
+                .map(Transaction::body)
+                .toList();
+        // not using stream below as throwing exception from middle of functional pipeline is a terrible idea
+        for (final var innerTxBody : txnBodies) {
             validateFalsePreCheck(
                     isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
@@ -131,17 +135,17 @@ public class AtomicBatchHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
         final var op = context.body().atomicBatchOrThrow();
-        if (!context.configuration().getConfigData(AtomicBatchConfig.class).isEnabled()) {
-            throw new HandleException(NOT_SUPPORTED);
-        }
-        //kim
-        List<Transaction> innerTxs = op.transactions();
-        if (innerTxs.size()
-                > context.configuration().getConfigData(AtomicBatchConfig.class).maxNumberOfTransactions()) {
-            throw new HandleException(BATCH_SIZE_LIMIT_EXCEEDED);
-        }
-        //orig
+        validateTrue(
+                context.configuration().getConfigData(AtomicBatchConfig.class).isEnabled(), NOT_SUPPORTED);
+        validateFalse(
+                op.transactions().size()
+                        > context.configuration()
+                                .getConfigData(AtomicBatchConfig.class)
+                                .maxNumberOfTransactions(),
+                BATCH_SIZE_LIMIT_EXCEEDED);
+
         final var txnBodies = op.transactions().stream().map(Transaction::body).toList();
+
         // The parsing check, timebox, and duplication checks are done in the pre-handle workflow
         // So, no need to repeat here
         // dispatch all the inner transactions
