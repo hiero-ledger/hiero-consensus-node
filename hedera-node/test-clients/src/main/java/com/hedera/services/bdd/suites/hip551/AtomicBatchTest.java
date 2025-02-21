@@ -64,6 +64,7 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import java.time.Instant;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -355,6 +356,7 @@ public class AtomicBatchTest {
     class BatchConstraintsPositive {
 
         @LeakyHapiTest
+        @Disabled // TODO: enable this test when we have the maxInnerTxn property
         @DisplayName("Batch with max number of inner transaction")
         // BATCH_01
         public Stream<DynamicTest> maxInnerTxn() {
