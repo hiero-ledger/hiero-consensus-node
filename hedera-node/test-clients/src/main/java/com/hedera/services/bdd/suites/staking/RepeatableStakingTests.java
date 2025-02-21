@@ -29,6 +29,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -107,6 +108,8 @@ public class RepeatableStakingTests {
                                 // And we adjust the nanos so the user transaction will be in this staking
                                 // period, but the triggered transaction will be in the next staking period
                                 .minusNanos(Long.parseLong(value) + 1))),
-                cryptoCreate("justBeforeSecondPeriod"));
+                cryptoCreate("justBeforeSecondPeriod"),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 }
