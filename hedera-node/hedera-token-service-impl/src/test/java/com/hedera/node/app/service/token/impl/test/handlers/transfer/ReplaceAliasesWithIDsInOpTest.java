@@ -108,14 +108,15 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
         body = CryptoTransferTransactionBody.newBuilder()
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(
-                                AccountAmountUtils.aaWith(ownerId, -1_000), aaAlias(evmAddressAlias1.value(), +1_000))
+                                AccountAmountUtils.aaWith(ownerId, -1_000),
+                                aaAlias(idFactory.newAccountIdWithAlias(evmAddressAlias1.value()), +1_000))
                         .build())
                 .tokenTransfers(
                         TokenTransferList.newBuilder()
                                 .token(fungibleTokenId)
                                 .transfers(List.of(
                                         AccountAmountUtils.aaWith(ownerId, -1_000),
-                                        aaAlias(evmAddressAlias2.value(), +1_000)))
+                                        aaAlias(idFactory.newAccountIdWithAlias(evmAddressAlias2.value()), +1_000)))
                                 .build(),
                         TokenTransferList.newBuilder()
                                 .token(nonFungibleTokenId)
@@ -308,7 +309,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
 
     @Test
     void resolvesMirrorAddressInHbarList() {
-        final var mirrorAdjust = aaAlias(mirrorAlias.value(), +100);
+        final var mirrorAdjust = aaAlias(idFactory.newAccountIdWithAlias(mirrorAlias.value()), +100);
         body = CryptoTransferTransactionBody.newBuilder()
                 .transfers(
                         TransferList.newBuilder().accountAmounts(mirrorAdjust).build())
@@ -330,9 +331,7 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                 .tokenTransfers(TokenTransferList.newBuilder()
                         .token(nonFungibleTokenId)
                         .nftTransfers(NftTransfer.newBuilder()
-                                .receiverAccountID(AccountID.newBuilder()
-                                        .alias(mirrorAlias.value())
-                                        .build())
+                                .receiverAccountID(idFactory.newAccountIdWithAlias(mirrorAlias.value()))
                                 .senderAccountID(payerId)
                                 .serialNumber(1)
                                 .build())
@@ -378,10 +377,10 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
 
     @Test
     void doesntAutoCreateWhenTransferToAliasFeatureDisabled() {
-        configuration = HederaTestConfigBuilder.create()
+        final var configurationOverride = HederaTestConfigBuilder.create()
                 .withValue("autoCreation.enabled", false)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configurationOverride);
         transferContext = new TransferContextImpl(handleContext);
         assertThatThrownBy(() -> ensureAliasesStep.doIn(transferContext))
                 .isInstanceOf(HandleException.class)

@@ -84,10 +84,7 @@ public final class AccountAmountUtils {
      * @param amount the amount
      * @return the {@link AccountAmount} object
      */
-    public static AccountAmount aaAlias(final Bytes alias, final long amount) {
-        return AccountAmount.newBuilder()
-                .amount(amount)
-                .accountID(AccountID.newBuilder().alias(alias).build())
-                .build();
+    public static AccountAmount aaAlias(final AccountID alias, final long amount) {
+        return AccountAmount.newBuilder().amount(amount).accountID(alias).build();
     }
 }

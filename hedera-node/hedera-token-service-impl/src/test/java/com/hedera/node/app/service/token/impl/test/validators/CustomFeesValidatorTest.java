@@ -429,7 +429,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(CustomFee.newBuilder()
-                                .feeCollectorAccountId(AccountID.newBuilder().accountNum(accountNum.longValue()))
+                                .feeCollectorAccountId(idFactory.newAccountId(accountNum.longValue()))
                                 .build())))
                 .isInstanceOf(HandleException.class)
                 .hasMessage("CUSTOM_FEE_NOT_FULLY_SPECIFIED");
@@ -738,7 +738,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(CustomFee.newBuilder()
-                                .feeCollectorAccountId(AccountID.newBuilder().accountNum(accountNum.longValue()))
+                                .feeCollectorAccountId(idFactory.newAccountId(accountNum.longValue()))
                                 .build()),
                         expiryValidator))
                 .isInstanceOf(HandleException.class)

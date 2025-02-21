@@ -19,6 +19,7 @@ module com.hedera.node.app.spi.test.fixtures {
     requires com.hedera.node.app.hapi.utils;
     requires com.swirlds.common;
     requires com.swirlds.platform.core;
+    requires com.google.common;
     requires org.apache.logging.log4j.core;
     requires static com.github.spotbugs.annotations;
 }

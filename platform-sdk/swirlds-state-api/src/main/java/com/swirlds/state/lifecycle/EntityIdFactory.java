@@ -61,4 +61,12 @@ public interface EntityIdFactory {
      * @param number the number
      */
     ContractID newContractId(long number);
+
+    /**
+     * Returns a hexadecimal string representation of the given number,
+     * including current shard and realm, zero-padded to 20 bytes.
+     * @param number the number
+     * @return a hexadecimal string representation of the number
+     */
+    String hexLongZero(long number);
 }

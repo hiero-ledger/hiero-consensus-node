@@ -113,12 +113,16 @@ class EnsureAliasesStepTest extends StepsBase {
         final var evmAddressAlias3 = new ProtoBytes(Bytes.wrap(unhex("0000000000000000000000000000000000000002")));
         body = CryptoTransferTransactionBody.newBuilder()
                 .transfers(TransferList.newBuilder()
-                        .accountAmounts(aaWith(ownerId, -1_000), aaAlias(evmAddressAlias1.value(), +1_000))
+                        .accountAmounts(
+                                aaWith(ownerId, -1_000),
+                                aaAlias(idFactory.newAccountIdWithAlias(evmAddressAlias1.value()), +1_000))
                         .build())
                 .tokenTransfers(
                         TokenTransferList.newBuilder()
                                 .token(fungibleTokenId)
-                                .transfers(List.of(aaWith(ownerId, -1_000), aaAlias(evmAddressAlias2.value(), +1_000)))
+                                .transfers(List.of(
+                                        aaWith(ownerId, -1_000),
+                                        aaAlias(idFactory.newAccountIdWithAlias(evmAddressAlias2.value()), +1_000)))
                                 .build(),
                         TokenTransferList.newBuilder()
                                 .token(nonFungibleTokenId)
@@ -294,7 +298,7 @@ class EnsureAliasesStepTest extends StepsBase {
 
     @Test
     void resolvesMirrorAddressInHbarList() {
-        final var mirrorAdjust = aaAlias(mirrorAlias.value(), +100);
+        final var mirrorAdjust = aaAlias(idFactory.newAccountIdWithAlias(mirrorAlias.value()), +100);
         body = CryptoTransferTransactionBody.newBuilder()
                 .transfers(
                         TransferList.newBuilder().accountAmounts(mirrorAdjust).build())
@@ -316,9 +320,7 @@ class EnsureAliasesStepTest extends StepsBase {
                 .tokenTransfers(TokenTransferList.newBuilder()
                         .token(nonFungibleTokenId)
                         .nftTransfers(NftTransfer.newBuilder()
-                                .receiverAccountID(AccountID.newBuilder()
-                                        .alias(mirrorAlias.value())
-                                        .build())
+                                .receiverAccountID(idFactory.newAccountIdWithAlias(mirrorAlias.value()))
                                 .senderAccountID(payerId)
                                 .serialNumber(1)
                                 .build())
@@ -364,10 +366,10 @@ class EnsureAliasesStepTest extends StepsBase {
 
     @Test
     void doesntAutoCreateWhenTransferToAliasFeatureDisabled() {
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("autoCreation.enabled", false)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         transferContext = new TransferContextImpl(handleContext);
         assertThatThrownBy(() -> ensureAliasesStep.doIn(transferContext))
                 .isInstanceOf(HandleException.class)
@@ -376,7 +378,7 @@ class EnsureAliasesStepTest extends StepsBase {
 
     @Test
     void doesntAutoCreateWhenTokenTransferToAliasFeatureDisabled() {
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.autoCreations.isEnabled", false)
                 .getOrCreateConfig();
         body = CryptoTransferTransactionBody.newBuilder()
@@ -387,7 +389,7 @@ class EnsureAliasesStepTest extends StepsBase {
                 .build();
         txn = asTxn(body, payerId);
         given(handleContext.body()).willReturn(txn);
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         ensureAliasesStep = new EnsureAliasesStep(body);
         transferContext = new TransferContextImpl(handleContext);

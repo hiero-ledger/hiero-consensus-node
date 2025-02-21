@@ -75,10 +75,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void rejectsNftMintsWhenNftsNotEnabled() {
         givenMintTxn(nonFungibleTokenId, List.of(metadata1, metadata2), null);
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.areEnabled", false)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -208,10 +208,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     void propagatesErrorOnBadMetadata() {
         givenMintTxn(nonFungibleTokenId, List.of(Bytes.wrap("test".getBytes())), null);
 
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.maxMetadataBytes", 1)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -222,10 +222,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     void propagatesErrorOnMaxBatchSizeReached() {
         givenMintTxn(nonFungibleTokenId, List.of(metadata1, metadata2), null);
 
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.maxBatchSizeMint", 1)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -236,10 +236,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     void validatesMintingResourcesLimit() {
         givenMintTxn(nonFungibleTokenId, List.of(Bytes.wrap("test".getBytes()), Bytes.wrap("test1".getBytes())), null);
 
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.maxAllowedMints", 1)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)

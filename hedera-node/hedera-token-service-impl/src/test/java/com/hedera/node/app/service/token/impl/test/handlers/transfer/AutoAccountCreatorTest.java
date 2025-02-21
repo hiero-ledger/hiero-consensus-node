@@ -45,10 +45,10 @@ class AutoAccountCreatorTest extends StepsBase {
 
     @Test
     void refusesToCreateBeyondMaxNumber() {
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("accounts.maxNumber", 2)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         transferContext = new TransferContextImpl(handleContext);
         final var aliasBytes = alias.alias();
         assertThatThrownBy(() -> subject.create(aliasBytes, 0))

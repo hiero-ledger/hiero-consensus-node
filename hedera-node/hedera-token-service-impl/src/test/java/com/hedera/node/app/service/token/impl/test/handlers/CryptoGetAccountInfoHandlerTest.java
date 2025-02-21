@@ -497,7 +497,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(idFactory.hexLongZero(3))
                 .stakingInfo(getExpectedStakingInfo());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationship());
@@ -520,7 +520,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(idFactory.hexLongZero(3))
                 .stakingInfo(getExpectedStakingInfo2());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationship());
@@ -565,7 +565,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(idFactory.hexLongZero(3L)) // "00000005000000000000000a0000000000000003")
                 .stakingInfo(getExpectedStakingInfo());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationships());
@@ -641,7 +641,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
 
     private Query createCryptoGetInfoQuery(final long accountId) {
         final var data = CryptoGetInfoQuery.newBuilder()
-                .accountID(AccountID.newBuilder().accountNum(accountId).build())
+                .accountID(idFactory.newAccountId(accountId))
                 .header(QueryHeader.newBuilder().build())
                 .build();
 

@@ -42,7 +42,9 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.util.ArrayList;
 import java.util.List;
 import org.bouncycastle.util.encoders.Hex;
@@ -56,6 +58,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class StepsBase extends CryptoTokenHandlerTestBase {
+    protected static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+
     @Mock
     protected CryptoTransferStreamBuilder xferRecordBuilder;
 
@@ -116,7 +120,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
             Hex.decode("3a21033a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d");
     protected static final ProtoBytes ecKeyAlias = new ProtoBytes(Bytes.wrap(ecdsaKeyBytes));
 
-    protected static final byte[] evmAddress = unhex("0000000000000000000000000000000000000003");
+    protected static final byte[] evmAddress = unhex(idFactory.hexLongZero(3));
     protected static final ProtoBytes mirrorAlias = new ProtoBytes(Bytes.wrap(evmAddress));
 
     protected TransactionBody asTxn(final CryptoTransferTransactionBody body, final AccountID payerId) {
