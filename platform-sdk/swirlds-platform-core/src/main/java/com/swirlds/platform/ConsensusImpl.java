@@ -640,7 +640,7 @@ public class ConsensusImpl implements Consensus {
             @NonNull final String votingType,
             final long diff) {
         if (logger.isDebugEnabled(CONSENSUS_VOTING.getMarker())) {
-            logger.info(
+            logger.debug(
                     CONSENSUS_VOTING.getMarker(),
                     "Witness {} voted on {}. vote:{} type:{} diff:{}",
                     votingWitness.shortString(),

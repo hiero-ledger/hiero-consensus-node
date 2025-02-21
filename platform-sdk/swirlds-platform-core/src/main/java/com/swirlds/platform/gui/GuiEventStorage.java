@@ -8,6 +8,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
+import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig;
@@ -16,6 +17,7 @@ import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -69,7 +71,7 @@ public class GuiEventStorage {
         maxGeneration = linker.getNonAncientEvents().stream()
                 .mapToLong(EventImpl::getGeneration)
                 .max()
-                .orElseThrow();
+                .orElse(FIRST_GENERATION);
     }
 
     /**
