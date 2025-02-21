@@ -37,8 +37,22 @@ class ActionsHelperTest {
 
     @Test
     void prettyPrintsAsExpected() {
-        final var expected =
-                "SolidityAction(callType: CALL, callOperationType: OP_CALL, value: 0, gas: 500000, gasUsed: 0, callDepth: 0, callingAccount: <null>, callingContract: ContractID[shardNum=0, realmNum=0, contract=OneOf[kind=CONTRACT_NUM, value=666]], recipientAccount: <null>, recipientContract: ContractID[shardNum=0, realmNum=0, contract=OneOf[kind=CONTRACT_NUM, value=666]], invalidSolidityAddress (aka targetedAddress): <null>, input: 010203040506070809, output: 090807060504030201, revertReason: <null>, error: <null>)";
+        final var expected = "SolidityAction("
+                + "callType: CALL, "
+                + "callOperationType: OP_CALL, "
+                + "value: 0, "
+                + "gas: 500000, "
+                + "gasUsed: 0, "
+                + "callDepth: 0, "
+                + "callingAccount: <null>, "
+                + "callingContract: " + CALL_ACTION.callingContract() + ", "
+                + "recipientAccount: <null>, "
+                + "recipientContract: " + CALL_ACTION.recipientContract() + ", "
+                + "invalidSolidityAddress (aka targetedAddress): <null>, "
+                + "input: 010203040506070809, "
+                + "output: 090807060504030201, "
+                + "revertReason: <null>, "
+                + "error: <null>)";
         final var actual = subject.prettyPrint(CALL_ACTION);
         assertEquals(expected, actual);
     }

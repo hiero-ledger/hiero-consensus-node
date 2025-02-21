@@ -9,7 +9,8 @@ import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 
-public class MutateKVStateOp<K extends Record, V extends Record> extends UtilOp {
+public class MutateKVStateOp<K, V> extends UtilOp {
+
     private final String serviceName;
     private final String stateKey;
     private final Consumer<WritableKVState<K, V>> observer;

@@ -167,7 +167,7 @@ public interface TransactionHelper {
         return Query.newBuilder().cryptoGetLiveHash(data).build();
     }
 
-    default <T extends Record> Bytes asBytes(T tx, Codec<T> codec) {
+    default <T> Bytes asBytes(T tx, Codec<T> codec) {
         try {
             final var dataOut = byteArrayDataOutput();
             codec.write(tx, dataOut);
@@ -177,7 +177,7 @@ public interface TransactionHelper {
         }
     }
 
-    default <T extends Record> byte[] asByteArray(T tx, Codec<T> codec) {
+    default <T> byte[] asByteArray(T tx, Codec<T> codec) {
         try {
             final var dataOut = byteArrayDataOutput();
             codec.write(tx, dataOut);

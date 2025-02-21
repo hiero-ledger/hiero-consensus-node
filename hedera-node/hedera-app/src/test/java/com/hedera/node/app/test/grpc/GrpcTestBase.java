@@ -154,8 +154,8 @@ abstract class GrpcTestBase extends TestBase {
 
                     @NonNull
                     @Override
-                    public Set<RpcMethodDefinition<? extends Record, ? extends Record>> methods() {
-                        final var set = new HashSet<RpcMethodDefinition<? extends Record, ? extends Record>>();
+                    public Set<RpcMethodDefinition<?, ?>> methods() {
+                        final var set = new HashSet<RpcMethodDefinition<?, ?>>();
                         if (queryMethodName != null) {
                             set.add(new RpcMethodDefinition<>(queryMethodName, Query.class, Response.class));
                         }
