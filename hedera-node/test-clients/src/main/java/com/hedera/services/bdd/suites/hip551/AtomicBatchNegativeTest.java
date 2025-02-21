@@ -38,6 +38,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -48,7 +49,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -58,6 +58,7 @@ import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
+import java.time.Instant;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -573,7 +574,7 @@ public class AtomicBatchNegativeTest {
 
     @Nested
     @DisplayName("Blacklisted inner transactions - NEGATIVE")
-    @Disabled // TODO:  Enable when txn blacklist is implemented
+    // @Disabled // TODO:  Enable when txn blacklist is implemented
     class BlacklistedTransactions {
 
         @HapiTest
@@ -583,11 +584,12 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     atomicBatch(atomicBatch(cryptoCreate("foo")
-                                    .batchKey("batchOperator")
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED))
-                            .batchKey("batchOperator")
+                                            .batchKey("batchOperator")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                    .batchKey("batchOperator"))
                             .signedByPayerAnd("batchOperator")
-                            .hasPrecheck(NOT_SUPPORTED)));
+                            .hasKnownStatus(BATCH_LIST_CONTAINS_INVALID_TRANSACTION));
         }
 
         @HapiTest
@@ -597,10 +599,12 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     atomicBatch(freezeOnly()
-                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                            .batchKey("batchOperator")
-                            .signedByPayerAnd("batchOperator")
-                            .hasPrecheck(NOT_SUPPORTED)));
+                                    .payingWith(GENESIS)
+                                    .startingAt(Instant.now().plusSeconds(10))
+                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                    .batchKey("batchOperator")
+                                    .signedByPayerAnd("batchOperator"))
+                            .hasKnownStatus(BATCH_LIST_CONTAINS_INVALID_TRANSACTION));
         }
 
         @HapiTest
@@ -610,14 +614,16 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     atomicBatch(
-                            cryptoCreate("foo")
-                                    .batchKey("batchOperator")
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED),
-                            freezeOnly()
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                    .batchKey("batchOperator")
-                                    .signedByPayerAnd("batchOperator")
-                                    .hasPrecheck(NOT_SUPPORTED)));
+                                    cryptoCreate("foo")
+                                            .batchKey("batchOperator")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
+                                    freezeOnly()
+                                            .payingWith(GENESIS)
+                                            .startingAt(Instant.now().plusSeconds(10))
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("batchOperator")
+                                            .signedByPayerAnd("batchOperator"))
+                            .hasKnownStatus(BATCH_LIST_CONTAINS_INVALID_TRANSACTION));
         }
     }
 }
