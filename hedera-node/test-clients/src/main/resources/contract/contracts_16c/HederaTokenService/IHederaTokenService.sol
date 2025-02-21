@@ -3,27 +3,6 @@ pragma solidity >=0.4.9 <0.9.0;
 pragma experimental ABIEncoderV2;
 
 interface IHederaTokenService {
-
-    struct ScheduleInfo {
-        address scheduleID;
-
-        int64 deletionTime;
-        int64 executionTime;
-        int64 expirationTime;
-
-        string memo;
-
-        KeyValue adminKey;
-        KeyValue[] signers;
-
-        address creatorAccountID;
-        address payerAccountID;
-
-        address scheduledTransactionID;
-        bytes ledger_id;
-        bool wait_for_expiry;
-    }
-
     /// Transfers cryptocurrency among two or more accounts by making the desired adjustments to their
     /// balances. Each transfer list can specify up to 10 adjustments. Each negative amount is withdrawn
     /// from the corresponding account (a sender), and each positive one is added to the corresponding
@@ -187,6 +166,9 @@ interface IHederaTokenService {
 
         // expiry properties of a Hedera token - second, autoRenewAccount, autoRenewPeriod
         Expiry expiry;
+
+        // Metadata
+        bytes metadata;
     }
 
     /// Additional post creation fungible and non fungible properties of a Hedera Token.
@@ -314,6 +296,26 @@ interface IHederaTokenService {
 
         // The ID of the account to receive the custom fee, expressed as a solidity address
         address feeCollector;
+    }
+
+    /// Represents a pending airdrop of a token or NFT to a receiver
+    /// @param sender The address of the account sending the airdrop
+    /// @param receiver The address of the account receiving the airdrop
+    /// @param token The address of the token being airdropped
+    /// @param serial For NFT airdrops, the serial number of the NFT. For fungible tokens, this should be 0
+    struct PendingAirdrop {
+        address sender;
+        address receiver;
+        address token;
+        int64 serial;
+    }
+
+    /// Represents a unique NFT by its token address and serial number
+    /// @param nft The address of the NFT token
+    /// @param serial The serial number that uniquely identifies this NFT within its token type
+    struct NftID {
+        address nft;
+        int64 serial;
     }
 
     /**********************
@@ -835,4 +837,36 @@ interface IHederaTokenService {
     /// @param royaltyFees Set of royalty fees for `token`
     /// @return responseCode The response code for the status of the request. SUCCESS is 22.
     function updateNonFungibleTokenCustomFees(address token, IHederaTokenService.FixedFee[] memory fixedFees, IHederaTokenService.RoyaltyFee[] memory royaltyFees) external returns (int64 responseCode);
+
+    /// @notice Airdrop one or more tokens to one or more accounts
+    /// @notice Recipients will receive tokens in one of these ways:
+    /// @notice     - Immediately if already associated with the token
+    /// @notice     - Immediately with auto-association if they have available slots
+    /// @notice     - As a pending airdrop requiring claim if they have "receiver signature required"
+    /// @notice     - As a pending airdrop requiring claim if they have no available auto-association slots
+    /// @notice Immediate airdrops are irreversible, pending airdrops can be canceled
+    /// @notice All transfer fees and auto-renewal rent costs are charged to the transaction submitter
+    /// @param tokenTransfers Array of token transfer lists containing token addresses and recipient details
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function airdropTokens(TokenTransferList[] memory tokenTransfers) external returns (int64 responseCode);
+
+    /// @notice Cancels pending airdrops that have not yet been claimed
+    /// @param pendingAirdrops Array of pending airdrops to cancel
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function cancelAirdrops(PendingAirdrop[] memory pendingAirdrops) external returns (int64 responseCode);
+
+    /// @notice Claims pending airdrops that were sent to the calling account
+    /// @param pendingAirdrops Array of pending airdrops to claim
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function claimAirdrops(PendingAirdrop[] memory pendingAirdrops) external returns (int64 responseCode);
+
+    /// @notice Rejects one or more tokens by transferring their full balance from the requesting account to the treasury
+    /// @notice This transfer does not charge any custom fees or royalties defined for the tokens
+    /// @notice For fungible tokens, the requesting account's balance will become 0 and the treasury balance will increase by that amount
+    /// @notice For non-fungible tokens, the requesting account will no longer hold the rejected serial numbers and they will be transferred to the treasury
+    /// @param rejectingAddress The address rejecting the tokens
+    /// @param ftAddresses Array of fungible token addresses to reject
+    /// @param nftIDs Array of NFT IDs to reject
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function rejectTokens(address rejectingAddress, address[] memory ftAddresses, NftID[] memory nftIDs) external returns (int64 responseCode);
 }

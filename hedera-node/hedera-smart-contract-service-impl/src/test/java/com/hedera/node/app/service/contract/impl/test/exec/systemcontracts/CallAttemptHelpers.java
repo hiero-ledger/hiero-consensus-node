@@ -163,6 +163,34 @@ public final class CallAttemptHelpers {
                 false);
     }
 
+    public static HtsCallAttempt prepareHtsAttemptWithSelectorWithContractIDAndCustomConfig(
+            final ContractID contractID,
+            final SystemContractMethod systemContractMethod,
+            final CallTranslator<HtsCallAttempt> translator,
+            final HederaWorldUpdater.Enhancement enhancement,
+            final AddressIdConverter addressIdConverter,
+            final VerificationStrategies verificationStrategies,
+            final SystemContractGasCalculator gasCalculator,
+            final SystemContractMethodRegistry systemContractMethodRegistry,
+            final Configuration config) {
+        final var input = Bytes.wrap(systemContractMethod.selector());
+
+        return new HtsCallAttempt(
+                contractID,
+                input,
+                OWNER_BESU_ADDRESS,
+                OWNER_BESU_ADDRESS,
+                false,
+                enhancement,
+                config,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                List.of(translator),
+                systemContractMethodRegistry,
+                false);
+    }
+
     /**
      * @param systemContractMethod the selector to match against (as a `SystemContractMethod`)
      * @param translator the translator for this specific call attempt
