@@ -113,7 +113,8 @@ class CustomLogOperationTest {
         for (int i = 0; i < 3; i++) {
             builder.add(LogTopic.create(leftPad(TOPICS[i])));
         }
-        final var mirrorAddress = ConversionUtils.asLongZeroAddress(CALLED_CONTRACT_ID.contractNumOrThrow());
+        final var mirrorAddress =
+                ConversionUtils.asLongZeroAddress(shard, realm, CALLED_CONTRACT_ID.contractNumOrThrow());
         final var expectedLog = new Log(mirrorAddress, pbjToTuweniBytes(TestHelpers.LOG_DATA), builder.build());
 
         final var subject = new CustomLogOperation(3, gasCalculator);

@@ -15,6 +15,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBOD
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_STORAGE_ACCESSES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TOPIC;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asExactLongValueOrZero;
@@ -98,7 +100,7 @@ class ConversionUtilsTest {
     void convertsNumberToLongZeroAddress() {
         final var number = 0x1234L;
         final var expected = Address.fromHexString("0x1234");
-        final var actual = ConversionUtils.asLongZeroAddress(number);
+        final var actual = ConversionUtils.asLongZeroAddress(shard, realm, number);
         assertEquals(expected, actual);
     }
 
@@ -228,7 +230,7 @@ class ConversionUtilsTest {
     @Test
     void convertContractIdToBesuAddressTest() {
         final var actual = ConversionUtils.contractIDToBesuAddress(CALLED_CONTRACT_ID);
-        assertEquals(actual, asLongZeroAddress(CALLED_CONTRACT_ID.contractNum()));
+        assertEquals(actual, asLongZeroAddress(shard, realm, CALLED_CONTRACT_ID.contractNum()));
 
         final var actual2 = ConversionUtils.contractIDToBesuAddress(VALID_CONTRACT_ADDRESS);
         assertEquals(actual2, pbjToBesuAddress(VALID_CONTRACT_ADDRESS.evmAddress()));

@@ -370,14 +370,16 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             }
 
             final var evmAddress = extractEvmAddress(account.alias());
-            return evmAddress == null ? asLongZeroAddress(number) : pbjToBesuAddress(evmAddress);
+            return evmAddress == null
+                    ? asLongZeroAddress(nativeOperations.shard(), nativeOperations.realm(), number)
+                    : pbjToBesuAddress(evmAddress);
         }
         final var token = nativeOperations.getToken(number);
         final var schedule = nativeOperations.getSchedule(number);
         if (token != null || schedule != null) {
             // If the token or schedule  is deleted or expired, the system contract executed by the redirect
             // bytecode will fail with a more meaningful error message, so don't check that here
-            return asLongZeroAddress(number);
+            return asLongZeroAddress(nativeOperations.shard(), nativeOperations.realm(), number);
         }
         throw new IllegalArgumentException("No account, token or schedule has number " + number);
     }

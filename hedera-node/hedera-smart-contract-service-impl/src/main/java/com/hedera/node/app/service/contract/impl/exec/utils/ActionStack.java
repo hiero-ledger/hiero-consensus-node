@@ -240,7 +240,7 @@ public class ActionStack {
     public void pushActionOfTopLevel(@NonNull final MessageFrame frame) {
         final var builder = ContractAction.newBuilder()
                 .callOperationType(asCallOperationType(frame.getType()))
-                .callingAccount(accountIdWith(hederaIdNumOfOriginatorIn(frame)));
+                .callingAccount(accountIdWith(frame, hederaIdNumOfOriginatorIn(frame)));
         completePush(builder, frame);
     }
 
@@ -258,7 +258,7 @@ public class ActionStack {
         final var builder = ContractAction.newBuilder()
                 .callOperationType(OpcodeUtils.asCallOperationType(
                         frame.getCurrentOperation().getOpcode()))
-                .callingContract(contractIdWith(hederaIdNumOfContractIn(frame)));
+                .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)));
         completePush(builder, requireNonNull(frame.getMessageFrameStack().peek()));
     }
 
@@ -274,10 +274,10 @@ public class ActionStack {
         if (targetsMissingAddress(frame)) {
             builder.targetedAddress(tuweniToPbjBytes(frame.getContractAddress()));
         } else if (CodeV0.EMPTY_CODE.equals(frame.getCode())) {
-            builder.recipientAccount(accountIdWith(hederaIdNumOfContractIn(frame)));
+            builder.recipientAccount(accountIdWith(frame, hederaIdNumOfContractIn(frame)));
         } else {
             try {
-                builder.recipientContract(contractIdWith(hederaIdNumOfContractIn(frame)));
+                builder.recipientContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)));
             } catch (NullPointerException ignore) {
                 builder.targetedAddress(tuweniToPbjBytes(frame.getContractAddress()));
             }
@@ -330,12 +330,20 @@ public class ActionStack {
         return frame.getWorldUpdater().get(address) == null;
     }
 
-    private AccountID accountIdWith(final long num) {
-        return AccountID.newBuilder().accountNum(num).build();
+    private AccountID accountIdWith(@NonNull final MessageFrame frame, final long num) {
+        return AccountID.newBuilder()
+                .shardNum(shardOf(frame))
+                .realmNum(realmOf(frame))
+                .accountNum(num)
+                .build();
     }
 
-    private ContractID contractIdWith(final long num) {
-        return ContractID.newBuilder().contractNum(num).build();
+    private ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
+        return ContractID.newBuilder()
+                .shardNum(shardOf(frame))
+                .realmNum(realmOf(frame))
+                .contractNum(num)
+                .build();
     }
 
     private ContractAction withUnsetRecipientIfNeeded(

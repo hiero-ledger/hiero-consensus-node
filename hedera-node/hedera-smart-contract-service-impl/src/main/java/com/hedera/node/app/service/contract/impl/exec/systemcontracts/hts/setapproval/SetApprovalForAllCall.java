@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
@@ -67,8 +52,10 @@ public class SetApprovalForAllCall extends AbstractCall {
         Tuple call;
         if (isERC) {
             call = ERC721_SET_APPROVAL_FOR_ALL.decodeCall(attempt.inputBytes());
-            this.token =
-                    ConversionUtils.asLongZeroAddress(attempt.redirectTokenId().tokenNum());
+            this.token = ConversionUtils.asLongZeroAddress(
+                    attempt.nativeOperations().shard(),
+                    attempt.nativeOperations().realm(),
+                    attempt.redirectTokenId().tokenNum());
             this.spender = fromHeadlongAddress(call.get(0));
             this.approved = call.get(1);
         } else {
@@ -118,7 +105,7 @@ public class SetApprovalForAllCall extends AbstractCall {
         return LogBuilder.logBuilder()
                 .forLogger(logger)
                 .forEventSignature(APPROVAL_FOR_ALL_EVENT)
-                .forIndexedArgument(asLongZeroAddress(sender.accountNum()))
+                .forIndexedArgument(asLongZeroAddress(sender.shardNum(), sender.realmNum(), sender.accountNumOrThrow()))
                 .forIndexedArgument(spender)
                 .forDataItem(approved)
                 .build();

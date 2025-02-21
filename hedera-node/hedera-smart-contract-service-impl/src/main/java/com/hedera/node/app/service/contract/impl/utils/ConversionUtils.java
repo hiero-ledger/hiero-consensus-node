@@ -145,7 +145,7 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final AccountID accountID) {
         requireNonNull(accountID);
         final var integralAddress = accountID.hasAccountNum()
-                ? asEvmAddress(accountID.accountNumOrThrow())
+                ? asEvmAddress(accountID.shardNum(), accountID.realmNum(), accountID.accountNumOrThrow())
                 : accountID
                         .aliasOrElse(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY)
                         .toByteArray();
@@ -161,7 +161,7 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final ContractID contractId) {
         requireNonNull(contractId);
         final var integralAddress = contractId.hasContractNum()
-                ? asEvmAddress(contractId.contractNumOrThrow())
+                ? asEvmAddress(contractId.shardNum(), contractId.realmNum(), contractId.contractNumOrThrow())
                 : contractId.evmAddressOrThrow().toByteArray();
         return asHeadlongAddress(integralAddress);
     }
@@ -174,7 +174,8 @@ public class ConversionUtils {
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final ScheduleID scheduleID) {
         requireNonNull(scheduleID);
-        final var integralAddress = asEvmAddress(scheduleID.scheduleNum());
+        final var integralAddress =
+                asEvmAddress(scheduleID.shardNum(), scheduleID.realmNum(), scheduleID.scheduleNum());
         return asHeadlongAddress(integralAddress);
     }
 
@@ -187,7 +188,8 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(
             @NonNull final com.hederahashgraph.api.proto.java.ScheduleID scheduleID) {
         requireNonNull(scheduleID);
-        final var integralAddress = asEvmAddress(scheduleID.getScheduleNum());
+        final var integralAddress =
+                asEvmAddress(scheduleID.getShardNum(), scheduleID.getRealmNum(), scheduleID.getScheduleNum());
         return asHeadlongAddress(integralAddress);
     }
 
@@ -199,7 +201,7 @@ public class ConversionUtils {
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final TokenID tokenId) {
         requireNonNull(tokenId);
-        return asHeadlongAddress(asEvmAddress(tokenId.tokenNum()));
+        return asHeadlongAddress(asEvmAddress(tokenId.shardNum(), tokenId.realmNum(), tokenId.tokenNum()));
     }
 
     /**
@@ -228,7 +230,11 @@ public class ConversionUtils {
             @NonNull final ContractID contractID, @NonNull final ReadableAccountStore accountStore) {
         final var maybeContract = accountStore.getContractById(contractID);
         if (maybeContract != null && maybeContract.alias().length() == EVM_ADDRESS_LENGTH_AS_LONG) {
-            return ContractID.newBuilder().evmAddress(maybeContract.alias()).build();
+            return ContractID.newBuilder()
+                    .shardNum(contractID.shardNum())
+                    .realmNum(contractID.realmNum())
+                    .evmAddress(maybeContract.alias())
+                    .build();
         }
         return contractID;
     }
@@ -422,8 +428,11 @@ public class ConversionUtils {
      * @param address the EVM address
      * @return the implied Hedera entity number
      */
+    @SuppressWarnings("java:S2201")
     public static long numberOfLongZero(@NonNull final Address address) {
-        return address.toUnsignedBigInteger().longValueExact();
+        // check for negative long value and throws an exception if it is
+        address.toUnsignedBigInteger().longValueExact();
+        return numberOfLongZero(address.toArray());
     }
 
     /**
@@ -484,13 +493,15 @@ public class ConversionUtils {
     }
 
     /**
-     * Converts a number to a long zero address.
+     * Converts a shard, realm, number to a long zero address.
      *
+     * @param shard the shard
+     * @param realm the realm
      * @param number the number to convert
      * @return the long zero address
      */
-    public static Address asLongZeroAddress(final long number) {
-        return Address.wrap(Bytes.wrap(asEvmAddress(number)));
+    public static Address asLongZeroAddress(final long shard, final long realm, final long number) {
+        return Address.wrap(Bytes.wrap(asEvmAddress(shard, realm, number)));
     }
 
     /**
@@ -818,6 +829,8 @@ public class ConversionUtils {
         return isLongZero(shardOf(frame), realmOf(frame), address)
                 ? address
                 : asLongZeroAddress(
+                        shardOf(frame),
+                        realmOf(frame),
                         proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
     }
 
@@ -852,7 +865,10 @@ public class ConversionUtils {
         final var evmAddress = extractEvmAddress(account.alias());
         return evmAddress != null
                 ? evmAddress.toByteArray()
-                : asEvmAddress(account.accountIdOrThrow().accountNumOrThrow());
+                : asEvmAddress(
+                        account.accountIdOrThrow().shardNum(),
+                        account.accountIdOrThrow().realmNum(),
+                        account.accountIdOrThrow().accountNumOrThrow());
     }
 
     /**
@@ -915,7 +931,7 @@ public class ConversionUtils {
             return pbjToBesuAddress(contractId.evmAddressOrThrow());
         } else {
             // OrElse(0) is needed, as an UNSET contract OneOf has null number
-            return asLongZeroAddress(contractId.contractNumOrElse(0L));
+            return asLongZeroAddress(contractId.shardNum(), contractId.realmNum(), contractId.contractNumOrElse(0L));
         }
     }
 
