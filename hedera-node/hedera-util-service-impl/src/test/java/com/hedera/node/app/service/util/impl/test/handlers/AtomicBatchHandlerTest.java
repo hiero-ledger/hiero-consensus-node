@@ -108,6 +108,7 @@ class AtomicBatchHandlerTest {
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
+        given(transaction.hasBody()).willReturn(true);
         given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
@@ -175,6 +176,8 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .transactionID(transactionId)
                 .build();
+        given(transaction1.hasBody()).willReturn(true);
+        given(transaction2.hasBody()).willReturn(true);
         given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
         given(transaction2.bodyOrThrow()).willReturn(innerTxnBody2);
 
@@ -193,6 +196,7 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(1).build())
                 .build();
         given(pureChecksContext.body()).willReturn(txnBody);
+        given(transaction.hasBody()).willReturn(true);
         given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -208,6 +212,7 @@ class AtomicBatchHandlerTest {
                         ConsensusCreateTopicTransactionBody.newBuilder().build())
                 .nodeAccountID(AccountID.newBuilder().accountNum(1).build())
                 .build();
+        given(transaction.hasBody()).willReturn(true);
         given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         given(pureChecksContext.body()).willReturn(txnBody);
 

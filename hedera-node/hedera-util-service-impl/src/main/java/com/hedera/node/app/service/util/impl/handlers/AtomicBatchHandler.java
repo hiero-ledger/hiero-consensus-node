@@ -91,6 +91,9 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         Set<TransactionID> txIds = new HashSet<>();
         for (final var innerTx : innerTxs) {
+            if (!innerTx.hasBody()) {
+                throw new PreCheckException(BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
+            }
             final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
 
             // throw if more than one tx has the same transactionID
