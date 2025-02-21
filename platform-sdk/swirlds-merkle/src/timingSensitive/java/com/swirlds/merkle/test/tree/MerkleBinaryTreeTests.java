@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.swirlds.merkle.test.tree;
 
+import static com.swirlds.merkle.test.fixtures.map.util.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -924,7 +925,7 @@ class MerkleBinaryTreeTests {
 
             io.startReading();
             final MerkleBinaryTree<Value> deserializedTree =
-                    io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+                    io.getInput().readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
             assertEquals(tree.size(), deserializedTree.size(), "Size should match after deserialization");
 

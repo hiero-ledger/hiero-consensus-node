@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * @param <T> The type of the state
  */
 public interface WritableSingletonState<T> extends ReadableSingletonState<T> {
+
     /**
      * Sets the given value on this state.
      *

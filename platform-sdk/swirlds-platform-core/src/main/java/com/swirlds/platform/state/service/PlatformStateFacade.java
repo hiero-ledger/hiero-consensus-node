@@ -35,7 +35,6 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -160,10 +159,8 @@ public class PlatformStateFacade {
         if (readableStates.isEmpty()) {
             // fallback to lookup directly in the Merkle tree, useful for loading the state from disk
             if (state instanceof MerkleStateRoot<?> merkleStateRoot) {
-                final int index = merkleStateRoot.findNodeIndex(PlatformStateService.NAME, PLATFORM_STATE_KEY);
-                return index == -1
-                        ? UNINITIALIZED_PLATFORM_STATE
-                        : ((SingletonNode<PlatformState>) merkleStateRoot.getChild(index)).getValue();
+                // temp to compile code
+                return UNINITIALIZED_PLATFORM_STATE;
             }
             return UNINITIALIZED_PLATFORM_STATE;
         } else {

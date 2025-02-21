@@ -25,6 +25,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.classifyPendingWork;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_SERVICE;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
@@ -79,6 +80,7 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -640,11 +642,11 @@ class BlockStreamManagerImplTest {
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
         infoRef.set(blockStreamInfo);
         stateRef.set(platformState);
-        blockStreamInfoState = new WritableSingletonStateBase<>(BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);
+        blockStreamInfoState = new FunctionWritableSingletonState<>(BLOCK_STREAM_INFO_SERVICE, BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);
         given(readableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
                 .willReturn(blockStreamInfoState);
         given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .willReturn(new WritableSingletonStateBase<>(PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
+                .willReturn(new FunctionWritableSingletonState<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
     }
 
     private void givenEndOfRoundSetup() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import com.swirlds.common.io.streams.internal.SerializationOperation;
 import com.swirlds.common.io.streams.internal.SerializationStack;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.ValueReference;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -604,12 +605,13 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
-    public <T extends MerkleNode> T readMerkleTree(final Path directory, final int maxNumberOfNodes)
+    public <T extends MerkleNode> T readMerkleTree(
+            @NonNull final Configuration configuration, final Path directory, final int maxNumberOfNodes)
             throws IOException {
 
         startOperation(SerializationOperation.READ_MERKLE_TREE);
         try {
-            return super.readMerkleTree(directory, maxNumberOfNodes);
+            return super.readMerkleTree(configuration, directory, maxNumberOfNodes);
         } finally {
             finishOperation();
         }

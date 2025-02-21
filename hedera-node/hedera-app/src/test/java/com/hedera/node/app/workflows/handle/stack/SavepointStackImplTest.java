@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ class SavepointStackImplTest extends StateTestBase {
 
     @BeforeEach
     void setup() {
-        final var baseKVState = new MapWritableKVState<>(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
+        final var baseKVState = new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
         final var writableStates =
                 MapWritableStates.builder().state(baseKVState).build();
         when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(writableStates);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.common.merkle.synchronization.views.MaybeCustomReconnectRoot;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * A MerkleNode object has the following properties
@@ -56,7 +58,7 @@ public interface MerkleNode
      * {@inheritDoc}
      */
     @Override
-    default MerkleNode migrate(final int version) {
+    default MerkleNode migrate(@NonNull final Configuration configuration, final int version) {
         return this;
     }
 

@@ -17,6 +17,7 @@
 package com.swirlds.platform.test;
 
 import static com.swirlds.platform.test.PlatformStateUtils.randomPlatformState;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
@@ -91,7 +92,8 @@ class PlatformStateTests {
 
         io.startReading();
 
-        final TestMerkleStateRoot decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        final TestMerkleStateRoot decodedState =
+                io.getInput().readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
         MerkleCryptoFactory.getInstance().digestTreeSync(root);
         MerkleCryptoFactory.getInstance().digestTreeSync(decodedState);

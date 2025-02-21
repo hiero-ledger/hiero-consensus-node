@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package com.swirlds.common.merkle.copy;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -32,7 +34,8 @@ public final class MerkleInitialize {
 
     /**
      * Initialize the tree after deserialization.
-     *
+     * @param configuration
+     *      the configuration for this node
      * @param root
      * 		the tree (or subtree) to initialize
      * @param deserializationVersions
@@ -40,7 +43,9 @@ public final class MerkleInitialize {
      * @return the root of the tree, possibly different than original root if the root has been migrated
      */
     public static MerkleNode initializeAndMigrateTreeAfterDeserialization(
-            final MerkleNode root, final Map<Long /* class ID */, Integer /* version */> deserializationVersions) {
+            @NonNull final Configuration configuration,
+            final MerkleNode root,
+            final Map<Long /* class ID */, Integer /* version */> deserializationVersions) {
 
         if (root == null) {
             return null;
@@ -70,7 +75,7 @@ public final class MerkleInitialize {
                                 deserializationVersions.get(child.getClassId()),
                                 "class not discovered during deserialization");
 
-                        final MerkleNode migratedChild = child.migrate(deserializationVersion);
+                        final MerkleNode migratedChild = child.migrate(configuration, deserializationVersion);
                         if (migratedChild != child) {
                             internal.setChild(childIndex, migratedChild);
                         }
@@ -82,7 +87,8 @@ public final class MerkleInitialize {
         final int deserializationVersion = Objects.requireNonNull(
                 deserializationVersions.get(root.getClassId()), "class not discovered during deserialization");
 
-        final MerkleNode migratedRoot = root.migrate(deserializationVersion);
+        // Pass the configuration to the root on its migration -- it is needed to create Virtual Map
+        final MerkleNode migratedRoot = root.migrate(configuration, deserializationVersion);
         if (migratedRoot != root) {
             root.release();
         }

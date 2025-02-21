@@ -21,7 +21,6 @@ module com.swirlds.demo.iss {
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.logging;
-    requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import java.util.function.Predicate;
  * @param <E> The type of element held in the queue.
  */
 public interface WritableQueueState<E> extends ReadableQueueState<E> {
+
     /**
      * Adds the given element to the end of the queue.
      *

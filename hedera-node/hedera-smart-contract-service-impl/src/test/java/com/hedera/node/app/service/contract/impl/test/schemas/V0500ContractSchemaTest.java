@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.schemas.V0500ContractSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -58,9 +59,9 @@ class V0500ContractSchemaTest {
     private final Map<String, Object> sharedValues = new HashMap<>();
     private final Map<SlotKey, SlotValue> storage = new HashMap<>();
     private final MapWritableKVState<SlotKey, SlotValue> writableStorage =
-            new MapWritableKVState<>(STORAGE_KEY, storage);
+            new MapWritableKVState<>(ContractService.NAME, STORAGE_KEY, storage);
     private final MapReadableKVState<SlotKey, SlotValue> readableStorage =
-            new MapReadableKVState<>(STORAGE_KEY, storage);
+            new MapReadableKVState<>(ContractService.NAME, STORAGE_KEY, storage);
     private final MapReadableStates readableStates =
             MapReadableStates.builder().state(readableStorage).build();
     private final MapWritableStates writableStates =

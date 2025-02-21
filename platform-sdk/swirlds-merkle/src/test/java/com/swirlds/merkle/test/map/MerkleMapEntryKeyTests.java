@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.swirlds.merkle.test.map;
 
+import static com.swirlds.merkle.test.fixtures.map.util.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -137,7 +138,7 @@ class MerkleMapEntryKeyTests {
                 new MerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final MerkleMapEntryKey<SerializableLong> deserializedKey =
-                merkleIn.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+                merkleIn.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
         assertEquals(key, deserializedKey, "deserialized key should match");
         assertNotSame(key, deserializedKey, "there is no way that the new object should be the same as the old one");

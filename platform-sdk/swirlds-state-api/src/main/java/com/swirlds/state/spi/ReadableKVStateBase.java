@@ -16,6 +16,8 @@
 
 package com.swirlds.state.spi;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.*;
@@ -29,8 +31,6 @@ import java.util.concurrent.ConcurrentMap;
  * @param <V> The value type
  */
 public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V> {
-    /** The state key, which cannot be null */
-    private final String stateKey;
 
     /**
      * A cache of all values read from this {@link ReadableKVState}. If the same value is read
@@ -46,13 +46,20 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
 
     private static final Object marker = new Object();
 
+    protected final String serviceName;
+
+    /** The state key, which cannot be null */
+    protected final String stateKey;
+
     /**
      * Create a new StateBase.
      *
+     * @param serviceName The name of the service that owns the state. Cannot be null.
      * @param stateKey The state key. Cannot be null.
      */
-    protected ReadableKVStateBase(@NonNull String stateKey) {
-        this.stateKey = Objects.requireNonNull(stateKey);
+    protected ReadableKVStateBase(@NonNull final String serviceName, @NonNull String stateKey) {
+        this.serviceName = requireNonNull(serviceName);
+        this.stateKey = requireNonNull(stateKey);
     }
 
     /** {@inheritDoc} */
@@ -60,6 +67,12 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
     @NonNull
     public final String getStateKey() {
         return stateKey;
+    }
+
+    @Override
+    @NonNull
+    public final String getServiceName() {
+        return serviceName;
     }
 
     /** {@inheritDoc} */

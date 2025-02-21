@@ -67,8 +67,8 @@ import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -389,13 +389,14 @@ class WritableHintsStoreImplTest {
                 .build();
         final AtomicReference<CRSState> crsStateRef = new AtomicReference<>();
         given(writableStates.<CRSState>getSingleton(CRS_STATE_KEY))
-                .willReturn(new WritableSingletonStateBase<>(CRS_STATE_KEY, crsStateRef::get, crsStateRef::set));
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HintsService.NAME, CRS_STATE_KEY, crsStateRef::get, crsStateRef::set));
         given(writableStates.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY))
-                .willReturn(new WritableSingletonStateBase<>(
-                        NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HintsService.NAME, NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
         given(writableStates.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY))
-                .willReturn(new WritableSingletonStateBase<>(
-                        ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HintsService.NAME, ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
 
         subject = new WritableHintsStoreImpl(writableStates);
         subject.setCRSState(crsState);

@@ -36,6 +36,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNftStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
@@ -99,7 +100,11 @@ public final class TestStoreFactory {
 
     private static Map<String, MapWritableKVState<?, ?>> writableAccountStates(final Account... accounts) {
         final var wrappingState = newAccountStateFromAccounts(accounts);
-        return Map.of(ACCOUNTS_KEY, wrappingState, ALIASES_KEY, new MapWritableKVState<>(ALIASES_KEY, new HashMap<>()));
+        return Map.of(
+                ACCOUNTS_KEY,
+                wrappingState,
+                ALIASES_KEY,
+                new MapWritableKVState<>(TokenService.NAME, ALIASES_KEY, new HashMap<>()));
     }
 
     private static MapWritableKVState<AccountID, Account> newAccountStateFromAccounts(Account... accounts) {
@@ -108,7 +113,7 @@ public final class TestStoreFactory {
             backingMap.put(account.accountId(), account);
         }
 
-        return new MapWritableKVState<>(ACCOUNTS_KEY, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY, backingMap);
     }
 
     /**
@@ -143,7 +148,7 @@ public final class TestStoreFactory {
                     tokenRel);
         }
 
-        return new MapWritableKVState<>(ACCOUNTS_KEY, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY, backingMap);
     }
 
     /**
@@ -185,7 +190,7 @@ public final class TestStoreFactory {
             backingMap.put(token.tokenId(), token);
         }
 
-        return new MapWritableKVState<>(TOKENS_KEY, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, TOKENS_KEY, backingMap);
     }
 
     private static MapWritableKVState<NftID, Nft> newNftStateFromNfts(Nft... nfts) {
@@ -194,7 +199,7 @@ public final class TestStoreFactory {
             backingMap.put(nft.nftId(), nft);
         }
 
-        return new MapWritableKVState<>(V0490TokenSchema.NFTS_KEY, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, V0490TokenSchema.NFTS_KEY, backingMap);
     }
 
     public static WritableAirdropStore newWritableStoreWithAirdrops(PendingAirdropId... airdrops) {
@@ -209,6 +214,6 @@ public final class TestStoreFactory {
             backingMap.put(airdrop, AccountPendingAirdrop.newBuilder().build());
         }
 
-        return new MapWritableKVState<>(AIRDROPS, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, AIRDROPS, backingMap);
     }
 }

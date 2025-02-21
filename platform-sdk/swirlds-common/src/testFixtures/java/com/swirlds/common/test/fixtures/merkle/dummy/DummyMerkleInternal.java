@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package com.swirlds.common.test.fixtures.merkle.dummy;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
@@ -162,7 +164,7 @@ public class DummyMerkleInternal extends PartialNaryMerkleInternal implements Du
      * in position 0, and that leaf will equal this node.
      */
     @Override
-    public MerkleNode migrate(final int version) {
+    public MerkleNode migrate(@NonNull Configuration configuration, final int version) {
         return migrationMapper.apply(this, version);
     }
 }

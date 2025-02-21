@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.swirlds.merkle.test.map;
 
+import static com.swirlds.merkle.test.fixtures.map.util.ConfigUtils.CONFIGURATION;
 import static java.util.Map.Entry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -792,7 +793,8 @@ class MerkleMapTests {
             io.getOutput().writeMerkleTree(testDirectory, map);
             io.startReading();
 
-            final MerkleMap<?, ?> deserializedMap = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+            final MerkleMap<?, ?> deserializedMap =
+                    io.getInput().readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
             cryptography.digestTreeSync(deserializedMap);
 
@@ -820,7 +822,8 @@ class MerkleMapTests {
             try (final MerkleDataInputStream inputStream =
                     new MerkleDataInputStream(new ByteArrayInputStream(baseStream.toByteArray()))) {
 
-                final MerkleMap<Key, V> deserializeMM = inputStream.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+                final MerkleMap<Key, V> deserializeMM =
+                        inputStream.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
                 assertEquals("foobar", deserializeMM.getLabel());
                 cryptography.digestTreeSync(deserializeMM);
 
@@ -1112,7 +1115,7 @@ class MerkleMapTests {
 
         final MerkleDataInputStream in = new MerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
         final MerkleMap<SerializableLong, KeyedMerkleLong<SerializableLong>> mm4 =
-                in.readMerkleTree(testDirectory, 1000);
+                in.readMerkleTree(CONFIGURATION, testDirectory, 1000);
 
         assertEquals("foobarbaz", mm4.getLabel());
 

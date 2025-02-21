@@ -17,6 +17,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -117,7 +118,7 @@ class StateRegistryTests {
         final InputOutputStream io = new InputOutputStream();
         io.getOutput().writeMerkleTree(dir, stateToSerialize);
         io.startReading();
-        final TestMerkleStateRoot deserializedState = io.getInput().readMerkleTree(dir, 5);
+        final TestMerkleStateRoot deserializedState = io.getInput().readMerkleTree(CONFIGURATION, dir, 5);
         states.add(deserializedState);
         assertEquals(
                 states.size(),

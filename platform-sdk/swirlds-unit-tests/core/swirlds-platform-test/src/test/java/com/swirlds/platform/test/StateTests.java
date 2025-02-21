@@ -17,6 +17,7 @@
 package com.swirlds.platform.test;
 
 import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.areTreesEqual;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -70,7 +71,8 @@ class StateTests {
 
         io.startReading();
 
-        final MerkleNodeState decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        final MerkleNodeState decodedState =
+                io.getInput().readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
         MerkleCryptoFactory.getInstance().digestTreeSync(decodedState);
 
         assertEquals(merkleStateRoot.getHash(), decodedState.getHash(), "expected trees to be equal");

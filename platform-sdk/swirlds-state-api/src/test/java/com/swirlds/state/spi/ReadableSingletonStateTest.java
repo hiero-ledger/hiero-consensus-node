@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.swirlds.state.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +29,7 @@ public class ReadableSingletonStateTest extends StateTestBase {
     protected AtomicReference<String> backingStore = new AtomicReference<>(AUSTRALIA);
 
     ReadableSingletonStateBase<String> createState() {
-        return new ReadableSingletonStateBase<>(COUNTRY_STATE_KEY, () -> backingStore.get());
+        return new FunctionReadableSingletonState<>(COUNTRY_STATE_KEY, COUNTRY_SERVICE_NAME, backingStore::get);
     }
 
     /**

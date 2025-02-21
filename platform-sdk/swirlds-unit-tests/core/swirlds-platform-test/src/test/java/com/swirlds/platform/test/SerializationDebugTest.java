@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import static com.swirlds.common.io.streams.internal.SerializationOperation.READ
 import static com.swirlds.common.io.streams.internal.SerializationOperation.READ_SERIALIZABLE;
 import static com.swirlds.common.io.streams.internal.SerializationOperation.READ_SERIALIZABLE_LIST;
 import static com.swirlds.common.io.streams.internal.SerializationOperation.STREAM_OPENED;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -205,7 +206,7 @@ class SerializationDebugTest {
 
         assertThrows(
                 RuntimeException.class,
-                () -> streams.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE),
+                () -> streams.getInput().readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE),
                 "expected deserialization to fail");
 
         final DebuggableMerkleDataInputStream debug = (DebuggableMerkleDataInputStream) streams.getInput();
@@ -293,7 +294,7 @@ class SerializationDebugTest {
                         return streams.getInput();
                     },
                     (final MerkleDataInputStream inputStream) ->
-                            inputStream.readMerkleTree(testDirectory, Integer.MAX_VALUE));
+                            inputStream.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE));
         } catch (final Exception ex) {
             assertEquals(RuntimeException.class, ex.getClass(), "proper exception should have been thrown");
             assertEquals("intentional exception", ex.getMessage(), "proper exception should have been thrown");

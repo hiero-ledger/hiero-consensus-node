@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,11 +28,16 @@ import java.util.Iterator;
  * @param <E> The type of the elements in this queue
  */
 public abstract class ReadableQueueStateBase<E> implements ReadableQueueState<E> {
-    private final String stateKey;
+
     private E peekedElement;
 
+    protected final String serviceName;
+
+    protected final String stateKey;
+
     /** Create a new instance */
-    protected ReadableQueueStateBase(@NonNull final String stateKey) {
+    protected ReadableQueueStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
+        this.serviceName = requireNonNull(serviceName);
         this.stateKey = requireNonNull(stateKey);
     }
 
@@ -40,6 +45,12 @@ public abstract class ReadableQueueStateBase<E> implements ReadableQueueState<E>
     @NonNull
     public final String getStateKey() {
         return stateKey;
+    }
+
+    @Override
+    @NonNull
+    public final String getServiceName() {
+        return serviceName;
     }
 
     @Nullable

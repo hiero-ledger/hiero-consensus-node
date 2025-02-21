@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,11 +34,13 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
      * pre-populate the queue, or if you want to use Mockito to mock it or cause it to throw
      * exceptions when certain keys are accessed, etc.
      *
-     * @param stateKey The state key for this state
+     * @param serviceName  The service name
+     * @param stateKey     The state key for this state
      * @param backingStore The backing store to use
      */
-    public ListReadableQueueState(@NonNull final String stateKey, @NonNull final Queue<E> backingStore) {
-        super(stateKey);
+    public ListReadableQueueState(
+            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Queue<E> backingStore) {
+        super(stateKey, serviceName);
         this.backingStore = Objects.requireNonNull(backingStore);
     }
 
@@ -58,13 +60,15 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
      * Create a new {@link ListReadableQueueState.Builder} for building a {@link ListReadableQueueState}. The builder has
      * convenience methods for pre-populating the queue.
      *
+     * @param <E>      The value type
+     * @param serviceName The service name
      * @param stateKey The state key
      * @return A {@link ListReadableQueueState.Builder} to be used for creating a {@link ListReadableQueueState}.
-     * @param <E> The value type
      */
     @NonNull
-    public static <E> ListReadableQueueState.Builder<E> builder(@NonNull final String stateKey) {
-        return new ListReadableQueueState.Builder<>(stateKey);
+    public static <E> ListReadableQueueState.Builder<E> builder(
+            @NonNull final String serviceName, @NonNull final String stateKey) {
+        return new ListReadableQueueState.Builder<>(serviceName, stateKey);
     }
 
     /**
@@ -72,9 +76,11 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
      */
     public static final class Builder<E> {
         private final Queue<E> backingStore = new LinkedList<>();
+        private final String serviceName;
         private final String stateKey;
 
-        Builder(@NonNull final String stateKey) {
+        Builder(@NonNull final String serviceName, @NonNull final String stateKey) {
+            this.serviceName = serviceName;
             this.stateKey = stateKey;
         }
 
@@ -98,7 +104,7 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
          */
         @NonNull
         public ListReadableQueueState<E> build() {
-            return new ListReadableQueueState<>(stateKey, new LinkedList<>(backingStore));
+            return new ListReadableQueueState<>(serviceName, stateKey, new LinkedList<>(backingStore));
         }
     }
 }

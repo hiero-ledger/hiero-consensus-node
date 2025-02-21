@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0500TokenSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -55,7 +56,7 @@ class V0500TokenSchemaTest {
     private final Map<String, Object> sharedValues = new HashMap<>();
     private final Map<AccountID, Account> accounts = new HashMap<>();
     private final MapWritableKVState<AccountID, Account> writableAccounts =
-            new MapWritableKVState<>(ACCOUNTS_KEY, accounts);
+            new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY, accounts);
     private final MapWritableStates writableStates =
             MapWritableStates.builder().state(writableAccounts).build();
 
