@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.impl;
+package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
@@ -10,7 +10,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -128,10 +127,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
 
         state = State.OPEN;
+        logger.info("Started new block in FileBlockItemWriter {}", blockNumber);
     }
 
     @Override
-    public FileBlockItemWriter writeItem(@NonNull final byte[] bytes) {
+    public void writeItem(@NonNull final byte[] bytes) {
         requireNonNull(bytes);
         if (state != State.OPEN) {
             throw new IllegalStateException(
@@ -144,18 +144,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         writableStreamingData.writeVarInt(bytes.length, false);
         // Write the item bytes themselves.
         writableStreamingData.writeBytes(bytes);
-        return this;
-    }
-
-    @Override
-    public BlockItemWriter writeItems(@NonNull final BufferedData data) {
-        requireNonNull(data);
-        if (state != State.OPEN) {
-            throw new IllegalStateException(
-                    "Cannot write to a FileBlockItemWriter that is not open for block: " + this.blockNumber);
-        }
-        writableStreamingData.writeBytes(data);
-        return this;
     }
 
     @Override
@@ -170,6 +158,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
         try {
             writableStreamingData.close();
             state = State.CLOSED;
+            logger.info("Closed block in FileBlockItemWriter {}", blockNumber);
+
             // Write a .mf file to indicate that the block file is complete.
             final Path markerFile = getBlockFilePath(blockNumber).resolveSibling(longToFileName(blockNumber) + ".mf");
             if (Files.exists(markerFile)) {
