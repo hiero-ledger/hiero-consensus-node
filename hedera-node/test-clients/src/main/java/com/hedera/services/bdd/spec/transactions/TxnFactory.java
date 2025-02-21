@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
 import static com.hedera.services.bdd.spec.HapiSpec.UTF8Mode.TRUE;
@@ -94,6 +79,7 @@ import java.util.function.Supplier;
  * Used by a {@link HapiSpec} to create transactions for submission to its target network.
  */
 public class TxnFactory {
+    private static final int MEMO_PREFIX_LIMIT = 100;
     private static final double TXN_ID_SAMPLE_PROBABILITY = 1.0 / 500;
 
     private final HapiSpecSetup setup;
@@ -154,7 +140,8 @@ public class TxnFactory {
             @Nullable final BodyMutation modification,
             @Nullable final HapiSpec spec) {
         requireNonNull(bodySpec);
-        final var composedBodySpec = defaultBodySpec().andThen(bodySpec);
+        final var composedBodySpec =
+                defaultBodySpec(spec == null ? null : spec.getName()).andThen(bodySpec);
         var bodyBuilder = TransactionBody.newBuilder();
         composedBodySpec.accept(bodyBuilder);
         if (modification != null) {
@@ -190,12 +177,14 @@ public class TxnFactory {
         return (T) opBuilder.build();
     }
 
-    private Consumer<TransactionBody.Builder> defaultBodySpec() {
+    private Consumer<TransactionBody.Builder> defaultBodySpec(@Nullable final String specName) {
         final var defaultTxnId = nextTxnId.get();
         if (r.nextDouble() < TXN_ID_SAMPLE_PROBABILITY) {
             sampleTxnId.set(defaultTxnId);
         }
-        final var memoToUse = (setup.isMemoUTF8() == TRUE) ? setup.defaultUTF8memo() : setup.defaultMemo();
+        final var memoToUse = (specName != null && setup.useSpecName())
+                ? specName.substring(0, Math.min(specName.length(), MEMO_PREFIX_LIMIT))
+                : (setup.isMemoUTF8() == TRUE ? setup.defaultUTF8memo() : setup.defaultMemo());
         return builder -> builder.setTransactionID(defaultTxnId)
                 .setMemo(memoToUse)
                 .setTransactionFee(setup.defaultFee())
