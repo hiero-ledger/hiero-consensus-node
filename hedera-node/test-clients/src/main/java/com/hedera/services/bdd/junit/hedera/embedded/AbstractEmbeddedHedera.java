@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
@@ -123,12 +108,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
      * Non-final because a "saved state" may be provided via {@link EmbeddedHedera#restart(FakeState)}.
      */
     protected FakeState state;
-    /**
-     * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.BlockHashSignerFactory}
-     * lambda we give the {@link Hedera} constructor will always set this (the fake's delegate will ultimately need
-     * needs to be constructed from the Hedera instance's {@code HintsService} and {@code HistoryService}).
-     */
-    protected LapsingBlockHashSigner blockHashSigner;
+
     /**
      * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.HintsServiceFactory} lambda we give the
      * {@link Hedera} constructor will always set this (the fake's {@link HintsServiceImpl}
@@ -142,6 +122,12 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
      * instance's {@link com.hedera.node.app.spi.AppContext}).
      */
     protected FakeHistoryService historyService;
+    /**
+     * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.BlockHashSignerFactory}
+     * lambda we give the {@link Hedera} constructor will always set this (the fake's delegate will ultimately need
+     * needs to be constructed from the Hedera instance's {@code HintsService} and {@code HistoryService}).
+     */
+    protected LapsingBlockHashSigner blockHashSigner;
 
     protected AbstractEmbeddedHedera(@NonNull final EmbeddedNode node) {
         requireNonNull(node);
