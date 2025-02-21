@@ -12,7 +12,6 @@ import com.swirlds.platform.system.SoftwareVersion;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 class ServicesSoftwareVersionTest {
@@ -96,14 +95,6 @@ class ServicesSoftwareVersionTest {
         final var prevVersion = new ServicesSoftwareVersion(LATE, DEFAULT_CONFIG_VERSION);
         final var subject = new ServicesSoftwareVersion(LATE_WITH_CONFIG_VERSION);
         assertThat(subject.compareTo(prevVersion)).isEqualTo(1);
-    }
-
-    // Re-enable after toString() for all PBJ generated classes is implemented properly
-    @Disabled
-    @Test
-    void toStringIsSemverToString() {
-        final var subject = new ServicesSoftwareVersion(MIDDLE_ALPHA_1, DEFAULT_CONFIG_VERSION);
-        assertThat(subject.toString()).isEqualTo("SemanticVersion[major=0, minor=1, patch=0, pre=alpha.1, build=0]");
     }
 
     @Test
