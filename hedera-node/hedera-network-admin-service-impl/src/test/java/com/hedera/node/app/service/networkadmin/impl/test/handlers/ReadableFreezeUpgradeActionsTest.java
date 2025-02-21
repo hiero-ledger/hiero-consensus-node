@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.loadResourceFile;
@@ -22,6 +7,7 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBo
 import static com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions.EXEC_IMMEDIATE_MARKER;
 import static com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions.EXEC_TELEMETRY_MARKER;
 import static com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions.NOW_FROZEN_MARKER;
+import static com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions.UPGRADE_FILE_ID;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Key.Builder;
 import com.hedera.hapi.node.base.KeyList;
@@ -56,13 +43,12 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
-import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -153,6 +139,9 @@ class ReadableFreezeUpgradeActionsTest {
     private ReadableStakingInfoStore stakingInfoStore;
 
     @Mock
+    private EntityIdFactory entityIdFactory;
+
+    @Mock
     protected ReadableStates readableStates;
 
     @Mock
@@ -162,13 +151,7 @@ class ReadableFreezeUpgradeActionsTest {
     private NodesConfig nodesConfig;
 
     @Mock
-    private AddressBookConfig addressBookConfig;
-
-    @Mock
     private ReadableEntityCounters readableEntityCounters;
-
-    @Mock
-    private HederaConfig hederaConfig;
 
     private ReadableNodeStore nodeStore;
 
@@ -180,10 +163,6 @@ class ReadableFreezeUpgradeActionsTest {
     void setUp() throws IOException {
         given(configuration.getConfigData(NetworkAdminConfig.class)).willReturn(adminServiceConfig);
         given(configuration.getConfigData(NodesConfig.class)).willReturn(nodesConfig);
-        given(configuration.getConfigData(AddressBookConfig.class)).willReturn(addressBookConfig);
-        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(hederaConfig.shard()).willReturn(1L);
-        given(hederaConfig.realm()).willReturn(2L);
 
         noiseFileLoc = zipOutputDir.toPath().resolve("forgotten.cfg");
         noiseSubFileLoc = zipOutputDir.toPath().resolve("edargpu");
@@ -195,8 +174,16 @@ class ReadableFreezeUpgradeActionsTest {
 
         freezeExecutor = new ForkJoinPool(
                 1, ForkJoinPool.defaultForkJoinWorkerThreadFactory, Thread.getDefaultUncaughtExceptionHandler(), true);
+
+        given(entityIdFactory.newFileId(UPGRADE_FILE_ID)).willReturn(FileID.DEFAULT);
         subject = new FreezeUpgradeActions(
-                configuration, writableFreezeStore, freezeExecutor, upgradeFileStore, nodeStore, stakingInfoStore);
+                configuration,
+                writableFreezeStore,
+                freezeExecutor,
+                upgradeFileStore,
+                nodeStore,
+                stakingInfoStore,
+                entityIdFactory);
 
         // set up test zip
         zipSourceDir = Files.createTempDirectory("zipSourceDir");
@@ -325,6 +312,7 @@ class ReadableFreezeUpgradeActionsTest {
 
         Bytes expectedContent = Bytes.wrap("expected");
         given(upgradeFileStore.getFull(any())).willReturn(expectedContent);
+
         assertThatNoException().isThrownBy(() -> subject.catchUpOnMissedSideEffects(store));
     }
 
@@ -499,7 +487,13 @@ class ReadableFreezeUpgradeActionsTest {
         nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         given(readableEntityCounters.getCounterFor(EntityType.NODE)).willReturn(4L);
         subject = new FreezeUpgradeActions(
-                configuration, writableFreezeStore, freezeExecutor, upgradeFileStore, nodeStore, stakingInfoStore);
+                configuration,
+                writableFreezeStore,
+                freezeExecutor,
+                upgradeFileStore,
+                nodeStore,
+                stakingInfoStore,
+                entityIdFactory);
         var stakingNodeInfo1 = mock(StakingNodeInfo.class);
         var stakingNodeInfo2 = mock(StakingNodeInfo.class);
         var stakingNodeInfo4 = mock(StakingNodeInfo.class);
@@ -624,7 +618,13 @@ class ReadableFreezeUpgradeActionsTest {
         nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         given(readableEntityCounters.getCounterFor(EntityType.NODE)).willReturn(4L);
         subject = new FreezeUpgradeActions(
-                configuration, writableFreezeStore, freezeExecutor, upgradeFileStore, nodeStore, stakingInfoStore);
+                configuration,
+                writableFreezeStore,
+                freezeExecutor,
+                upgradeFileStore,
+                nodeStore,
+                stakingInfoStore,
+                entityIdFactory);
         var stakingNodeInfo1 = mock(StakingNodeInfo.class);
         var stakingNodeInfo2 = mock(StakingNodeInfo.class);
         var stakingNodeInfo3 = mock(StakingNodeInfo.class);

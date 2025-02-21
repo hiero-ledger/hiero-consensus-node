@@ -6,7 +6,7 @@ import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.createMethodsMap;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.acquiredSenderAuthorizationViaDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.alreadyHalted;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isPrecompileEnabled;
@@ -187,7 +187,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             return false;
         }
         var selector = frame.getInputData().slice(0, 4).toArray();
-        return createMethodsMap.keySet().stream().anyMatch(s -> Arrays.equals(s.selector(), selector));
+        return createMethodsSet.stream().anyMatch(s -> Arrays.equals(s.selector(), selector));
     }
 
     /**
