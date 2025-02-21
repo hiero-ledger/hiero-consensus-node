@@ -9,10 +9,11 @@ import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createShu
 
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
-import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.consensus.framework.ConsensusTestNode;
 import com.swirlds.platform.test.consensus.framework.ConsensusTestOrchestrator;
@@ -521,38 +522,16 @@ public final class ConsensusTestDefinitions {
     }
 
     public static void removeNode(@NonNull final TestInput input) {
-        final ConsensusTestOrchestrator orchestrator1 =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
-        orchestrator1.generateEvents(0.5);
-        orchestrator1.validate(
+        orchestrator.generateEvents(0.5);
+        orchestrator.validate(
                 Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
 
-        final ConsensusTestOrchestrator orchestrator2 = OrchestratorBuilder.builder()
-                .setTestInput(input.setNumberOfNodes(input.numberOfNodes() - 1))
-                .build();
-        for (int i = 0; i < 2; i++) {
-            orchestrator2
-                    .getNodes()
-                    .get(i)
-                    .getIntake()
-                    .loadSnapshot(orchestrator1
-                            .getNodes()
-                            .get(i)
-                            .getIntake()
-                            .getLatestRound()
-                            .getSnapshot());
-            final int fi = i;
-            orchestrator1.getNodes().get(i).getOutput().getAddedEvents().forEach(e -> {
-                orchestrator2.getNodes().get(fi).getIntake().addEvent(e.copyGossipedData());
-            });
-            ConsensusUtils.loadEventsIntoGenerator(
-                    orchestrator1.getNodes().get(i).getOutput().getAddedEvents(),
-                    orchestrator2.getNodes().get(i).getEventEmitter().getGraphGenerator(),
-                    orchestrator2.getNodes().get(i).getRandom());
-        }
+        orchestrator.removeNode(orchestrator.getAddressBook().getNodeId(0));
 
-        orchestrator2.generateEvents(0.5);
-        orchestrator2.validate(
+        orchestrator.generateEvents(0.5);
+        orchestrator.validate(
                 // this used to be set to 0.5, but then a test failed because it had a ratio of 0.4999
                 // the number are a bit arbitrary, but the goal is to validate that events are reaching consensus
                 Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.4)));
@@ -565,6 +544,7 @@ public final class ConsensusTestDefinitions {
         final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         final Instant snapshotTimestamp = Instant.now();
+        final Configuration configuration = input.platformContext().getConfiguration();
         orchestrator.getNodes().forEach(n -> {
             final int numEvents = orchestrator.getEventFraction(0.5);
             n.getEventEmitter().setCheckpoint(numEvents);
@@ -576,10 +556,8 @@ public final class ConsensusTestDefinitions {
                     round,
                     lastConsensusOrder,
                     snapshotTimestamp,
-                    ConfigurationBuilder.create()
-                            .withConfigDataType(ConsensusConfig.class)
-                            .build()
-                            .getConfigData(ConsensusConfig.class),
+                    configuration.getConfigData(ConsensusConfig.class),
+                    configuration.getConfigData(EventConfig.class).getAncientMode(),
                     maxGenEvent.orElseThrow().getBaseEvent());
             n.getIntake().loadSnapshot(syntheticSnapshot);
         });
@@ -602,7 +580,11 @@ public final class ConsensusTestDefinitions {
         final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         for (final ConsensusTestNode node : orchestrator.getNodes()) {
-            node.getIntake().loadSnapshot(SyntheticSnapshot.getGenesisSnapshot());
+            node.getIntake()
+                    .loadSnapshot(SyntheticSnapshot.getGenesisSnapshot(input.platformContext()
+                            .getConfiguration()
+                            .getConfigData(EventConfig.class)
+                            .getAncientMode()));
         }
 
         orchestrator

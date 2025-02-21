@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.gui;
 
-import static com.swirlds.platform.consensus.SyntheticSnapshot.GENESIS_SNAPSHOT;
-
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.SyntheticSnapshot;
+import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
@@ -25,6 +26,7 @@ public class TestGuiSource {
     private final HashgraphGuiSource guiSource;
     private ConsensusSnapshot savedSnapshot;
     private final GuiEventStorage eventStorage;
+    private final AncientMode ancientMode;
 
     /**
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
@@ -40,6 +42,10 @@ public class TestGuiSource {
         this.eventStorage = new GuiEventStorage(platformContext.getConfiguration(), addressBook);
         this.guiSource = new StandardGuiSource(addressBook, eventStorage);
         this.eventProvider = eventProvider;
+        this.ancientMode = platformContext
+                .getConfiguration()
+                .getConfigData(EventConfig.class)
+                .getAncientMode();
     }
 
     public void runGui() {
@@ -82,7 +88,7 @@ public class TestGuiSource {
         final JButton reset = new JButton("Reset");
         reset.addActionListener(e -> {
             eventProvider.reset();
-            eventStorage.handleSnapshotOverride(GENESIS_SNAPSHOT);
+            eventStorage.handleSnapshotOverride(SyntheticSnapshot.getGenesisSnapshot(ancientMode));
             updateFameDecidedBelow.run();
         });
         // snapshots

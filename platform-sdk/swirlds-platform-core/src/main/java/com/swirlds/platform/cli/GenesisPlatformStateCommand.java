@@ -15,6 +15,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.WritableRosterStore;
@@ -70,7 +71,8 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
             stateFacade.bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");
                 v.setRound(PlatformStateAccessor.GENESIS_ROUND);
-                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
+                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot(
+                        configuration.getConfigData(EventConfig.class).getAncientMode()));
 
                 // FUTURE WORK: remove once the AddressBook setters are deprecated and the fields are nullified.
                 // For now, we have to keep these calls to ensure RosterRetriever won't fall back to using these values.

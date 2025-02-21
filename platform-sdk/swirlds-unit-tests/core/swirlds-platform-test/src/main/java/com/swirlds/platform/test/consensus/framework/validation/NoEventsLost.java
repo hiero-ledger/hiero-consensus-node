@@ -34,10 +34,8 @@ public final class NoEventsLost {
             // no consensus reached, nothing to check
             return;
         }
-        final long nonAncientGen = output.getConsensusRounds()
-                .getLast()
-                .getSnapshot()
-                .getMinimumGenerationNonAncient(CONFIG.roundsNonAncient());
+        final long nonAncientGen =
+                output.getConsensusRounds().getLast().getSnapshot().getAncientThreshold(CONFIG.roundsNonAncient());
 
         for (final PlatformEvent event : output.getAddedEvents()) {
             if (event.getGeneration() >= nonAncientGen) {

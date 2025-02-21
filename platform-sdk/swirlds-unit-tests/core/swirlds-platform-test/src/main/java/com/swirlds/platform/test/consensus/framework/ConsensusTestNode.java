@@ -4,10 +4,13 @@ package com.swirlds.platform.test.consensus.framework;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.consensus.TestIntake;
 import com.swirlds.platform.test.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Random;
 
@@ -57,6 +60,25 @@ public class ConsensusTestNode {
                 .getSnapshot();
         intake.reset();
         intake.loadSnapshot(snapshot);
+    }
+
+    /**
+     * Simulates removing a node from the network at restart
+     * @param nodeId the node to remove
+     */
+    public void removeNode(@NonNull final NodeId nodeId) {
+        eventEmitter.getGraphGenerator().removeNode(nodeId);
+        final ConsensusSnapshot snapshot = Objects.requireNonNull(
+                        getOutput().getConsensusRounds().peekLast())
+                .getSnapshot();
+        intake.loadSnapshot(snapshot);
+        // the above will clear all events from the linker and consensus, so we need to add all non-ancient events
+        // adding events will also add the events to the output, so we make a copy of the list and add them back
+        final LinkedList<PlatformEvent> added = new LinkedList<>(getOutput().getAddedEvents());
+        getOutput().getAddedEvents().clear();
+        for (final PlatformEvent e : added) {
+            intake.addEvent(e.copyGossipedData());
+        }
     }
 
     /**
