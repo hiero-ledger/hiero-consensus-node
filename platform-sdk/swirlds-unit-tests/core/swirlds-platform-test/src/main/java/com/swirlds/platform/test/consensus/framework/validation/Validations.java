@@ -17,7 +17,7 @@ public class Validations {
     private final Map<ValidationType, ConsensusOutputValidation> consensusValidationsMap =
             new EnumMap<>(ValidationType.class);
 
-    public static @NonNull Validations create() {
+    public static @NonNull Validations newInstance() {
         return new Validations();
     }
 
@@ -50,7 +50,7 @@ public class Validations {
         return this;
     }
 
-    public @NonNull List<ConsensusOutputValidation> getValidations() {
+    public @NonNull List<ConsensusOutputValidation> getList() {
         return consensusValidationsMap.values().stream().toList();
     }
 

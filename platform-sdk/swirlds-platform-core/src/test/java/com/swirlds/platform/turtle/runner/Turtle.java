@@ -127,14 +127,15 @@ public class Turtle {
     }
 
     public void validate() {
-        final Validations validations = Validations.create().consensusEvents().consensusTimestamps();
+        final Validations validations =
+                Validations.newInstance().consensusEvents().consensusTimestamps();
 
         final TurtleNode node1 = nodes.getFirst();
         final List<ConsensusOutput> consensusOutputsForNode1 = getConsensusOutputsFromNode(node1);
 
         for (int i = 1; i < nodes.size(); i++) {
             final TurtleNode node2 = nodes.get(i);
-            for (final ConsensusOutputValidation validator : validations.getValidations()) {
+            for (final ConsensusOutputValidation validator : validations.getList()) {
                 for (int j = 0; j < consensusOutputsForNode1.size(); j++) {
                     validator.validate(
                             consensusOutputsForNode1.get(i),
@@ -145,14 +146,14 @@ public class Turtle {
     }
 
     private List<ConsensusOutput> getConsensusOutputsFromNode(final TurtleNode turtleNode) {
-        final List<ConsensusOutput> consensusOutputsForNode1 = new ArrayList<>();
+        final List<ConsensusOutput> consensusOutputsForNode = new ArrayList<>();
         for (final ConsensusRound round : turtleNode.getConsensusRoundsHolder().getCollectedRounds()) {
             final ConsensusOutput consensusOutput = new ConsensusOutput(time);
             consensusOutput.consensusRound(round);
-            consensusOutputsForNode1.add(consensusOutput);
+            consensusOutputsForNode.add(consensusOutput);
         }
 
-        return consensusOutputsForNode1;
+        return consensusOutputsForNode;
     }
 
     /**
