@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -23,8 +8,8 @@ import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION
 
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.SignatureType;
@@ -182,7 +167,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             nullField = "version";
         } else if (eventCore.parents().stream().anyMatch(Objects::isNull)) {
             nullField = "parent";
-        } else if (gossipEvent.eventTransaction().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
+        } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
             nullField = "transaction";
         }
         if (nullField != null) {
@@ -199,10 +184,8 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @param transaction the transaction to check
      * @return true if the transaction is null, otherwise false
      */
-    private static boolean isTransactionNull(@Nullable final EventTransaction transaction) {
-        return transaction == null
-                || transaction.transaction() == null
-                || transaction.transaction().value() == null;
+    private static boolean isTransactionNull(@Nullable final Bytes transaction) {
+        return transaction == null || transaction.length() == 0;
     }
 
     /**

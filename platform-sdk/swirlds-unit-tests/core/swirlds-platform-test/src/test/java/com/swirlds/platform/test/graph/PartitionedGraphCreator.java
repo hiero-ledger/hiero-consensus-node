@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.graph;
 
 import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
@@ -40,8 +25,8 @@ public class PartitionedGraphCreator {
 
     public static void setupPartitionForNode(
             final SyncTestParams params, final SyncNode node, final List<Integer> nodesInPartition) {
-        final EventEmitter<?> emitter = node.getEmitter();
-        final GraphGenerator<?> graphGenerator = emitter.getGraphGenerator();
+        final EventEmitter emitter = node.getEmitter();
+        final GraphGenerator graphGenerator = emitter.getGraphGenerator();
         final AddressBook addressBook = graphGenerator.getAddressBook();
 
         final List<List<Double>> fullyConnectedMatrix = createBalancedOtherParentMatrix(params.getNumNetworkNodes());

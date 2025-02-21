@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.util;
 
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -52,14 +37,16 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     static final Logger log = LogManager.getLogger(HapiAtomicBatch.class);
 
     private static final String DEFAULT_NODE_ACCOUNT_ID = "0.0.0";
-    private final List<HapiTxnOp<?>> operationsToBatch;
+    private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
     private final Map<TransactionID, HapiTxnOp<?>> operationsMap = new HashMap<>();
+    private final List<Transaction> transactionsToBatch = new ArrayList<>();
+    private final List<String> txnIdsForOrderValidation = new ArrayList();
+
+    public HapiAtomicBatch() {}
 
     public HapiAtomicBatch(HapiTxnOp<?>... ops) {
-        this.operationsToBatch = Arrays.stream(ops).toList();
+        this.operationsToBatch.addAll(Arrays.stream(ops).toList());
     }
-
-    private List<String> txnIdsForOrderValidation = new ArrayList();
 
     @Override
     public HederaFunctionality type() {
@@ -89,6 +76,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         final AtomicBatchTransactionBody opBody = spec.txns()
                 .<AtomicBatchTransactionBody, AtomicBatchTransactionBody.Builder>body(
                         AtomicBatchTransactionBody.class, b -> {
+                            b.addAllTransactions(transactionsToBatch);
                             for (HapiTxnOp<?> op : operationsToBatch) {
                                 try {
                                     // set node account id to 0.0.0 if not set
@@ -141,8 +129,13 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         return super.toStringHelper().add("range", operationsToBatch);
     }
 
+    public HapiAtomicBatch addTransaction(Transaction txn) {
+        transactionsToBatch.add(txn);
+        return this;
+    }
+
     public HapiAtomicBatch validateTxnOrder(String... txnIds) {
-        txnIdsForOrderValidation = Arrays.asList(txnIds);
+        txnIdsForOrderValidation.addAll(Arrays.asList(txnIds));
         return this;
     }
 

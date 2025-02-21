@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * This package contains a complete implementation of {@link com.hedera.node.app.records.BlockRecordManager}. This
  * implementation delegates to {@link com.hedera.node.app.records.impl.BlockRecordStreamProducer}s to compute the

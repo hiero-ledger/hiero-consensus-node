@@ -1,37 +1,15 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
-import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.workflows.TransactionChecker;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
-import java.util.function.Function;
-import javax.inject.Singleton;
 
 @Module
 public interface PreHandleWorkflowInjectionModule {
@@ -47,19 +25,5 @@ public interface PreHandleWorkflowInjectionModule {
     @Provides
     static ExecutorService provideExecutorService() {
         return ForkJoinPool.commonPool();
-    }
-
-    @Provides
-    @Singleton
-    static Function<Transaction, TransactionBody> provideBodyParser(TransactionChecker transactionChecker)
-            throws HandleException {
-        return tx -> {
-            try {
-                final var transactionInfo = transactionChecker.check(tx, null);
-                return transactionInfo.txBody();
-            } catch (PreCheckException e) {
-                throw new HandleException(e.responseCode());
-            }
-        };
     }
 }

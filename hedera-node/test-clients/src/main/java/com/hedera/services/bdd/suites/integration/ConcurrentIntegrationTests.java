@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
@@ -162,21 +147,28 @@ public class ConcurrentIntegrationTests {
                                 .between(nftTwo.treasury().name(), "operator"))),
                 // First do a batch where everything succeeds
                 atomicBatch(
-                        cryptoTransfer(movingUnique(nftOne.name(), 1L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                .batchKey("operator")
-                                .payingWith("operator"),
-                        cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                .batchKey("operator")
-                                .payingWith("operator"),
-                        cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                .batchKey("operator")
-                                .payingWith("operator")),
+                                cryptoTransfer(movingUnique(nftOne.name(), 1L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"))
+                        .signedByPayerAnd("operator"),
                 getAccountRecords("operator").exposingTo(records -> {
                     assertEquals(3, records.size());
                     records.forEach(r -> successfulRecordFees.add(asMap(r.getTransferList())));
@@ -205,6 +197,7 @@ public class ConcurrentIntegrationTests {
                                         .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                         .batchKey("operator")
                                         .payingWith("operator"))
+                        .signedByPayerAnd("operator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getAccountRecords("operator").exposingTo(records -> {
                     assertEquals(6, records.size());
