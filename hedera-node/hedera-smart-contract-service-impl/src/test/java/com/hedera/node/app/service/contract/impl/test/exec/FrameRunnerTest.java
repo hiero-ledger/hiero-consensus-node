@@ -17,6 +17,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OUTPUT_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_REVERT_REASON;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
@@ -125,6 +127,9 @@ class FrameRunnerTest {
         final var inOrder = Mockito.inOrder(frame, childFrame, tracer, messageCallProcessor, contractCreationProcessor);
 
         givenBaseSuccessWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.shard()).willReturn(shard);
+        given(worldUpdater.realm()).willReturn(realm);
 
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
@@ -135,7 +140,7 @@ class FrameRunnerTest {
         inOrder.verify(tracer).sanitizeTracedActions(frame);
 
         assertSuccessExpectationsWith(
-                NON_SYSTEM_CONTRACT_ID, asEvmContractId(NON_SYSTEM_LONG_ZERO_ADDRESS), frame, result);
+                NON_SYSTEM_CONTRACT_ID, asEvmContractId(shard, realm, NON_SYSTEM_LONG_ZERO_ADDRESS), frame, result);
     }
 
     @Test

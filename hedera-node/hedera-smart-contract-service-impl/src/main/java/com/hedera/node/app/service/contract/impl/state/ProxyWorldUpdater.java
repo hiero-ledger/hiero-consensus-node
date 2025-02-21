@@ -157,7 +157,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 if (!contractMustBePresent) {
                     return isLongZero(shard(), realm(), address)
                             ? asNumberedContractId(shard(), realm(), address)
-                            : asEvmContractId(address);
+                            : asEvmContractId(shard(), realm(), address);
                 }
                 throw new IllegalArgumentException("No contract pending or extant at " + address);
             }

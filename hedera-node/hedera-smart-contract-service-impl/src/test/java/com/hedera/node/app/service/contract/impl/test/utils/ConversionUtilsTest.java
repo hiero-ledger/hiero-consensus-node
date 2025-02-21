@@ -123,7 +123,7 @@ class ConversionUtilsTest {
     void returnsNumberIfSmallLongZeroAddressIsPresent() {
         final long number = A_NEW_ACCOUNT_ID.accountNumOrThrow();
         given(nativeOperations.getAccount(number)).willReturn(SOMEBODY);
-        final var address = asHeadlongAddress(asEvmAddress(number));
+        final var address = asHeadlongAddress(asEvmAddress(shard, realm, number));
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(number, actual);
     }

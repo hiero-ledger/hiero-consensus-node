@@ -7,7 +7,9 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getAndClearPropagatedCallFailure;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.maybeNext;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.failureFrom;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.successFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmContractId;
@@ -95,7 +97,12 @@ public class FrameRunner {
         final var gasUsed = effectiveGasUsed(gasLimit, frame);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
-                    gasUsed, senderId, recipientMetadata.hederaId(), asEvmContractId(recipientAddress), frame, tracer);
+                    gasUsed,
+                    senderId,
+                    recipientMetadata.hederaId(),
+                    asEvmContractId(shardOf(frame), realmOf(frame), recipientAddress),
+                    frame,
+                    tracer);
         } else {
             return failureFrom(gasUsed, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
         }

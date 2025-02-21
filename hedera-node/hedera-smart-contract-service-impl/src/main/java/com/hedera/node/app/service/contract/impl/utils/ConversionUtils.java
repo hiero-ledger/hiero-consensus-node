@@ -531,8 +531,12 @@ public class ConversionUtils {
      * @param address the EVM address
      * @return the PBJ {@link ContractID}
      */
-    public static ContractID asEvmContractId(@NonNull final Address address) {
-        return ContractID.newBuilder().evmAddress(tuweniToPbjBytes(address)).build();
+    public static ContractID asEvmContractId(final long shard, final long realm, @NonNull final Address address) {
+        return ContractID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .evmAddress(tuweniToPbjBytes(address))
+                .build();
     }
 
     /**
@@ -547,7 +551,11 @@ public class ConversionUtils {
         if (!isLongZero(shard, realm, address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
-        return AccountID.newBuilder().accountNum(numberOfLongZero(address)).build();
+        return AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(numberOfLongZero(address))
+                .build();
     }
 
     /**
@@ -562,7 +570,11 @@ public class ConversionUtils {
         if (!isLongZero(shard, realm, address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
-        return ContractID.newBuilder().contractNum(numberOfLongZero(address)).build();
+        return ContractID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .contractNum(numberOfLongZero(address))
+                .build();
     }
 
     /**
@@ -578,6 +590,8 @@ public class ConversionUtils {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
         return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
                 .setScheduleNum(address.value().longValueExact())
                 .build();
     }
@@ -693,16 +707,6 @@ public class ConversionUtils {
         final byte[] data = new byte[length];
         bytes.getBytes(0, data);
         return data;
-    }
-
-    /**
-     * Given a long entity number, returns its 20-byte EVM address.
-     *
-     * @param num the entity number
-     * @return its 20-byte EVM address
-     */
-    public static byte[] asEvmAddress(final long num) {
-        return copyToLeftPaddedByteArray(num, new byte[20]);
     }
 
     /**

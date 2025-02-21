@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
@@ -29,6 +14,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_101
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.ClassicCreatesCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
@@ -75,6 +63,9 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
     @Mock
     private BlockValues blockValues;
+
+    @Mock
+    private ProxyWorldUpdater updater;
 
     private static final TransactionBody PRETEND_CREATE_TOKEN = TransactionBody.newBuilder()
             .tokenCreation(TokenCreateTransactionBody.newBuilder()
@@ -349,7 +340,7 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
     @Test
     void requiresNonGasCostToBeProvidedAsValue() {
-        commonGivens(200_000L, 99_999L, true);
+        commonGivens(200_000L, 99_999L, true, false);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(systemContractOperations.externalizePreemptedDispatch(any(), eq(INSUFFICIENT_TX_FEE), eq(TOKEN_CREATE)))
                 .willReturn(recordBuilder);
@@ -406,10 +397,10 @@ public class ClassicCreatesCallTest extends CallTestBase {
     }
 
     private void commonGivens() {
-        commonGivens(0L, 0L, false);
+        commonGivens(0L, 0L, false, true);
     }
 
-    private void commonGivens(long baseCost, long value, boolean shouldBePreempted) {
+    private void commonGivens(long baseCost, long value, boolean shouldBePreempted, boolean shouldHaveRealmAndShard) {
         given(frame.getValue()).willReturn(Wei.of(value));
         given(gasCalculator.feeCalculatorPriceInTinyBars(any(), any())).willReturn(baseCost);
         stack.push(frame);
@@ -426,6 +417,11 @@ public class ClassicCreatesCallTest extends CallTestBase {
                     .willReturn(recordBuilder);
         }
         given(frame.getBlockValues()).willReturn(blockValues);
+        if (shouldHaveRealmAndShard) {
+            given(frame.getWorldUpdater()).willReturn(updater);
+            given(updater.shard()).willReturn(shard);
+            given(updater.realm()).willReturn(realm);
+        }
         given(blockValues.getTimestamp()).willReturn(Timestamp.DEFAULT.seconds());
         subject = new ClassicCreatesCall(
                 gasCalculator, mockEnhancement(), PRETEND_CREATE_TOKEN, verificationStrategy, A_NEW_ACCOUNT_ID);
