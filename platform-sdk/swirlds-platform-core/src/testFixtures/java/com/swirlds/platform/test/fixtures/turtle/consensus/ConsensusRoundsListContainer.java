@@ -24,4 +24,9 @@ public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
     public void clear(@NonNull final Object ignored) {
         collectedRounds.clear();
     }
+
+    @NonNull
+    public List<ConsensusRound> getCollectedRounds() {
+        return collectedRounds;
+    }
 }

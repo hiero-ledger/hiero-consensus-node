@@ -23,4 +23,11 @@ public interface ConsensusRoundsHolder {
      * @param ignored ignored trigger object
      */
     void clear(@NonNull final Object ignored);
+
+    /**
+     * Get the collected consensus rounds.
+     *
+     * @return the collected consensus rounds
+     */
+    List<ConsensusRound> getCollectedRounds();
 }
