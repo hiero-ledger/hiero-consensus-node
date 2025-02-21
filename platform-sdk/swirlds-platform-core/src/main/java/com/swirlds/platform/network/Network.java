@@ -181,7 +181,7 @@ public class Network {
                     ||
                     // Check for unique local (starts with fd00::)
                     (ip[0] & 0xFF) == 0xfd
-                    // Loobback (starts with 0:0)
+                    // Loopback (starts with 0:0)
                     || ((ip[0] & 0xFF) == 0x00 && (ip[1] & 0xC0) == 0x00);
             // @formatter:on
         }

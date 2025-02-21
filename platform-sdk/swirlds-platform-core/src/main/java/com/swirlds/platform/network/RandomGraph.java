@@ -192,7 +192,7 @@ public class RandomGraph {
         unused = new int[numUnused]; // treat this as a list of possible neighbors that haven't been used yet
         for (int i = 0;
                 i < numUnused;
-                i++) { // initally, all neighbors are unused, and so are candidates for using them
+                i++) { // initially, all neighbors are unused, and so are candidates for using them
             unused[i] = i;
         }
         for (int i = 0; i < degree / 2; i++) {

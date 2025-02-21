@@ -18,7 +18,7 @@ public final class Retry {
      */
     static final Duration DEFAULT_RETRY_DELAY = Duration.ofMillis(500);
     /**
-     * The default amount of time to wait for the file, directory, block device, or symlink to be avaliable.
+     * The default amount of time to wait for the file, directory, block device, or symlink to be available.
      */
     static final Duration DEFAULT_WAIT_TIME = Duration.ofSeconds(10);
 
