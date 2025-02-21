@@ -6,7 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
-import static com.swirlds.state.merkle.StateUtils.computeLabel;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
@@ -15,6 +15,8 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
+import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
+import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
@@ -22,6 +24,7 @@ import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.merkle.memory.InMemoryReadableKVState;
@@ -288,22 +291,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                     + " The minimum supported version is " + getMinimumSupportedVersion());
         }
         return this;
-    }
-
-    /**
-     * Puts the defined service state and its associated node into the merkle tree. The precondition
-     * for calling this method is that node MUST be a {@link MerkleMap} or {@link VirtualMap} and
-     * MUST have a correct label applied. If the node is already present, then this method does nothing
-     * else.
-     *
-     * @param md The metadata associated with the state
-     * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
-     * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
-     * it doesn't have a label, or if the label isn't right.
-     */
-    public void putServiceStateIfAbsent(
-            @NonNull final StateMetadata<?, ?> md, @NonNull final Supplier<? extends MerkleNode> nodeSupplier) {
-        putServiceStateIfAbsent(md, nodeSupplier, n -> {});
     }
 
     /**
@@ -872,15 +859,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     @NonNull
     private static String extractStateKey(@NonNull final StateMetadata<?, ?> md) {
         return md.stateDefinition().stateKey();
-    }
-
-    /**
-     * Sets the time for this state.
-     *
-     * @param time the time to set
-     */
-    public void setTime(final Time time) {
-        this.time = time;
     }
 
     /**

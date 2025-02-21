@@ -9,7 +9,7 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -40,7 +40,7 @@ public class SingletonNode<T> extends PartialBinaryMerkleInternal implements Lab
             long classId,
             @NonNull final Codec<T> codec,
             @Nullable final T value) {
-        setLeft(new StringLeaf(StateUtils.computeLabel(serviceName, stateKey)));
+        setLeft(new StringLeaf(StateMetadata.computeLabel(serviceName, stateKey)));
         setRight(new ValueLeaf<>(classId, codec, value));
     }
 

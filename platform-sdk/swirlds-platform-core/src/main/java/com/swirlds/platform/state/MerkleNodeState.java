@@ -4,9 +4,11 @@ package com.swirlds.platform.state;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.StateMetadata;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -38,10 +40,10 @@ public interface MerkleNodeState extends State {
      * MUST have a correct label applied. If the node is already present, then this method does nothing
      * else.
      *
-     * @param md The metadata associated with the state
+     * @param md           The metadata associated with the state
      * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
-     * it doesn't have a label, or if the label isn't right.
+     *                                  it doesn't have a label, or if the label isn't right.
      */
     default void putServiceStateIfAbsent(
             @NonNull final StateMetadata<?, ?> md, @NonNull final Supplier<? extends MerkleNode> nodeSupplier) {
@@ -54,16 +56,24 @@ public interface MerkleNodeState extends State {
      * MUST have a correct label applied. No matter if the resulting node is newly created or already
      * present, calls the provided initialization consumer with the node.
      *
-     * @param md The metadata associated with the state
-     * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
+     * @param md              The metadata associated with the state
+     * @param nodeSupplier    Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
      * @param nodeInitializer The node's initialization logic.
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
-     * it doesn't have a label, or if the label isn't right.
+     *                                  it doesn't have a label, or if the label isn't right.
      */
     <T extends MerkleNode> void putServiceStateIfAbsent(
             @NonNull final StateMetadata<?, ?> md,
             @NonNull final Supplier<T> nodeSupplier,
             @NonNull final Consumer<T> nodeInitializer);
+
+    /**
+     * Removes the node and metadata from the state merkle tree.
+     *
+     * @param serviceName The service name. Cannot be null.
+     * @param stateKey The state key
+     */
+    void removeServiceState(@NonNull final String serviceName, @NonNull final String stateKey);
 
     /**
      * Unregister a service without removing its nodes from the state.
@@ -83,7 +93,7 @@ public interface MerkleNodeState extends State {
      * To prevent this and to allow the system to initialize all the services,
      * we unregister the PlatformStateService and RosterService after the validation is performed.
      * <p>
-     * Note that unlike the MerkleStateRoot.removeServiceState() method below in this class,
+     * Note that unlike the MerkleNodeState.removeServiceState() method above in this class,
      * the unregisterService() method will NOT remove the merkle nodes that store the states of
      * the services being unregistered. This is by design because these nodes will be used
      * by the actual service states once the app initializes the States API in full.
@@ -93,10 +103,10 @@ public interface MerkleNodeState extends State {
     void unregisterService(@NonNull final String serviceName);
 
     /**
-     * Removes the node and metadata from the state merkle tree.
-     *
-     * @param serviceName The service name. Cannot be null.
-     * @param stateKey The state key
+     * Loads a snapshot of a state.
+     * @param targetPath The path to load the snapshot from.
      */
-    void removeServiceState(@NonNull final String serviceName, @NonNull final String stateKey);
+    default MerkleNodeState loadSnapshot(final @NonNull Path targetPath) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 }
