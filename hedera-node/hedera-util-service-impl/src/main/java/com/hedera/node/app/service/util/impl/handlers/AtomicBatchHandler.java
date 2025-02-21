@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.util.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_EMPTY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -16,15 +22,19 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.HapiUtils;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -36,7 +46,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -53,41 +65,66 @@ import javax.inject.Singleton;
 public class AtomicBatchHandler implements TransactionHandler {
     private final Supplier<FeeCharging> appFeeCharging;
 
+    private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
     /**
      * Constructs a {@link AtomicBatchHandler}
      */
     @Inject
     public AtomicBatchHandler(@NonNull final AppContext appContext) {
+        requireNonNull(appContext);
         this.appFeeCharging = appContext.feeChargingSupplier();
     }
 
     /**
      * Performs checks independent of state or context.
      *
-     * @param context the context to check
+     * @param context the pure checks context
      */
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body().atomicBatchOrThrow();
-        for (final var transaction : op.transactions()) {
-            validateTruePreCheck(transaction.hasBody(), INVALID_TRANSACTION);
+        final List<Transaction> innerTxs = context.body().atomicBatchOrThrow().transactions();
+        if (innerTxs.isEmpty()) {
+            throw new PreCheckException(BATCH_LIST_EMPTY);
+        }
+
+        Set<TransactionID> txIds = new HashSet<>();
+        for (final var innerTx : innerTxs) {
+            if (!innerTx.hasBody()) {
+                throw new PreCheckException(BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
+            }
+            final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
+
+            // throw if more than one tx has the same transactionID
+            validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
 
             // validate batch key exists on each inner transaction
-            validateTruePreCheck(transaction.bodyOrThrow().hasBatchKey(), MISSING_BATCH_KEY);
+            validateTruePreCheck(txBody.hasBatchKey(), MISSING_BATCH_KEY);
+
+            if (!txBody.hasNodeAccountID() || !txBody.nodeAccountIDOrThrow().equals(ATOMIC_BATCH_NODE_ACCOUNT_ID)) {
+                throw new PreCheckException(INVALID_NODE_ACCOUNT_ID);
+            }
+
+            context.dispatchPureChecks(txBody);
         }
     }
 
-    /**
-     * This method is called during the pre-handle workflow.
-     *
-     * @param context the {@link PreHandleContext} which collects all information
-     * @throws PreCheckException if any issue happens on the pre handle level
-     */
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        // TODO
+        final var atomicBatchTransactionBody = context.body().atomicBatchOrThrow();
+        final var config = context.configuration();
+        final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
+
+        for (final var innerTxBody : atomicBatchTransactionBody.transactions().stream()
+                .map(Transaction::bodyOrThrow)
+                .toList()) {
+            validateFalsePreCheck(
+                    isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
+            context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
+            // the inner prehandle of each inner transaction happens in the prehandle workflow.
+        }
     }
 
     @Override
@@ -97,6 +134,13 @@ public class AtomicBatchHandler implements TransactionHandler {
         if (!context.configuration().getConfigData(AtomicBatchConfig.class).isEnabled()) {
             throw new HandleException(NOT_SUPPORTED);
         }
+        //kim
+        List<Transaction> innerTxs = op.transactions();
+        if (innerTxs.size()
+                > context.configuration().getConfigData(AtomicBatchConfig.class).maxNumberOfTransactions()) {
+            throw new HandleException(BATCH_SIZE_LIMIT_EXCEEDED);
+        }
+        //orig
         final var txnBodies = op.transactions().stream().map(Transaction::body).toList();
         // The parsing check, timebox, and duplication checks are done in the pre-handle workflow
         // So, no need to repeat here
@@ -123,6 +167,22 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
     }
 
+    /**
+     * Checks if the given transaction type is not allowed to be included as an inner transaction in an atomic batch.
+     * @param transactionBody the transaction body to check
+     * @param config the atomic batch configuration
+     * @return true if the transaction type is not allowed, false otherwise
+     */
+    private boolean isNotAllowedFunction(
+            @NonNull final TransactionBody transactionBody, @NonNull final AtomicBatchConfig config) {
+        try {
+            final var hederaFunctionality = HapiUtils.functionOf(transactionBody);
+            return config.blacklist().functionalitySet().contains(hederaFunctionality);
+        } catch (final UnknownHederaFunctionality e) {
+            return true;
+        }
+    }
+
     @Override
     public @NonNull Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
@@ -138,15 +198,15 @@ public class AtomicBatchHandler implements TransactionHandler {
      */
     static class RecordedFeeCharging implements FeeCharging {
         /**
-         * Represents a charge that can be replayed on a {@link FeeCharging.Context}.
+         * Represents a charge that can be replayed on a {@link Context}.
          */
         public record Charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable AccountID nodeAccountId) {
             /**
-             * Replays the charge on the given {@link FeeCharging.Context}.
+             * Replays the charge on the given {@link Context}.
              * @param ctx the context to replay the charge on
              * @param cb the callback to be used in the replay
              */
-            public void replay(@NonNull final FeeCharging.Context ctx, @NonNull ObjLongConsumer<AccountID> cb) {
+            public void replay(@NonNull final Context ctx, @NonNull ObjLongConsumer<AccountID> cb) {
                 if (nodeAccountId == null) {
                     ctx.charge(payerId, fees, cb);
                 } else {
@@ -202,7 +262,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                 @NonNull final TransactionBody body,
                 final boolean isDuplicate,
                 @NonNull final HederaFunctionality function,
-                @NonNull final HandleContext.TransactionCategory category) {
+                @NonNull final TransactionCategory category) {
             return delegate.validate(payer, creatorId, fees, body, isDuplicate, function, category);
         }
 
@@ -244,7 +304,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             }
 
             @Override
-            public HandleContext.TransactionCategory category() {
+            public TransactionCategory category() {
                 return delegate.category();
             }
         }
