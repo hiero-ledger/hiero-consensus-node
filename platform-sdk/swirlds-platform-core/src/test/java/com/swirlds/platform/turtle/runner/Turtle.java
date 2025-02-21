@@ -135,14 +135,18 @@ public class Turtle {
 
         for (int i = 1; i < nodes.size(); i++) {
             final TurtleNode node2 = nodes.get(i);
+            final List<ConsensusOutput> consensusOutputsForNode2 = getConsensusOutputsFromNode(node2);
+
             for (final ConsensusOutputValidation validator : validations.getList()) {
                 for (int j = 0; j < consensusOutputsForNode1.size(); j++) {
-                    validator.validate(
-                            consensusOutputsForNode1.get(i),
-                            getConsensusOutputsFromNode(node2).get(i));
+                    validator.validate(consensusOutputsForNode1.get(j), consensusOutputsForNode2.get(j));
                 }
             }
+
+            node2.getConsensusRoundsHolder().clear("Validation complete");
         }
+
+        node1.getConsensusRoundsHolder().clear("Validation complete");
     }
 
     private List<ConsensusOutput> getConsensusOutputsFromNode(final TurtleNode turtleNode) {
@@ -161,16 +165,22 @@ public class Turtle {
      *
      * @param duration the duration to simulate
      */
-    public void simulateTime(@NonNull final Duration duration) {
+    public void simulateTimeAndValidate(@NonNull final Duration duration, @NonNull final Duration validationInterval) {
         final Instant simulatedStart = time.now();
         final Instant simulatedEnd = simulatedStart.plus(duration);
 
+        Instant nextValidationTime = simulatedStart.plus(validationInterval);
         while (time.now().isBefore(simulatedEnd)) {
             reportThePassageOfTime();
 
             time.tick(simulationGranularity);
             network.tick(time.now());
             tickAllNodes();
+
+            if (time.now().isAfter(nextValidationTime)) {
+                validate();
+                nextValidationTime = time.now().plus(validationInterval);
+            }
         }
     }
 
