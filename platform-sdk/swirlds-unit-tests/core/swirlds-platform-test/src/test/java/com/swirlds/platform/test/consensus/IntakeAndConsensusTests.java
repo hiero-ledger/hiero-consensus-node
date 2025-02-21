@@ -2,29 +2,21 @@
 package com.swirlds.platform.test.consensus;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.consensus.ConsensusConfig_;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundValidation;
-import com.swirlds.platform.test.fixtures.event.DynamicValue;
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.graph.OtherParentMatrixFactory;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class IntakeAndConsensusTests {
@@ -44,7 +36,6 @@ class IntakeAndConsensusTests {
      * Tests the workaround described in #5762
      */
     @Test
-    @Disabled("This test needs to be investigated")
     void nonAncientEventWithMissingParents() {
         final long seed = 0;
         final int numNodes = 10;
@@ -61,7 +52,11 @@ class IntakeAndConsensusTests {
 
         // the generated events are first fed into consensus so that round created is calculated before we start
         // using them
-        final GeneratorWithConsensus generator = new GeneratorWithConsensus(platformContext, seed, numNodes);
+        final List<EventSource> eventSources = Stream.generate(StandardEventSource::new)
+                .map(ses -> (EventSource) ses)
+                .limit(numNodes)
+                .toList();
+        final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
         final TestIntake node1 = new TestIntake(platformContext, generator.getAddressBook());
         final TestIntake node2 = new TestIntake(platformContext, generator.getAddressBook());
 
@@ -69,13 +64,9 @@ class IntakeAndConsensusTests {
         final int firstBatchSize = 5000;
         List<EventImpl> batch = generator.generateEvents(firstBatchSize);
         for (final EventImpl event : batch) {
-            node1.addEvent(event.getBaseEvent());
-            node2.addEvent(event.getBaseEvent());
+            node1.addEvent(event.getBaseEvent().copyGossipedData());
+            node2.addEvent(event.getBaseEvent().copyGossipedData());
         }
-
-        // System.out.printf("after the first batch of %d events:\n", firstBatchSize);
-        printGenerations(node1, 1);
-        printGenerations(node2, 2);
 
         assertConsensusEvents(node1, node2);
 
@@ -93,7 +84,7 @@ class IntakeAndConsensusTests {
         EventImpl lastEvent = null;
         while (!succeeded) {
             batch = generator.generateEvents(1);
-            lastEvent = batch.get(0);
+            lastEvent = batch.getFirst();
             if (partitionNodes.contains((int) lastEvent.getCreatorId().id())) {
                 partitionMinGen = partitionMinGen == EventConstants.GENERATION_UNDEFINED
                         ? lastEvent.getGeneration()
@@ -101,33 +92,27 @@ class IntakeAndConsensusTests {
                 partitionMaxGen = Math.max(partitionMaxGen, lastEvent.getGeneration());
                 partitionedEvents.add(lastEvent);
             } else {
-                node1.addEvent(lastEvent.getBaseEvent());
+                node1.addEvent(lastEvent.getBaseEvent().copyGossipedData());
                 final long node1NonAncGen = node1.getOutput().getEventWindow().getAncientThreshold();
                 if (partitionMaxGen > node1NonAncGen && partitionMinGen < node1NonAncGen) {
                     succeeded = true;
                 } else {
-                    node2.addEvent(lastEvent.getBaseEvent());
+                    node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
                 }
             }
         }
 
-        // System.out.println("after the partition and mini batches:");
-        printGenerations(node1, 1);
-        printGenerations(node2, 2);
-        // System.out.printf("- partitionMinGen:%d partitionMaxGen:%d\n", partitionMinGen, partitionMaxGen);
-
         // now we insert the minority partition events into both consensus objects, which are in a different state of
         // consensus
-        node1.addEvents(partitionedEvents);
-        node2.addEvents(partitionedEvents);
+        for (final EventImpl partitionedEvent : partitionedEvents) {
+            node1.addEvent(partitionedEvent.getBaseEvent().copyGossipedData());
+            node2.addEvent(partitionedEvent.getBaseEvent().copyGossipedData());
+        }
         // now we add the event that was added to 1 but not to 2
         node2.addEvent(lastEvent.getBaseEvent());
+        final long consRoundBeforeLastBatch =
+                node1.getConsensusRounds().getLast().getRoundNum();
         assertConsensusEvents(node1, node2);
-
-        // System.out.println("after adding partition events and last mini batch to node 2:");
-        printGenerations(node1, 1);
-        printGenerations(node2, 2);
-        // System.out.printf("- partitionMinGen:%d partitionMaxGen:%d\n", partitionMinGen, partitionMaxGen);
 
         // now the partitions rejoin
         generator.setOtherParentAffinity(OtherParentMatrixFactory.createBalancedOtherParentMatrix(numNodes));
@@ -139,9 +124,9 @@ class IntakeAndConsensusTests {
             node1.addEvent(event.getBaseEvent());
             node2.addEvent(event.getBaseEvent());
         }
-        // System.out.println("after the partitions rejoin:");
-        printGenerations(node1, 1);
-        printGenerations(node2, 2);
+        Assertions.assertTrue(
+                node1.getConsensusRounds().getLast().getRoundNum() > consRoundBeforeLastBatch,
+                "consensus did not advance after the partition rejoined");
         assertConsensusEvents(node1, node2);
     }
 
@@ -151,107 +136,5 @@ class IntakeAndConsensusTests {
                 node2.getConsensusRounds().iterator());
         node1.getConsensusRounds().clear();
         node2.getConsensusRounds().clear();
-    }
-
-    private static void printGenerations(final TestIntake node, final int nodeNum) {
-        //		System.out.printf("- node %d - minRound:%d maxRound:%d\n",
-        //				nodeNum,
-        //				node.getConsensus().getMinRound(),
-        //				node.getConsensus().getMaxRound());
-        //		System.out.printf("- node %d - minRoundGen:%d nonAncGen:%d maxRoundGen:%d\n",
-        //				nodeNum,
-        //				node.getConsensus().getMinRoundGeneration(),
-        //				node.getConsensus().getMinGenerationNonAncient(),
-        //				node.getConsensus().getMaxRoundGeneration());
-    }
-
-    private static class GeneratorWithConsensus implements GraphGenerator {
-        private final StandardGraphGenerator generator;
-        private final TestIntake intake;
-
-        @SuppressWarnings("unchecked")
-        public GeneratorWithConsensus(
-                @NonNull final PlatformContext platformContext, final long seed, final int numNodes) {
-            Objects.requireNonNull(platformContext);
-            final List<StandardEventSource> eventSources =
-                    Stream.generate(StandardEventSource::new).limit(numNodes).toList();
-            generator = new StandardGraphGenerator(platformContext, seed, (List<EventSource>) (List<?>) eventSources);
-            intake = new TestIntake(platformContext, generator.getAddressBook());
-        }
-
-        @Override
-        public EventImpl generateEvent() {
-            final EventImpl event = generator.generateEvent();
-            intake.addEvent(event.getBaseEvent());
-            return event;
-        }
-
-        @Override
-        public int getNumberOfSources() {
-            return generator.getNumberOfSources();
-        }
-
-        @Override
-        @Nullable
-        public EventSource getSource(@NonNull final NodeId nodeID) {
-            Objects.requireNonNull(nodeID);
-            return generator.getSource(nodeID);
-        }
-
-        @Override
-        public GeneratorWithConsensus cleanCopy() {
-            throw new UnsupportedOperationException("not implements");
-        }
-
-        @Override
-        public GeneratorWithConsensus cleanCopy(final long seed) {
-            throw new UnsupportedOperationException("not implements");
-        }
-
-        @Override
-        public void reset() {
-            throw new UnsupportedOperationException("not implements");
-        }
-
-        @Override
-        public long getNumEventsGenerated() {
-            return generator.getNumEventsGenerated();
-        }
-
-        @Override
-        public AddressBook getAddressBook() {
-            return generator.getAddressBook();
-        }
-
-        @Override
-        public long getMaxGeneration(@NonNull final NodeId creatorId) {
-            Objects.requireNonNull(creatorId);
-            return generator.getMaxGeneration(creatorId);
-        }
-
-        @Override
-        public long getMaxBirthRound(@Nullable final NodeId creatorId) {
-            return generator.getMaxBirthRound(creatorId);
-        }
-
-        @Override
-        public long getMaxGeneration() {
-            return generator.getMaxGeneration();
-        }
-
-        @Override
-        public void setOtherParentAffinity(final List<List<Double>> affinityMatrix) {
-            generator.setOtherParentAffinity(affinityMatrix);
-        }
-
-        @Override
-        public void setOtherParentAffinity(final DynamicValue<List<List<Double>>> affinityMatrix) {
-            generator.setOtherParentAffinity(affinityMatrix);
-        }
-
-        @Override
-        public void setPreviousTimestamp(final Instant previousTimestamp) {
-            generator.setPreviousTimestamp(previousTimestamp);
-        }
     }
 }

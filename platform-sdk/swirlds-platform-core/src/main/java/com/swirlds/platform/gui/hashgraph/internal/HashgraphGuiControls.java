@@ -43,6 +43,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     private final Checkbox labelConsTimestampCheckbox;
     /** the generation number for the event */
     private final Checkbox labelGenerationCheckbox;
+    /** the birth round number for the event */
+    private final Checkbox labelBirthroundCheckbox;
     /** check to display the latest events available */
     private final Checkbox displayLatestEvents;
 
@@ -62,6 +64,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelConsOrderCheckbox = new Checkbox("Labels: Order (consensus)");
         labelConsTimestampCheckbox = new Checkbox("Labels: Timestamp (consensus)");
         labelGenerationCheckbox = new Checkbox("Labels: Generation");
+        labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
         displayLatestEvents = new Checkbox("Display latest events");
         displayLatestEvents.setState(true);
 
@@ -97,6 +100,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             labelConsOrderCheckbox,
             labelConsTimestampCheckbox,
             labelGenerationCheckbox,
+            labelBirthroundCheckbox,
             displayLatestEvents
         };
     }
@@ -227,6 +231,11 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     @Override
     public boolean writeGeneration() {
         return labelGenerationCheckbox.getState();
+    }
+
+    @Override
+    public boolean writeBirthRound() {
+        return labelBirthroundCheckbox.getState();
     }
 
     @Override

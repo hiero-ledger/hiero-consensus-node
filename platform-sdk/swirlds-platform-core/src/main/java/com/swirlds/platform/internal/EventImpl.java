@@ -6,8 +6,10 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Clearable;
 import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.ConsensusConstants;
+import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -515,6 +517,20 @@ public class EventImpl implements Clearable {
     }
 
     /**
+     * Get the age value of this event based on the ancient mode. The age value is either the generation or the birth
+     * round of this event.
+     *
+     * @param ancientMode the ancient mode
+     * @return the age value of this event
+     */
+    public long getAgeValue(@NonNull final AncientMode ancientMode) {
+        return switch (ancientMode) {
+            case GENERATION_THRESHOLD -> getGeneration();
+            case BIRTH_ROUND_THRESHOLD -> getBirthRound();
+        };
+    }
+
+    /**
      * Same as {@link PlatformEvent#getCreatorId()}
      */
     @NonNull
@@ -548,6 +564,20 @@ public class EventImpl implements Clearable {
 
     @Override
     public String toString() {
-        return baseEvent.toString();
+        final StringBuilder sb = new StringBuilder();
+        baseEvent.getDescriptor().shortString(sb);
+        final List<EventDescriptorWrapper> allParents = baseEvent.getAllParents();
+        for (final EventDescriptorWrapper parent : allParents) {
+            parent.shortString(sb);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Create a short string representation of this event without any parent information.
+     * @return a short string
+     */
+    public String shortString() {
+        return baseEvent.getDescriptor().shortString();
     }
 }

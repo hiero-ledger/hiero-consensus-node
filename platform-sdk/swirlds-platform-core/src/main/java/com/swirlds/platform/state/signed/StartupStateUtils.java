@@ -172,7 +172,8 @@ public final class StartupStateUtils {
                 platformStateFacade);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
-        final Hash hash = MerkleCryptoFactory.getInstance().digestTreeSync(initialSignedState.getState());
+        final Hash hash = MerkleCryptoFactory.getInstance()
+                .digestTreeSync(initialSignedState.getState().getRoot());
         return new HashedReservedSignedState(signedStateCopy.reserve("Copied initial state"), hash);
     }
 
@@ -261,7 +262,7 @@ public final class StartupStateUtils {
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
-        final Hash newHash = rehashTree(state);
+        final Hash newHash = rehashTree(state.getRoot());
 
         final SoftwareVersion loadedVersion = platformStateFacade.creationSoftwareVersionOf(state);
 
