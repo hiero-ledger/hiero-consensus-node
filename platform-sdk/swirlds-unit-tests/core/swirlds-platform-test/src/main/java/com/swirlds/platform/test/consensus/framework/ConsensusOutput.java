@@ -72,10 +72,6 @@ public class ConsensusOutput implements Clearable {
         eventWindow = consensusRound.getEventWindow();
     }
 
-    public void setConsensusRounds(@NonNull final List<ConsensusRound> rounds) {
-        consensusRounds.addAll(rounds);
-    }
-
     /**
      * @return a queue of all events that have been marked as stale
      */

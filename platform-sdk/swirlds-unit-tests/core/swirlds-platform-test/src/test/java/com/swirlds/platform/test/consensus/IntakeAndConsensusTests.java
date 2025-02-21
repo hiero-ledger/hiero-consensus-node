@@ -10,7 +10,7 @@ import com.swirlds.platform.consensus.ConsensusConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundEqualityValidation;
+import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundValidation;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
@@ -146,7 +146,7 @@ class IntakeAndConsensusTests {
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
-        ConsensusRoundEqualityValidation.validateIterableRounds(
+        ConsensusRoundValidation.validateIterableRounds(
                 node1.getConsensusRounds().iterator(),
                 node2.getConsensusRounds().iterator());
         node1.getConsensusRounds().clear();

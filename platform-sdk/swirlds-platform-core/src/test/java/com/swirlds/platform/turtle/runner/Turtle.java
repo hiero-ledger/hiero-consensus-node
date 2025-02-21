@@ -9,7 +9,8 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundValidation;
+import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
+import com.swirlds.platform.test.consensus.framework.validation.ConsensusOutputValidation;
 import com.swirlds.platform.test.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
@@ -126,21 +127,32 @@ public class Turtle {
     }
 
     public void validate() {
-        final Validations validations = Validations.standard();
+        final Validations validations = Validations.create().consensusEvents().consensusTimestamps();
 
         final TurtleNode node1 = nodes.getFirst();
-        final List<ConsensusRound> collectedRoundsForNode1 =
-                node1.getConsensusRoundsHolder().getCollectedRounds();
+        final List<ConsensusOutput> consensusOutputsForNode1 = getConsensusOutputsFromNode(node1);
 
         for (int i = 1; i < nodes.size(); i++) {
             final TurtleNode node2 = nodes.get(i);
-            for (final ConsensusRoundValidation validator : validations.getConsensusRoundValidationsList()) {
-                final List<ConsensusRound> collectedRoundsForNode2 =
-                        node2.getConsensusRoundsHolder().getCollectedRounds();
-
-                validator.validate(collectedRoundsForNode1, collectedRoundsForNode2);
+            for (final ConsensusOutputValidation validator : validations.getValidations()) {
+                for (int j = 0; j < consensusOutputsForNode1.size(); j++) {
+                    validator.validate(
+                            consensusOutputsForNode1.get(i),
+                            getConsensusOutputsFromNode(node2).get(i));
+                }
             }
         }
+    }
+
+    private List<ConsensusOutput> getConsensusOutputsFromNode(final TurtleNode turtleNode) {
+        final List<ConsensusOutput> consensusOutputsForNode1 = new ArrayList<>();
+        for (final ConsensusRound round : turtleNode.getConsensusRoundsHolder().getCollectedRounds()) {
+            final ConsensusOutput consensusOutput = new ConsensusOutput(time);
+            consensusOutput.consensusRound(round);
+            consensusOutputsForNode1.add(consensusOutput);
+        }
+
+        return consensusOutputsForNode1;
     }
 
     /**
