@@ -120,7 +120,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
 
         final var txnBodies = atomicBatchTransactionBody.transactions().stream()
-                .map(Transaction::body)
+                .map(Transaction::bodyOrThrow)
                 .toList();
         // not using stream below as throwing exception from middle of functional pipeline is a terrible idea
         for (final var innerTxBody : txnBodies) {
