@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.support.translators;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
+import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -14,6 +15,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
@@ -157,11 +159,16 @@ public class BlockUnitSplit {
             return TxnIdType.NEW_UNIT_BY_ID;
         }
         // Scheduled or batch inner transactions never begin a new transactional unit
-        final var radicallyDifferent = !(nextId.scheduled() || parts.body().hasBatchKey())
-                && (!nextId.accountIDOrElse(AccountID.DEFAULT).equals(unitTxnId.accountIDOrElse(AccountID.DEFAULT))
-                        || !nextId.transactionValidStartOrElse(Timestamp.DEFAULT)
-                                .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT)));
-        return radicallyDifferent ? TxnIdType.NEW_UNIT_BY_ID : TxnIdType.SAME_UNIT_BY_ID;
+        try {
+            final var radicallyDifferent = !(nextId.scheduled()
+                            || functionOf(parts.body()) == HederaFunctionality.ATOMIC_BATCH)
+                    && (!nextId.accountIDOrElse(AccountID.DEFAULT).equals(unitTxnId.accountIDOrElse(AccountID.DEFAULT))
+                            || !nextId.transactionValidStartOrElse(Timestamp.DEFAULT)
+                                    .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT)));
+            return radicallyDifferent ? TxnIdType.NEW_UNIT_BY_ID : TxnIdType.SAME_UNIT_BY_ID;
+        } catch (UnknownHederaFunctionality e) {
+            return TxnIdType.NEW_UNIT_BY_ID;
+        }
     }
 
     private static final Set<HederaFunctionality> AUTO_MGMT_FUNCTIONS =
