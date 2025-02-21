@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH;
@@ -525,6 +526,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         TransactionID.Builder idBuilder = null;
         int indexOfTopLevelRecord = 0;
         int topLevelNonce = 0;
+        boolean isBatch = false;
         final int n = builders.size();
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
@@ -533,6 +535,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 indexOfTopLevelRecord = i;
                 topLevelNonce = builder.transactionID().nonce();
                 idBuilder = builder.transactionID().copyBuilder();
+                isBatch = builder.functionality() == ATOMIC_BATCH;
                 break;
             }
         }
@@ -548,6 +551,23 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final var txnId = builder.transactionID();
             // If the builder does not already have a transaction id, then complete with the next nonce offset
             if (txnId == null || TransactionID.DEFAULT.equals(txnId)) {
+                if (i > indexOfTopLevelRecord && isBatch) {
+                    if (builder.category() == PRECEDING) {
+                        for (int j = i + 1; j < n; j++) {
+                            if (builders.get(j).category() == BATCH) {
+                                idBuilder = builders.get(j).transactionID().copyBuilder();
+                                break;
+                            }
+                        }
+                    } else if (builder.category() == CHILD) {
+                        for (int j = i - 1; j >= indexOfTopLevelRecord; j--) {
+                            if (builders.get(j).category() == BATCH) {
+                                idBuilder = builders.get(j).transactionID().copyBuilder();
+                                break;
+                            }
+                        }
+                    }
+                }
                 builder.transactionID(requireNonNull(idBuilder)
                                 .nonce(topLevelNonce + nonceOffset)
                                 .build())
@@ -558,15 +578,14 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             builder.consensusTimestamp(consensusNow);
 
             if (i > indexOfTopLevelRecord) {
-                if (builder.category() == SCHEDULED) {
-                    // But for backward compatibility keep setting rates on scheduled receipts, c.f.
-                    // https://github.com/hashgraph/hedera-services/issues/15393
-                    builder.exchangeRate(exchangeRates);
-                } else if (builder.category() == BATCH || builder.category() == PRECEDING) {
-                    builder.parentConsensus(consensusTime).exchangeRate(null);
-                    parentConsensusTime = consensusNow;
-                } else if (builder.category() == CHILD) {
-                    builder.parentConsensus(parentConsensusTime).exchangeRate(null);
+                switch (builder.category()) {
+                    case SCHEDULED -> builder.exchangeRate(exchangeRates);
+                    case BATCH -> {
+                        builder.parentConsensus(consensusTime).exchangeRate(null);
+                        parentConsensusTime = consensusNow;
+                    }
+                    case PRECEDING -> builder.parentConsensus(consensusTime).exchangeRate(null);
+                    case CHILD -> builder.parentConsensus(parentConsensusTime).exchangeRate(null);
                 }
             }
             switch (streamMode) {

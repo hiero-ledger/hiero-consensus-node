@@ -589,4 +589,9 @@ public class PairedStreamBuilder
         recordStreamBuilder.addBeneficiaryForDeletedAccount(deletedAccountID, beneficiaryForDeletedAccount);
         blockStreamBuilder.addBeneficiaryForDeletedAccount(deletedAccountID, beneficiaryForDeletedAccount);
     }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return blockStreamBuilder.functionality();
+    }
 }
