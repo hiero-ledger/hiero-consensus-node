@@ -267,7 +267,10 @@ public class AtomicBatchTest {
                 usableTxnIdNamed(innerTxnId1).payerId(innerTnxPayer),
                 usableTxnIdNamed(innerTxnId2).payerId(innerTnxPayer),
                 // submit atomic batch with 3 inner txns
-                atomicBatch(innerTxn1, innerTxn2).via(atomicTxn),
+                atomicBatch(innerTxn1, innerTxn2)
+                        .signedBy(batchOperator)
+                        .payingWith(batchOperator)
+                        .via(atomicTxn),
                 getTxnRecord(atomicTxn)
                         .exposingTo(record -> parentConsTime.set(record.getConsensusTimestamp()))
                         .logged(),
