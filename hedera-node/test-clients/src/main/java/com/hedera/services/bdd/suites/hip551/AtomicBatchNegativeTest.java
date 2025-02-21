@@ -148,7 +148,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Empty batch should fail")
-        @Disabled // TODO: enable this when we have pure checks
         // BATCH_37
         public Stream<DynamicTest> submitEmptyBatch() {
             return hapiTest(atomicBatch().hasPrecheck(BATCH_LIST_EMPTY));
@@ -232,7 +231,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Submit batch with duplicated inner txn should fail")
-        @Disabled // TODO: enable this when we have pure checks
         // BATCH_44
         public Stream<DynamicTest> duplicatedInnerTxn() {
             return hapiTest(
@@ -240,6 +238,7 @@ public class AtomicBatchNegativeTest {
                     usableTxnIdNamed("innerId").payerId("batchOperator"),
                     withOpContext((spec, opLog) -> {
                         var txn = cryptoCreate("foo")
+                                .setNode("0.0.0")
                                 .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                 .txnId("innerId")
                                 .batchKey("batchOperator")
@@ -375,7 +374,6 @@ public class AtomicBatchNegativeTest {
 
         @LeakyHapiTest(overrides = {"atomicBatch.maxNumberOfTransactions"})
         @DisplayName("Exceeds max number of inner transactions limit should fail")
-        @Disabled // TODO: enable this test when we have the maxInnerTxn property
         //  BATCH_52
         public Stream<DynamicTest> exceedsInnerTxnLimit() {
             final var batchOperator = "batchOperator";
@@ -574,7 +572,6 @@ public class AtomicBatchNegativeTest {
 
     @Nested
     @DisplayName("Blacklisted inner transactions - NEGATIVE")
-    // @Disabled // TODO:  Enable when txn blacklist is implemented
     class BlacklistedTransactions {
 
         @HapiTest
