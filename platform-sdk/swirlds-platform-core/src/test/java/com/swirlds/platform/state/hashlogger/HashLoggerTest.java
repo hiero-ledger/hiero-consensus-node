@@ -138,9 +138,11 @@ public class HashLoggerTest {
         MerkleCryptoFactory.getInstance().digestTreeSync(merkleNode);
         final SignedState signedState = mock(SignedState.class);
         final MerkleNodeState state = mock(MerkleNodeState.class);
+        final MerkleNode stateRoot = mock(MerkleNode.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
         when(platformState.getRound()).thenReturn(round);
-        when(state.getRoute()).thenReturn(merkleNode.getRoute());
+        when(state.getRoot()).thenReturn(stateRoot);
+        when(stateRoot.getRoute()).thenReturn(merkleNode.getRoute());
         when(state.getHash()).thenReturn(merkleNode.getHash());
 
         when(signedState.getState()).thenReturn(state);

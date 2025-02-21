@@ -415,10 +415,10 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void checksIfAllowancesExceedLimit() {
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("hedera.allowances.maxAccountLimit", 2)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         final var txn = cryptoApproveAllowanceTransaction(
                 payerId, false, List.of(cryptoAllowance), List.of(tokenAllowance), List.of(nftAllowance));

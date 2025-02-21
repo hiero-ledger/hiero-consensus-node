@@ -7,11 +7,17 @@ package com.hedera.node.config.types;
  */
 public enum BlockStreamWriterMode {
     /**
+     * Write block streams to files.
+     */
+    FILE,
+
+    /**
+     * Write block streams to both files and a gRPC stream.
+     */
+    FILE_AND_GRPC,
+
+    /**
      * Write block streams to a gRPC stream.
      */
     GRPC,
-    /**
-     * Write block streams to files.
-     */
-    FILE
 }
