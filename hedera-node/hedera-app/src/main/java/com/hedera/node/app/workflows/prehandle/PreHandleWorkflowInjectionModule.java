@@ -16,22 +16,15 @@
 
 package com.hedera.node.app.workflows.prehandle;
 
-import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.workflows.TransactionChecker;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
-import java.util.function.Function;
-import javax.inject.Singleton;
 
 @Module
 public interface PreHandleWorkflowInjectionModule {
@@ -47,19 +40,5 @@ public interface PreHandleWorkflowInjectionModule {
     @Provides
     static ExecutorService provideExecutorService() {
         return ForkJoinPool.commonPool();
-    }
-
-    @Provides
-    @Singleton
-    static Function<Transaction, TransactionBody> provideBodyParser(TransactionChecker transactionChecker)
-            throws HandleException {
-        return tx -> {
-            try {
-                final var transactionInfo = transactionChecker.check(tx, null);
-                return transactionInfo.txBody();
-            } catch (PreCheckException e) {
-                throw new HandleException(e.responseCode());
-            }
-        };
     }
 }

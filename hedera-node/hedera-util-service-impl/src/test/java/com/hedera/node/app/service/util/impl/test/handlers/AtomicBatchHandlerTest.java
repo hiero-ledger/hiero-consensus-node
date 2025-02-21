@@ -49,7 +49,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -76,9 +75,6 @@ class AtomicBatchHandlerTest {
     @Mock
     private FeeCharging feeCharging;
 
-    @Mock
-    private Function<Transaction, TransactionBody> bodyParser;
-
     private AtomicBatchHandler subject;
 
     private final Timestamp consensusTimestamp =
@@ -103,7 +99,7 @@ class AtomicBatchHandlerTest {
         given(appContext.feeChargingSupplier()).willReturn(() -> feeCharging);
         given(preHandleContext.configuration()).willReturn(config);
 
-        subject = new AtomicBatchHandler(appContext, bodyParser);
+        subject = new AtomicBatchHandler(appContext);
     }
 
     @Test
@@ -117,7 +113,7 @@ class AtomicBatchHandlerTest {
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
-        given(bodyParser.apply(transaction)).willReturn(innerTxnBody);
+        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
@@ -140,7 +136,7 @@ class AtomicBatchHandlerTest {
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
-        given(bodyParser.apply(transaction)).willReturn(innerTxnBody);
+        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
     }
@@ -155,7 +151,7 @@ class AtomicBatchHandlerTest {
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
-        given(bodyParser.apply(transaction)).willReturn(innerTxnBody);
+        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
     }
@@ -184,8 +180,8 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .transactionID(transactionId)
                 .build();
-        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
-        given(bodyParser.apply(transaction2)).willReturn(innerTxnBody2);
+        given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
+        given(transaction2.bodyOrThrow()).willReturn(innerTxnBody2);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(BATCH_LIST_CONTAINS_DUPLICATES, msg.responseCode());
@@ -202,7 +198,7 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(1).build())
                 .build();
         given(pureChecksContext.body()).willReturn(txnBody);
-        given(bodyParser.apply(any())).willReturn(innerTxnBody);
+        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(INVALID_NODE_ACCOUNT_ID, msg.responseCode());
@@ -217,7 +213,7 @@ class AtomicBatchHandlerTest {
                         ConsensusCreateTopicTransactionBody.newBuilder().build())
                 .nodeAccountID(AccountID.newBuilder().accountNum(1).build())
                 .build();
-        given(bodyParser.apply(any())).willReturn(innerTxnBody);
+        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         given(pureChecksContext.body()).willReturn(txnBody);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -233,7 +229,7 @@ class AtomicBatchHandlerTest {
                         ConsensusCreateTopicTransactionBody.newBuilder().build())
                 .build();
         given(preHandleContext.body()).willReturn(txnBody);
-        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
+        given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
         given(preHandleContext.requireKeyOrThrow(innerTxnBody1.batchKey(), INVALID_BATCH_KEY))
                 .willThrow(new PreCheckException(INVALID_BATCH_KEY));
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
@@ -249,13 +245,8 @@ class AtomicBatchHandlerTest {
         final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp, batchKey)
                 .freeze(FreezeTransactionBody.newBuilder().build())
                 .build();
-        final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, batchKey)
-                .consensusDeleteTopic(
-                        ConsensusDeleteTopicTransactionBody.newBuilder().build())
-                .build();
         given(preHandleContext.body()).willReturn(txnBody);
-        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
-        given(bodyParser.apply(transaction2)).willReturn(innerTxnBody2);
+        given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
     }
@@ -269,13 +260,8 @@ class AtomicBatchHandlerTest {
         final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp, batchKey)
                 .atomicBatch(AtomicBatchTransactionBody.newBuilder().build())
                 .build();
-        final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, batchKey)
-                .consensusDeleteTopic(
-                        ConsensusDeleteTopicTransactionBody.newBuilder().build())
-                .build();
         given(preHandleContext.body()).willReturn(txnBody);
-        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
-        given(bodyParser.apply(transaction2)).willReturn(innerTxnBody2);
+        given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
     }
@@ -295,8 +281,8 @@ class AtomicBatchHandlerTest {
                         ConsensusDeleteTopicTransactionBody.newBuilder().build())
                 .build();
         given(preHandleContext.body()).willReturn(txnBody);
-        given(bodyParser.apply(transaction1)).willReturn(innerTxnBody1);
-        given(bodyParser.apply(transaction2)).willReturn(innerTxnBody2);
+        given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
+        given(transaction2.bodyOrThrow()).willReturn(innerTxnBody2);
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
     }
 
@@ -310,7 +296,7 @@ class AtomicBatchHandlerTest {
                 .build();
         given(handleContext.body()).willReturn(txnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
-        given(bodyParser.apply(any())).willReturn(innerTxnBody);
+        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(UNKNOWN);
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -341,7 +327,7 @@ class AtomicBatchHandlerTest {
                         && options.body().equals(innerTxnBody)
                         && options.streamBuilderType().equals(ReplayableFeeStreamBuilder.class))))
                 .willReturn(recordBuilder);
-        given(bodyParser.apply(any())).willReturn(innerTxnBody);
+        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         given(recordBuilder.status()).willReturn(SUCCESS);
         assertDoesNotThrow(() -> subject.handle(handleContext));
     }
@@ -361,7 +347,8 @@ class AtomicBatchHandlerTest {
                         ConsensusDeleteTopicTransactionBody.newBuilder().build())
                 .build();
         given(handleContext.body()).willReturn(txnBody);
-        given(bodyParser.apply(any())).willReturn(innerTxnBody1).willReturn(innerTxnBody2);
+        given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
+        given(transaction2.bodyOrThrow()).willReturn(innerTxnBody2);
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);

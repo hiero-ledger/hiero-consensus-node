@@ -63,6 +63,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
@@ -108,7 +109,7 @@ public class AtomicBatchTest {
                 cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
                 usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                 // Since the inner txn is not normalized, it should fail
-                atomicBatch(innerTxn).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
+                atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(FAIL_INVALID));
     }
 
     @HapiTest
@@ -133,7 +134,7 @@ public class AtomicBatchTest {
                 cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
                 usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                 // Since the inner txn is not normalized, it should fail
-                atomicBatch(innerTxn).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
+                atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(FAIL_INVALID));
     }
 
     @HapiTest

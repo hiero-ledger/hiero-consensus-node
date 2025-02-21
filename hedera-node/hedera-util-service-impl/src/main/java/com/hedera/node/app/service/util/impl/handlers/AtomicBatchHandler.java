@@ -27,7 +27,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
-import static com.hedera.node.app.service.util.impl.handlers.HandlerUtility.functionalityForType;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -42,6 +41,8 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.HapiUtils;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -67,10 +68,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -80,7 +79,6 @@ import javax.inject.Singleton;
 @Singleton
 public class AtomicBatchHandler implements TransactionHandler {
     private final Supplier<FeeCharging> appFeeCharging;
-    private final Function<Transaction, TransactionBody> bodyParser;
 
     private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
@@ -88,10 +86,8 @@ public class AtomicBatchHandler implements TransactionHandler {
      * Constructs a {@link AtomicBatchHandler}
      */
     @Inject
-    public AtomicBatchHandler(
-            @NonNull final AppContext appContext, @NonNull final Function<Transaction, TransactionBody> bodyParser) {
+    public AtomicBatchHandler(@NonNull final AppContext appContext) {
         requireNonNull(appContext);
-        this.bodyParser = requireNonNull(bodyParser);
         this.appFeeCharging = appContext.feeChargingSupplier();
     }
 
@@ -109,7 +105,9 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
 
         Set<TransactionID> txIds = new HashSet<>();
-        for (final var txBody : getTransactionBodies(innerTxs)) {
+        for (final var innerTx : innerTxs) {
+            final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
+
             // throw if more than one tx has the same transactionID
             validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
 
@@ -127,21 +125,15 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
     }
 
-    /**
-     * This method is called during the pre-handle workflow.
-     *
-     * @param context the {@link PreHandleContext} which collects all information
-     * @throws PreCheckException if any issue happens on the pre handle level
-     */
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
         final var atomicBatchTransactionBody = context.body().atomicBatchOrThrow();
-        final List<Transaction> transactions = atomicBatchTransactionBody.transactions();
         final var config = context.configuration();
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
 
-        for (final var txBody : getTransactionBodies(transactions)) {
+        for (final var innerTx : atomicBatchTransactionBody.transactions()) {
+            final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
             validateFalsePreCheck(
                     isNotAllowedFunction(txBody, atomicBatchConfig), BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
             context.requireKeyOrThrow(txBody.batchKey(), INVALID_BATCH_KEY);
@@ -156,30 +148,22 @@ public class AtomicBatchHandler implements TransactionHandler {
         if (!context.configuration().getConfigData(AtomicBatchConfig.class).isEnabled()) {
             throw new HandleException(NOT_SUPPORTED);
         }
-        List<Transaction> transactions = op.transactions();
-        if (transactions.size()
+        List<Transaction> innerTxs = op.transactions();
+        if (innerTxs.size()
                 > context.configuration().getConfigData(AtomicBatchConfig.class).maxNumberOfTransactions()) {
             throw new HandleException(BATCH_SIZE_LIMIT_EXCEEDED);
-        }
-
-        final List<TransactionBody> txnBodies;
-        try {
-            txnBodies = getTransactionBodies(transactions);
-        } catch (PreCheckException e) {
-            // this should never happen here
-            // the parsing check is done in the pre-handle workflow
-            throw new HandleException(INNER_TRANSACTION_FAILED);
         }
 
         // The parsing check, timebox, and duplication checks are done in the pre-handle workflow
         // So, no need to repeat here
         // dispatch all the inner transactions
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
-        for (final var body : txnBodies) {
-            final var payerId = body.transactionIDOrThrow().accountIDOrThrow();
+        for (final var innerTx : innerTxs) {
+            final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
+            final var payerId = txBody.transactionIDOrThrow().accountIDOrThrow();
             // all the inner transactions' keys are verified in PreHandleWorkflow
             final var dispatchOptions =
-                    atomicBatchDispatch(payerId, body, ReplayableFeeStreamBuilder.class, recordedFeeCharging);
+                    atomicBatchDispatch(payerId, txBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging);
             recordedFeeCharging.startRecording();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);
@@ -196,22 +180,19 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
     }
 
+    /**
+     * Checks if the given transaction type is not allowed to be included as an inner transaction in an atomic batch.
+     * @param transactionBody the transaction body to check
+     * @param config the atomic batch configuration
+     * @return true if the transaction type is not allowed, false otherwise
+     */
     private boolean isNotAllowedFunction(
             @NonNull final TransactionBody transactionBody, @NonNull final AtomicBatchConfig config) {
-        final var hederaFunctionality =
-                functionalityForType(transactionBody.data().kind());
-        System.out.println(transactionBody.data().kind());
-        System.out.println(hederaFunctionality);
-
-        return config.blacklist().functionalitySet().contains(hederaFunctionality);
-    }
-
-    private @NonNull List<TransactionBody> getTransactionBodies(@NonNull List<Transaction> transactions)
-            throws PreCheckException {
         try {
-            return transactions.stream().map(bodyParser).collect(Collectors.toCollection(ArrayList::new));
-        } catch (HandleException e) {
-            throw new PreCheckException(INNER_TRANSACTION_FAILED);
+            final var hederaFunctionality = HapiUtils.functionOf(transactionBody);
+            return config.blacklist().functionalitySet().contains(hederaFunctionality);
+        } catch (final UnknownHederaFunctionality e) {
+            return true;
         }
     }
 
