@@ -114,11 +114,12 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var config = context.configuration();
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
 
-        for (final var innerTx : atomicBatchTransactionBody.transactions()) {
-            final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
+        for (final var innerTxBody : atomicBatchTransactionBody.transactions().stream()
+                .map(Transaction::bodyOrThrow)
+                .toList()) {
             validateFalsePreCheck(
-                    isNotAllowedFunction(txBody, atomicBatchConfig), BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
-            context.requireKeyOrThrow(txBody.batchKey(), INVALID_BATCH_KEY);
+                    isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
+            context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
     }
@@ -135,17 +136,16 @@ public class AtomicBatchHandler implements TransactionHandler {
                 > context.configuration().getConfigData(AtomicBatchConfig.class).maxNumberOfTransactions()) {
             throw new HandleException(BATCH_SIZE_LIMIT_EXCEEDED);
         }
-        final var txnBodies = op.transactions().stream().map(Transaction::body).toList();
         // The parsing check, timebox, and duplication checks are done in the pre-handle workflow
         // So, no need to repeat here
         // dispatch all the inner transactions
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
-        for (final var innerTx : innerTxs) {
-            final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
-            final var payerId = txBody.transactionIDOrThrow().accountIDOrThrow();
+        for (final var innerTxBody :
+                innerTxs.stream().map(Transaction::bodyOrThrow).toList()) {
+            final var payerId = innerTxBody.transactionIDOrThrow().accountIDOrThrow();
             // all the inner transactions' keys are verified in PreHandleWorkflow
             final var dispatchOptions =
-                    atomicBatchDispatch(payerId, txBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging);
+                    atomicBatchDispatch(payerId, innerTxBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging);
             recordedFeeCharging.startRecording();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);

@@ -474,7 +474,7 @@ public class AtomicBatchTest {
                     atomicBatch(contractCall(contract, function, payload)
                                     .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .batchKey(batchOperator))
-                            .signedByPayerAnd(batchOperator));
+                            .payingWith(batchOperator));
         }
 
         @HapiTest

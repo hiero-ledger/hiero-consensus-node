@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.util.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -220,7 +228,7 @@ class AtomicBatchHandlerTest {
         given(preHandleContext.requireKeyOrThrow(innerTxnBody1.batchKey(), INVALID_BATCH_KEY))
                 .willThrow(new PreCheckException(INVALID_BATCH_KEY));
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(ResponseCodeEnum.INVALID_BATCH_KEY, msg.responseCode());
+        assertEquals(INVALID_BATCH_KEY, msg.responseCode());
     }
 
     @Test
@@ -235,7 +243,7 @@ class AtomicBatchHandlerTest {
         given(preHandleContext.body()).willReturn(txnBody);
         given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
+        assertEquals(BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
     }
 
     @Test
@@ -250,7 +258,7 @@ class AtomicBatchHandlerTest {
         given(preHandleContext.body()).willReturn(txnBody);
         given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
+        assertEquals(BATCH_LIST_CONTAINS_INVALID_TRANSACTION, msg.responseCode());
     }
 
     @Test
@@ -276,12 +284,12 @@ class AtomicBatchHandlerTest {
     @Test
     void innerTransactionDispatchFailed() {
         final var innerTxnBody = newTxnBodyBuilder(payerId1, consensusTimestamp, SIMPLE_KEY_A)
-                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT);
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .build();
         final var transaction = Transaction.newBuilder().body(innerTxnBody).build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
         given(handleContext.body()).willReturn(txnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
-        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(UNKNOWN);
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -311,7 +319,6 @@ class AtomicBatchHandlerTest {
                         && options.body().equals(innerTxnBody)
                         && options.streamBuilderType().equals(ReplayableFeeStreamBuilder.class))))
                 .willReturn(recordBuilder);
-        given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         given(recordBuilder.status()).willReturn(SUCCESS);
         assertDoesNotThrow(() -> subject.handle(handleContext));
     }
@@ -326,8 +333,6 @@ class AtomicBatchHandlerTest {
         final var innerTxn2 = Transaction.newBuilder().body(innerTxnBody2).build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, innerTxn1, innerTxn2);
         given(handleContext.body()).willReturn(txnBody);
-        given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
-        given(transaction2.bodyOrThrow()).willReturn(innerTxnBody2);
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);
