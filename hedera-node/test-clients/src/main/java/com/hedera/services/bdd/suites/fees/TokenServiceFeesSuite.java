@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungibleMovement;
@@ -86,6 +72,7 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -775,7 +762,8 @@ public class TokenServiceFeesSuite {
     @DisplayName("FT happy path")
     final Stream<DynamicTest> tokenAssociateDissociateChargedAsExpected() {
         final var account = "account";
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 newKeyNamed(MULTI_KEY),
                 cryptoCreate(account),
                 cryptoCreate(MULTI_KEY).balance(ONE_HUNDRED_HBARS),
@@ -830,9 +818,9 @@ public class TokenServiceFeesSuite {
     @HapiTest
     final Stream<DynamicTest> tokenGetInfoFeeChargedAsExpected() {
         final var expectedTokenGetInfo = 0.0001;
-        final var account = "account";
 
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(FUNGIBLE_FREEZE_KEY),
                 tokenCreate(FUNGIBLE_TOKEN)
@@ -849,7 +837,8 @@ public class TokenServiceFeesSuite {
     final Stream<DynamicTest> tokenGetNftInfoFeeChargedAsExpected() {
         final var expectedTokenGetNftInfo = 0.0001;
 
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(WIPE_KEY),
                 newKeyNamed(METADATA_KEY),

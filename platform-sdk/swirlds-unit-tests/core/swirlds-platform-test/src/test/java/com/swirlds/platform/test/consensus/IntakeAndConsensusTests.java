@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus;
 
 import com.swirlds.common.context.PlatformContext;
@@ -180,7 +165,7 @@ class IntakeAndConsensusTests {
         //				node.getConsensus().getMaxRoundGeneration());
     }
 
-    private static class GeneratorWithConsensus implements GraphGenerator<GeneratorWithConsensus> {
+    private static class GeneratorWithConsensus implements GraphGenerator {
         private final StandardGraphGenerator generator;
         private final TestIntake intake;
 
@@ -190,8 +175,7 @@ class IntakeAndConsensusTests {
             Objects.requireNonNull(platformContext);
             final List<StandardEventSource> eventSources =
                     Stream.generate(StandardEventSource::new).limit(numNodes).toList();
-            generator =
-                    new StandardGraphGenerator(platformContext, seed, (List<EventSource<?>>) (List<?>) eventSources);
+            generator = new StandardGraphGenerator(platformContext, seed, (List<EventSource>) (List<?>) eventSources);
             intake = new TestIntake(platformContext, generator.getAddressBook());
         }
 
@@ -209,7 +193,7 @@ class IntakeAndConsensusTests {
 
         @Override
         @Nullable
-        public EventSource<?> getSource(@NonNull final NodeId nodeID) {
+        public EventSource getSource(@NonNull final NodeId nodeID) {
             Objects.requireNonNull(nodeID);
             return generator.getSource(nodeID);
         }
