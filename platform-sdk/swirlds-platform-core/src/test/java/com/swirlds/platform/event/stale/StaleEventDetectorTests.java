@@ -155,13 +155,7 @@ class StaleEventDetectorTests {
                 randotron.nextPositiveLong(), ancientThreshold, randotron.nextPositiveLong(), BIRTH_ROUND_THRESHOLD);
 
         return new ConsensusRound(
-                mock(Roster.class),
-                events,
-                mock(PlatformEvent.class),
-                eventWindow,
-                mock(ConsensusSnapshot.class),
-                false,
-                Instant.now());
+                mock(Roster.class), events, eventWindow, mock(ConsensusSnapshot.class), false, Instant.now());
     }
 
     @Test

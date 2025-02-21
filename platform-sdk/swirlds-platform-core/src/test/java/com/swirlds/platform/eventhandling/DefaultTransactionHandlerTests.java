@@ -83,7 +83,6 @@ class DefaultTransactionHandlerTests {
         final ConsensusRound round = new ConsensusRound(
                 roster,
                 events,
-                keystone,
                 EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD),
                 SyntheticSnapshot.getGenesisSnapshot(AncientMode.GENERATION_THRESHOLD),
                 pcesRound,

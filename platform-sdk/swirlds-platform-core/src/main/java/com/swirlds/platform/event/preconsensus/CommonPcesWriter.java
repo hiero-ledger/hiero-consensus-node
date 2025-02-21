@@ -19,8 +19,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * This class provides the common functionality for writing preconsensus events to disk. It is used by both the
- * {@link DefaultInlinePcesWriter} and the {@link DefaultPcesWriter}.
+ * This class provides the common functionality for writing preconsensus events to disk. It is used by the
+ * {@link DefaultInlinePcesWriter}.
  */
 public class CommonPcesWriter {
     private static final Logger logger = LogManager.getLogger(CommonPcesWriter.class);
