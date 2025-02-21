@@ -4,6 +4,7 @@ package com.swirlds.platform.event.preconsensus;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
+import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,7 +72,12 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
                         switch (fileVersion) {
                             case PROTOBUF_EVENTS -> new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF));
                         };
-                if (candidate.getAncientIndicator(fileType) >= lowerBound) {
+                final long candidateAncientIndicator = candidate.getAncientIndicator(fileType);
+                final boolean isEqualToOrGreaterThanLowerBound = candidateAncientIndicator >= lowerBound;
+                // We also want to read events that might have been migrated to birth rounds
+                final boolean isInitialBirthRoundEvent = AncientMode.BIRTH_ROUND_THRESHOLD == fileType
+                        && candidateAncientIndicator == ConsensusConstants.ROUND_FIRST;
+                if (isEqualToOrGreaterThanLowerBound || isInitialBirthRoundEvent) {
                     next = candidate;
                 }
             } catch (final IOException e) {
