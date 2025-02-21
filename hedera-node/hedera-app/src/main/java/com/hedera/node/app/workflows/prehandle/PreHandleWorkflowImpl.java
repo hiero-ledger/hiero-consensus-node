@@ -298,8 +298,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         // 2b. Call Pre-Transaction Handlers
         try {
             // First, perform semantic checks on the transaction
-            final var pureChecksContext =
-                    new PureChecksContextImpl(txBody, configuration, dispatcher, transactionChecker);
+            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             // Then gather the signatures from the transaction handler
             dispatcher.dispatchPreHandle(context);

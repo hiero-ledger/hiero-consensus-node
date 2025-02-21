@@ -401,7 +401,7 @@ public class UserTxnFactory {
             @NonNull final Configuration config,
             @NonNull final ReadableStoreFactory readableStoreFactory) {
         try {
-            final var pureChecksContext = new PureChecksContextImpl(body, config, dispatcher, transactionChecker);
+            final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, body, syntheticPayerId, config, dispatcher, transactionChecker);

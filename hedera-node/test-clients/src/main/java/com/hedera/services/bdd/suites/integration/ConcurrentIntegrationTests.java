@@ -147,21 +147,28 @@ public class ConcurrentIntegrationTests {
                                 .between(nftTwo.treasury().name(), "operator"))),
                 // First do a batch where everything succeeds
                 atomicBatch(
-                        cryptoTransfer(movingUnique(nftOne.name(), 1L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                .batchKey("operator")
-                                .payingWith("operator"),
-                        cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                .batchKey("operator")
-                                .payingWith("operator"),
-                        cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
-                                        .between("operator", nftOne.treasury().name()))
-                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                .batchKey("operator")
-                                .payingWith("operator")),
+                                cryptoTransfer(movingUnique(nftOne.name(), 1L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"))
+                        .signedByPayerAnd("operator"),
                 getAccountRecords("operator").exposingTo(records -> {
                     assertEquals(3, records.size());
                     records.forEach(r -> successfulRecordFees.add(asMap(r.getTransferList())));
@@ -190,6 +197,7 @@ public class ConcurrentIntegrationTests {
                                         .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                         .batchKey("operator")
                                         .payingWith("operator"))
+                        .signedByPayerAnd("operator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getAccountRecords("operator").exposingTo(records -> {
                     assertEquals(6, records.size());

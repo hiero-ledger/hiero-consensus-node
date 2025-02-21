@@ -1415,6 +1415,7 @@ enum ResponseCodeEnum {
      * does not exist or is not valid.<br/>
      * One common source of this error is providing a node account identifier
      * using the "alias" form rather than "numeric" form.
+     * It is also used for atomic batch transaction for child transaction if the node account id is not 0.0.0.
      */
     INVALID_NODE_ACCOUNT_ID = 341;
 
@@ -1708,9 +1709,9 @@ enum ResponseCodeEnum {
     BATCH_LIST_CONTAINS_DUPLICATES = 389;
 
     /**
-    * The list of batch transactions contains null values
+    * The list of batch transactions contains a disallowed transaction type.
     */
-    BATCH_LIST_CONTAINS_NULL_VALUES = 390;
+    BATCH_LIST_CONTAINS_INVALID_TRANSACTION = 390;
 
     /**
      * The inner transaction failed
@@ -1724,4 +1725,9 @@ enum ResponseCodeEnum {
      * The batch key is set for atomic batch user transaction
      */
     BATCH_KEY_SET_FOR_ATOMIC_BATCH = 393;
+
+    /**
+     * The batch key is not valid
+     */
+    INVALID_BATCH_KEY = 394;
 }
