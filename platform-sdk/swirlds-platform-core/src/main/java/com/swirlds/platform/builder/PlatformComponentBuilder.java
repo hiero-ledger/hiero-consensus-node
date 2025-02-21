@@ -32,14 +32,11 @@ import com.swirlds.platform.event.hashing.EventHasher;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.DefaultPcesSequencer;
-import com.swirlds.platform.event.preconsensus.DefaultPcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
 import com.swirlds.platform.event.preconsensus.PcesSequencer;
 import com.swirlds.platform.event.preconsensus.PcesWriter;
-import com.swirlds.platform.event.preconsensus.durability.DefaultRoundDurabilityBuffer;
 import com.swirlds.platform.event.preconsensus.durability.RoundDurabilityBuffer;
 import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
@@ -589,22 +586,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Build the PCES sequencer if it has not yet been built. If one has been provided via
-     * {@link #withPcesSequencer(PcesSequencer)}, that sequencer will be used. If this method is called more than once,
-     * only the first call will build the PCES sequencer. Otherwise, the default sequencer will be created and
-     * returned.
-     *
-     * @return the PCES sequencer
-     */
-    @NonNull
-    public PcesSequencer buildPcesSequencer() {
-        if (pcesSequencer == null) {
-            pcesSequencer = new DefaultPcesSequencer();
-        }
-        return pcesSequencer;
-    }
-
-    /**
      * Provide a round durability buffer in place of the platform's default round durability buffer.
      *
      * @param roundDurabilityBuffer the RoundDurabilityBuffer to use
@@ -619,22 +600,6 @@ public class PlatformComponentBuilder {
         }
         this.roundDurabilityBuffer = Objects.requireNonNull(roundDurabilityBuffer);
         return this;
-    }
-
-    /**
-     * Build the round durability buffer if it has not yet been built. If one has been provided via
-     * {@link #withRoundDurabilityBuffer(RoundDurabilityBuffer)}, that round durability buffer will be used. If this
-     * method is called more than once, only the first call will build the round durability buffer. Otherwise, the
-     * default round durability buffer will be created and returned.
-     *
-     * @return the RoundDurabilityBuffer
-     */
-    @NonNull
-    public RoundDurabilityBuffer buildRoundDurabilityBuffer() {
-        if (roundDurabilityBuffer == null) {
-            roundDurabilityBuffer = new DefaultRoundDurabilityBuffer(blocks.platformContext());
-        }
-        return roundDurabilityBuffer;
     }
 
     /**
@@ -767,31 +732,6 @@ public class PlatformComponentBuilder {
         }
         this.inlinePcesWriter = Objects.requireNonNull(inlinePcesWriter);
         return this;
-    }
-
-    /**
-     * Build the PCES writer if it has not yet been built. If one has been provided via
-     * {@link #withPcesWriter(PcesWriter)}, that writer will be used. If this method is called more than once, only the
-     * first call will build the PCES writer. Otherwise, the default writer will be created and returned.
-     *
-     * @return the PCES writer
-     */
-    @NonNull
-    public PcesWriter buildPcesWriter() {
-        if (pcesWriter == null) {
-            try {
-                final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                        blocks.platformContext(),
-                        blocks.initialPcesFiles(),
-                        blocks.selfId(),
-                        blocks.initialState().get().getRound());
-                pcesWriter = new DefaultPcesWriter(blocks.platformContext(), preconsensusEventFileManager);
-
-            } catch (final IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-        return pcesWriter;
     }
 
     /**
