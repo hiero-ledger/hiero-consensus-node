@@ -38,16 +38,16 @@ RUN set -eux; \
         ARCH="$(dpkg --print-architecture)"; \
         case "${ARCH}" in \
            aarch64|arm64) \
-            ESUM='d768eecddd7a515711659e02caef8516b7b7177fa34880a56398fd9822593a79'; \
-            BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.4%2B7/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.4_7.tar.gz'; \
+            ESUM='04fe1273f624187d927f1b466e8cdb630d70786db07bee7599bfa5153060afd3'; \
+            BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.6_7.tar.gz'; \
             ;; \
           amd64|i386:x86-64) \
-            ESUM='51fb4d03a4429c39d397d3a03a779077159317616550e4e71624c9843083e7b9'; \
-            BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.4%2B7/OpenJDK21U-jdk_x64_linux_hotspot_21.0.4_7.tar.gz'; \
+            ESUM='a2650fba422283fbed20d936ce5d2a52906a5414ec17b2f7676dddb87201dbae'; \
+            BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_linux_hotspot_21.0.6_7.tar.gz'; \
             ;; \
            ppc64el|powerpc:common64) \
-            ESUM='c208cd0fb90560644a90f928667d2f53bfe408c957a5e36206585ad874427761'; \
-            BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.4%2B7/OpenJDK21U-jdk_ppc64le_linux_hotspot_21.0.4_7.tar.gz'; \
+            ESUM='163724b70b86d5a8461f85092165a9cc5a098ed900fee90d1b0c0be9607ae3d2'; \
+            BINARY_URL='https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_ppc64le_linux_hotspot_21.0.6_7.tar.gz'; \
             ;; \
            *) \
             echo "Unsupported arch: ${ARCH}"; \
@@ -223,7 +223,7 @@ FROM operating-system-base AS production-image-interim
 ARG SOURCE_DATE_EPOCH
 
 # Define Standard Environment Variables
-ENV JAVA_VERSION "jdk-21.0.4+7"
+ENV JAVA_VERSION "jdk-21.0.6+7"
 ENV JAVA_HOME /usr/local/java
 ENV PATH ${JAVA_HOME}/bin:${PATH}
 
@@ -266,7 +266,7 @@ FROM scratch AS production-image
 COPY --from=production-image-interim / /
 
 # Define Standard Environment Variables
-ENV JAVA_VERSION "jdk-21.0.4+7"
+ENV JAVA_VERSION "jdk-21.0.6+7"
 ENV JAVA_HOME /usr/local/java
 ENV PATH ${JAVA_HOME}/bin:${PATH}
 
