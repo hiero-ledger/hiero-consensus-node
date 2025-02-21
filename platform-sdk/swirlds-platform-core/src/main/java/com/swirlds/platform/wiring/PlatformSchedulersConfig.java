@@ -17,7 +17,6 @@ import java.time.Duration;
  * @param eventCreationManager                 configuration for the event creation manager scheduler
  * @param selfEventSigner                      configuration for the self event signer scheduler
  * @param stateSigner                          configuration for the state signer scheduler
- * @param pcesWriter                           configuration for the preconsensus event writer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
  * @param applicationTransactionPrehandler     configuration for the application transaction prehandler scheduler
  * @param stateSignatureCollector              configuration for the state signature collector scheduler

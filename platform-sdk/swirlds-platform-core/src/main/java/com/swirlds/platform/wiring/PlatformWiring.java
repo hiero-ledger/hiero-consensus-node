@@ -632,7 +632,6 @@ public class PlatformWiring {
         eventWindowManagerWiring.getInputWire(EventWindowManager::updateEventWindow);
         orphanBufferWiring.getInputWire(OrphanBuffer::clear);
         pcesInlineWriterWiring.getInputWire(InlinePcesWriter::registerDiscontinuity);
-
         stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
         issDetectorWiring.getInputWire(IssDetector::overridingState);
         issDetectorWiring.getInputWire(IssDetector::signalEndOfPreconsensusReplay);

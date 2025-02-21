@@ -36,8 +36,6 @@ import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
 import com.swirlds.platform.event.preconsensus.PcesSequencer;
-import com.swirlds.platform.event.preconsensus.PcesWriter;
-import com.swirlds.platform.event.preconsensus.durability.RoundDurabilityBuffer;
 import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.signing.DefaultSelfEventSigner;
@@ -123,10 +121,8 @@ public class PlatformComponentBuilder {
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
     private PcesSequencer pcesSequencer;
-    private RoundDurabilityBuffer roundDurabilityBuffer;
     private StatusStateMachine statusStateMachine;
     private TransactionPrehandler transactionPrehandler;
-    private PcesWriter pcesWriter;
     private InlinePcesWriter inlinePcesWriter;
     private IssDetector issDetector;
     private IssHandler issHandler;
@@ -586,23 +582,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a round durability buffer in place of the platform's default round durability buffer.
-     *
-     * @param roundDurabilityBuffer the RoundDurabilityBuffer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withRoundDurabilityBuffer(
-            @NonNull final RoundDurabilityBuffer roundDurabilityBuffer) {
-        throwIfAlreadyUsed();
-        if (this.roundDurabilityBuffer != null) {
-            throw new IllegalStateException("RoundDurabilityBuffer has already been set");
-        }
-        this.roundDurabilityBuffer = Objects.requireNonNull(roundDurabilityBuffer);
-        return this;
-    }
-
-    /**
      * Provide a status state machine in place of the platform's default status state machine.
      *
      * @param statusStateMachine the status state machine to use
@@ -700,22 +679,6 @@ public class PlatformComponentBuilder {
                     blocks.stateLifecycles());
         }
         return transactionPrehandler;
-    }
-
-    /**
-     * Provide a PCES writer in place of the platform's default PCES writer.
-     *
-     * @param pcesWriter the PCES writer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withPcesWriter(@NonNull final PcesWriter pcesWriter) {
-        throwIfAlreadyUsed();
-        if (this.pcesWriter != null) {
-            throw new IllegalStateException("PCES writer has already been set");
-        }
-        this.pcesWriter = Objects.requireNonNull(pcesWriter);
-        return this;
     }
 
     /**

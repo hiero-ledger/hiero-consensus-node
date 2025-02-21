@@ -214,7 +214,6 @@ public class PlatformCoordinator {
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear).inject(NoInput.getInstance());
-
         staleEventDetectorWiring.getInputWire(StaleEventDetector::clear).inject(NoInput.getInstance());
         transactionPoolWiring.getInputWire(TransactionPool::clear).inject(NoInput.getInstance());
         branchDetectorWiring.getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
