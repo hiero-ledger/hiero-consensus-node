@@ -205,6 +205,8 @@ public class GrpcUtils {
                     .cancelAirdrop(transaction);
             case TokenClaimAirdrop -> clients.getTokenSvcStub(nodeAccountId, false, false)
                     .claimAirdrop(transaction);
+            case AtomicBatch -> clients.getUtilSvcStub(nodeAccountId, false, false)
+                    .atomicBatch(transaction);
             default -> throw new IllegalArgumentException(functionality + " is not a transaction");
         };
     }

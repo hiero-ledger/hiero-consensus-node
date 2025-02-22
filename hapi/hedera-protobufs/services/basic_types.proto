@@ -1678,6 +1678,11 @@ enum HederaFunctionality {
      * Publish a random CRS to the network.
      */
     CrsPublication = 107;
+
+    /**
+     * Submit a batch of transactions to run atomically
+     */
+    AtomicBatch = 108;
 }
 
 /**

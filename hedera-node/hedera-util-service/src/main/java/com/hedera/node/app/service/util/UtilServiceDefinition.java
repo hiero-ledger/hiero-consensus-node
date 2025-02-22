@@ -15,8 +15,9 @@ import java.util.Set;
 public final class UtilServiceDefinition implements RpcServiceDefinition {
     public static final UtilServiceDefinition INSTANCE = new UtilServiceDefinition();
 
-    private static final Set<RpcMethodDefinition<?, ?>> methods =
-            Set.of(new RpcMethodDefinition<>("prng", Transaction.class, TransactionResponse.class));
+    private static final Set<RpcMethodDefinition<?, ?>> methods = Set.of(
+            new RpcMethodDefinition<>("prng", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("atomicBatch", Transaction.class, TransactionResponse.class));
 
     private UtilServiceDefinition() {
         // Forbid instantiation

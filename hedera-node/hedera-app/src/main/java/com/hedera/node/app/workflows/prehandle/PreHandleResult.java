@@ -17,6 +17,7 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -41,7 +42,7 @@ import java.util.concurrent.Future;
  * @param verificationResults A map of {@link Future<SignatureVerificationFuture>} yielding the
  *                            {@link SignatureVerificationFuture} for a given cryptographic key. Ony cryptographic keys
  *                            are used as the key of this map.
- * @param innerResult {@link PreHandleResult} of the inner transaction (where appropriate)
+ * @param innerResults {@link PreHandleResult}s of the inner transactions if this is an atomic batch transaction.
  * @param configVersion The version of the configuration that was used during pre-handle
  */
 public record PreHandleResult(
@@ -54,7 +55,7 @@ public record PreHandleResult(
         @Nullable Set<Key> optionalKeys,
         @Nullable Set<Account> hollowAccounts,
         @Nullable Map<Key, SignatureVerificationFuture> verificationResults,
-        @Nullable PreHandleResult innerResult,
+        @Nullable List<PreHandleResult> innerResults,
         long configVersion) {
 
     /**

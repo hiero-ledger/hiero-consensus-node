@@ -24,11 +24,13 @@ import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -41,6 +43,9 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
     private Optional<String> expectationsDirPath = Optional.empty();
     private Optional<ErroringAssertsProvider<List<TransactionRecord>>> expectation = Optional.empty();
     private Optional<BiConsumer<Logger, List<TransactionRecord>>> customLog = Optional.empty();
+
+    @Nullable
+    private Consumer<List<TransactionRecord>> observer = null;
 
     public HapiGetAccountRecords has(ErroringAssertsProvider<List<TransactionRecord>> provider) {
         expectation = Optional.of(provider);
@@ -60,6 +65,11 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
 
     public HapiGetAccountRecords checkingAgainst(String dirPath) {
         expectationsDirPath = Optional.of(dirPath);
+        return this;
+    }
+
+    public HapiGetAccountRecords exposingTo(@NonNull final Consumer<List<TransactionRecord>> observer) {
+        this.observer = observer;
         return this;
     }
 
@@ -91,6 +101,9 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
     @Override
     protected void processAnswerOnlyResponse(@NonNull final HapiSpec spec) {
         List<TransactionRecord> records = response.getCryptoGetAccountRecords().getRecordsList();
+        if (observer != null) {
+            observer.accept(records);
+        }
         if (verboseLoggingOn) {
             if (customLog.isPresent()) {
                 customLog.get().accept(log, records);

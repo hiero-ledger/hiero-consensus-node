@@ -41,6 +41,9 @@ public final class CommonUtils {
 
     public static ByteString extractTransactionBodyByteString(final TransactionOrBuilder transaction)
             throws InvalidProtocolBufferException {
+        if (transaction.hasBody()) {
+            return transaction.getBody().toByteString();
+        }
         final var signedTransactionBytes = transaction.getSignedTransactionBytes();
         if (!signedTransactionBytes.isEmpty()) {
             return SignedTransaction.parseFrom(signedTransactionBytes).getBodyBytes();

@@ -91,7 +91,7 @@ public class ServiceScopeLookup {
                     TOKEN_CANCEL_AIRDROP,
                     TOKEN_REJECT -> TokenService.NAME;
 
-            case UTIL_PRNG -> UtilService.NAME;
+            case UTIL_PRNG, ATOMIC_BATCH -> UtilService.NAME;
 
             case SYSTEM_DELETE -> switch (txBody.systemDeleteOrThrow().id().kind()) {
                 case CONTRACT_ID -> ContractService.NAME;
