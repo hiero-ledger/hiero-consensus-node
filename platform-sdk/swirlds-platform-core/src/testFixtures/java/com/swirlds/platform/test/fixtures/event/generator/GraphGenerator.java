@@ -8,7 +8,6 @@ import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -51,14 +50,6 @@ public interface GraphGenerator {
      * Get an exact copy of this event generator as it was when it was first created.
      */
     GraphGenerator cleanCopy();
-
-    /**
-     * Get a clean copy but with a different seed.
-     *
-     * @param seed
-     * 		The new seed to use.
-     */
-    GraphGenerator cleanCopy(long seed);
 
     /**
      * Reset this generator to its original state. Does not undo settings changes, just the events that have been
@@ -149,9 +140,11 @@ public interface GraphGenerator {
     void setOtherParentAffinity(final DynamicValue<List<List<Double>>> affinityMatrix);
 
     /**
-     * Sets the timestamp of the last emitted event
-     *
-     * @param previousTimestamp the timestamp to set
+     * Remove a node from the generator. This will remove it from the address book and it will remove its event source,
+     * so that this node will not generate any more events.
+     * NOTE: This method is created specifically for a single node removal. For more complex address book changes this
+     * functionality should be expanded.
+     * @param nodeId the node to remove
      */
-    void setPreviousTimestamp(final Instant previousTimestamp);
+    void removeNode(@NonNull final NodeId nodeId);
 }

@@ -197,7 +197,6 @@ class DispatchProcessorTest {
                 .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_SIGNATURE));
         final var creatorInfo = mock(NodeInfo.class);
         given(dispatch.creatorInfo()).willReturn(creatorInfo);
-        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);

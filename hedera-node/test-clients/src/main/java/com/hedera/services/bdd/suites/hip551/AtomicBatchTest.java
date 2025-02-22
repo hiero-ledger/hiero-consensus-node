@@ -6,10 +6,12 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -27,9 +29,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
@@ -48,10 +52,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -63,6 +70,7 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -233,6 +241,56 @@ public class AtomicBatchTest {
     }
 
     @HapiTest
+    public Stream<DynamicTest> batchWithMultipleChildren() {
+        final var batchOperator = "batchOperator";
+        final var innerTnxPayer = "innerPayer";
+        final var innerTxnId1 = "innerId1";
+        final var innerTxnId2 = "innerId2";
+        final var account2 = "foo2";
+        final var atomicTxn = "atomicTxn";
+        final var alias = "alias";
+        final AtomicReference<Timestamp> parentConsTime = new AtomicReference<>();
+
+        final var innerTxn1 = cryptoTransfer(movingHbar(10L).between(innerTnxPayer, alias))
+                .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                .txnId(innerTxnId1)
+                .batchKey(batchOperator)
+                .payingWith(innerTnxPayer);
+        final var innerTxn2 = cryptoCreate(account2)
+                .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                .balance(ONE_HBAR)
+                .txnId(innerTxnId2)
+                .batchKey(batchOperator)
+                .payingWith(innerTnxPayer);
+        return hapiTest(
+                // set up
+                newKeyNamed(alias),
+                cryptoCreate(batchOperator).balance(ONE_HBAR),
+                cryptoCreate(innerTnxPayer).balance(ONE_HUNDRED_HBARS),
+                usableTxnIdNamed(innerTxnId1).payerId(innerTnxPayer),
+                usableTxnIdNamed(innerTxnId2).payerId(innerTnxPayer),
+                // submit atomic batch with 3 inner txns
+                atomicBatch(innerTxn1, innerTxn2).payingWith(batchOperator).via(atomicTxn),
+                getTxnRecord(atomicTxn)
+                        .exposingTo(record -> parentConsTime.set(record.getConsensusTimestamp()))
+                        .logged(),
+                // All atomic batch transactions should have the same parentConsTime set
+                // the same as the batch user txn
+                sourcing(() -> getTxnRecord(innerTxnId1)
+                        .hasParentConsensusTime(parentConsTime.get())
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(1)
+                        .hasChildRecords(recordWith().status(SUCCESS))
+                        .assertingNothingAboutHashes()
+                        .logged()),
+                sourcing(() -> getTxnRecord(innerTxnId2)
+                        .hasParentConsensusTime(parentConsTime.get())
+                        .andAllChildRecords()
+                        .assertingNothingAboutHashes()
+                        .logged()));
+    }
+
+    @HapiTest
     public Stream<DynamicTest> multiBatchFail() {
         final var batchOperator = "batchOperator";
         final var innerTxnPayer = "innerPayer";
@@ -351,6 +409,44 @@ public class AtomicBatchTest {
                 atomicBatch(innerTxn1).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
+    @HapiTest
+    public Stream<DynamicTest> nonInnerTransactionHasBatchKeyFails() {
+        final var batchPayer = "batchPayer";
+        final var innerTnxPayer = "innerPayer";
+        final var innerTxnId = "innerId";
+        final var basicPayer = "basicPayer";
+        final var innerTxn = cryptoCreate("foo1")
+                .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                .balance(ONE_HBAR)
+                .txnId(innerTxnId)
+                .batchKey(batchPayer)
+                .payingWith(innerTnxPayer)
+                .via("innerTxn");
+
+        return hapiTest(
+                cryptoCreate(batchPayer).balance(FIVE_HBARS),
+                cryptoCreate(innerTnxPayer).balance(FIVE_HBARS),
+                cryptoCreate(basicPayer).balance(FIVE_HBARS),
+                usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
+                atomicBatch(innerTxn)
+                        .batchKey(batchPayer)
+                        .payingWith(batchPayer)
+                        .via("batchTxn")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                newKeyNamed("newKey"),
+                cryptoCreate("foo2")
+                        .balance(ONE_HBAR)
+                        .batchKey("newKey")
+                        .signedBy(DEFAULT_PAYER)
+                        .payingWith(basicPayer)
+                        .via("basicTxn")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
+                getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
+                validateChargedUsd("batchTxn", 0.001),
+                validateChargedUsd("basicTxn", 0.05, 10));
+    }
+
     @Nested
     @DisplayName("Batch Constraints - POSITIVE")
     class BatchConstraintsPositive {
@@ -465,7 +561,7 @@ public class AtomicBatchTest {
             final var contract = "CalldataSize";
             final var function = "callme";
             // Adjust the payload size with 512 bytes, so the total size is just under 6kb
-            final var payload = new byte[MAX_CALL_DATA_SIZE - 512];
+            final var payload = new byte[MAX_CALL_DATA_SIZE - 1000];
             final var batchOperator = "batchOperator";
             return hapiTest(
                     cryptoCreate(batchOperator),

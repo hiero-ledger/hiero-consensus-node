@@ -194,6 +194,7 @@ public class RecordStreamBuilder
     private TokenID tokenID;
     private ScheduleID scheduleID;
     private TokenType tokenType;
+    private HederaFunctionality function;
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
@@ -1172,12 +1173,17 @@ public class RecordStreamBuilder
 
     @Override
     public StreamBuilder functionality(@NonNull final HederaFunctionality functionality) {
-        // No-op
+        this.function = functionality;
         return this;
     }
 
     @Override
     public ScheduleID scheduleID() {
         return scheduleID;
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return function;
     }
 }

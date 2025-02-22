@@ -18,7 +18,7 @@ public class StateEditorHash extends StateEditorOperation {
     public void run() {
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorHash.run()")) {
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(reservedSignedState.get().getState())
+                    .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
         } catch (final InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);

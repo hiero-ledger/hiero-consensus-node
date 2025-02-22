@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
-import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.isBatchInnerTxn;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.nodeDueDiligenceFailure;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.preHandleFailure;
@@ -163,7 +163,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final Bytes applicationTxBytes,
             @Nullable PreHandleResult previousResult,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback) {
+            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
+            @NonNull final InnerTransaction innerTransaction) {
         // 0. Ignore the previous result if it was computed using different node configuration
         if (!wasComputedWithCurrentNodeConfiguration(previousResult)) {
             previousResult = null;
@@ -189,11 +190,13 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
             // But we still re-check for node diligence failures
             transactionChecker.checkParsed(txInfo);
+
             // The transaction account ID MUST have matched the creator!
-            if (!isBatchInnerTxn(txInfo.txBody())
+            if (innerTransaction == InnerTransaction.NO
                     && !creator.equals(txInfo.txBody().nodeAccountID())) {
                 throw new DueDiligenceException(INVALID_NODE_ACCOUNT, txInfo);
             }
+
         } catch (DueDiligenceException e) {
             // The node SHOULD have verified the transaction before it was submitted to the network.
             // Since it didn't, it has failed in its due diligence and will be charged accordingly.
@@ -243,7 +246,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         }
 
         // 3. Expand and verify signatures
-        return expandAndVerifySignatures(txInfo, payer, payerAccount, storeFactory, previousResult);
+        return expandAndVerifySignatures(txInfo, payer, payerAccount, storeFactory, previousResult, innerTransaction);
     }
 
     /**
@@ -261,7 +264,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             final AccountID payer,
             final Account payerAccount,
             final ReadableStoreFactory storeFactory,
-            @Nullable final PreHandleResult previousResult) {
+            @Nullable final PreHandleResult previousResult,
+            @NonNull final InnerTransaction innerTransaction) {
         // 1a. Create the PreHandleContext. This will get reused across several calls to the transaction handlers
         final PreHandleContext context;
         final VersionedConfiguration configuration = configProvider.getConfiguration();
@@ -297,6 +301,10 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
         // 2b. Call Pre-Transaction Handlers
         try {
+            // Check batch key on non-inner transactions,
+            if (innerTransaction == InnerTransaction.NO && txInfo.txBody().hasBatchKey()) {
+                throw new PreCheckException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+            }
             // First, perform semantic checks on the transaction
             final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);

@@ -546,6 +546,11 @@ public class BlockStreamBuilder
     }
 
     @Override
+    public HederaFunctionality functionality() {
+        return functionality;
+    }
+
+    @Override
     public ScheduleID scheduleID() {
         return scheduleId;
     }
