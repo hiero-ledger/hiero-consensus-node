@@ -2,11 +2,14 @@
 package com.swirlds.metrics.impl;
 
 import com.swirlds.base.utility.ToStringBuilder;
+import com.swirlds.metrics.api.Label;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.snapshot.SnapshotableMetric;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Basic implementation of all platform-implementations of {@link Metric}
@@ -19,6 +22,10 @@ public abstract class AbstractMetric implements SnapshotableMetric {
     private final String unit;
     private final String format;
 
+    private final Set<Label> labels;
+
+    private final Set<String> supportedLabelKeys;
+
     protected AbstractMetric(@NonNull final MetricConfig<?, ?> config) {
         Objects.requireNonNull(config, "config must not be null");
         this.category = config.getCategory();
@@ -26,6 +33,8 @@ public abstract class AbstractMetric implements SnapshotableMetric {
         this.description = config.getDescription();
         this.unit = config.getUnit();
         this.format = config.getFormat();
+        this.labels = Collections.unmodifiableSet(config.getPredefinedLabels());
+        this.supportedLabelKeys = Collections.unmodifiableSet(config.getLabelKeys());
     }
 
     /**
@@ -99,6 +108,18 @@ public abstract class AbstractMetric implements SnapshotableMetric {
     @Override
     public int hashCode() {
         return Objects.hash(category, name);
+    }
+
+    @NonNull
+    @Override
+    public Set<Label> getLabels() {
+        return labels;
+    }
+
+    @NonNull
+    @Override
+    public Set<String> getSupportedLabelKeys() {
+        return supportedLabelKeys;
     }
 
     /**
