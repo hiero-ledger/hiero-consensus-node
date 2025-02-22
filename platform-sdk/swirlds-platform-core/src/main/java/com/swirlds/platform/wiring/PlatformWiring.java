@@ -934,6 +934,16 @@ public class PlatformWiring {
     }
 
     /**
+     * Get the output wiring for the state signature collector
+     *
+     * @return the wiring for the state signature collector
+     */
+    @NonNull
+    public OutputWire<List<ReservedSignedState>> getStateSignatureCollectorWiring() {
+        return stateSignatureCollectorWiring.getOutputWire();
+    }
+
+    /**
      * Get the output wire for consensus engine
      *
      * @return the wiring for the consensus engine
