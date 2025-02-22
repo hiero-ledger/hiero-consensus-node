@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -59,7 +60,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -758,9 +758,8 @@ public class AtomicBatchTest {
         }
 
         @HapiTest
-        @Disabled // TODO: re-enable this test when ingest workflow is finalized
-        // BATCH_20
         @DisplayName("Failing batch should finalize hollow account")
+        // BATCH_20
         final Stream<DynamicTest> failingBatchShouldFinalizeHollowAccount() {
             final var alias = "alias";
             final var batchOperator = "batchOperator";
@@ -769,17 +768,11 @@ public class AtomicBatchTest {
                     newKeyNamed(alias).shape(SECP_256K1_SHAPE),
                     createHollowAccountFrom(alias),
                     getAliasedAccountInfo(alias).isHollow(),
-                    atomicBatch(
-                                    cryptoCreate("foo")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .payingWith(alias)
-                                            .batchKey(batchOperator)
-                                            .sigMapPrefixes(uniqueWithFullPrefixesFor(alias)),
-                                    cryptoCreate("bar")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .alias(ByteString.EMPTY)
-                                            .payingWith(alias)
-                                            .batchKey(batchOperator))
+                    atomicBatch(cryptoTransfer(tinyBarsFromToWithAlias(alias, GENESIS, ONE_MILLION_HBARS))
+                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                    .payingWith(alias)
+                                    .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
+                                    .batchKey(batchOperator))
                             .payingWith(alias)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
                             .signedBy(alias, batchOperator)
@@ -860,7 +853,6 @@ public class AtomicBatchTest {
     class FeesPositive {
 
         @HapiTest
-        @Disabled // TODO: enable this, when the fee calculation of inner transactions is implemented
         @DisplayName("Payer was charged for all transactions")
         public Stream<DynamicTest> payerWasCharged() {
             final var batchOperator = "batchOperator";
@@ -876,15 +868,15 @@ public class AtomicBatchTest {
                                             .payingWith(batchOperator),
                                     cryptoCreate("bar")
                                             .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .txnId("innerTxn1")
+                                            .txnId("innerTxn2")
                                             .batchKey(batchOperator)
                                             .payingWith(batchOperator))
                             .payingWith(batchOperator)
                             .via("batchTxn"),
                     // validate the fee charged for the batch txn and the inner txns
                     validateChargedUsd("batchTxn", 0.001),
-                    validateChargedUsd("innerTxn1", 0.05),
-                    validateChargedUsd("innerTxn2", 0.05));
+                    validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 30),
+                    validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 30));
         }
     }
 
@@ -1051,7 +1043,6 @@ public class AtomicBatchTest {
         }
 
         @HapiTest
-        @Disabled // TODO: enable when the inner txn validity checks are ready
         @DisplayName("Validate inner txn valid start")
         // BATCH_16
         final Stream<DynamicTest> validateInnerTxnValidStart() {
@@ -1099,7 +1090,7 @@ public class AtomicBatchTest {
                                             .txnId(carlInnerTxnId)
                                             .payingWith(carl))
                             .signedByPayerAnd(alice)
-                            .hasPrecheck(INNER_TRANSACTION_FAILED),
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     atomicBatch(
                                     cryptoCreate("foo")
                                             .withProtoStructure(TxnProtoStructure.NORMALIZED)

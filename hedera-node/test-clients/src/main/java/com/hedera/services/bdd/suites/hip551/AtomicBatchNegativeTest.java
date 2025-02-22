@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
@@ -37,6 +38,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -56,6 +58,7 @@ import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
+import java.time.Instant;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -145,7 +148,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Empty batch should fail")
-        @Disabled // TODO: enable this when we have pure checks
         // BATCH_37
         public Stream<DynamicTest> submitEmptyBatch() {
             return hapiTest(atomicBatch().hasPrecheck(BATCH_LIST_EMPTY));
@@ -229,7 +231,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Submit batch with duplicated inner txn should fail")
-        @Disabled // TODO: enable this when we have pure checks
         // BATCH_44
         public Stream<DynamicTest> duplicatedInnerTxn() {
             return hapiTest(
@@ -237,6 +238,7 @@ public class AtomicBatchNegativeTest {
                     usableTxnIdNamed("innerId").payerId("batchOperator"),
                     withOpContext((spec, opLog) -> {
                         var txn = cryptoCreate("foo")
+                                .setNode("0.0.0")
                                 .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                 .txnId("innerId")
                                 .batchKey("batchOperator")
@@ -372,7 +374,6 @@ public class AtomicBatchNegativeTest {
 
         @LeakyHapiTest(overrides = {"atomicBatch.maxNumberOfTransactions"})
         @DisplayName("Exceeds max number of inner transactions limit should fail")
-        @Disabled // TODO: enable this test when we have the maxInnerTxn property
         //  BATCH_52
         public Stream<DynamicTest> exceedsInnerTxnLimit() {
             final var batchOperator = "batchOperator";
@@ -566,6 +567,60 @@ public class AtomicBatchNegativeTest {
                     // asserts
                     getAccountBalance("Alice").hasTinyBars(ONE_HBAR),
                     getAccountBalance("Bob").hasTinyBars(ONE_HBAR));
+        }
+    }
+
+    @Nested
+    @DisplayName("Blacklisted inner transactions - NEGATIVE")
+    class BlacklistedTransactions {
+
+        @HapiTest
+        @DisplayName("Batch containing nested batch")
+        // BATCH_59
+        public Stream<DynamicTest> batchContainingNestedBatch() {
+            return hapiTest(
+                    cryptoCreate("batchOperator").balance(FIVE_HBARS),
+                    atomicBatch(atomicBatch(cryptoCreate("foo")
+                                            .batchKey("batchOperator")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                    .batchKey("batchOperator"))
+                            .signedByPayerAnd("batchOperator")
+                            .hasKnownStatus(BATCH_LIST_CONTAINS_INVALID_TRANSACTION));
+        }
+
+        @HapiTest
+        @DisplayName("Batch containing freeze transaction")
+        // BATCH_60
+        public Stream<DynamicTest> batchContainingFreezeTransactions() {
+            return hapiTest(
+                    cryptoCreate("batchOperator").balance(FIVE_HBARS),
+                    atomicBatch(freezeOnly()
+                                    .payingWith(GENESIS)
+                                    .startingAt(Instant.now().plusSeconds(10))
+                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                    .batchKey("batchOperator")
+                                    .signedByPayerAnd("batchOperator"))
+                            .hasKnownStatus(BATCH_LIST_CONTAINS_INVALID_TRANSACTION));
+        }
+
+        @HapiTest
+        @DisplayName("Batch containing blacklisted and non-blacklisted transactions")
+        // BATCH_61
+        public Stream<DynamicTest> nonBlacklistedAndBlacklistedTransactions() {
+            return hapiTest(
+                    cryptoCreate("batchOperator").balance(FIVE_HBARS),
+                    atomicBatch(
+                                    cryptoCreate("foo")
+                                            .batchKey("batchOperator")
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
+                                    freezeOnly()
+                                            .payingWith(GENESIS)
+                                            .startingAt(Instant.now().plusSeconds(10))
+                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                            .batchKey("batchOperator")
+                                            .signedByPayerAnd("batchOperator"))
+                            .hasKnownStatus(BATCH_LIST_CONTAINS_INVALID_TRANSACTION));
         }
     }
 }
