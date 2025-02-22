@@ -314,7 +314,7 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
         boolean removedNode = removedNodeFromAddressBook(platformAddressBook, stateAddressBook);
 
         logger.info(DEMO_INFO.getMarker(), "platformVsConfig = {}, platformVsState = {}, platformVsUsed = {}, platformVsUpdated = {}, removedNode = {}",
-                platformVsConfig, platformVsState, platformVsUsed, platformAddressBook, removedNode);
+                platformVsConfig, platformVsState, platformVsUsed, platformVsUpdated, removedNode);
         return platformVsConfig
                 && platformVsState
                 && platformVsUsed
