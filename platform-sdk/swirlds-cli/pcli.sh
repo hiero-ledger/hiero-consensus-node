@@ -65,18 +65,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 # The entrypoint into the platform CLI (i.e. where the main() method is)
 MAIN_CLASS_NAME='com.swirlds.cli.PlatformCli'
 
-PYTHON_INSTALLED=true
-python3 --version >/dev/null 2>&1 || PYTHON_INSTALLED=false
-
-SQUELCH_SPAM=false
-SQUELCH_SPAM_PATH="${SCRIPT_PATH}/squelch-spam.py"
-if [[ -e "$SQUELCH_SPAM_PATH" ]]; then
-  if [[ "$PYTHON_INSTALLED" = true ]]; then
-    # The squelch-spam.py script exists and can be executed, enable squelching.
-    SQUELCH_SPAM=true
-  fi
-fi
-
 # Iterate over arguments and strip out the classpath arguments and JVM arguments.
 # This needs to be handled by this bash script and not by the java program,
 # since we need to pass this data directly to the JVM.
@@ -86,6 +74,7 @@ LOG4J_SET=false
 IGNORE_JARS=false
 COLOR=true
 NO_PIPING=false
+SQUELCH_SPAM=true
 for ((CURRENT_INDEX=1; CURRENT_INDEX<=$#; CURRENT_INDEX++)); do
 
   # The current argument we are considering.
@@ -177,19 +166,23 @@ run () {
   java "${JVM_ARGS[@]}" -cp "${JVM_CLASSPATH}" $MAIN_CLASS_NAME "${PROGRAM_ARGS[@]}"
 }
 
+squelch_spam () {
+  java -cp "${JVM_CLASSPATH}" com.swirlds.cli.utility.SpamSquelcher
+}
+
 colorize () {
   java -cp "${JVM_CLASSPATH}" com.swirlds.cli.logging.StdInOutColorize "${PROGRAM_ARGS[@]}"
 }
 
 if [[ "$COLOR" = true ]]; then
   if [[ "$SQUELCH_SPAM" = true ]]; then
-    run 2>&1 | $SQUELCH_SPAM_PATH | colorize
+    run 2>&1 | squelch_spam | colorize
   else
     run | colorize
   fi
 else
   if [[ "$SQUELCH_SPAM" = true ]]; then
-    run 2>&1 | $SQUELCH_SPAM_PATH
+    run 2>&1 | squelch_spam
   else
     run
   fi
