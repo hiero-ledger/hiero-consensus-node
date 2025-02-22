@@ -128,7 +128,7 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
     @NonNull
     public AddressBookTestingToolState newMerkleStateRoot() {
         final AddressBookTestingToolState state = new AddressBookTestingToolState(
-                version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+                version -> new BasicSoftwareVersion(version.major()));
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }

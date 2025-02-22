@@ -255,7 +255,7 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
     @Override
     public StressTestingToolState newMerkleStateRoot() {
         final StressTestingToolState state =
-                new StressTestingToolState(version -> new BasicSoftwareVersion(SOFTWARE_VERSION.getSoftwareVersion()));
+                new StressTestingToolState(version -> new BasicSoftwareVersion(version.major()));
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }

@@ -193,7 +193,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     @Override
     public MigrationTestingToolState newMerkleStateRoot() {
         final MigrationTestingToolState state = new MigrationTestingToolState(
-                version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+                version -> new BasicSoftwareVersion(version.major()));
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }

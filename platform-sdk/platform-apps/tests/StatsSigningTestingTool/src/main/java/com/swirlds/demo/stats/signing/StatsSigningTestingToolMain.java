@@ -303,7 +303,7 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
     @NonNull
     public StatsSigningTestingToolState newMerkleStateRoot() {
         final StatsSigningTestingToolState state = new StatsSigningTestingToolState(
-                version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+                version -> new BasicSoftwareVersion(version.major()));
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }

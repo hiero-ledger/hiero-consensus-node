@@ -876,7 +876,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     @NonNull
     public PlatformTestingToolState newMerkleStateRoot() {
         final PlatformTestingToolState state =
-                new PlatformTestingToolState(version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+                new PlatformTestingToolState(version -> new BasicSoftwareVersion(version.major()));
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }

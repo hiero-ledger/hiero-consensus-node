@@ -117,7 +117,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @NonNull
     public ConsistencyTestingToolState newMerkleStateRoot() {
         final ConsistencyTestingToolState state =
-                new ConsistencyTestingToolState(version -> new BasicSoftwareVersion(softwareVersion.getVersion()));
+                new ConsistencyTestingToolState(version -> new BasicSoftwareVersion(version.major()));
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
 
         return state;
