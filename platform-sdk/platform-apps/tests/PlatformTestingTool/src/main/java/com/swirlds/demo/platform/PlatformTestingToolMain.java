@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 /*
  * This file is public domain.
@@ -67,7 +52,6 @@ import com.swirlds.demo.platform.fs.stresstest.proto.ControlType;
 import com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction;
 import com.swirlds.demo.platform.fs.stresstest.proto.TestTransactionWrapper;
 import com.swirlds.demo.platform.nft.NftQueryController;
-import com.swirlds.demo.platform.stream.AccountBalanceExport;
 import com.swirlds.demo.virtualmerkle.config.VirtualMerkleConfig;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
@@ -92,6 +76,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -324,7 +309,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        stateLifecycles = new PlatformTestingToolStateLifecycles();
+        stateLifecycles = new PlatformTestingToolStateLifecycles(new PlatformStateFacade(v -> softwareVersion));
     }
 
     /**
@@ -710,15 +695,13 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
         initAppStat();
 
-        registerAccountBalanceExportListener();
-
         if (waitForSaveStateDuringFreeze) {
             registerFinishAfterSaveStateDuringFreezeListener();
         }
 
         platform.getNotificationEngine().register(NewSignedStateListener.class, notification -> {
             if (timeToCheckBalances(notification.getConsensusTimestamp())) {
-                checkBalances(notification.getStateRoot());
+                checkBalances(notification.getState());
             }
         });
     }
@@ -874,9 +857,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      */
     @Override
     @NonNull
-    public PlatformTestingToolState newMerkleStateRoot() {
-        final PlatformTestingToolState state =
-                new PlatformTestingToolState(version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
+    public PlatformTestingToolState newStateRoot() {
+        final PlatformTestingToolState state = new PlatformTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }
@@ -1064,26 +1046,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
             return Pair.of(maxAccountIdFromLoadedState.get(), maxSmartContractIdFromLoadedState.get());
         }
-    }
-
-    /**
-     * Register a {@link StateWriteToDiskCompleteListener} that writes an
-     * account balance export to the saved state folder.
-     */
-    private void registerAccountBalanceExportListener() {
-        platform.getNotificationEngine().register(StateWriteToDiskCompleteListener.class, notification -> {
-            if (!(notification.getState() instanceof PlatformTestingToolState)) {
-                return;
-            }
-
-            final PlatformTestingToolState state = (PlatformTestingToolState) notification.getState();
-
-            final AccountBalanceExport export = new AccountBalanceExport(0L);
-            final String balanceFile = export.exportAccountsBalanceCSVFormat(
-                    state, notification.getConsensusTimestamp(), notification.getFolder());
-
-            export.signAccountBalanceFile(platform, balanceFile);
-        });
     }
 
     /**

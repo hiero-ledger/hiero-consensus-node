@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
@@ -96,7 +81,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TokenBurnHandlerTest extends ParityTestBase {
-    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(1339);
+
+    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(0L, 0L, 1339);
     private static final TokenID TOKEN_123 = BaseTokenHandler.asToken(123);
     private TokenSupplyChangeOpsValidator validator = new TokenSupplyChangeOpsValidator();
     private final TokenBurnHandler subject = new TokenBurnHandler(validator);

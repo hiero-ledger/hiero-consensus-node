@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
@@ -156,6 +141,7 @@ import com.hedera.services.bdd.spec.utilops.mod.SubmitModificationsOp;
 import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
+import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
@@ -695,6 +681,14 @@ public class UtilVerbs {
      */
     public static HapiSpecWaitUntil waitUntilStartOfNextAdhocPeriod(final long periodMs) {
         return untilStartOfNextAdhocPeriod(periodMs);
+    }
+
+    /**
+     * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next block stream block.
+     * @return the operation that sleeps until the beginning of the next block stream block
+     */
+    public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
+        return new HapiSpecWaitUntilNextBlock();
     }
 
     public static HapiSpecWaitUntil waitUntilJustBeforeNextStakingPeriod(

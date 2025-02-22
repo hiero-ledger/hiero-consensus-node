@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.event.emitter;
 
 import com.swirlds.common.platform.NodeId;
@@ -30,11 +15,8 @@ import java.util.Queue;
 /**
  * A base event emitter class that buffers events created by the {@link GraphGenerator}. Buffering events allows
  * subclasses to emit events in an order different from the order they are generated.
- *
- * @param <T>
- * 		the type of class extending this class
  */
-public abstract class BufferingEventEmitter<T extends BufferingEventEmitter<T>> extends AbstractEventEmitter<T> {
+public abstract class BufferingEventEmitter extends AbstractEventEmitter {
 
     /**
      * The maximum number of events that this generator is permitted to buffer.
@@ -55,7 +37,7 @@ public abstract class BufferingEventEmitter<T extends BufferingEventEmitter<T>> 
 
     protected long numEventsGenerated;
 
-    protected BufferingEventEmitter(final GraphGenerator<?> graphGenerator) {
+    protected BufferingEventEmitter(final GraphGenerator graphGenerator) {
         super(graphGenerator);
         clearEvents();
     }

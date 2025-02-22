@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
@@ -43,7 +28,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
@@ -68,6 +52,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -87,15 +72,18 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
     private static final Logger log = LogManager.getLogger(ScheduleCreateHandler.class);
 
     private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
+    private final EntityIdFactory idFactory;
     private final InstantSource instantSource;
     private final Throttle.Factory throttleFactory;
 
     @Inject
     public ScheduleCreateHandler(
+            @NonNull final EntityIdFactory idFactory,
             @NonNull final InstantSource instantSource,
             @NonNull final Throttle.Factory throttleFactory,
             @NonNull final ScheduleFeeCharging feeCharging) {
         super(feeCharging);
+        this.idFactory = requireNonNull(idFactory);
         this.instantSource = requireNonNull(instantSource);
         this.throttleFactory = requireNonNull(throttleFactory);
     }
@@ -155,7 +143,6 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
         final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
-        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var consensusNow = context.consensusNow();
         final var defaultLifetime = ledgerConfig.scheduleTxExpiryTimeSecs();
         final var provisionalSchedule =
@@ -223,11 +210,8 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var schedulingTxnId =
                 provisionalSchedule.originalCreateTransactionOrThrow().transactionIDOrThrow();
         final var schedulerId = schedulingTxnId.accountIDOrThrow();
-        final var scheduleId = ScheduleID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .scheduleNum(context.entityNumGenerator().newEntityNum())
-                .build();
+        final var scheduleId =
+                idFactory.newScheduleId(context.entityNumGenerator().newEntityNum());
         var schedule = provisionalSchedule
                 .copyBuilder()
                 .scheduleId(scheduleId)

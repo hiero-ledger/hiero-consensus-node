@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -37,7 +22,6 @@ import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuc
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NONSENSE_KEY;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_ACCOUNT_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
@@ -82,16 +66,18 @@ public class TopicCreateSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> autoRenewAccountIdNeedsAdminKeyToo() {
+    final Stream<DynamicTest> autoRenewAccountIdDoesntNeedAdminKey() {
         return hapiTest(
                 cryptoCreate("payer"),
                 cryptoCreate("autoRenewAccount"),
+                // autoRenewAccount can be set on topic without adminKey
                 createTopic("noAdminKeyExplicitAutoRenewAccount")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
-                        .signedBy("payer", "autoRenewAccount")
-                        // In hedera-app, we will allow an immutable topic to have an auto-renew account
-                        .hasKnownStatusFrom(AUTORENEW_ACCOUNT_NOT_ALLOWED));
+                        .signedBy("payer", "autoRenewAccount"),
+                getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
+                        .hasNoAdminKey()
+                        .hasAutoRenewAccount("autoRenewAccount"));
     }
 
     @HapiTest
@@ -151,12 +137,17 @@ public class TopicCreateSuite {
                 createTopic("NotToBe")
                         .autoRenewAccountId(PAY_RECEIVABLE_CONTRACT)
                         .hasKnownStatusFrom(INVALID_SIGNATURE),
+                // Auto-renew account should sign if set on a topic
                 createTopic("testTopic")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
-                        /* SigMap missing signature from auto-renew account's key. */
                         .signedBy("payer")
                         .hasKnownStatus(INVALID_SIGNATURE),
+                createTopic("testTopic")
+                        .payingWith("payer")
+                        .autoRenewAccountId("autoRenewAccount")
+                        .signedBy("autoRenewAccount")
+                        .hasPrecheck(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
                         .adminKeyName("adminKey")
@@ -185,6 +176,7 @@ public class TopicCreateSuite {
                 getTopicInfo("explicitAdminKeyNoAutoRenewAccount")
                         .hasAdminKey("adminKey")
                         .logged(),
+                // Auto-renew account can be set along with admin key on topic
                 createTopic("explicitAdminKeyExplicitAutoRenewAccount")
                         .adminKeyName("adminKey")
                         .autoRenewAccountId("autoRenewAccount"),

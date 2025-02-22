@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -23,11 +8,8 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.event.PlatformEvent;
@@ -43,7 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -62,7 +43,7 @@ class MigrationTestingToolStateTest {
 
     @BeforeEach
     void setUp() {
-        state = new MigrationTestingToolState(mock(Function.class));
+        state = new MigrationTestingToolState();
         stateLifecycles = new MigrationTestToolStateLifecycles();
         random = new Random();
         round = mock(Round.class);
@@ -139,25 +120,14 @@ class MigrationTestingToolStateTest {
     }
 
     @Test
-    void handleConsensusRoundWithDeprecatedSystemTransaction() {
-        givenRoundAndEvent();
-        when(transaction.getApplicationTransaction()).thenReturn(Bytes.EMPTY);
-        when(transaction.isSystem()).thenReturn(true);
-
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
-
-        assertThat(consumedTransactions).isEmpty();
-    }
-
-    @Test
     void preHandleEventWithMultipleSystemTransactions() {
         final var gossipEvent = mock(GossipEvent.class);
         final var eventCore = mock(EventCore.class);
         when(gossipEvent.eventCore()).thenReturn(eventCore);
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
-        final var eventTransaction = mock(EventTransaction.class);
-        final var secondEventTransaction = mock(EventTransaction.class);
-        final var thirdEventTransaction = mock(EventTransaction.class);
+        final var consensusTransaction = mock(TransactionWrapper.class);
+        final var secondConsensusTransaction = mock(TransactionWrapper.class);
+        final var thirdConsensusTransaction = mock(TransactionWrapper.class);
 
         final var stateSignatureTransactionBytes =
                 StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
@@ -166,14 +136,10 @@ class MigrationTestingToolStateTest {
                 .build();
         final var transactionBytes = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transactionProto);
 
-        final var systemTransactionWithType =
-                new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, transactionBytes);
-
-        when(eventTransaction.transaction()).thenReturn(systemTransactionWithType);
-        when(secondEventTransaction.transaction()).thenReturn(systemTransactionWithType);
-        when(thirdEventTransaction.transaction()).thenReturn(systemTransactionWithType);
-        when(gossipEvent.eventTransaction())
-                .thenReturn(List.of(eventTransaction, secondEventTransaction, thirdEventTransaction));
+        when(consensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
+        when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
+        when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
+        when(gossipEvent.transactions()).thenReturn(List.of(transactionBytes, transactionBytes, transactionBytes));
         event = new PlatformEvent(gossipEvent);
 
         stateLifecycles.onPreHandle(event, state, consumer);
@@ -186,9 +152,8 @@ class MigrationTestingToolStateTest {
         final var gossipEvent = mock(GossipEvent.class);
         final var eventCore = mock(EventCore.class);
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
-        final var eventTransaction = mock(EventTransaction.class);
+        final var consensusTransaction = mock(TransactionWrapper.class);
         when(gossipEvent.eventCore()).thenReturn(eventCore);
-        when(gossipEvent.eventTransaction()).thenReturn(List.of(eventTransaction));
 
         final var stateSignatureTransactionBytes =
                 StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
@@ -196,26 +161,14 @@ class MigrationTestingToolStateTest {
                 .bodyBytes(stateSignatureTransactionBytes)
                 .build();
         final var transactionBytes = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transactionProto);
-        final var systemTransactionWithType =
-                new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, transactionBytes);
-        when(eventTransaction.transaction()).thenReturn(systemTransactionWithType);
+
+        when(consensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
+        when(gossipEvent.transactions()).thenReturn(List.of(transactionBytes));
         event = new PlatformEvent(gossipEvent);
 
         stateLifecycles.onPreHandle(event, state, consumer);
 
         assertThat(consumedTransactions).hasSize(1);
-    }
-
-    @Test
-    void preHandleEventWithDeprecatedSystemTransaction() {
-        event = mock(PlatformEvent.class);
-
-        when(round.iterator()).thenReturn(Collections.singletonList(event).iterator());
-        when(transaction.isSystem()).thenReturn(true);
-
-        stateLifecycles.onPreHandle(event, state, consumer);
-
-        assertThat(consumedTransactions).isEmpty();
     }
 
     @Test

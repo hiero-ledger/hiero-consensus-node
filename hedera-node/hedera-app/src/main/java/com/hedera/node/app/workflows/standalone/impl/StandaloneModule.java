@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.standalone.impl;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -25,6 +10,7 @@ import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
 import dagger.Module;
@@ -61,9 +47,9 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     @NodeSelfId
-    static AccountID provideNodeSelfId() {
+    static AccountID provideNodeSelfId(EntityIdFactory entityIdFactory) {
         // This is only used to check the shard and realm of account ids
-        return AccountID.DEFAULT;
+        return entityIdFactory.newDefaultAccountId();
     }
 
     @Provides
