@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
@@ -562,6 +563,21 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(nonPayerFutureResult.passed()).isFalse();
             // And we do see this transaction registered with the deduplication cache
             verify(deduplicationCache).add(txInfo.txBody().transactionIDOrThrow());
+        }
+
+        @Test
+        @DisplayName("Pre-handle batch key checks fail")
+        void preHandleTransactionWithBatchKeyFail(@Mock SignatureVerificationFuture sigFuture) throws Exception {
+            final var key = ALICE.keyInfo().publicKey();
+            final var txInfo = scenario().withBatchKey(key).txInfo();
+            final var txBytes = asByteArray(txInfo.transaction());
+            final Transaction platformTx = createAppPayloadWrapper(txBytes);
+            when(transactionChecker.parseAndCheck(any(Bytes.class))).thenReturn(txInfo);
+
+            workflow.preHandle(storeFactory, NODE_1.nodeAccountID(), Stream.of(platformTx), txns -> {});
+
+            final PreHandleResult result = platformTx.getMetadata();
+            assertThat(result.responseCode()).isEqualTo(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
         }
     }
 

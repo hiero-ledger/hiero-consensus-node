@@ -337,11 +337,12 @@ public class BaseTranslator {
                 TransactionReceipt.newBuilder().status(parts.transactionResult().status());
         final boolean followsUserRecord = asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
         if ((!followsUserRecord || parts.transactionIdOrThrow().scheduled())
-                && !parts.body().hasBatchKey()) {
+                && parts.parentConsensusTimestamp() == null) {
             // Only preceding and user transactions get exchange rates in their receipts; note that
             // auto-account creations are always preceding dispatches and so get exchange rates
             receiptBuilder.exchangeRate(activeRates);
         }
+
         spec.accept(receiptBuilder, recordBuilder);
         if (!isContractOp(parts) && parts.hasContractOutput()) {
             final var output = parts.callContractOutputOrThrow();

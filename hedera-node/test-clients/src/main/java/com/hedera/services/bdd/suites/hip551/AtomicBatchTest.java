@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -50,11 +51,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -267,7 +270,7 @@ public class AtomicBatchTest {
                 usableTxnIdNamed(innerTxnId1).payerId(innerTnxPayer),
                 usableTxnIdNamed(innerTxnId2).payerId(innerTnxPayer),
                 // submit atomic batch with 3 inner txns
-                atomicBatch(innerTxn1, innerTxn2).via(atomicTxn),
+                atomicBatch(innerTxn1, innerTxn2).payingWith(batchOperator).via(atomicTxn),
                 getTxnRecord(atomicTxn)
                         .exposingTo(record -> parentConsTime.set(record.getConsensusTimestamp()))
                         .logged(),
@@ -404,6 +407,44 @@ public class AtomicBatchTest {
                 usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer),
                 cryptoCreate(batchOperator).balance(ONE_HBAR),
                 atomicBatch(innerTxn1).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> nonInnerTransactionHasBatchKeyFails() {
+        final var batchPayer = "batchPayer";
+        final var innerTnxPayer = "innerPayer";
+        final var innerTxnId = "innerId";
+        final var basicPayer = "basicPayer";
+        final var innerTxn = cryptoCreate("foo1")
+                .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                .balance(ONE_HBAR)
+                .txnId(innerTxnId)
+                .batchKey(batchPayer)
+                .payingWith(innerTnxPayer)
+                .via("innerTxn");
+
+        return hapiTest(
+                cryptoCreate(batchPayer).balance(FIVE_HBARS),
+                cryptoCreate(innerTnxPayer).balance(FIVE_HBARS),
+                cryptoCreate(basicPayer).balance(FIVE_HBARS),
+                usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
+                atomicBatch(innerTxn)
+                        .batchKey(batchPayer)
+                        .payingWith(batchPayer)
+                        .via("batchTxn")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                newKeyNamed("newKey"),
+                cryptoCreate("foo2")
+                        .balance(ONE_HBAR)
+                        .batchKey("newKey")
+                        .signedBy(DEFAULT_PAYER)
+                        .payingWith(basicPayer)
+                        .via("basicTxn")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
+                getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
+                validateChargedUsd("batchTxn", 0.001),
+                validateChargedUsd("basicTxn", 0.05, 10));
     }
 
     @Nested

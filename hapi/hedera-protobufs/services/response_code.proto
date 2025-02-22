@@ -1722,9 +1722,9 @@ enum ResponseCodeEnum {
      */
     MISSING_BATCH_KEY = 392;
     /**
-     * The batch key is set for atomic batch user transaction
+     * The batch key is set for not inner transaction
      */
-    BATCH_KEY_SET_FOR_ATOMIC_BATCH = 393;
+    BATCH_KEY_SET_ON_NON_INNER_TRANSACTION = 393;
 
     /**
      * The batch key is not valid
