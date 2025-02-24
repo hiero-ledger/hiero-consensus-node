@@ -314,7 +314,7 @@ class BlockStreamManagerImplTest {
                         Bytes.EMPTY,
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "cc0035e4316242d512df04802a3424c9737350130f04dd2346c65f0fa23d81871250058396b0aac850341903e2ec60c4")),
+                                "dda122623c97d82bfad19873fedd61db98605b434fc8a36a71a7fe99aa017ab45238ceed20a4ae97dbaca7fb728980e3")),
                 Timestamp.DEFAULT,
                 true,
                 SemanticVersion.DEFAULT,
@@ -537,7 +537,7 @@ class BlockStreamManagerImplTest {
                         Bytes.EMPTY,
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "cc0035e4316242d512df04802a3424c9737350130f04dd2346c65f0fa23d81871250058396b0aac850341903e2ec60c4")),
+                                "dda122623c97d82bfad19873fedd61db98605b434fc8a36a71a7fe99aa017ab45238ceed20a4ae97dbaca7fb728980e3")),
                 Timestamp.DEFAULT,
                 false,
                 SemanticVersion.DEFAULT,
