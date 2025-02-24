@@ -10,7 +10,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanc
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.customfees.TokenCustomFeesTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.decimals.DecimalsTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.defaultfreezestatus.DefaultFreezeStatusTranslator;
@@ -37,16 +36,12 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.symbol
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenexpiry.TokenExpiryTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.address_0x167.TokenTypeTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenuri.TokenUriTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.totalsupply.TotalSupplyTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateKeysTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateNFTsMetadataTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.wipe.WipeTranslator;
 import dagger.Module;
@@ -129,14 +124,6 @@ public interface HtsTranslatorsModule {
     @IntoSet
     @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideBurnTranslator(@NonNull final BurnTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideCreateTranslator(@NonNull final CreateTranslator translator) {
         return translator;
     }
 
@@ -294,14 +281,6 @@ public interface HtsTranslatorsModule {
     @Singleton
     @IntoSet
     @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideTokenTypeTranslator(@NonNull final TokenTypeTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideDefaultFreezeStatusTranslator(
             @NonNull final DefaultFreezeStatusTranslator translator) {
         return translator;
@@ -354,14 +333,6 @@ public interface HtsTranslatorsModule {
     @Singleton
     @IntoSet
     @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideUpdateTranslator(@NonNull final UpdateTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideTokenCustomFeesTranslator(
             @NonNull final TokenCustomFeesTranslator translator) {
         return translator;
@@ -406,25 +377,8 @@ public interface HtsTranslatorsModule {
     @Singleton
     @IntoSet
     @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideUpdateKeysTranslator(@NonNull final UpdateKeysTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideUpdateTokenCustomFeesTranslator(
             @NonNull final UpdateTokenCustomFeesTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideUpdateNFTsMetadataTranslator(
-            @NonNull final UpdateNFTsMetadataTranslator translator) {
         return translator;
     }
 

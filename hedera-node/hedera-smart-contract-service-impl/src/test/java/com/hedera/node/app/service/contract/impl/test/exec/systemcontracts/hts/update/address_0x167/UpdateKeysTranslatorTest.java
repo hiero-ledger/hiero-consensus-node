@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.burn;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update.address_0x167;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V1;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -12,8 +9,9 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnDecoder;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateKeysTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,8 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class BurnTranslatorTest {
-
+class UpdateKeysTranslatorTest {
     @Mock
     private HtsCallAttempt attempt;
 
@@ -32,10 +29,10 @@ class BurnTranslatorTest {
     private SystemContractGasCalculator gasCalculator;
 
     @Mock
-    private AddressIdConverter addressIdConverter;
+    private HederaWorldUpdater.Enhancement enhancement;
 
     @Mock
-    private HederaWorldUpdater.Enhancement enhancement;
+    private AddressIdConverter addressIdConverter;
 
     @Mock
     private VerificationStrategies verificationStrategies;
@@ -45,19 +42,19 @@ class BurnTranslatorTest {
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
-    private BurnTranslator subject;
+    private UpdateKeysTranslator subject;
 
-    private final BurnDecoder decoder = new BurnDecoder();
+    private final UpdateDecoder decoder = new UpdateDecoder();
 
     @BeforeEach
     void setUp() {
-        subject = new BurnTranslator(decoder, systemContractMethodRegistry, contractMetrics);
+        subject = new UpdateKeysTranslator(decoder, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
-    void matchesBurnTokenV1() {
+    void matchesUpdateKeysTest() {
         attempt = prepareHtsAttemptWithSelector(
-                BURN_TOKEN_V1,
+                UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION,
                 subject,
                 enhancement,
                 addressIdConverter,
@@ -68,22 +65,9 @@ class BurnTranslatorTest {
     }
 
     @Test
-    void matchesBurnTokenV2() {
+    void matchesIncorrectSelectorFailsTest() {
         attempt = prepareHtsAttemptWithSelector(
-                BURN_TOKEN_V2,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry);
-        assertThat(subject.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void matchFailsOnInvalidSelector() {
-        attempt = prepareHtsAttemptWithSelector(
-                TOKEN_UPDATE_INFO_FUNCTION_V3,
+                FreezeUnfreezeTranslator.FREEZE,
                 subject,
                 enhancement,
                 addressIdConverter,
