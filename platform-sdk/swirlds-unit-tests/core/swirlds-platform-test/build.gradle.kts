@@ -26,11 +26,8 @@ tasks.withType<JavaCompile>().configureEach {
 
 testModuleInfo {
     requires("com.swirlds.merkle")
-    requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.state.impl")
-    requires("awaitility")
     requires("org.junit.jupiter.params")
-    requires("org.mockito.junit.jupiter")
     requires("com.swirlds.metrics.api")
     requires("org.mockito")
     requires("org.hiero.consensus.gossip")

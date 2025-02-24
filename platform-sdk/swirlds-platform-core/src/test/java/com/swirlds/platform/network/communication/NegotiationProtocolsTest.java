@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network.communication;
+package com.swirlds.platform.network.communication;
 
-import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.util.List;

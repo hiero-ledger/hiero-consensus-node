@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network.communication;
+package com.swirlds.platform.network.communication;
 
 import static com.swirlds.platform.network.communication.NegotiatorBytes.ACCEPT;
 import static com.swirlds.platform.network.communication.NegotiatorBytes.KEEPALIVE;
-import static com.swirlds.platform.test.network.communication.NegotiatorTestSuite.PROTOCOL_1;
-import static com.swirlds.platform.test.network.communication.NegotiatorTestSuite.PROTOCOL_2;
-import static com.swirlds.platform.test.network.communication.NegotiatorTestSuite.PROTOCOL_3;
+import static com.swirlds.platform.network.communication.NegotiatorTestSuite.PROTOCOL_1;
+import static com.swirlds.platform.network.communication.NegotiatorTestSuite.PROTOCOL_2;
+import static com.swirlds.platform.network.communication.NegotiatorTestSuite.PROTOCOL_3;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.network.communication.NegotiationException;
-import com.swirlds.platform.network.communication.NegotiatorBytes;
 import java.io.EOFException;
 import java.io.IOException;
 import org.junit.jupiter.api.DisplayName;

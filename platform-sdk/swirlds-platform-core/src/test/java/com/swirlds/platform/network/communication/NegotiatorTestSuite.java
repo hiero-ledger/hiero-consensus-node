@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network.communication;
+package com.swirlds.platform.network.communication;
 
 import com.swirlds.common.io.utility.IOConsumer;
 import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.network.communication.NegotiationException;
-import com.swirlds.platform.network.communication.NegotiationProtocols;
-import com.swirlds.platform.network.communication.Negotiator;
 import com.swirlds.platform.test.fixtures.communication.ReadWriteFakeConnection;
 import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.io.IOException;

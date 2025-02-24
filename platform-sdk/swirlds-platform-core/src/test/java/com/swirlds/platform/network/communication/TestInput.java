@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network.communication;
+package com.swirlds.platform.network.communication;
 
 import java.io.InputStream;
 
