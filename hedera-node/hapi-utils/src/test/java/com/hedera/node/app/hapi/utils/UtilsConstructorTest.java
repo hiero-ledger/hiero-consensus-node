@@ -22,7 +22,6 @@ class UtilsConstructorTest {
             ParsingUtils.class,
             CommonUtils.class,
             Ed25519Utils.class,
-            ByteStringUtils.class,
             SignatureGenerator.class,
             ThrottlesJsonToProtoSerde.class,
             ErrorCodeUtils.class,

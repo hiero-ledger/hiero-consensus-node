@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.CONSTRUCTOR;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
 import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static java.lang.System.arraycopy;
@@ -445,7 +446,8 @@ public class Utils {
         final var assetsLoader = new AssetsLoader();
         final BigDecimal hapiUsdPrice;
         try {
-            hapiUsdPrice = assetsLoader.loadCanonicalPrices().get(function).get(type);
+            hapiUsdPrice =
+                    assetsLoader.loadCanonicalPrices().get(toPbj(function)).get(toPbj(type));
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

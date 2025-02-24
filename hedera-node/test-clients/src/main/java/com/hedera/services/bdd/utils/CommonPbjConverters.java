@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.hapi.utils;
+package com.hedera.services.bdd.utils;
 
-import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.*;
+import static com.hedera.services.bdd.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
 import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
@@ -18,26 +17,39 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
+import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.streams.RecordStreamFile;
+import com.hedera.hapi.streams.RecordStreamItem;
+import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.hederahashgraph.api.proto.java.AccountID.AccountCase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
@@ -45,6 +57,11 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
+/**
+ * @deprecated in new code, do not use 'google protobuf' types (com.hederahashgraph.api.proto.java) but
+ *             PBJ types (com.hedera.hapi.node.base), adjust existing code that you touch.
+ */
+@Deprecated
 public class CommonPbjConverters {
     public static @NonNull com.hederahashgraph.api.proto.java.Query fromPbj(@NonNull Query query) {
         requireNonNull(query);
@@ -236,7 +253,7 @@ public class CommonPbjConverters {
         requireNonNull(accountID);
         final var builder =
                 AccountID.newBuilder().shardNum(accountID.getShardNum()).realmNum(accountID.getRealmNum());
-        if (accountID.getAccountCase() == AccountCase.ALIAS) {
+        if (accountID.getAccountCase() == com.hederahashgraph.api.proto.java.AccountID.AccountCase.ALIAS) {
             builder.alias(Bytes.wrap(accountID.getAlias().toByteArray()));
         } else {
             builder.accountNum(accountID.getAccountNum());
@@ -337,6 +354,16 @@ public class CommonPbjConverters {
         }
     }
 
+    public static @NonNull Transaction toPbj(@NonNull com.hederahashgraph.api.proto.java.Transaction transaction) {
+        requireNonNull(transaction);
+        try {
+            final var bytes = transaction.toByteArray();
+            return Transaction.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static @NonNull com.hederahashgraph.api.proto.java.FeeData fromPbj(@NonNull FeeData feeData) {
         requireNonNull(feeData);
         return com.hederahashgraph.api.proto.java.FeeData.newBuilder()
@@ -395,6 +422,16 @@ public class CommonPbjConverters {
         }
     }
 
+    public static @NonNull KeyList toPbj(@NonNull com.hederahashgraph.api.proto.java.KeyList keyList) {
+        requireNonNull(keyList);
+        try {
+            final var bytes = keyList.toByteArray();
+            return KeyList.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static Timestamp toPbj(@NonNull com.hederahashgraph.api.proto.java.Timestamp t) {
         requireNonNull(t);
         return Timestamp.newBuilder()
@@ -418,12 +455,6 @@ public class CommonPbjConverters {
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public static @NonNull byte[] asBytes(@NonNull BufferedData b) {
-        final var buf = new byte[Math.toIntExact(b.position())];
-        b.readBytes(buf);
-        return buf;
     }
 
     public static @NonNull com.hederahashgraph.api.proto.java.SchedulableTransactionBody fromPbj(
@@ -453,5 +484,191 @@ public class CommonPbjConverters {
                 .port(t.getPort())
                 .domainName(t.getDomainName())
                 .build();
+    }
+
+    public static @NonNull com.hederahashgraph.api.proto.java.SignatureMap fromPbj(@NonNull SignatureMap tx) {
+        requireNonNull(tx);
+        try {
+            final var bytes = asBytes(SignatureMap.PROTOBUF, tx);
+            return com.hederahashgraph.api.proto.java.SignatureMap.parseFrom(bytes);
+        } catch (InvalidProtocolBufferException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static @NonNull TokenWipeAccountTransactionBody toPbj(
+            @NonNull com.hederahashgraph.api.proto.java.TokenWipeAccountTransactionBody txBody) {
+        requireNonNull(txBody);
+        try {
+            final var bytes = txBody.toByteArray();
+            return TokenWipeAccountTransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static com.hedera.services.stream.proto.RecordStreamFile fromPbj(RecordStreamFile value) {
+        requireNonNull(value);
+        try {
+            final var bytes = asBytes(RecordStreamFile.PROTOBUF, value);
+            return com.hedera.services.stream.proto.RecordStreamFile.parseFrom(bytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static com.hedera.services.stream.proto.SidecarFile fromPbj(SidecarFile value) {
+        requireNonNull(value);
+        try {
+            final var bytes = asBytes(SidecarFile.PROTOBUF, value);
+            return com.hedera.services.stream.proto.SidecarFile.parseFrom(bytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static com.hederahashgraph.api.proto.java.TransactionID fromPbj(TransactionID value) {
+        requireNonNull(value);
+        try {
+            final var bytes = asBytes(TransactionID.PROTOBUF, value);
+            return com.hederahashgraph.api.proto.java.TransactionID.parseFrom(bytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static com.hederahashgraph.api.proto.java.ThrottleDefinitions fromPbj(ThrottleDefinitions value) {
+        requireNonNull(value);
+        try {
+            final var bytes = asBytes(ThrottleDefinitions.PROTOBUF, value);
+            return com.hederahashgraph.api.proto.java.ThrottleDefinitions.parseFrom(bytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static CryptoUpdateTransactionBody toPbj(
+            com.hederahashgraph.api.proto.java.CryptoUpdateTransactionBody value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return CryptoUpdateTransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static CryptoApproveAllowanceTransactionBody toPbj(
+            com.hederahashgraph.api.proto.java.CryptoApproveAllowanceTransactionBody value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return CryptoApproveAllowanceTransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static ScheduleID toPbj(com.hederahashgraph.api.proto.java.ScheduleID value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return ScheduleID.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static ThrottleDefinitions toPbj(com.hederahashgraph.api.proto.java.ThrottleDefinitions value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return ThrottleDefinitions.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static CryptoCreateTransactionBody toPbj(
+            com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return CryptoCreateTransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static ContractFunctionResult toPbj(com.hederahashgraph.api.proto.java.ContractFunctionResult value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return ContractFunctionResult.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static RecordStreamItem toPbj(com.hedera.services.stream.proto.RecordStreamItem value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return RecordStreamItem.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static CustomFee toPbj(com.hederahashgraph.api.proto.java.CustomFee value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return CustomFee.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static CryptoDeleteAllowanceTransactionBody toPbj(
+            com.hederahashgraph.api.proto.java.CryptoDeleteAllowanceTransactionBody value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return CryptoDeleteAllowanceTransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static ConsensusUpdateTopicTransactionBody toPbj(
+            com.hederahashgraph.api.proto.java.ConsensusUpdateTopicTransactionBody value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return ConsensusUpdateTopicTransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static FeeData toPbj(com.hederahashgraph.api.proto.java.FeeData value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return FeeData.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static ExchangeRate toPbj(com.hederahashgraph.api.proto.java.ExchangeRate value) {
+        requireNonNull(value);
+        try {
+            final var bytes = value.toByteArray();
+            return ExchangeRate.PROTOBUF.parse(BufferedData.wrap(bytes));
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

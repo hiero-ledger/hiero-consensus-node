@@ -1,7 +1,7 @@
 [ {
   "currentFeeSchedule" : [ {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "CryptoTransfer",
+      "hederaFunctionality" : "CRYPTO_TRANSFER",
       "fees" : [ {
         "subType" : "DEFAULT",
         "nodedata" : {
@@ -196,7 +196,7 @@
     }
   }, {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "FileAppend",
+      "hederaFunctionality" : "FILE_APPEND",
       "fees" : [ {
         "subType" : "DEFAULT",
         "nodedata" : {
@@ -239,7 +239,7 @@
     }
   }, {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "TokenAccountWipe",
+      "hederaFunctionality" : "TOKEN_ACCOUNT_WIPE",
       "fees" : [ {
         "subType" : "TOKEN_NON_FUNGIBLE_UNIQUE",
         "nodedata" : {
@@ -282,7 +282,7 @@
     }
   }, {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "ConsensusSubmitMessage",
+      "hederaFunctionality" : "CONSENSUS_SUBMIT_MESSAGE",
       "fees" : [ {
         "subType" : "DEFAULT",
         "nodedata" : {
@@ -325,7 +325,7 @@
     }
   }, {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "ScheduleCreate",
+      "hederaFunctionality" : "SCHEDULE_CREATE",
       "fees" : [ {
         "subType" : "DEFAULT",
         "nodedata" : {
@@ -410,7 +410,7 @@
 }, {
   "nextFeeSchedule" : [ {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "CryptoTransfer",
+      "hederaFunctionality" : "CRYPTO_TRANSFER",
       "fees" : [ {
         "subType" : "DEFAULT",
         "nodedata" : {
@@ -605,7 +605,7 @@
     }
   }, {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "FileAppend",
+      "hederaFunctionality" : "FILE_APPEND",
       "fees" : [ {
         "subType" : "DEFAULT",
         "nodedata" : {
@@ -648,7 +648,7 @@
     }
   }, {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "TokenAccountWipe",
+      "hederaFunctionality" : "TOKEN_ACCOUNT_WIPE",
       "fees" : [ {
         "subType" : "TOKEN_NON_FUNGIBLE_UNIQUE",
         "nodedata" : {
@@ -691,7 +691,7 @@
     }
   }, {
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "ConsensusSubmitMessage",
+      "hederaFunctionality" : "CONSENSUS_SUBMIT_MESSAGE",
       "fees" : [ {
         "subType" : "DEFAULT",
         "nodedata" : {
@@ -734,7 +734,7 @@
     }
   },{
     "transactionFeeSchedule" : {
-      "hederaFunctionality" : "ScheduleCreate",
+      "hederaFunctionality" : "SCHEDULE_CREATE",
       "fees" : [ {
         "subType" : "DEFAULT",
         "nodedata" : {

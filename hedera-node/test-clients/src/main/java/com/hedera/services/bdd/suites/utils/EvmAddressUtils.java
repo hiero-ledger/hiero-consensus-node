@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.utils.CommonPbjConverters;
 import java.math.BigInteger;
 
 public class EvmAddressUtils {
@@ -13,7 +14,7 @@ public class EvmAddressUtils {
 
     public static byte[] getEvmAddressFromString(HapiSpecRegistry registry, String keyName) {
         final var key = registry.getKey(keyName);
-        return Secp256k1Utils.getEvmAddressFromString(key);
+        return Secp256k1Utils.getEvmAddressFromString(CommonPbjConverters.toPbj(key));
     }
 
     public static Address randomHeadlongAddress() {

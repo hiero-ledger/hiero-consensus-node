@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.util;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
@@ -118,27 +117,27 @@ public class SigReqAdapterUtils {
 
     private static final AccountCryptoAllowance CRYPTO_ALLOWANCES = AccountCryptoAllowance.newBuilder()
             .spenderId(AccountID.newBuilder()
-                    .accountNum(DEFAULT_PAYER.getAccountNum())
+                    .accountNum(DEFAULT_PAYER.accountNum())
                     .build())
             .amount(500L)
             .build();
     private static final AccountFungibleTokenAllowance FUNGIBLE_TOKEN_ALLOWANCES =
             AccountFungibleTokenAllowance.newBuilder()
                     .tokenId(TokenID.newBuilder()
-                            .tokenNum(KNOWN_TOKEN_NO_SPECIAL_KEYS.getTokenNum())
+                            .tokenNum(KNOWN_TOKEN_NO_SPECIAL_KEYS.tokenNum())
                             .build())
                     .spenderId(AccountID.newBuilder()
-                            .accountNum(DEFAULT_PAYER.getAccountNum())
+                            .accountNum(DEFAULT_PAYER.accountNum())
                             .build())
                     .amount(10_000L)
                     .build();
 
     private static final AccountApprovalForAllAllowance NFT_ALLOWANCES = AccountApprovalForAllAllowance.newBuilder()
             .tokenId(TokenID.newBuilder()
-                    .tokenNum(KNOWN_TOKEN_WITH_WIPE.getTokenNum())
+                    .tokenNum(KNOWN_TOKEN_WITH_WIPE.tokenNum())
                     .build())
             .spenderId(AccountID.newBuilder()
-                    .accountNum(DEFAULT_PAYER.getAccountNum())
+                    .accountNum(DEFAULT_PAYER.accountNum())
                     .build())
             .build();
 
@@ -171,9 +170,9 @@ public class SigReqAdapterUtils {
     private static WritableKVState<TokenID, Token> wellKnownTokenState() {
         final Map<TokenID, Token> destination = new HashMap<>();
         destination.put(
-                toPbj(KNOWN_TOKEN_IMMUTABLE),
+                KNOWN_TOKEN_IMMUTABLE,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_IMMUTABLE))
+                        .tokenId(KNOWN_TOKEN_IMMUTABLE)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("ImmutableToken")
@@ -181,75 +180,75 @@ public class SigReqAdapterUtils {
                         .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
-                toPbj(KNOWN_TOKEN_NO_SPECIAL_KEYS),
+                KNOWN_TOKEN_NO_SPECIAL_KEYS,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_NO_SPECIAL_KEYS))
+                        .tokenId(KNOWN_TOKEN_NO_SPECIAL_KEYS)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("VanillaToken")
                         .name("TOKENNAME")
-                        .adminKey(TOKEN_ADMIN_KT.asPbjKey())
+                        .adminKey(TOKEN_ADMIN_KT.asKey())
                         .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
-                toPbj(KNOWN_TOKEN_WITH_PAUSE),
+                KNOWN_TOKEN_WITH_PAUSE,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_PAUSE))
+                        .tokenId(KNOWN_TOKEN_WITH_PAUSE)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("PausedToken")
                         .name("PAUSEDTOKEN")
-                        .adminKey(TOKEN_ADMIN_KT.asPbjKey())
-                        .pauseKey(TOKEN_PAUSE_KT.asPbjKey())
+                        .adminKey(TOKEN_ADMIN_KT.asKey())
+                        .pauseKey(TOKEN_PAUSE_KT.asKey())
                         .paused(true)
                         .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
-                toPbj(KNOWN_TOKEN_WITH_FREEZE),
+                KNOWN_TOKEN_WITH_FREEZE,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_FREEZE))
+                        .tokenId(KNOWN_TOKEN_WITH_FREEZE)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("FrozenToken")
                         .name("FRZNTKN")
-                        .adminKey(TOKEN_ADMIN_KT.asPbjKey())
-                        .freezeKey(TOKEN_FREEZE_KT.asPbjKey())
+                        .adminKey(TOKEN_ADMIN_KT.asKey())
+                        .freezeKey(TOKEN_FREEZE_KT.asKey())
                         .accountsFrozenByDefault(true)
                         .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
-                toPbj(KNOWN_TOKEN_WITH_KYC),
+                KNOWN_TOKEN_WITH_KYC,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_KYC))
+                        .tokenId(KNOWN_TOKEN_WITH_KYC)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("KycToken")
                         .name("KYCTOKENNAME")
-                        .adminKey(TOKEN_ADMIN_KT.asPbjKey())
-                        .kycKey(TOKEN_KYC_KT.asPbjKey())
+                        .adminKey(TOKEN_ADMIN_KT.asKey())
+                        .kycKey(TOKEN_KYC_KT.asKey())
                         .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
-                toPbj(KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY),
+                KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY))
+                        .tokenId(KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("FsToken")
                         .name("FEE_SCHEDULETOKENNAME")
-                        .feeScheduleKey(TOKEN_FEE_SCHEDULE_KT.asPbjKey())
+                        .feeScheduleKey(TOKEN_FEE_SCHEDULE_KT.asKey())
                         .accountsKycGrantedByDefault(true)
                         .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
-                toPbj(KNOWN_TOKEN_WITH_ROYALTY_FEE_AND_FALLBACK),
+                KNOWN_TOKEN_WITH_ROYALTY_FEE_AND_FALLBACK,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_ROYALTY_FEE_AND_FALLBACK))
+                        .tokenId(KNOWN_TOKEN_WITH_ROYALTY_FEE_AND_FALLBACK)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("ZPHYR")
                         .name("West Wind Art")
-                        .feeScheduleKey(TOKEN_FEE_SCHEDULE_KT.asPbjKey())
+                        .feeScheduleKey(TOKEN_FEE_SCHEDULE_KT.asKey())
                         .accountsKycGrantedByDefault(true)
                         .treasuryAccountId(
                                 AccountID.newBuilder().accountNum(1339).build())
@@ -263,38 +262,38 @@ public class SigReqAdapterUtils {
                                 .build())
                         .build());
         destination.put(
-                toPbj(KNOWN_TOKEN_WITH_SUPPLY),
+                KNOWN_TOKEN_WITH_SUPPLY,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_SUPPLY))
+                        .tokenId(KNOWN_TOKEN_WITH_SUPPLY)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("SupplyToken")
                         .name("SUPPLYTOKENNAME")
-                        .adminKey(TOKEN_ADMIN_KT.asPbjKey())
-                        .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                        .adminKey(TOKEN_ADMIN_KT.asKey())
+                        .supplyKey(TOKEN_SUPPLY_KT.asKey())
                         .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
-                toPbj(KNOWN_TOKEN_WITH_WIPE),
+                KNOWN_TOKEN_WITH_WIPE,
                 Token.newBuilder()
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_WIPE))
+                        .tokenId(KNOWN_TOKEN_WITH_WIPE)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("WipeToken")
                         .name("WIPETOKENNAME")
-                        .adminKey(TOKEN_ADMIN_KT.asPbjKey())
-                        .wipeKey(TOKEN_WIPE_KT.asPbjKey())
+                        .adminKey(TOKEN_ADMIN_KT.asKey())
+                        .wipeKey(TOKEN_WIPE_KT.asKey())
                         .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
-                toPbj(DELETED_TOKEN),
+                DELETED_TOKEN,
                 Token.newBuilder()
-                        .tokenId(toPbj(DELETED_TOKEN))
+                        .tokenId(DELETED_TOKEN)
                         .maxSupply(Long.MAX_VALUE)
                         .totalSupply(100)
                         .symbol("DeletedToken")
                         .name("DELETEDTOKENNAME")
-                        .adminKey(TOKEN_ADMIN_KT.asPbjKey())
+                        .adminKey(TOKEN_ADMIN_KT.asKey())
                         .deleted(true)
                         .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
@@ -310,32 +309,32 @@ public class SigReqAdapterUtils {
         final var destination = new HashMap<EntityIDPair, TokenRelation>();
         destination.put(
                 EntityIDPair.newBuilder()
-                        .accountId(toPbj(MISC_ACCOUNT))
-                        .tokenId(toPbj(KNOWN_TOKEN_IMMUTABLE))
+                        .accountId(MISC_ACCOUNT)
+                        .tokenId(KNOWN_TOKEN_IMMUTABLE)
                         .build(),
                 TokenRelation.newBuilder()
-                        .accountId(toPbj(MISC_ACCOUNT))
-                        .tokenId(toPbj(KNOWN_TOKEN_IMMUTABLE))
+                        .accountId(MISC_ACCOUNT)
+                        .tokenId(KNOWN_TOKEN_IMMUTABLE)
                         .balance(10)
                         .build());
         destination.put(
                 EntityIDPair.newBuilder()
-                        .accountId(toPbj(MISC_ACCOUNT))
-                        .tokenId(toPbj(KNOWN_TOKEN_NO_SPECIAL_KEYS))
+                        .accountId(MISC_ACCOUNT)
+                        .tokenId(KNOWN_TOKEN_NO_SPECIAL_KEYS)
                         .build(),
                 TokenRelation.newBuilder()
-                        .accountId(toPbj(MISC_ACCOUNT))
-                        .tokenId(toPbj(KNOWN_TOKEN_NO_SPECIAL_KEYS))
+                        .accountId(MISC_ACCOUNT)
+                        .tokenId(KNOWN_TOKEN_NO_SPECIAL_KEYS)
                         .balance(20)
                         .build());
         destination.put(
                 EntityIDPair.newBuilder()
-                        .accountId(toPbj(MISC_ACCOUNT))
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_KYC))
+                        .accountId(MISC_ACCOUNT)
+                        .tokenId(KNOWN_TOKEN_WITH_KYC)
                         .build(),
                 TokenRelation.newBuilder()
-                        .accountId(toPbj(MISC_ACCOUNT))
-                        .tokenId(toPbj(KNOWN_TOKEN_WITH_KYC))
+                        .accountId(MISC_ACCOUNT)
+                        .tokenId(KNOWN_TOKEN_WITH_KYC)
                         .balance(30)
                         .build());
 
@@ -369,74 +368,64 @@ public class SigReqAdapterUtils {
     private static WritableKVState<AccountID, Account> wrappedAccountState() {
         final var destination = new HashMap<AccountID, Account>();
         destination.put(
-                toPbj(FIRST_TOKEN_SENDER),
-                toPbjAccount(FIRST_TOKEN_SENDER.getAccountNum(), FIRST_TOKEN_SENDER_KT.asPbjKey(), 10_000L));
+                FIRST_TOKEN_SENDER,
+                toPbjAccount(FIRST_TOKEN_SENDER.accountNum(), FIRST_TOKEN_SENDER_KT.asKey(), 10_000L));
         destination.put(
-                toPbj(SECOND_TOKEN_SENDER),
-                toPbjAccount(SECOND_TOKEN_SENDER.getAccountNum(), SECOND_TOKEN_SENDER_KT.asPbjKey(), 10_000L));
+                SECOND_TOKEN_SENDER,
+                toPbjAccount(SECOND_TOKEN_SENDER.accountNum(), SECOND_TOKEN_SENDER_KT.asKey(), 10_000L));
+        destination.put(TOKEN_RECEIVER, toPbjAccount(TOKEN_RECEIVER.accountNum(), TOKEN_WIPE_KT.asKey(), 0L));
+        destination.put(DEFAULT_NODE, toPbjAccount(DEFAULT_NODE.accountNum(), DEFAULT_PAYER_KT.asKey(), 0L));
         destination.put(
-                toPbj(TOKEN_RECEIVER), toPbjAccount(TOKEN_RECEIVER.getAccountNum(), TOKEN_WIPE_KT.asPbjKey(), 0L));
+                DEFAULT_PAYER,
+                toPbjAccount(DEFAULT_PAYER.accountNum(), DEFAULT_PAYER_KT.asKey(), DEFAULT_PAYER_BALANCE));
+        destination.put(STAKING_FUND, toPbjAccount(STAKING_FUND.accountNum(), IMMUTABILITY_SENTINEL_KEY, 0L));
         destination.put(
-                toPbj(DEFAULT_NODE), toPbjAccount(DEFAULT_NODE.getAccountNum(), DEFAULT_PAYER_KT.asPbjKey(), 0L));
+                MASTER_PAYER, toPbjAccount(MASTER_PAYER.accountNum(), DEFAULT_PAYER_KT.asKey(), DEFAULT_PAYER_BALANCE));
         destination.put(
-                toPbj(DEFAULT_PAYER),
-                toPbjAccount(DEFAULT_PAYER.getAccountNum(), DEFAULT_PAYER_KT.asPbjKey(), DEFAULT_PAYER_BALANCE));
-        destination.put(toPbj(STAKING_FUND), toPbjAccount(STAKING_FUND.getAccountNum(), IMMUTABILITY_SENTINEL_KEY, 0L));
+                TREASURY_PAYER,
+                toPbjAccount(TREASURY_PAYER.accountNum(), DEFAULT_PAYER_KT.asKey(), DEFAULT_PAYER_BALANCE));
         destination.put(
-                toPbj(MASTER_PAYER),
-                toPbjAccount(MASTER_PAYER.getAccountNum(), DEFAULT_PAYER_KT.asPbjKey(), DEFAULT_PAYER_BALANCE));
+                NO_RECEIVER_SIG,
+                toPbjAccount(NO_RECEIVER_SIG.accountNum(), NO_RECEIVER_SIG_KT.asKey(), DEFAULT_BALANCE));
         destination.put(
-                toPbj(TREASURY_PAYER),
-                toPbjAccount(TREASURY_PAYER.getAccountNum(), DEFAULT_PAYER_KT.asPbjKey(), DEFAULT_PAYER_BALANCE));
+                RECEIVER_SIG, toPbjAccount(RECEIVER_SIG.accountNum(), RECEIVER_SIG_KT.asKey(), DEFAULT_BALANCE, true));
+        destination.put(SYS_ACCOUNT, toPbjAccount(SYS_ACCOUNT.accountNum(), SYS_ACCOUNT_KT.asKey(), DEFAULT_BALANCE));
         destination.put(
-                toPbj(NO_RECEIVER_SIG),
-                toPbjAccount(NO_RECEIVER_SIG.getAccountNum(), NO_RECEIVER_SIG_KT.asPbjKey(), DEFAULT_BALANCE));
+                MISC_ACCOUNT, toPbjAccount(MISC_ACCOUNT.accountNum(), MISC_ACCOUNT_KT.asKey(), DEFAULT_BALANCE));
         destination.put(
-                toPbj(RECEIVER_SIG),
-                toPbjAccount(RECEIVER_SIG.getAccountNum(), RECEIVER_SIG_KT.asPbjKey(), DEFAULT_BALANCE, true));
+                CUSTOM_PAYER_ACCOUNT,
+                toPbjAccount(CUSTOM_PAYER_ACCOUNT.accountNum(), CUSTOM_PAYER_ACCOUNT_KT.asKey(), DEFAULT_BALANCE));
         destination.put(
-                toPbj(SYS_ACCOUNT),
-                toPbjAccount(SYS_ACCOUNT.getAccountNum(), SYS_ACCOUNT_KT.asPbjKey(), DEFAULT_BALANCE));
-        destination.put(
-                toPbj(MISC_ACCOUNT),
-                toPbjAccount(MISC_ACCOUNT.getAccountNum(), MISC_ACCOUNT_KT.asPbjKey(), DEFAULT_BALANCE));
-        destination.put(
-                toPbj(CUSTOM_PAYER_ACCOUNT),
+                OWNER_ACCOUNT,
                 toPbjAccount(
-                        CUSTOM_PAYER_ACCOUNT.getAccountNum(), CUSTOM_PAYER_ACCOUNT_KT.asPbjKey(), DEFAULT_BALANCE));
-        destination.put(
-                toPbj(OWNER_ACCOUNT),
-                toPbjAccount(
-                        OWNER_ACCOUNT.getAccountNum(),
-                        OWNER_ACCOUNT_KT.asPbjKey(),
+                        OWNER_ACCOUNT.accountNum(),
+                        OWNER_ACCOUNT_KT.asKey(),
                         DEFAULT_BALANCE,
                         false,
                         List.of(CRYPTO_ALLOWANCES),
                         List.of(FUNGIBLE_TOKEN_ALLOWANCES),
                         List.of(NFT_ALLOWANCES)));
         destination.put(
-                toPbj(DELEGATING_SPENDER),
+                DELEGATING_SPENDER,
                 toPbjAccount(
-                        DELEGATING_SPENDER.getAccountNum(),
-                        DELEGATING_SPENDER_KT.asPbjKey(),
+                        DELEGATING_SPENDER.accountNum(),
+                        DELEGATING_SPENDER_KT.asKey(),
                         DEFAULT_BALANCE,
                         false,
                         List.of(CRYPTO_ALLOWANCES),
                         List.of(FUNGIBLE_TOKEN_ALLOWANCES),
                         List.of(NFT_ALLOWANCES)));
         destination.put(
-                toPbj(COMPLEX_KEY_ACCOUNT),
-                toPbjAccount(COMPLEX_KEY_ACCOUNT.getAccountNum(), COMPLEX_KEY_ACCOUNT_KT.asPbjKey(), DEFAULT_BALANCE));
+                COMPLEX_KEY_ACCOUNT,
+                toPbjAccount(COMPLEX_KEY_ACCOUNT.accountNum(), COMPLEX_KEY_ACCOUNT_KT.asKey(), DEFAULT_BALANCE));
         destination.put(
-                toPbj(TOKEN_TREASURY),
-                toPbjAccount(TOKEN_TREASURY.getAccountNum(), TOKEN_TREASURY_KT.asPbjKey(), DEFAULT_BALANCE));
+                TOKEN_TREASURY, toPbjAccount(TOKEN_TREASURY.accountNum(), TOKEN_TREASURY_KT.asKey(), DEFAULT_BALANCE));
         destination.put(
-                toPbj(DILIGENT_SIGNING_PAYER),
-                toPbjAccount(
-                        DILIGENT_SIGNING_PAYER.getAccountNum(), DILIGENT_SIGNING_PAYER_KT.asPbjKey(), DEFAULT_BALANCE));
+                DILIGENT_SIGNING_PAYER,
+                toPbjAccount(DILIGENT_SIGNING_PAYER.accountNum(), DILIGENT_SIGNING_PAYER_KT.asKey(), DEFAULT_BALANCE));
         destination.put(
-                toPbj(FROM_OVERLAP_PAYER),
-                toPbjAccount(FROM_OVERLAP_PAYER.getAccountNum(), FROM_OVERLAP_PAYER_KT.asPbjKey(), DEFAULT_BALANCE));
+                FROM_OVERLAP_PAYER,
+                toPbjAccount(FROM_OVERLAP_PAYER.accountNum(), FROM_OVERLAP_PAYER_KT.asKey(), DEFAULT_BALANCE));
         return new MapWritableKVState<>(ACCOUNTS_KEY, destination);
     }
 

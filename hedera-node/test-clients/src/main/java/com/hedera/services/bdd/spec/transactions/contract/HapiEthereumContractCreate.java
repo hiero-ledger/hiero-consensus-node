@@ -11,6 +11,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.WEIBARS_IN_A_TINYBAR;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
@@ -334,7 +336,8 @@ public class HapiEthereumContractCreate extends HapiBaseContractCreate<HapiEther
         return spec.fees()
                 .forActivityBasedOp(
                         HederaFunctionality.EthereumTransaction,
-                        scFees::getEthereumTransactionFeeMatrices,
+                        (txBody, sigValObj) ->
+                                fromPbj(scFees.getEthereumTransactionFeeMatrices(toPbj(txBody), sigValObj)),
                         txn,
                         numPayerSigs);
     }

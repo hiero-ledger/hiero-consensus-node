@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
 import static com.hedera.services.bdd.spec.keys.deterministic.Bip0032.mnemonicToEd25519Key;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bytecodePath;
 
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
@@ -16,6 +15,7 @@ import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.utils.CommonPbjConverters;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;

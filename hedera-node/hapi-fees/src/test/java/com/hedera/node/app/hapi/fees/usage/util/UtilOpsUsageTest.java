@@ -3,16 +3,16 @@ package com.hedera.node.app.hapi.fees.usage.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hederahashgraph.api.proto.java.SignatureMap;
-import com.hederahashgraph.api.proto.java.SignaturePair;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
-import com.hederahashgraph.api.proto.java.UtilPrngTransactionBody;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
 
 class UtilOpsUsageTest {
@@ -21,22 +21,23 @@ class UtilOpsUsageTest {
 
     @Test
     void estimatesAutoRenewAsExpected() {
-        final var op = UtilPrngTransactionBody.newBuilder().setRange(10).build();
+        final var op = UtilPrngTransactionBody.newBuilder().range(10).build();
         final var txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setUtilPrng(op)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .utilPrng(op)
                 .build();
 
-        final ByteString canonicalSig =
-                ByteString.copyFromUtf8("0123456789012345678901234567890123456789012345678901234567890123");
+        final Bytes canonicalSig = Bytes.wrap("0123456789012345678901234567890123456789012345678901234567890123");
         final SignatureMap onePairSigMap = SignatureMap.newBuilder()
-                .addSigPair(SignaturePair.newBuilder()
-                        .setPubKeyPrefix(ByteString.copyFromUtf8("a"))
-                        .setEd25519(canonicalSig))
+                .sigPair(SignaturePair.newBuilder()
+                        .pubKeyPrefix(Bytes.wrap("a"))
+                        .ed25519(canonicalSig)
+                        .build())
                 .build();
-        final SigUsage singleSigUsage = new SigUsage(1, onePairSigMap.getSerializedSize(), 1);
-        final var opMeta = new UtilPrngMeta(txn.getUtilPrng());
+        final SigUsage singleSigUsage = new SigUsage(
+                1, (int) SignatureMap.PROTOBUF.toBytes(onePairSigMap).length(), 1);
+        final var opMeta = new UtilPrngMeta(txn.utilPrng());
         final var baseMeta = new BaseTransactionMeta(0, 0);
 
         final var actual = new UsageAccumulator();

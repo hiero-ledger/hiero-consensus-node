@@ -13,7 +13,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.file.FileDeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
@@ -125,7 +124,6 @@ public class FileDeleteHandler implements TransactionHandler {
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(
-                        svo -> usageEstimator.getFileDeleteTxFeeMatrices(CommonPbjConverters.fromPbj(txnBody), svo));
+                .legacyCalculate(svo -> usageEstimator.getFileDeleteTxFeeMatrices(txnBody, svo));
     }
 }

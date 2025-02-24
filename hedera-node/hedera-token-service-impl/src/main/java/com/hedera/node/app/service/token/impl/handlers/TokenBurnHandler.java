@@ -22,7 +22,6 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -169,7 +168,7 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         final var op = feeContext.body();
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenBurnUsageFrom(CommonPbjConverters.fromPbj(op));
+        final var meta = TOKEN_OPS_USAGE_UTILS.tokenBurnUsageFrom(op);
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(
@@ -195,7 +194,7 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
         validateTrue(token.supplyKey() != null, TOKEN_HAS_NO_SUPPLY_KEY);
 
-        final var treasuryAcctId = token.treasuryAccountId();
+        final var treasuryAcctId = token.treasuryAccountIdOrElse(AccountID.DEFAULT);
         final var treasuryRel = TokenHandlerHelper.getIfUsable(treasuryAcctId, tokenId, tokenRelStore);
         return new ValidationResult(token, treasuryRel);
     }

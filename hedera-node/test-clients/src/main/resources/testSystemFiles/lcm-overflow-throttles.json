@@ -9,42 +9,42 @@
           "opsPerSec": 0,
           "milliOpsPerSec": 10500000,
           "operations": [
-            "ScheduleCreate"
+            "SCHEDULE_CREATE"
           ]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 13000,
           "operations": [
-            "FileCreate"
+            "FILE_CREATE"
           ]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 100000,
           "operations": [
-            "ScheduleSign"
+            "SCHEDULE_SIGN"
           ]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 1250000,
           "operations": [
-            "TokenMint"
+            "TOKEN_MINT"
           ]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 350000,
           "operations": [
-            "ContractCall"
+            "CONTRACT_CALL"
           ]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 3000000,
           "operations": [
-            "TokenCreate"
+            "TOKEN_CREATE"
           ]
         }
       ]

@@ -3,40 +3,40 @@ package com.hedera.node.app.hapi.utils.sysfiles.domain.throttling;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hedera.hapi.node.base.HederaFunctionality;
 
 public class HapiThrottleUtils {
     public static ThrottleBucket<HederaFunctionality> hapiBucketFromProto(
-            final com.hederahashgraph.api.proto.java.ThrottleBucket bucket) {
+            final com.hedera.hapi.node.transaction.ThrottleBucket bucket) {
         return new ThrottleBucket<>(
-                bucket.getBurstPeriodMs(),
-                bucket.getName(),
-                bucket.getThrottleGroupsList().stream()
+                bucket.burstPeriodMs(),
+                bucket.name(),
+                bucket.throttleGroups().stream()
                         .map(HapiThrottleUtils::hapiGroupFromProto)
                         .toList());
     }
 
-    public static com.hederahashgraph.api.proto.java.ThrottleBucket hapiBucketToProto(
+    public static com.hedera.hapi.node.transaction.ThrottleBucket hapiBucketToProto(
             final ThrottleBucket<HederaFunctionality> bucket) {
-        return com.hederahashgraph.api.proto.java.ThrottleBucket.newBuilder()
-                .setName(bucket.getName())
-                .setBurstPeriodMs(bucket.impliedBurstPeriodMs())
-                .addAllThrottleGroups(bucket.getThrottleGroups().stream()
+        return com.hedera.hapi.node.transaction.ThrottleBucket.newBuilder()
+                .name(bucket.getName())
+                .burstPeriodMs(bucket.impliedBurstPeriodMs())
+                .throttleGroups(bucket.getThrottleGroups().stream()
                         .map(HapiThrottleUtils::hapiGroupToProto)
                         .toList())
                 .build();
     }
 
     public static ThrottleGroup<HederaFunctionality> hapiGroupFromProto(
-            final com.hederahashgraph.api.proto.java.ThrottleGroup group) {
-        return new ThrottleGroup<>(group.getMilliOpsPerSec(), group.getOperationsList());
+            final com.hedera.hapi.node.transaction.ThrottleGroup group) {
+        return new ThrottleGroup<>(group.milliOpsPerSec(), group.operations());
     }
 
-    public static com.hederahashgraph.api.proto.java.ThrottleGroup hapiGroupToProto(
+    public static com.hedera.hapi.node.transaction.ThrottleGroup hapiGroupToProto(
             final ThrottleGroup<HederaFunctionality> group) {
-        return com.hederahashgraph.api.proto.java.ThrottleGroup.newBuilder()
-                .setMilliOpsPerSec(group.impliedMilliOpsPerSec())
-                .addAllOperations(group.getOperations())
+        return com.hedera.hapi.node.transaction.ThrottleGroup.newBuilder()
+                .milliOpsPerSec(group.impliedMilliOpsPerSec())
+                .operations(group.getOperations())
                 .build();
     }
 

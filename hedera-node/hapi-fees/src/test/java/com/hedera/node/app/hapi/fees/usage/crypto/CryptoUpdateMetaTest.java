@@ -7,13 +7,11 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.google.protobuf.Int32Value;
-import com.google.protobuf.StringValue;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.CryptoUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import org.junit.jupiter.api.Test;
 
 class CryptoUpdateMetaTest {
@@ -85,24 +83,22 @@ class CryptoUpdateMetaTest {
     @Test
     void calculatesSizesAsExpected() {
         final var memo = "updateMemo";
-        final var accountID = AccountID.newBuilder().setAccountNum(1_234L).build();
-        final var proxyID = AccountID.newBuilder().setAccountNum(1_230L).build();
+        final var accountID = AccountID.newBuilder().accountNum(1_234L).build();
+        final var proxyID = AccountID.newBuilder().accountNum(1_230L).build();
         final var canonicalTxn = TransactionBody.newBuilder()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
-                        .setMemo(StringValue.of(memo))
-                        .setMaxAutomaticTokenAssociations(Int32Value.of(5))
-                        .setProxyAccountID(proxyID)
-                        .setAutoRenewPeriod(Duration.newBuilder().setSeconds(expiry))
-                        .setAccountIDToUpdate(accountID)
-                        .setExpirationTime(Timestamp.newBuilder().setSeconds(expiry)))
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
+                        .memo(memo)
+                        .maxAutomaticTokenAssociations(5)
+                        .proxyAccountID(proxyID)
+                        .autoRenewPeriod(Duration.newBuilder().seconds(expiry))
+                        .accountIDToUpdate(accountID)
+                        .expirationTime(Timestamp.newBuilder().seconds(expiry)))
                 .build();
 
         final var expectedMsgBytes =
                 BASIC_ENTITY_ID_SIZE + memo.length() + LONG_SIZE + LONG_SIZE + BASIC_ENTITY_ID_SIZE + INT_SIZE;
 
-        final var subject = new CryptoUpdateMeta(
-                canonicalTxn.getCryptoUpdateAccount(),
-                canonicalTxn.getTransactionID().getTransactionValidStart().getSeconds());
+        final var subject = new CryptoUpdateMeta(canonicalTxn.cryptoUpdateAccount(), 0);
 
         assertEquals(0, subject.getKeyBytesUsed());
         assertEquals(expectedMsgBytes, subject.getMsgBytesUsed());

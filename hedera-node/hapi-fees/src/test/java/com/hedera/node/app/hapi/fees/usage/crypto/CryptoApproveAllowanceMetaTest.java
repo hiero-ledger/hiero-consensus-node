@@ -12,13 +12,12 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TOKEN_ALLOWANCE_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.token.CryptoAllowance;
+import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
+import com.hedera.hapi.node.token.NftAllowance;
+import com.hedera.hapi.node.token.TokenAllowance;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.CryptoAllowance;
-import com.hederahashgraph.api.proto.java.CryptoApproveAllowanceTransactionBody;
-import com.hederahashgraph.api.proto.java.NftAllowance;
-import com.hederahashgraph.api.proto.java.TokenAllowance;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -30,16 +29,16 @@ import org.junit.jupiter.api.Test;
 class CryptoApproveAllowanceMetaTest {
     private final AccountID proxy = asAccount("0.0.1234");
     private final CryptoAllowance cryptoAllowances =
-            CryptoAllowance.newBuilder().setSpender(proxy).setAmount(10L).build();
+            CryptoAllowance.newBuilder().spender(proxy).amount(10L).build();
     private final TokenAllowance tokenAllowances = TokenAllowance.newBuilder()
-            .setSpender(proxy)
-            .setAmount(10L)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .spender(proxy)
+            .amount(10L)
+            .tokenId(IdUtils.asToken("0.0.1000"))
             .build();
     private final NftAllowance nftAllowances = NftAllowance.newBuilder()
-            .setSpender(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
-            .addAllSerialNumbers(List.of(1L, 2L, 3L))
+            .spender(proxy)
+            .tokenId(IdUtils.asToken("0.0.1000"))
+            .serialNumbers(List.of(1L, 2L, 3L))
             .build();
     private Map<Long, Long> cryptoAllowancesMap = new HashMap<>();
     private Map<AllowanceId, Long> tokenAllowancesMap = new HashMap<>();
@@ -75,29 +74,26 @@ class CryptoApproveAllowanceMetaTest {
     @Test
     void calculatesBaseSizeAsExpected() {
         final var op = CryptoApproveAllowanceTransactionBody.newBuilder()
-                .addAllCryptoAllowances(List.of(cryptoAllowances))
-                .addAllTokenAllowances(List.of(tokenAllowances))
-                .addAllNftAllowances(List.of(nftAllowances))
+                .cryptoAllowances(List.of(cryptoAllowances))
+                .tokenAllowances(List.of(tokenAllowances))
+                .nftAllowances(List.of(nftAllowances))
                 .build();
-        final var canonicalTxn =
-                TransactionBody.newBuilder().setCryptoApproveAllowance(op).build();
 
-        final var subject = new CryptoApproveAllowanceMeta(
-                op, canonicalTxn.getTransactionID().getTransactionValidStart().getSeconds());
+        final var subject = new CryptoApproveAllowanceMeta(op, 0);
 
-        final var expectedMsgBytes = (op.getCryptoAllowancesCount() * CRYPTO_ALLOWANCE_SIZE)
-                + (op.getTokenAllowancesCount() * TOKEN_ALLOWANCE_SIZE)
-                + (op.getNftAllowancesCount() * NFT_ALLOWANCE_SIZE)
-                + countSerials(op.getNftAllowancesList()) * LONG_SIZE;
+        final var expectedMsgBytes = (op.cryptoAllowances().size() * CRYPTO_ALLOWANCE_SIZE)
+                + (op.tokenAllowances().size() * TOKEN_ALLOWANCE_SIZE)
+                + (op.nftAllowances().size() * NFT_ALLOWANCE_SIZE)
+                + countSerials(op.nftAllowances()) * LONG_SIZE;
 
         assertEquals(expectedMsgBytes, subject.getMsgBytesUsed());
 
         final var expectedCryptoMap = new HashMap<>();
         final var expectedTokenMap = new HashMap<>();
         final var expectedNfts = new HashSet<>();
-        expectedCryptoMap.put(proxy.getAccountNum(), 10L);
-        expectedTokenMap.put(new AllowanceId(1000L, proxy.getAccountNum()), 10L);
-        expectedNfts.add(new AllowanceId(1000L, proxy.getAccountNum()));
+        expectedCryptoMap.put(proxy.accountNum(), 10L);
+        expectedTokenMap.put(new AllowanceId(1000L, proxy.accountNum()), 10L);
+        expectedNfts.add(new AllowanceId(1000L, proxy.accountNum()));
         assertEquals(expectedCryptoMap, subject.getCryptoAllowances());
         assertEquals(expectedTokenMap, subject.getTokenAllowances());
         assertEquals(expectedNfts, subject.getNftAllowances());

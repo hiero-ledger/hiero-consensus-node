@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.ADDRESS_BOOK;
 import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static com.swirlds.platform.roster.RosterUtils.rosterFrom;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;

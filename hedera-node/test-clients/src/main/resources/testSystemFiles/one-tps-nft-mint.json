@@ -6,7 +6,7 @@
       "throttleGroups": [
         {
           "opsPerSec": 1,
-          "operations": [ "TokenMint" ]
+          "operations": [ "TOKEN_MINT" ]
         }
       ]
     },
@@ -17,7 +17,7 @@
         {
           "opsPerSec": 100000,
           "operations": [
-            "TransactionGetReceipt", "FileGetInfo", "FileGetContents", "TokenGetInfo"
+            "TRANSACTION_GET_RECEIPT", "FILE_GET_INFO", "FILE_GET_CONTENTS", "TOKEN_GET_INFO"
           ]
         }
       ]

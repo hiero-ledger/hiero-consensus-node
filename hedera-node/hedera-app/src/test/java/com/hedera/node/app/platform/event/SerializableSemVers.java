@@ -2,7 +2,7 @@
 package com.hedera.node.app.platform.event;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.hederahashgraph.api.proto.java.SemanticVersion;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -29,9 +29,9 @@ public class SerializableSemVers implements SoftwareVersion {
 
     // Just compares major minor and patch versions. Pre and Build are compared in FULL_COMPARATOR.
     private static final Comparator<SemanticVersion> SEM_VER_COMPARATOR = Comparator.comparingInt(
-                    SemanticVersion::getMajor)
-            .thenComparingInt(SemanticVersion::getMinor)
-            .thenComparingInt(SemanticVersion::getPatch);
+                    SemanticVersion::major)
+            .thenComparingInt(SemanticVersion::minor)
+            .thenComparingInt(SemanticVersion::patch);
 
     // Whenever there is a need for doing an upgrade with config-only changes,
     // we set the build portion on semver. This is needed to trigger platform
@@ -40,7 +40,7 @@ public class SerializableSemVers implements SoftwareVersion {
                     SerializableSemVers::getServices, SEM_VER_COMPARATOR)
             .thenComparingInt(SerializableSemVers::getServicesPreAlphaNumber)
             .thenComparing(SerializableSemVers::getServicesBuild)
-            .thenComparing(SerializableSemVers::getProto, SEM_VER_COMPARATOR)
+            .thenComparing(SerializableSemVers::proto, SEM_VER_COMPARATOR)
             .thenComparingInt(SerializableSemVers::getProtoPreAlphaNumber)
             .thenComparing(SerializableSemVers::getProtoBuild);
 
@@ -53,7 +53,7 @@ public class SerializableSemVers implements SoftwareVersion {
         this.services = services;
 
         setServicesPreAlphaNumberAndBuild();
-        setProtoPreAlphaNumberAndBuild();
+        protoPreAlphaNumberAndBuild();
     }
 
     public static SerializableSemVers forHapiAndHedera(@NonNull final String proto, @NonNull final String services) {
@@ -122,14 +122,14 @@ public class SerializableSemVers implements SoftwareVersion {
 
     private boolean haveDifferentMajorAndMinorVersions(
             @NonNull final SerializableSemVers a, @NonNull final SerializableSemVers b) {
-        return a.services.getMajor() != b.services.getMajor() || a.services.getMinor() != b.services.getMinor();
+        return a.services.major() != b.services.major() || a.services.minor() != b.services.minor();
     }
 
     private boolean haveDifferentNonBuildVersions(
             @NonNull final SerializableSemVers a, @NonNull final SerializableSemVers b) {
         return haveDifferentMajorAndMinorVersions(a, b)
-                || a.services.getPatch() != b.services.getPatch()
-                || !a.services.getPre().equals(b.services.getPre());
+                || a.services.patch() != b.services.patch()
+                || !a.services.pre().equals(b.services.pre());
     }
 
     @Override
@@ -159,7 +159,7 @@ public class SerializableSemVers implements SoftwareVersion {
         services = deserializeSemVer(in);
 
         setServicesPreAlphaNumberAndBuild();
-        setProtoPreAlphaNumberAndBuild();
+        protoPreAlphaNumberAndBuild();
     }
 
     @Override
@@ -175,11 +175,11 @@ public class SerializableSemVers implements SoftwareVersion {
 
     private static void serializeSemVer(final SemanticVersion semVer, final SerializableDataOutputStream out)
             throws IOException {
-        out.writeInt(semVer.getMajor());
-        out.writeInt(semVer.getMinor());
-        out.writeInt(semVer.getPatch());
-        serializeIfUsed(semVer.getPre(), out);
-        serializeIfUsed(semVer.getBuild(), out);
+        out.writeInt(semVer.major());
+        out.writeInt(semVer.minor());
+        out.writeInt(semVer.patch());
+        serializeIfUsed(semVer.pre(), out);
+        serializeIfUsed(semVer.build(), out);
     }
 
     private static void serializeIfUsed(final String semVerPart, final SerializableDataOutputStream out)
@@ -194,12 +194,12 @@ public class SerializableSemVers implements SoftwareVersion {
 
     private static SemanticVersion deserializeSemVer(final SerializableDataInputStream in) throws IOException {
         final var ans = SemanticVersion.newBuilder();
-        ans.setMajor(in.readInt()).setMinor(in.readInt()).setPatch(in.readInt());
+        ans.major(in.readInt()).minor(in.readInt()).patch(in.readInt());
         if (in.readBoolean()) {
-            ans.setPre(in.readNormalisedString(Integer.MAX_VALUE));
+            ans.pre(in.readNormalisedString(Integer.MAX_VALUE));
         }
         if (in.readBoolean()) {
-            ans.setBuild(in.readNormalisedString(Integer.MAX_VALUE));
+            ans.build(in.readNormalisedString(Integer.MAX_VALUE));
         }
         return ans.build();
     }
@@ -209,16 +209,16 @@ public class SerializableSemVers implements SoftwareVersion {
             return "<N/A>";
         }
         final var sb = new StringBuilder()
-                .append(semVer.getMajor())
+                .append(semVer.major())
                 .append(".")
-                .append(semVer.getMinor())
+                .append(semVer.minor())
                 .append(".")
-                .append(semVer.getPatch());
-        if (!semVer.getPre().isBlank()) {
-            sb.append("-").append(semVer.getPre());
+                .append(semVer.patch());
+        if (!semVer.pre().isBlank()) {
+            sb.append("-").append(semVer.pre());
         }
-        if (!semVer.getBuild().isBlank()) {
-            sb.append("+").append(semVer.getBuild());
+        if (!semVer.build().isBlank()) {
+            sb.append("+").append(semVer.build());
         }
         return sb.toString();
     }
@@ -230,16 +230,16 @@ public class SerializableSemVers implements SoftwareVersion {
     }
 
     private void setServicesPreAlphaNumberAndBuild() {
-        servicesPreAlphaNumber = alphaNumberOf(services.getPre());
-        servicesBuild = services.getBuild();
+        servicesPreAlphaNumber = alphaNumberOf(services.pre());
+        servicesBuild = services.build();
     }
 
-    private void setProtoPreAlphaNumberAndBuild() {
-        protoPreAlphaNumber = alphaNumberOf(proto.getPre());
-        protoBuild = proto.getBuild();
+    private void protoPreAlphaNumberAndBuild() {
+        protoPreAlphaNumber = alphaNumberOf(proto.pre());
+        protoBuild = proto.build();
     }
 
-    public SemanticVersion getProto() {
+    public SemanticVersion proto() {
         return proto;
     }
 
@@ -280,9 +280,9 @@ public class SerializableSemVers implements SoftwareVersion {
 
     @Override
     @NonNull
-    public com.hedera.hapi.node.base.SemanticVersion getPbjSemanticVersion() {
+    public SemanticVersion getPbjSemanticVersion() {
         return new com.hedera.hapi.node.base.SemanticVersion(
-                services.getMajor(), services.getMinor(), services.getPatch(), services.getPre(), services.getBuild());
+                services.major(), services.minor(), services.patch(), services.pre(), services.build());
     }
 
     /* From https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string */
@@ -296,14 +296,14 @@ public class SerializableSemVers implements SoftwareVersion {
         final var matcher = SEMVER_SPEC_REGEX.matcher(value);
         if (matcher.matches()) {
             final var builder = SemanticVersion.newBuilder()
-                    .setMajor(Integer.parseInt(matcher.group(1)))
-                    .setMinor(Integer.parseInt(matcher.group(2)))
-                    .setPatch(Integer.parseInt(matcher.group(3)));
+                    .major(Integer.parseInt(matcher.group(1)))
+                    .minor(Integer.parseInt(matcher.group(2)))
+                    .patch(Integer.parseInt(matcher.group(3)));
             if (matcher.group(4) != null) {
-                builder.setPre(matcher.group(4));
+                builder.pre(matcher.group(4));
             }
             if (matcher.group(5) != null) {
-                builder.setBuild(matcher.group(5));
+                builder.build(matcher.group(5));
             }
             return builder.build();
         } else {

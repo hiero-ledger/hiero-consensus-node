@@ -16,6 +16,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.WEIBARS_IN_A_TINYBAR;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.esaulpaugh.headlong.util.Integers;
@@ -282,7 +284,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         return spec.fees()
                 .forActivityBasedOp(
                         HederaFunctionality.EthereumTransaction,
-                        scFees::getEthereumTransactionFeeMatrices,
+                        (txBody, sigValObj) ->
+                                fromPbj(scFees.getEthereumTransactionFeeMatrices(toPbj(txBody), sigValObj)),
                         txn,
                         numPayerKeys);
     }

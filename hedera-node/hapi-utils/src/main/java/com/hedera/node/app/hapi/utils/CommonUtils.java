@@ -1,27 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
-import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.SignatureMap;
-import com.hederahashgraph.api.proto.java.SignedTransaction;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionOrBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -40,50 +35,46 @@ public final class CommonUtils {
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-    public static ByteString extractTransactionBodyByteString(final TransactionOrBuilder transaction)
-            throws InvalidProtocolBufferException {
+    public static Bytes extractTransactionBodyByteString(final Transaction transaction) throws ParseException {
         if (transaction.hasBody()) {
-            return transaction.getBody().toByteString();
+            return TransactionBody.PROTOBUF.toBytes(transaction.body());
         }
-        final var signedTransactionBytes = transaction.getSignedTransactionBytes();
-        if (!signedTransactionBytes.isEmpty()) {
-            return SignedTransaction.parseFrom(signedTransactionBytes).getBodyBytes();
+        final var signedTransactionBytes = transaction.signedTransactionBytes();
+        if (signedTransactionBytes.length() > 0) {
+            return SignedTransaction.PROTOBUF.parse(signedTransactionBytes).bodyBytes();
         }
-        return transaction.getBodyBytes();
+        return transaction.bodyBytes();
     }
 
-    public static byte[] extractTransactionBodyBytes(final TransactionOrBuilder transaction)
-            throws InvalidProtocolBufferException {
-        return unwrapUnsafelyIfPossible(extractTransactionBodyByteString(transaction));
+    public static byte[] extractTransactionBodyBytes(final Transaction transaction) throws ParseException {
+        return extractTransactionBodyByteString(transaction).toByteArray();
     }
 
     /**
-     * Extracts the {@link TransactionBody} from a {@link TransactionOrBuilder} and throws an unchecked exception if
+     * Extracts the {@link TransactionBody} from a {@link Transaction} and throws an unchecked exception if
      * the extraction fails.
      *
-     * @param transaction the {@link TransactionOrBuilder} from which to extract the {@link TransactionBody}
+     * @param transaction the {@link Transaction} from which to extract the {@link TransactionBody}
      * @return the extracted {@link TransactionBody}
      */
-    public static TransactionBody extractTransactionBodyUnchecked(final TransactionOrBuilder transaction) {
+    public static TransactionBody extractTransactionBodyUnchecked(final Transaction transaction) {
         try {
-            return TransactionBody.parseFrom(extractTransactionBodyByteString(transaction));
-        } catch (InvalidProtocolBufferException e) {
+            return TransactionBody.PROTOBUF.parse(extractTransactionBodyByteString(transaction));
+        } catch (ParseException e) {
             throw new IllegalArgumentException(e);
         }
     }
 
-    public static TransactionBody extractTransactionBody(final TransactionOrBuilder transaction)
-            throws InvalidProtocolBufferException {
-        return TransactionBody.parseFrom(extractTransactionBodyByteString(transaction));
+    public static TransactionBody extractTransactionBody(final Transaction transaction) throws ParseException {
+        return TransactionBody.PROTOBUF.parse(extractTransactionBodyByteString(transaction));
     }
 
-    public static SignatureMap extractSignatureMap(final TransactionOrBuilder transaction)
-            throws InvalidProtocolBufferException {
-        final var signedTransactionBytes = transaction.getSignedTransactionBytes();
-        if (!signedTransactionBytes.isEmpty()) {
-            return SignedTransaction.parseFrom(signedTransactionBytes).getSigMap();
+    public static SignatureMap extractSignatureMap(final Transaction transaction) throws ParseException {
+        final var signedTransactionBytes = transaction.signedTransactionBytes();
+        if (signedTransactionBytes.length() > 0) {
+            return SignedTransaction.PROTOBUF.parse(signedTransactionBytes).sigMap();
         }
-        return transaction.getSigMap();
+        return transaction.sigMapOrElse(SignatureMap.DEFAULT);
     }
 
     /**
@@ -134,7 +125,7 @@ public final class CommonUtils {
     @NonNull
     public static HederaFunctionality functionOf(@NonNull final TransactionBody txn) throws UnknownHederaFunctionality {
         requireNonNull(txn);
-        return fromPbj(HapiUtils.functionOf(toPbj(txn)));
+        return HapiUtils.functionOf(txn);
     }
 
     /**
@@ -154,26 +145,10 @@ public final class CommonUtils {
     }
 
     public static Instant timestampToInstant(final Timestamp timestamp) {
-        return Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos());
+        return Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
     }
 
     public static Instant pbjTimestampToInstant(final com.hedera.hapi.node.base.Timestamp timestamp) {
         return Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
-    }
-
-    /**
-     * Converts a long-zero address to a PBJ {@link ScheduleID} using the address as the entity number
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
-     * @param address
-     * @return the PBJ {@link ScheduleID}
-     */
-    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
-            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
-                .setScheduleNum(address.value().longValueExact())
-                .build();
     }
 }

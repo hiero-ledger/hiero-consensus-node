@@ -5,7 +5,8 @@ import static com.hedera.node.app.hapi.fees.usage.TxnUsage.keySizeIfPresent;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 
 import com.google.common.base.MoreObjects;
-import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -16,8 +17,8 @@ public class CryptoCreateMeta {
 
     public CryptoCreateMeta(final CryptoCreateTransactionBody cryptoCreateTxnBody) {
         baseSize = getCryptoCreateTxnBaseSize(cryptoCreateTxnBody);
-        lifeTime = cryptoCreateTxnBody.getAutoRenewPeriod().getSeconds();
-        maxAutomaticAssociations = cryptoCreateTxnBody.getMaxAutomaticTokenAssociations();
+        lifeTime = cryptoCreateTxnBody.autoRenewPeriodOrElse(Duration.DEFAULT).seconds();
+        maxAutomaticAssociations = cryptoCreateTxnBody.maxAutomaticTokenAssociations();
     }
 
     public CryptoCreateMeta(final Builder builder) {
@@ -27,8 +28,8 @@ public class CryptoCreateMeta {
     }
 
     private long getCryptoCreateTxnBaseSize(final CryptoCreateTransactionBody op) {
-        long variableBytes = op.getMemoBytes().size();
-        variableBytes += keySizeIfPresent(op, CryptoCreateTransactionBody::hasKey, CryptoCreateTransactionBody::getKey);
+        long variableBytes = op.memo().getBytes().length;
+        variableBytes += keySizeIfPresent(op, CryptoCreateTransactionBody::hasKey, CryptoCreateTransactionBody::key);
         if (op.hasProxyAccountID()) {
             variableBytes += BASIC_ENTITY_ID_SIZE;
         }

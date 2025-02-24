@@ -4,6 +4,8 @@ package com.hedera.services.bdd.spec.transactions.token;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
@@ -65,8 +67,9 @@ public class HapiTokenKycGrant extends HapiTxnOp<HapiTokenKycGrant> {
     }
 
     private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
-        return TokenGrantKycUsage.newEstimate(txn, new TxnUsageEstimator(suFrom(svo), txn, ESTIMATOR_UTILS))
-                .get();
+        return fromPbj(TokenGrantKycUsage.newEstimate(
+                        toPbj(txn), new TxnUsageEstimator(suFrom(svo), toPbj(txn), ESTIMATOR_UTILS))
+                .get());
     }
 
     @Override
