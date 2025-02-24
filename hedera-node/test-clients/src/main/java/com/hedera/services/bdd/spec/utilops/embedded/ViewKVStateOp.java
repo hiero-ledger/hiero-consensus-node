@@ -9,7 +9,7 @@ import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 
-public class ViewKVStateOp<K extends Record, V extends Record> extends UtilOp {
+public class ViewKVStateOp<K, V> extends UtilOp {
     private final String serviceName;
     private final String stateKey;
     private final Consumer<ReadableKVState<K, V>> observer;

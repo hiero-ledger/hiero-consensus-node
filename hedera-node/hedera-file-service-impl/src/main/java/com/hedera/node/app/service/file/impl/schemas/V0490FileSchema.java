@@ -87,7 +87,7 @@ public class V0490FileSchema extends Schema {
 
     public static final String BLOBS_KEY = "FILES";
     public static final String UPGRADE_FILE_KEY = "UPGRADE_FILE";
-    public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[%s]";
+    public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
 
     /**
      * The default throttle definitions resource. Used as the ultimate fallback if the configured file and resource is
@@ -129,12 +129,8 @@ public class V0490FileSchema extends Schema {
 
         // initializing the files 150 -159
         for (var updateNum = firstUpdateNum; updateNum <= lastUpdateNum; updateNum++) {
-            final var fileId = FileID.newBuilder()
-                    .shardNum(hederaConfig.shard())
-                    .realmNum(hederaConfig.realm())
-                    .fileNum(updateNum)
-                    .build();
-            definitions.add(StateDefinition.queue(UPGRADE_DATA_KEY.formatted(fileId), ProtoBytes.PROTOBUF));
+            final var stateKey = UPGRADE_DATA_KEY.formatted(hederaConfig.shard(), hederaConfig.realm(), updateNum);
+            definitions.add(StateDefinition.queue(stateKey, ProtoBytes.PROTOBUF));
         }
 
         return definitions;

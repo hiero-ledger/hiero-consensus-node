@@ -45,6 +45,7 @@ public class ReadableUpgradeFileStoreImpl implements ReadableUpgradeFileStore {
     @Override
     @NonNull
     public String getStateKey() {
+        // Note: this doesn't look right, since UPGRADE_DATA_KEY is a pattern, not a concrete key
         return UPGRADE_DATA_KEY;
     }
 
@@ -63,8 +64,8 @@ public class ReadableUpgradeFileStoreImpl implements ReadableUpgradeFileStore {
     @NonNull
     public Bytes getFull(final FileID fileID) throws IOException {
         ByteArrayOutputStream collector = new ByteArrayOutputStream();
-        final ReadableQueueState<ProtoBytes> upgradeState =
-                Objects.requireNonNull(states.getQueue(UPGRADE_DATA_KEY.formatted(fileID)));
+        final String stateKey = UPGRADE_DATA_KEY.formatted(fileID.shardNum(), fileID.realmNum(), fileID.fileNum());
+        final ReadableQueueState<ProtoBytes> upgradeState = Objects.requireNonNull(states.getQueue(stateKey));
         final Bytes fullContents;
         if (upgradeFileState.get(fileID) != null) {
             final var iterator = upgradeState.iterator();
