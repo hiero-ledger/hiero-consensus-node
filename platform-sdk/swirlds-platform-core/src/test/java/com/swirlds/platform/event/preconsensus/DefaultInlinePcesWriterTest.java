@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
@@ -25,7 +24,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -89,12 +87,10 @@ class DefaultInlinePcesWriterTest {
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
 
         final int stepsUntilAncient = random.nextInt(50, 100);
-        final PcesSequencer sequencer = new DefaultPcesSequencer();
         final PcesFileTracker pcesFiles = new PcesFileTracker(ancientMode);
 
         final PcesFileManager fileManager = new PcesFileManager(platformContext, pcesFiles, selfId, 0);
         final DefaultInlinePcesWriter writer = new DefaultInlinePcesWriter(platformContext, fileManager, selfId);
-        final AtomicLong latestDurableSequenceNumber = new AtomicLong();
 
         // We will add this event at the very end, it should be ancient by then
         final PlatformEvent ancientEvent = generator.generateEventWithoutIndex().getBaseEvent();
@@ -113,7 +109,6 @@ class DefaultInlinePcesWriterTest {
         while (iterator.hasNext()) {
             final PlatformEvent event = iterator.next();
 
-            sequencer.assignStreamSequenceNumber(event);
             writer.writeEvent(event);
             lowerBound = Math.max(lowerBound, event.getAncientIndicator(ancientMode) - stepsUntilAncient);
 
@@ -127,8 +122,6 @@ class DefaultInlinePcesWriterTest {
             }
         }
 
-        // Add the ancient event
-        sequencer.assignStreamSequenceNumber(ancientEvent);
         if (lowerBound > ancientEvent.getAncientIndicator(ancientMode)) {
             // This is probably not possible... but just in case make sure this event is ancient
             try {
@@ -143,9 +136,6 @@ class DefaultInlinePcesWriterTest {
         }
 
         rejectedEvents.add(ancientEvent);
-
-        rejectedEvents.forEach(
-                event -> assertFalse(latestDurableSequenceNumber.get() >= event.getStreamSequenceNumber()));
 
         PcesWriterTestUtils.verifyStream(selfId, events, platformContext, 0, ancientMode);
     }
