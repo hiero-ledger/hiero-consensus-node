@@ -163,7 +163,10 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var accountAsContract = hollowAccount
                 .copyBuilder()
                 .key(Key.newBuilder()
-                        .contractID(ContractID.newBuilder().contractNum(hollowAccountId.accountNumOrThrow()))
+                        .contractID(ContractID.newBuilder()
+                                .shardNum(hollowAccountId.shardNum())
+                                .realmNum(hollowAccountId.realmNum())
+                                .contractNum(hollowAccountId.accountNumOrThrow()))
                         .build())
                 .smartContract(true)
                 .maxAutoAssociations(hollowAccount.numberAssociations())

@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -12,6 +13,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.token.impl.schemas.V0500TokenSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
@@ -47,6 +49,9 @@ class V0500TokenSchemaTest {
     @Mock
     private MigrationContext ctx;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private final V0500TokenSchema subject = new V0500TokenSchema();
 
     @Test
@@ -60,6 +65,8 @@ class V0500TokenSchemaTest {
     @DisplayName("works around missing account")
     void worksAroundMissing() {
         givenValidCtx();
+        given(ctx.entityIdFactory()).willReturn(entityIdFactory);
+        given(entityIdFactory.newAccountId(anyLong())).willReturn(AccountID.DEFAULT);
         assertDoesNotThrow(() -> subject.migrate(ctx));
     }
 
@@ -67,6 +74,13 @@ class V0500TokenSchemaTest {
     @DisplayName("fixes first storage keys")
     void fixesFirstKeys() {
         givenValidCtx();
+        given(ctx.entityIdFactory()).willReturn(entityIdFactory);
+        given(entityIdFactory.newAccountId(1))
+                .willReturn(AccountID.newBuilder().accountNum(1L).build());
+        given(entityIdFactory.newAccountId(2))
+                .willReturn(AccountID.newBuilder().accountNum(2L).build());
+        given(entityIdFactory.newAccountId(3))
+                .willReturn(AccountID.newBuilder().accountNum(3L).build());
         accounts.put(
                 accountIdWith(1),
                 Account.newBuilder()

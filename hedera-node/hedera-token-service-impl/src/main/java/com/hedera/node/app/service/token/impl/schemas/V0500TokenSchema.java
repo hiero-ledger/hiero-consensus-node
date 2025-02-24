@@ -45,9 +45,7 @@ public class V0500TokenSchema extends Schema {
         final WritableKVState<AccountID, Account> writableAccounts =
                 ctx.newStates().get(ACCOUNTS_KEY);
         migratedFirstKeys.forEach((contractId, firstKey) -> {
-            final var accountId = AccountID.newBuilder()
-                    .accountNum(contractId.contractNumOrThrow())
-                    .build();
+            final var accountId = ctx.entityIdFactory().newAccountId(contractId.contractNumOrThrow());
             final var account = writableAccounts.get(accountId);
             if (account == null) {
                 log.error("Contract account {} not found in the new state", accountId);
