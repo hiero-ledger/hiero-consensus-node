@@ -155,7 +155,7 @@ public final class AssertionUtils {
      */
     public static <T> void assertEventuallyEquals(
             final T expected, final Supplier<T> actual, final Duration maxDuration, final String message) {
-        assertEventuallyTrue(() -> Objects.equals(expected, actual.get()), maxDuration, message + " expected:" + expected + " got: " + actual.get());
+        assertEventuallyTrue(() -> Objects.equals(expected, actual.get()), maxDuration, message);
     }
 
     /**
