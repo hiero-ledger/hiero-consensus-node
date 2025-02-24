@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update;
+package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c;
+
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_CONTRACT_ID;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -11,7 +13,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Cal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Variant;
@@ -29,6 +30,7 @@ public class UpdateNFTsMetadataTranslator extends AbstractCallTranslator<HtsCall
     public static final SystemContractMethod UPDATE_NFTs_METADATA = SystemContractMethod.declare(
                     "updateNFTsMetadata(address,int64[],bytes)", ReturnTypes.INT)
             .withVariants(Variant.NFT, Variant.WITH_METADATA)
+            .withSupportedAddress(HTS_16C_CONTRACT_ID)
             .withCategories(Category.UPDATE);
 
     private final UpdateDecoder decoder;

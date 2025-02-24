@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update.address_0x16c;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorWithContractID;
@@ -81,7 +80,7 @@ class UpdateTranslatorTest extends CallTestBase {
     @Test
     void matchesFailsOnIncorrectSelector() {
         attempt = prepareHtsAttemptWithSelectorWithContractID(
-                HTS_167_CONTRACT_ID,
+                HTS_16C_CONTRACT_ID,
                 FreezeUnfreezeTranslator.FREEZE,
                 subject,
                 enhancement,

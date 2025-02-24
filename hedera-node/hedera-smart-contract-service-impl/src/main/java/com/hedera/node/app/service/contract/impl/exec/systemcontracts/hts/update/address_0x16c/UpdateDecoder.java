@@ -9,7 +9,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateNFTsMetadataTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -44,7 +43,7 @@ public class UpdateDecoder extends UpdateCommonDecoder {
 
     @Override
     protected Tuple decodeCall(@NonNull final HtsCallAttempt attempt) {
-        return UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION.decodeCall(
+        return UpdateKeysTranslator.TOKEN_UPDATE_KEYS_16C.decodeCall(
                 attempt.input().toArrayUnsafe());
     }
 

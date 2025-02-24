@@ -21,7 +21,7 @@ public class UpdateKeysTranslator extends UpdateKeysCommonTranslator {
     /**
      * Selector for updateTokenKeys(address, TOKEN_KEY[]) method.
      */
-    public static final SystemContractMethod TOKEN_UPDATE_KEYS_FUNCTION = SystemContractMethod.declare(
+    public static final SystemContractMethod TOKEN_UPDATE_KEYS_16C = SystemContractMethod.declare(
                     "updateTokenKeys(address," + TOKEN_KEY + ARRAY_BRACKETS + ")", ReturnTypes.INT)
             .withCategories(SystemContractMethod.Category.UPDATE)
             .withSupportedAddress(HTS_16C_CONTRACT_ID);
@@ -36,11 +36,11 @@ public class UpdateKeysTranslator extends UpdateKeysCommonTranslator {
             @NonNull final ContractMetrics contractMetrics) {
         super(decoder, systemContractMethodRegistry, contractMetrics);
 
-        registerMethods(TOKEN_UPDATE_KEYS_FUNCTION);
+        registerMethods(TOKEN_UPDATE_KEYS_16C);
     }
 
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isMethod(TOKEN_UPDATE_KEYS_FUNCTION);
+        return attempt.isMethod(TOKEN_UPDATE_KEYS_16C);
     }
 }
