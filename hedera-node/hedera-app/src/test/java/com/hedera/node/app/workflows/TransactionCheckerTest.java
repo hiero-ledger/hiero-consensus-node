@@ -882,7 +882,7 @@ final class TransactionCheckerTest extends AppTestBase {
         return new byte[] {0b00000111};
     }
 
-    private <T extends Record> Bytes appendUnknownField(@NonNull final Codec<T> codec, T tx) {
+    private <T> Bytes appendUnknownField(@NonNull final Codec<T> codec, T tx) {
         final var bytes = asByteArray(codec, tx);
         return Bytes.wrap(appendUnknownField(bytes));
     }

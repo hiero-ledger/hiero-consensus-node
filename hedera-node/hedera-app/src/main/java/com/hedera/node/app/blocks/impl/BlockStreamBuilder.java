@@ -459,7 +459,7 @@ public class BlockStreamBuilder
          * @param <T> the Java type of the view
          */
         @SuppressWarnings("unchecked")
-        private <T extends Record> T toView(@NonNull final BlockItemsTranslator translator, @NonNull final View view) {
+        private <T> T toView(@NonNull final BlockItemsTranslator translator, @NonNull final View view) {
             int i = 0;
             final var n = blockItems.size();
             TransactionResult result = null;
