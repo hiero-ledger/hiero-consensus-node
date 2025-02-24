@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network;
+package com.swirlds.platform.network;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.time.Duration;
 import javax.net.ssl.SSLException;
