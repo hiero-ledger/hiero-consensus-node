@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.token;
 
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.token.TokenDissociateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 
 public class TokenDissociateUsage extends TokenTxnUsage<TokenDissociateUsage> {
     private TokenDissociateUsage(TransactionBody tokenOp, TxnUsageEstimator usageEstimator) {
@@ -20,9 +21,9 @@ public class TokenDissociateUsage extends TokenTxnUsage<TokenDissociateUsage> {
     }
 
     public FeeData get() {
-        var op = this.op.getTokenDissociate();
+        var op = this.op.tokenDissociateOrElse(TokenDissociateTransactionBody.DEFAULT);
         addEntityBpt();
-        op.getTokensList().forEach(t -> addEntityBpt());
+        op.tokens().forEach(t -> addEntityBpt());
         return usageEstimator.get();
     }
 }

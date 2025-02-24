@@ -10,17 +10,16 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEAD
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.contract.ContractGetInfoQuery;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
-import com.hederahashgraph.api.proto.java.ContractGetInfoQuery;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Query;
 import org.junit.jupiter.api.Test;
 
 class ContractGetInfoUsageTest {
-    private final Query query = Query.newBuilder()
-            .setContractGetInfo(ContractGetInfoQuery.getDefaultInstance())
-            .build();
+    private final Query query =
+            Query.newBuilder().contractGetInfo(ContractGetInfoQuery.DEFAULT).build();
 
     private static final int NUM_TOKEN_ASSOCS = 3;
     private static final Key KEY = KeyUtils.A_CONTRACT_KEY;
@@ -37,7 +36,7 @@ class ContractGetInfoUsageTest {
                 + getAccountKeyStorageSize(KEY)
                 + MEMO.length();
         final var usage =
-                FeeComponents.newBuilder().setBpt(expectedTb).setBpr(expectedRb).build();
+                FeeComponents.newBuilder().bpt(expectedTb).bpr(expectedRb).build();
         final var expected = ESTIMATOR_UTILS.withDefaultQueryPartitioning(usage);
 
         subject = ContractGetInfoUsage.newEstimate(query);

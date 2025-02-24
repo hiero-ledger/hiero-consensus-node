@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.crypto;
 
-import com.hederahashgraph.api.proto.java.CryptoAllowance;
-import com.hederahashgraph.api.proto.java.GrantedCryptoAllowance;
-import com.hederahashgraph.api.proto.java.GrantedNftAllowance;
-import com.hederahashgraph.api.proto.java.GrantedTokenAllowance;
-import com.hederahashgraph.api.proto.java.NftAllowance;
-import com.hederahashgraph.api.proto.java.TokenAllowance;
+import com.hedera.hapi.node.token.CryptoAllowance;
+import com.hedera.hapi.node.token.GrantedCryptoAllowance;
+import com.hedera.hapi.node.token.GrantedNftAllowance;
+import com.hedera.hapi.node.token.GrantedTokenAllowance;
+import com.hedera.hapi.node.token.NftAllowance;
+import com.hedera.hapi.node.token.TokenAllowance;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -21,7 +21,7 @@ public class CryptoContextUtils {
     public static Map<Long, Long> convertToCryptoMapFromGranted(final List<GrantedCryptoAllowance> allowances) {
         Map<Long, Long> allowanceMap = new HashMap<>();
         for (var a : allowances) {
-            allowanceMap.put(a.getSpender().getAccountNum(), a.getAmount());
+            allowanceMap.put(a.spender().accountNum(), a.amount());
         }
         return allowanceMap;
     }
@@ -29,8 +29,7 @@ public class CryptoContextUtils {
     public static Map<AllowanceId, Long> convertToTokenMapFromGranted(final List<GrantedTokenAllowance> allowances) {
         Map<AllowanceId, Long> allowanceMap = new HashMap<>();
         for (var a : allowances) {
-            allowanceMap.put(
-                    new AllowanceId(a.getTokenId().getTokenNum(), a.getSpender().getAccountNum()), a.getAmount());
+            allowanceMap.put(new AllowanceId(a.tokenId().tokenNum(), a.spender().accountNum()), a.amount());
         }
         return allowanceMap;
     }
@@ -39,7 +38,7 @@ public class CryptoContextUtils {
         Set<AllowanceId> approveForAllAllowances = new HashSet<>();
         for (var a : allowances) {
             approveForAllAllowances.add(
-                    new AllowanceId(a.getTokenId().getTokenNum(), a.getSpender().getAccountNum()));
+                    new AllowanceId(a.tokenId().tokenNum(), a.spender().accountNum()));
         }
         return approveForAllAllowances;
     }
@@ -47,7 +46,7 @@ public class CryptoContextUtils {
     public static Map<Long, Long> convertToCryptoMap(final List<CryptoAllowance> allowances) {
         Map<Long, Long> allowanceMap = new HashMap<>();
         for (var a : allowances) {
-            allowanceMap.put(a.getSpender().getAccountNum(), a.getAmount());
+            allowanceMap.put(a.spender().accountNum(), a.amount());
         }
         return allowanceMap;
     }
@@ -55,8 +54,7 @@ public class CryptoContextUtils {
     public static Map<AllowanceId, Long> convertToTokenMap(final List<TokenAllowance> allowances) {
         Map<AllowanceId, Long> allowanceMap = new HashMap<>();
         for (var a : allowances) {
-            allowanceMap.put(
-                    new AllowanceId(a.getTokenId().getTokenNum(), a.getSpender().getAccountNum()), a.getAmount());
+            allowanceMap.put(new AllowanceId(a.tokenId().tokenNum(), a.spender().accountNum()), a.amount());
         }
         return allowanceMap;
     }
@@ -64,16 +62,15 @@ public class CryptoContextUtils {
     public static Set<AllowanceId> convertToNftMap(final List<NftAllowance> allowances) {
         Set<AllowanceId> allowanceMap = new HashSet<>();
         for (var a : allowances) {
-            allowanceMap.add(
-                    new AllowanceId(a.getTokenId().getTokenNum(), a.getSpender().getAccountNum()));
+            allowanceMap.add(new AllowanceId(a.tokenId().tokenNum(), a.spender().accountNum()));
         }
         return allowanceMap;
     }
 
-    public static int countSerials(final List<NftAllowance> nftAllowancesList) {
-        int totalSerials = 0;
+    public static long countSerials(final List<NftAllowance> nftAllowancesList) {
+        long totalSerials = 0;
         for (var allowance : nftAllowancesList) {
-            totalSerials += allowance.getSerialNumbersCount();
+            totalSerials += allowance.serialNumbers().size();
         }
         return totalSerials;
     }

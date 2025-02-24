@@ -3,9 +3,10 @@ package com.hedera.node.app.hapi.fees.usage.token;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.token.TokenAssociateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 
 public class TokenAssociateUsage extends TokenTxnUsage<TokenAssociateUsage> {
     private long currentExpiry;
@@ -29,10 +30,10 @@ public class TokenAssociateUsage extends TokenTxnUsage<TokenAssociateUsage> {
     }
 
     public FeeData get() {
-        var op = this.op.getTokenAssociate();
+        var op = this.op.tokenAssociateOrElse(TokenAssociateTransactionBody.DEFAULT);
         addEntityBpt();
-        op.getTokensList().forEach(t -> addEntityBpt());
-        novelRelsLasting(op.getTokensCount(), ESTIMATOR_UTILS.relativeLifetime(this.op, currentExpiry));
+        op.tokens().forEach(t -> addEntityBpt());
+        novelRelsLasting(op.tokens().size(), ESTIMATOR_UTILS.relativeLifetime(this.op, currentExpiry));
         return usageEstimator.get();
     }
 }

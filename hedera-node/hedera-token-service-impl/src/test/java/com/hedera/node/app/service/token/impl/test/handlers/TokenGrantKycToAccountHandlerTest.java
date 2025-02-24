@@ -107,7 +107,7 @@ class TokenGrantKycToAccountHandlerTest extends TokenHandlerTestBase {
                 .tokenId(TOKEN_531)
                 .tokenType(TokenType.FUNGIBLE_COMMON)
                 .treasuryAccountId(TREASURY_ACCOUNT_9876)
-                .wipeKey(TOKEN_WIPE_KT.asPbjKey())
+                .wipeKey(TOKEN_WIPE_KT.asKey())
                 .totalSupply(1000L)
                 .build();
 

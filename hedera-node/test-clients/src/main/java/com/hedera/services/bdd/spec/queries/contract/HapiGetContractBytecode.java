@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.queries.contract;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.HEXED_EVM_ADDRESS_LEN;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 
 import com.google.common.base.MoreObjects;
@@ -111,7 +112,8 @@ public class HapiGetContractBytecode extends HapiQueryOp<HapiGetContractBytecode
 
     @Override
     protected long costOnlyNodePayment(HapiSpec spec) {
-        return spec.fees().forOp(HederaFunctionality.ContractGetBytecode, FeeBuilder.getCostForQueryByIdOnly());
+        return spec.fees()
+                .forOp(HederaFunctionality.ContractGetBytecode, fromPbj(FeeBuilder.getCostForQueryByIdOnly()));
     }
 
     @Override

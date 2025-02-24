@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.token;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
@@ -124,7 +125,9 @@ public class HapiTokenReject extends HapiTxnOp<HapiTokenReject> {
         cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator);
 
         final var feeData = AdapterUtils.feeDataFrom(accumulator);
-        return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();
+        return feeData.toBuilder()
+                .setSubType(fromPbj(xferUsageMeta.getSubType()))
+                .build();
     }
 
     @NonNull

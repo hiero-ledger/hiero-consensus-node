@@ -16,7 +16,6 @@ module com.hedera.node.app.service.file.impl {
     requires com.swirlds.common;
     requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;
-    requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

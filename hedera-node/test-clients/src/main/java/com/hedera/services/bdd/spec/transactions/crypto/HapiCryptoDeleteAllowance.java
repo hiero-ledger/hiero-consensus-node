@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.transactions.crypto;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoApproveAllowance.MISSING_OWNER;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
@@ -55,7 +56,7 @@ public class HapiCryptoDeleteAllowance extends HapiTxnOp<HapiCryptoDeleteAllowan
             FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> {
                 var baseMeta = new BaseTransactionMeta(_txn.getMemoBytes().size(), 0);
                 var opMeta = new CryptoDeleteAllowanceMeta(
-                        _txn.getCryptoDeleteAllowance(),
+                        toPbj(_txn.getCryptoDeleteAllowance()),
                         _txn.getTransactionID().getTransactionValidStart().getSeconds());
                 var accumulator = new UsageAccumulator();
                 cryptoOpsUsage.cryptoDeleteAllowanceUsage(suFrom(svo), baseMeta, opMeta, accumulator);

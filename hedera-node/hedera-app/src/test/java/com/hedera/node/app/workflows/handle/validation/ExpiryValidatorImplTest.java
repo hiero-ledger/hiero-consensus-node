@@ -145,7 +145,7 @@ class ExpiryValidatorImplTest {
     void translatesFailureOnExplicitAutoRenewAccount() {
         given(accountStore.getAccountById(AN_AUTO_RENEW_ID))
                 .willThrow(new InvalidTransactionException(
-                        com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT));
+                        com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT));
 
         final var expiryMeta = new ExpiryMeta(A_TIME, NA, AN_AUTO_RENEW_ID);
         assertThatThrownBy(() -> subject.resolveCreationAttempt(false, expiryMeta, HederaFunctionality.NONE))
@@ -281,7 +281,7 @@ class ExpiryValidatorImplTest {
 
         given(accountStore.getAccountById(AN_AUTO_RENEW_ID))
                 .willThrow(new InvalidTransactionException(
-                        com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT));
+                        com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT));
 
         assertThatThrownBy(() -> subject.resolveUpdateAttempt(current, update, false))
                 .isInstanceOf(HandleException.class)

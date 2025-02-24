@@ -7,11 +7,11 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEAD
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.NftID;
+import com.hedera.hapi.node.token.TokenGetNftInfoQuery;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.NftID;
-import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.TokenGetNftInfoQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,14 +37,14 @@ class TokenGetNftInfoUsageTest {
         final var usage = subject.get();
 
         // then:
-        final var node = usage.getNodedata();
+        final var node = usage.nodedata();
 
-        assertEquals(FeeBuilder.BASIC_QUERY_HEADER + BASIC_ENTITY_ID_SIZE + LONG_SIZE, node.getBpt());
-        assertEquals(expectedBytes, node.getBpr());
+        assertEquals(FeeBuilder.BASIC_QUERY_HEADER + BASIC_ENTITY_ID_SIZE + LONG_SIZE, node.bpt());
+        assertEquals(expectedBytes, node.bpr());
     }
 
     private Query query() {
-        final var op = TokenGetNftInfoQuery.newBuilder().setNftID(id).build();
-        return Query.newBuilder().setTokenGetNftInfo(op).build();
+        final var op = TokenGetNftInfoQuery.newBuilder().nftID(id).build();
+        return Query.newBuilder().tokenGetNftInfo(op).build();
     }
 }

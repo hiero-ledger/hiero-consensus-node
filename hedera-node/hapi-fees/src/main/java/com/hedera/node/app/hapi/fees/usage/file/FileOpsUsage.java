@@ -10,19 +10,20 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.file.FileCreateTransactionBody;
+import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
 import com.hedera.node.app.hapi.fees.usage.QueryUsage;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.FileCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.KeyList;
-import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
 import javax.inject.Inject;
@@ -62,15 +63,15 @@ public class FileOpsUsage {
     }
 
     public FeeData fileCreateUsage(final TransactionBody fileCreation, final SigUsage sigUsage) {
-        final var op = fileCreation.getFileCreate();
+        final var op = fileCreation.fileCreate();
 
         long customBytes = 0;
-        customBytes += op.getContents().size();
-        customBytes += op.getMemoBytes().size();
-        customBytes += keySizeIfPresent(op, FileCreateTransactionBody::hasKeys, body -> asKey(body.getKeys()));
+        customBytes += op.contents().length();
+        customBytes += op.memo().getBytes().length;
+        customBytes += keySizeIfPresent(op, FileCreateTransactionBody::hasKeys, body -> asKey(body.keys()));
 
         final var lifetime = ESTIMATOR_UTILS.relativeLifetime(
-                fileCreation, op.getExpirationTime().getSeconds());
+                fileCreation, op.expirationTime().seconds());
 
         final var estimate = txnEstimateFactory.get(sigUsage, fileCreation, ESTIMATOR_UTILS);
         /* Variable bytes plus a long for expiration time */
@@ -82,9 +83,9 @@ public class FileOpsUsage {
     }
 
     public FeeData fileInfoUsage(final Query fileInfoReq, final ExtantFileContext ctx) {
-        final var op = fileInfoReq.getFileGetInfo();
+        final var op = fileInfoReq.fileGetInfo();
 
-        final var estimate = queryEstimateFactory.apply(op.getHeader().getResponseType());
+        final var estimate = queryEstimateFactory.apply(op.header().responseType());
         estimate.addTb(BASIC_ENTITY_ID_SIZE);
         long extraSb = 0;
         extraSb += ctx.currentMemo().getBytes(StandardCharsets.UTF_8).length;
@@ -96,29 +97,28 @@ public class FileOpsUsage {
 
     public FeeData fileUpdateUsage(
             final TransactionBody fileUpdate, final SigUsage sigUsage, final ExtantFileContext ctx) {
-        final var op = fileUpdate.getFileUpdate();
+        final var op = fileUpdate.fileUpdate();
 
-        final long keyBytesUsed = op.hasKeys() ? getAccountKeyStorageSize(asKey(op.getKeys())) : 0;
+        final long keyBytesUsed = op.hasKeys() ? getAccountKeyStorageSize(asKey(op.keys())) : 0;
         final long msgBytesUsed = BASIC_ENTITY_ID_SIZE
-                + op.getContents().size()
-                + op.getMemo().getValueBytes().size()
+                + op.contents().length()
+                + op.memoOrElse("").getBytes().length
                 + keyBytesUsed
                 + (op.hasExpirationTime() ? LONG_SIZE : 0);
         final var estimate = txnEstimateFactory.get(sigUsage, fileUpdate, ESTIMATOR_UTILS);
         estimate.addBpt(msgBytesUsed);
 
         long newCustomBytes = 0;
-        newCustomBytes += op.getContents().isEmpty()
-                ? ctx.currentSize()
-                : op.getContents().size();
+        newCustomBytes +=
+                op.contents().length() == 0 ? ctx.currentSize() : op.contents().length();
         newCustomBytes += !op.hasMemo()
                 ? ctx.currentMemo().getBytes(StandardCharsets.UTF_8).length
-                : op.getMemo().getValueBytes().size();
+                : op.memo().getBytes().length;
         newCustomBytes += !op.hasKeys() ? getAccountKeyStorageSize(asKey(ctx.currentWacl())) : keyBytesUsed;
         final long oldCustomBytes = ctx.currentNonBaseSb();
         final long oldLifetime = ESTIMATOR_UTILS.relativeLifetime(fileUpdate, ctx.currentExpiry());
         final long newLifetime = ESTIMATOR_UTILS.relativeLifetime(
-                fileUpdate, op.getExpirationTime().getSeconds());
+                fileUpdate, op.expirationTimeOrElse(Timestamp.DEFAULT).seconds());
         final long sbsDelta = ESTIMATOR_UTILS.changeInBsUsage(oldCustomBytes, oldLifetime, newCustomBytes, newLifetime);
         if (sbsDelta > 0) {
             estimate.addSbs(sbsDelta);
@@ -128,6 +128,6 @@ public class FileOpsUsage {
     }
 
     public static Key asKey(final KeyList wacl) {
-        return Key.newBuilder().setKeyList(wacl).build();
+        return Key.newBuilder().keyList(wacl).build();
     }
 }

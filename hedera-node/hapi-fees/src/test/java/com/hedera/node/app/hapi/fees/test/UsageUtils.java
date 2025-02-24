@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.test;
 
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
 
 public class UsageUtils {
     public static final int NUM_PAYER_KEYS = 2;
@@ -19,15 +19,15 @@ public class UsageUtils {
     public static final long NETWORK_RBH = 10;
 
     public static final FeeComponents A_USAGE_VECTOR = FeeComponents.newBuilder()
-            .setConstant(ONE)
-            .setBpt(BPT)
-            .setVpt(VPT)
-            .setRbh(RBH)
-            .setSbh(SBH)
-            .setGas(GAS)
-            .setTv(TV)
-            .setBpr(BPR)
-            .setSbpr(SBPR)
+            .constant(ONE)
+            .bpt(BPT)
+            .vpt(VPT)
+            .rbh(RBH)
+            .sbh(SBH)
+            .gas(GAS)
+            .tv(TV)
+            .bpr(BPR)
+            .sbpr(SBPR)
             .build();
 
     public static final FeeData A_USAGES_MATRIX;
@@ -35,30 +35,21 @@ public class UsageUtils {
 
     static {
         var usagesBuilder = FeeData.newBuilder();
-        usagesBuilder.setNetworkdata(FeeComponents.newBuilder()
-                .setConstant(ONE)
-                .setBpt(BPT)
-                .setVpt(VPT)
-                .setRbh(NETWORK_RBH));
-        usagesBuilder.setNodedata(FeeComponents.newBuilder()
-                .setConstant(ONE)
-                .setBpt(BPT)
-                .setVpt(NUM_PAYER_KEYS)
-                .setBpr(BPR)
-                .setSbpr(SBPR));
-        usagesBuilder.setServicedata(FeeComponents.newBuilder()
-                .setConstant(ONE)
-                .setRbh(RBH)
-                .setSbh(SBH)
-                .setTv(TV));
+        usagesBuilder.networkdata(
+                FeeComponents.newBuilder().constant(ONE).bpt(BPT).vpt(VPT).rbh(NETWORK_RBH));
+        usagesBuilder.nodedata(FeeComponents.newBuilder()
+                .constant(ONE)
+                .bpt(BPT)
+                .vpt(NUM_PAYER_KEYS)
+                .bpr(BPR)
+                .sbpr(SBPR));
+        usagesBuilder.servicedata(
+                FeeComponents.newBuilder().constant(ONE).rbh(RBH).sbh(SBH).tv(TV));
         A_USAGES_MATRIX = usagesBuilder.build();
 
         usagesBuilder = FeeData.newBuilder();
-        usagesBuilder.setNodedata(FeeComponents.newBuilder()
-                .setConstant(ONE)
-                .setBpt(BPT)
-                .setSbpr(SBPR)
-                .setBpr(BPR));
+        usagesBuilder.nodedata(
+                FeeComponents.newBuilder().constant(ONE).bpt(BPT).sbpr(SBPR).bpr(BPR));
         A_QUERY_USAGES_MATRIX = usagesBuilder.build();
     }
 }

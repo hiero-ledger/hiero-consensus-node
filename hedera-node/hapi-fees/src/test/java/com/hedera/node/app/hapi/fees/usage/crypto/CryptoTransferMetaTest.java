@@ -3,7 +3,7 @@ package com.hedera.node.app.hapi.fees.usage.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hederahashgraph.api.proto.java.SubType;
+import com.hedera.hapi.node.base.SubType;
 import org.junit.jupiter.api.Test;
 
 class CryptoTransferMetaTest {

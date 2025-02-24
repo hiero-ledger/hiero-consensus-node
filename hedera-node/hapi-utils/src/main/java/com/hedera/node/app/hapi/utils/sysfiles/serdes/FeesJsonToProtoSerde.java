@@ -2,18 +2,19 @@
 package com.hedera.node.app.hapi.utils.sysfiles.serdes;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.FeeSchedule;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.TimestampSeconds;
-import com.hederahashgraph.api.proto.java.TransactionFeeSchedule;
+import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.FeeSchedule;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.TimestampSeconds;
+import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -86,16 +87,18 @@ public class FeesJsonToProtoSerde {
     private static FeeSchedule bindFeeScheduleFrom(List<Map<String, Object>> rawFeeSchedule)
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException {
         FeeSchedule.Builder feeSchedule = FeeSchedule.newBuilder();
+        List<TransactionFeeSchedule> transactionFeeSchedules = new ArrayList<>();
 
         for (Map<String, Object> part : rawFeeSchedule) {
             if (part.containsKey(EXPIRY_TIME_KEY)) {
                 long expiry = Long.parseLong(part.get(EXPIRY_TIME_KEY) + "");
-                feeSchedule.setExpiryTime(TimestampSeconds.newBuilder().setSeconds(expiry));
+                feeSchedule.expiryTime(TimestampSeconds.newBuilder().seconds(expiry));
             } else {
-                feeSchedule.addTransactionFeeSchedule(
+                transactionFeeSchedules.add(
                         bindTxnFeeScheduleFrom((Map<String, Object>) part.get(TXN_FEE_SCHEDULE_KEY)));
             }
         }
+        feeSchedule.transactionFeeSchedule(transactionFeeSchedules);
 
         return feeSchedule.build();
     }
@@ -104,23 +107,23 @@ public class FeesJsonToProtoSerde {
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException {
         final var txnFeeSchedule = TransactionFeeSchedule.newBuilder();
         var key = translateClaimFunction((String) rawTxnFeeSchedule.get(HEDERA_FUNCTION_KEY));
-        txnFeeSchedule.setHederaFunctionality(HederaFunctionality.valueOf(key));
+        txnFeeSchedule.hederaFunctionality(HederaFunctionality.valueOf(key));
         var feesList = (List<Object>) rawTxnFeeSchedule.get(FEE_DATA_KEY);
 
         for (Object o : feesList) {
-            txnFeeSchedule.addFees(bindFeeDataFrom((Map<String, Object>) o));
+            txnFeeSchedule.fees(bindFeeDataFrom((Map<String, Object>) o));
         }
 
         return txnFeeSchedule.build();
     }
 
     private static String translateClaimFunction(String key) {
-        if (key.equals("CryptoAddClaim")) {
-            return "CryptoAddLiveHash";
-        } else if (key.equals("CryptoDeleteClaim")) {
-            return "CryptoDeleteLiveHash";
-        } else if (key.equals("CryptoGetClaim")) {
-            return "CryptoGetLiveHash";
+        if (key.equals("CRYPTO_ADD_CLAIM")) {
+            return "CRYPTO_ADD_LIVE_HASH";
+        } else if (key.equals("CRYPTO_DELETE_CLAIM")) {
+            return "CRYPTO_DELETE_LIVE_HASH";
+        } else if (key.equals("CRYPTO_GET_CLAIM")) {
+            return "CRYPTO_GET_LIVE_HASH";
         } else {
             return key;
         }
@@ -131,9 +134,9 @@ public class FeesJsonToProtoSerde {
         FeeData.Builder feeData = FeeData.newBuilder();
 
         if (rawFeeData.get("subType") == null) {
-            feeData.setSubType(SubType.DEFAULT);
+            feeData.subType(SubType.DEFAULT);
         } else {
-            feeData.setSubType(stringToSubType((String) rawFeeData.get("subType")));
+            feeData.subType(stringToSubType((String) rawFeeData.get("subType")));
         }
 
         for (String feeComponent : FEE_COMPONENT_KEYS) {
@@ -178,11 +181,7 @@ public class FeesJsonToProtoSerde {
 
     static <R, T> void set(Class<R> builderType, R builder, String property, Class<T> valueType, T value)
             throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        Method setter = builderType.getDeclaredMethod(setterName(property), valueType);
+        Method setter = builderType.getDeclaredMethod(property, valueType);
         setter.invoke(builder, value);
-    }
-
-    static String setterName(String property) {
-        return "set" + property.substring(0, 1).toUpperCase() + property.substring(1);
     }
 }

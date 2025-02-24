@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType.SUPPLY_KEY;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -91,7 +92,7 @@ public class UnifiedConsTimeTest {
                         .andAllChildRecords()
                         .exposingAllTo(records -> {
                             assertEquals(
-                                    timestampToInstant(records.getFirst().getConsensusTimestamp()),
+                                    timestampToInstant(toPbj(records.getFirst().getConsensusTimestamp())),
                                     pbjTimestampToInstant(nft.mintTimeOrThrow()));
                             assertNotEquals(
                                     records.getFirst().getConsensusTimestamp(),

@@ -621,7 +621,9 @@ public class V0490FileSchema extends Schema {
             final var om = new ObjectMapper();
             final var throttleDefinitionsObj = om.readValue(
                     throttleJson, com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleDefinitions.class);
-            return throttleDefinitionsObj.toProto().toByteArray();
+            return ThrottleDefinitions.PROTOBUF
+                    .toBytes(throttleDefinitionsObj.toProto())
+                    .toByteArray();
         } catch (IOException e) {
             throw new IllegalArgumentException("Unable to parse throttle definitions", e);
         }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.keys;
 
-import com.google.protobuf.ByteString;
-import com.hederahashgraph.api.proto.java.Key;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,11 +22,11 @@ public class OverlappingKeyGenerator implements KeyGenerator {
     }
 
     private OverlappingKeyGenerator(int n, int minOverlapLen) {
-        Set<ByteString> usedPrefixes = new HashSet<>();
-        Map<ByteString, Key> byPrefix = new HashMap<>();
+        Set<Bytes> usedPrefixes = new HashSet<>();
+        Map<Bytes, Key> byPrefix = new HashMap<>();
         while (precomputed.size() < n) {
             Key candidate = KeyFactory.genSingleEd25519Key(pkMap);
-            ByteString prefix = pubKeyPrefixOf(candidate, minOverlapLen);
+            Bytes prefix = pubKeyPrefixOf(candidate, minOverlapLen);
             if (byPrefix.containsKey(prefix)) {
                 if (!usedPrefixes.contains(prefix)) {
                     precomputed.add(byPrefix.get(prefix));
@@ -41,15 +41,15 @@ public class OverlappingKeyGenerator implements KeyGenerator {
         }
     }
 
-    private ByteString pubKeyPrefixOf(Key key, int prefixLen) {
-        return key.getEd25519().substring(0, prefixLen);
+    private Bytes pubKeyPrefixOf(Key key, int prefixLen) {
+        return key.ed25519().slice(0, prefixLen);
     }
 
     @Override
     public Key genEd25519AndUpdateMap(Map<String, PrivateKey> mutablePkMap) {
         Key key = precomputed.get(nextKey);
         nextKey = (nextKey + 1) % precomputed.size();
-        String hexPubKey = CommonUtils.hex(key.getEd25519().toByteArray());
+        String hexPubKey = CommonUtils.hex(key.ed25519().toByteArray());
         mutablePkMap.put(hexPubKey, pkMap.get(hexPubKey));
         return key;
     }

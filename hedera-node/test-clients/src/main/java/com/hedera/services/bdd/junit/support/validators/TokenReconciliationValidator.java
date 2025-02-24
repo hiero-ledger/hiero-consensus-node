@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.junit.support.validators;
 
 import static com.hedera.services.bdd.junit.TestBase.concurrentExecutionOf;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -92,9 +94,9 @@ public class TokenReconciliationValidator implements RecordStreamValidator {
     }
 
     private void updateImplicitNftBalanceChangesIfTokenUpdate(@NonNull final RecordStreamItem item) {
-        final var parts = TransactionParts.from(item.getTransaction());
-        if (parts.function() == TokenUpdate) {
-            final var op = parts.body().getTokenUpdate();
+        final var parts = TransactionParts.from(toPbj(item.getTransaction()));
+        if (fromPbj(parts.function()) == TokenUpdate) {
+            final var op = fromPbj(parts.body()).getTokenUpdate();
             final var nftTreasury = nonFungibleTreasuries.get(op.getToken());
             // A synthetic TokenUpdate dispatched by a system contract will set 0.0.0 when not changing the treasury
             if (nftTreasury != null && op.hasTreasury() && op.getTreasury().getAccountNum() > 0) {
@@ -114,8 +116,8 @@ public class TokenReconciliationValidator implements RecordStreamValidator {
     }
 
     private void maybeIncorporateNonFungibleTreasury(@NonNull final RecordStreamItem creation) {
-        final var parts = TransactionParts.from(creation.getTransaction());
-        final var op = parts.body().getTokenCreation();
+        final var parts = TransactionParts.from(toPbj(creation.getTransaction()));
+        final var op = fromPbj(parts.body()).getTokenCreation();
         if (op.getTokenType() == TokenType.NON_FUNGIBLE_UNIQUE) {
             final var tokenId = creation.getRecord().getReceipt().getTokenID();
             nonFungibleTreasuries.put(tokenId, op.getTreasury());

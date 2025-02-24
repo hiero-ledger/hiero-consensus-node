@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.fee;
 
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
+import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.builder.RequestBuilder;
-import com.hederahashgraph.api.proto.java.ContractCallTransactionBody;
-import com.hederahashgraph.api.proto.java.ContractCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.ContractFunctionResult;
-import com.hederahashgraph.api.proto.java.ContractUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.time.Duration;
 import java.time.Instant;
 import javax.inject.Inject;
@@ -58,21 +59,21 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         long rbsNetwork = getDefaultRbhNetworkSize() + BASIC_ENTITY_ID_SIZE * (RECEIPT_STORAGE_TIME_SEC);
 
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getFeeDataMatrices(feeMatricesForTx, sigValObj.getPayerAcctSigCount(), rbsNetwork);
     }
 
     /** Calculates the total bytes in Contract Create Transaction body. */
-    private int getContractCreateTransactionBodySize(TransactionBody txBody) {
+    private long getContractCreateTransactionBodySize(TransactionBody txBody) {
         /*
          * FileID fileID - BASIC_ENTITY_ID_SIZE Key adminKey - calculated value int64 gas - LONG_SIZE uint64
          * initialBalance - LONG_SIZE AccountID proxyAccountID - BASIC_ENTITY_ID_SIZE bytes
@@ -81,21 +82,22 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
          * value string memo - calculated value
          *
          */
-        ContractCreateTransactionBody contractCreate = txBody.getContractCreateInstance();
+        ContractCreateTransactionBody contractCreate =
+                txBody.contractCreateInstanceOrElse(ContractCreateTransactionBody.DEFAULT);
         int adminKeySize = 0;
         int proxyAcctID = 0;
         if (contractCreate.hasAdminKey()) {
-            adminKeySize = getAccountKeyStorageSize(contractCreate.getAdminKey());
+            adminKeySize = getAccountKeyStorageSize(contractCreate.adminKey());
         }
         int newRealmAdminKeySize = 0;
         if (contractCreate.hasNewRealmAdminKey()) {
-            newRealmAdminKeySize = getAccountKeyStorageSize(contractCreate.getNewRealmAdminKey());
+            newRealmAdminKeySize = getAccountKeyStorageSize(contractCreate.newRealmAdminKey());
         }
 
-        int constructParamSize = 0;
+        long constructParamSize = 0;
 
-        if (contractCreate.getConstructorParameters() != null) {
-            constructParamSize = contractCreate.getConstructorParameters().size();
+        if (contractCreate.constructorParameters() != null) {
+            constructParamSize = contractCreate.constructorParameters().length();
         }
 
         if (contractCreate.hasProxyAccountID()) {
@@ -103,8 +105,8 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         }
 
         int memoSize = 0;
-        if (contractCreate.getMemo() != null) {
-            memoSize = contractCreate.getMemoBytes().size();
+        if (contractCreate.memo() != null) {
+            memoSize = contractCreate.memo().getBytes().length;
         }
         return BASIC_CONTRACT_CREATE_SIZE
                 + adminKeySize
@@ -143,7 +145,7 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
 
         bpr = INT_SIZE;
 
-        if (contractExpiryTime != null && contractExpiryTime.getSeconds() > 0) {
+        if (contractExpiryTime != null && contractExpiryTime.seconds() > 0) {
             sbs = getContractUpdateStorageBytesSec(txBody, contractExpiryTime);
         }
 
@@ -152,14 +154,14 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         rbs = getBaseTransactionRecordSize(txBody) * (RECEIPT_STORAGE_TIME_SEC + THRESHOLD_STORAGE_TIME_SEC);
 
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getFeeDataMatrices(feeMatricesForTx, sigValObj.getPayerAcctSigCount(), rbsNetwork);
@@ -196,14 +198,14 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         long rbsNetwork = getDefaultRbhNetworkSize();
 
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getFeeDataMatrices(feeMatricesForTx, sigValObj.getPayerAcctSigCount(), rbsNetwork);
@@ -247,15 +249,14 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
          */
 
         long errorMessageSize = 0;
-        int contractFuncResultSize = 0;
+        long contractFuncResultSize = 0;
         if (contractFuncResult != null) {
 
-            if (contractFuncResult.getContractCallResult() != null) {
-                contractFuncResultSize =
-                        contractFuncResult.getContractCallResult().size();
+            if (contractFuncResult.contractCallResult() != null) {
+                contractFuncResultSize = contractFuncResult.contractCallResult().length();
             }
-            if (contractFuncResult.getErrorMessage() != null) {
-                errorMessageSize = contractFuncResult.getErrorMessage().length();
+            if (contractFuncResult.errorMessage() != null) {
+                errorMessageSize = contractFuncResult.errorMessage().length();
             }
         }
 
@@ -264,14 +265,14 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         sbpr = BASIC_ENTITY_ID_SIZE + errorMessageSize + LONG_SIZE + contractFuncResultSize;
 
         FeeComponents feeMatrices = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getQueryFeeDataMatrices(feeMatrices);
@@ -286,7 +287,8 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
          */
         int contractUpdateBodySize = BASIC_ENTITY_ID_SIZE;
 
-        ContractUpdateTransactionBody contractUpdateTxBody = txBody.getContractUpdateInstance();
+        ContractUpdateTransactionBody contractUpdateTxBody =
+                txBody.contractUpdateInstanceOrElse(ContractUpdateTransactionBody.DEFAULT);
 
         if (contractUpdateTxBody.hasProxyAccountID()) {
             contractUpdateBodySize += BASIC_ENTITY_ID_SIZE;
@@ -305,32 +307,32 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         }
 
         if (contractUpdateTxBody.hasAdminKey()) {
-            contractUpdateBodySize += getAccountKeyStorageSize(contractUpdateTxBody.getAdminKey());
+            contractUpdateBodySize += getAccountKeyStorageSize(contractUpdateTxBody.adminKey());
         }
 
-        if (contractUpdateTxBody.getMemo() != null) {
-            contractUpdateBodySize += contractUpdateTxBody.getMemoBytes().size();
+        if (contractUpdateTxBody.memo() != null) {
+            contractUpdateBodySize += contractUpdateTxBody.memo().getBytes().length;
         }
 
         return contractUpdateBodySize;
     }
 
     /** Calculates the total bytes in a Contract Call body Transaction. */
-    private int getContractCallBodyTxSize(TransactionBody txBody) {
+    private long getContractCallBodyTxSize(TransactionBody txBody) {
         /*
          * ContractID contractID - BASIC_ENTITY_ID_SIZE int64 gas - LONG_SIZE int64 amount - LONG_SIZE bytes
          * functionParameters - calculated value
          *
          */
-        int contractCallBodySize = BASIC_ACCOUNT_SIZE + LONG_SIZE;
+        long contractCallBodySize = BASIC_ACCOUNT_SIZE + LONG_SIZE;
 
-        ContractCallTransactionBody contractCallTxBody = txBody.getContractCall();
+        ContractCallTransactionBody contractCallTxBody = txBody.contractCallOrElse(ContractCallTransactionBody.DEFAULT);
 
-        if (contractCallTxBody.getFunctionParameters() != null) {
-            contractCallBodySize += contractCallTxBody.getFunctionParameters().size();
+        if (contractCallTxBody.functionParameters() != null) {
+            contractCallBodySize += contractCallTxBody.functionParameters().length();
         }
 
-        if (contractCallTxBody.getAmount() != 0) {
+        if (contractCallTxBody.amount() != 0) {
             contractCallBodySize += LONG_SIZE;
         }
 
@@ -338,18 +340,19 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
     }
 
     /** Calculates the total bytes in a Contract Call body Transaction. */
-    private int getEthereumTransactionBodyTxSize(TransactionBody txBody) {
+    private long getEthereumTransactionBodyTxSize(TransactionBody txBody) {
         /*
          * AccountId contractID - BASIC_ENTITY_ID_SIZE int64 gas - LONG_SIZE int64 amount - LONG_SIZE bytes
          * EthereumTransaction - calculated value
          * nonce - LONG
          * FileId callData - BASIC_ENTITY_ID_SIZE int64 gas - LONG_SIZE int64 amount - LONG_SIZE bytes
          */
-        EthereumTransactionBody ethereumTransactionBody = txBody.getEthereumTransaction();
+        EthereumTransactionBody ethereumTransactionBody =
+                txBody.ethereumTransactionOrElse(EthereumTransactionBody.DEFAULT);
 
         return BASIC_ACCOUNT_SIZE * 2
                 + LONG_SIZE
-                + ethereumTransactionBody.getEthereumData().size();
+                + ethereumTransactionBody.ethereumData().length();
     }
 
     /**
@@ -389,14 +392,14 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         sbpr = byteCodeSize;
 
         FeeComponents feeMatrices = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getQueryFeeDataMatrices(feeMatrices);
@@ -404,15 +407,16 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
 
     private long getContractUpdateStorageBytesSec(TransactionBody txBody, Timestamp contractExpiryTime) {
         long storageSize = 0;
-        ContractUpdateTransactionBody contractUpdateTxBody = txBody.getContractUpdateInstance();
+        ContractUpdateTransactionBody contractUpdateTxBody = txBody.contractUpdateInstance();
         if (contractUpdateTxBody.hasAdminKey()) {
-            storageSize += getAccountKeyStorageSize(contractUpdateTxBody.getAdminKey());
+            storageSize += getAccountKeyStorageSize(contractUpdateTxBody.adminKey());
         }
-        if (contractUpdateTxBody.getMemo() != null) {
-            storageSize += contractUpdateTxBody.getMemoBytes().size();
+        if (contractUpdateTxBody.memo() != null) {
+            storageSize += contractUpdateTxBody.memo().getBytes().length;
         }
         Instant expirationTime = RequestBuilder.convertProtoTimeStamp(contractExpiryTime);
-        Timestamp txValidStartTimestamp = txBody.getTransactionID().getTransactionValidStart();
+        Timestamp txValidStartTimestamp =
+                txBody.transactionIDOrElse(TransactionID.DEFAULT).transactionValidStartOrElse(Timestamp.DEFAULT);
         Instant txValidStartTime = RequestBuilder.convertProtoTimeStamp(txValidStartTimestamp);
         Duration duration = Duration.between(txValidStartTime, expirationTime);
         long seconds = Math.min(duration.getSeconds(), MAX_ENTITY_LIFETIME);
@@ -445,14 +449,14 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         long rbsNetwork = getDefaultRbhNetworkSize() + BASIC_ENTITY_ID_SIZE * (RECEIPT_STORAGE_TIME_SEC);
 
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getFeeDataMatrices(feeMatricesForTx, sigValObj.getPayerAcctSigCount(), rbsNetwork);
@@ -489,14 +493,14 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         long rbsNetwork = getDefaultRbhNetworkSize();
 
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getFeeDataMatrices(feeMatricesForTx, sigValObj.getPayerAcctSigCount(), rbsNetwork);

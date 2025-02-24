@@ -814,7 +814,7 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_531)
                     .tokenType(type)
                     .treasuryAccountId(TREASURY_ACCOUNT_9876)
-                    .wipeKey(TOKEN_WIPE_KT.asPbjKey())
+                    .wipeKey(TOKEN_WIPE_KT.asKey())
                     .totalSupply(totalSupply)
                     .build();
         }
