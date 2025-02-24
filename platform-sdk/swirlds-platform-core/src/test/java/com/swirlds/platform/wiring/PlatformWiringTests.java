@@ -25,7 +25,6 @@ import com.swirlds.platform.event.hashing.EventHasher;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
-import com.swirlds.platform.event.preconsensus.PcesSequencer;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.signing.SelfEventSigner;
 import com.swirlds.platform.event.stale.DefaultStaleEventDetector;
@@ -100,7 +99,6 @@ class PlatformWiringTests {
                 .withEventCreationManager(mock(EventCreationManager.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
-                .withPcesSequencer(mock(PcesSequencer.class))
                 .withStatusStateMachine(mock(StatusStateMachine.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
                 .withInlinePcesWriter(mock(InlinePcesWriter.class))

@@ -35,7 +35,6 @@ import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.preconsensus.PcesSequencer;
 import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.signing.DefaultSelfEventSigner;
@@ -120,7 +119,6 @@ public class PlatformComponentBuilder {
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
-    private PcesSequencer pcesSequencer;
     private StatusStateMachine statusStateMachine;
     private TransactionPrehandler transactionPrehandler;
     private InlinePcesWriter inlinePcesWriter;
@@ -563,22 +561,6 @@ public class PlatformComponentBuilder {
                                     .test(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;
-    }
-
-    /**
-     * Provide a PCES sequencer in place of the platform's default PCES sequencer.
-     *
-     * @param pcesSequencer the PCES sequencer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withPcesSequencer(@NonNull final PcesSequencer pcesSequencer) {
-        throwIfAlreadyUsed();
-        if (this.pcesSequencer != null) {
-            throw new IllegalStateException("PCES sequencer has already been set");
-        }
-        this.pcesSequencer = Objects.requireNonNull(pcesSequencer);
-        return this;
     }
 
     /**
