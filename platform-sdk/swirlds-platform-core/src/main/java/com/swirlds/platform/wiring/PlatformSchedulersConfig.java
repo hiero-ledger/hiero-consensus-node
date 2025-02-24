@@ -17,7 +17,6 @@ import java.time.Duration;
  * @param eventCreationManager                 configuration for the event creation manager scheduler
  * @param selfEventSigner                      configuration for the self event signer scheduler
  * @param stateSigner                          configuration for the state signer scheduler
- * @param pcesWriter                           configuration for the preconsensus event writer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
  * @param applicationTransactionPrehandler     configuration for the application transaction prehandler scheduler
  * @param stateSignatureCollector              configuration for the state signature collector scheduler
@@ -66,8 +65,6 @@ public record PlatformSchedulersConfig(
                 TaskSchedulerConfiguration stateSnapshotManager,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration stateSigner,
-        @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(500) UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration pcesWriter,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
                 TaskSchedulerConfiguration pcesInlineWriter,
         @ConfigProperty(defaultValue = "DIRECT") TaskSchedulerConfiguration pcesSequencer,
