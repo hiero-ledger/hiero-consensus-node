@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera.subprocess;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
@@ -20,15 +21,20 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.AbstractGrpcNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
@@ -41,9 +47,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.ServerSocket;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -70,6 +80,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;
+    private BlockNodeMode blockNodeMode = BlockNodeMode.NONE; // Default to no block nodes
 
     private static final String SUBPROCESS_HOST = "127.0.0.1";
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
@@ -90,6 +101,18 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private long maxNodeId;
     private String configTxt;
     private final String genesisConfigTxt;
+
+    private final List<BlockNodeContainer> blockNodeContainers = new ArrayList<>();
+    private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
+
+    /**
+     * Configure the block node mode for this network.
+     * @param mode the block node mode to use
+     */
+    public void setBlockNodeMode(BlockNodeMode mode) {
+        log.info("Setting block node mode from {} to {}", this.blockNodeMode, mode);
+        this.blockNodeMode = mode;
+    }
 
     /**
      * Wraps a runnable, allowing us to defer running it until we know we are the privileged runner
@@ -185,7 +208,168 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
-        nodes.forEach(node -> node.initWorkingDir(configTxt).start());
+        log.info("Starting network with block node mode: {}", blockNodeMode);
+
+        // First start block nodes if needed
+        if (blockNodeMode == BlockNodeMode.CONTAINERS) {
+            log.info("Starting block node containers for {} nodes", nodes.size());
+            for (HederaNode node : nodes) {
+                // Start a block node container for this network node
+                BlockNodeContainer container = new BlockNodeContainer();
+                container.start();
+                blockNodeContainers.add(container);
+                log.info(
+                        "Started block node container for node {} @ localhost:{}",
+                        node.getNodeId(),
+                        container.getGrpcPort());
+            }
+        } else if (blockNodeMode == BlockNodeMode.SIMULATOR) {
+            log.info("Starting simulated block nodes for {} nodes", nodes.size());
+            // Start 4 simulated block nodes with dynamic ports
+            for (HederaNode node : nodes) {
+                try {
+                    // Find an available port
+                    int port = findAvailablePort();
+                    SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
+                    server.start();
+                    simulatedBlockNodes.add(server);
+                    log.info("Started simulated block node @ localhost:{}", port);
+                } catch (IOException e) {
+                    log.error("Failed to start simulated block node {}", e.toString());
+                }
+            }
+        } else {
+            log.info("Skipping block nodes as mode is: {}", blockNodeMode);
+        }
+
+        // Then start each network node
+        for (int i = 0; i < nodes.size(); i++) {
+            HederaNode node = nodes.get(i);
+            log.info("Starting node {} with block node mode: {}", i, blockNodeMode);
+
+            // Initialize Working Directory for Node
+            node.initWorkingDir(configTxt);
+
+            // Write block node config if needed
+            if (blockNodeMode == BlockNodeMode.CONTAINERS) {
+                BlockNodeContainer container = blockNodeContainers.get(i);
+                updateBlockNodesConfigForNode(node, container);
+                log.info(
+                        "Configured block node for node {} with container port {}",
+                        node.getNodeId(),
+                        container.getGrpcPort());
+            } else if (blockNodeMode == BlockNodeMode.SIMULATOR) {
+                updateBlockNodesConfigForNodeWithSimulators(node, simulatedBlockNodes.get(i));
+                log.info("Configured simulated block nodes for node {}", node.getNodeId());
+            } else if (blockNodeMode == BlockNodeMode.LOCAL_NODE && i == 0) {
+                updateSubProcessNodeOneConfigForLocalBlockNode(node);
+                log.info("Configured local block nodes for node {}", node.getNodeId());
+            } else {
+                log.info("Skipping block node for node {} as block nodes are disabled", node.getNodeId());
+            }
+
+            // Start the node
+            node.start();
+        }
+    }
+
+    private void updateSubProcessNodeOneConfigForLocalBlockNode(HederaNode node) {
+        try {
+            // Create block node config for this container
+            List<BlockNodeConfig> blockNodes = List.of(new BlockNodeConfig("127.0.0.1", 8080));
+
+            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
+                    blockNodes, 256 // default batch size
+                    );
+
+            // Write the config to this consensus node's block-nodes.json
+            Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+            Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
+
+            // Update application.properties with block stream settings
+            Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
+            log.info(
+                    "Attempting to update application.properties at path {} for node {}",
+                    appPropertiesPath,
+                    node.getNodeId());
+
+            // First check if file exists and log current content
+            if (Files.exists(appPropertiesPath)) {
+                String currentContent = Files.readString(appPropertiesPath);
+                log.info("Current application.properties content for node {}: {}", node.getNodeId(), currentContent);
+            } else {
+                log.info(
+                        "application.properties does not exist yet for node {}, will create new file",
+                        node.getNodeId());
+            }
+
+            String blockStreamConfig =
+                    """
+                    # Block stream configuration
+                    blockStream.writerMode=FILE_AND_GRPC
+                    blockStream.shutdownNodeOnNoBlockNodes=true
+                    """;
+
+            // Write the properties with CREATE and APPEND options
+            Files.writeString(
+                    appPropertiesPath, blockStreamConfig, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+
+            // Verify the file was updated
+            String updatedContent = Files.readString(appPropertiesPath);
+            log.info(
+                    "Verified application.properties content after update for node {}: {}",
+                    node.getNodeId(),
+                    updatedContent);
+
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to update block node configuration for node " + node.getNodeId(), e);
+        }
+    }
+
+    private void updateBlockNodesConfigForNode(HederaNode node, BlockNodeContainer container) {
+        try {
+            // Create block node config for this container
+            List<BlockNodeConfig> blockNodes =
+                    List.of(new BlockNodeConfig(container.getHost(), container.getGrpcPort()));
+
+            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
+                    blockNodes, 256 // default batch size
+                    );
+
+            // Write the config to this consensus node's block-nodes.json
+            Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+            Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
+
+            log.info(
+                    "Updated block node configuration for node {} with container port {}",
+                    node.getNodeId(),
+                    container.getGrpcPort());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to update block node configuration for node " + node.getNodeId(), e);
+        }
+    }
+
+    private void updateBlockNodesConfigForNodeWithSimulators(HederaNode node, SimulatedBlockNodeServer sim) {
+        try {
+            // Create block node config for simulator servers
+            List<BlockNodeConfig> blockNodes = new ArrayList<>();
+            blockNodes.add(new BlockNodeConfig("localhost", sim.getPort()));
+
+            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
+                    blockNodes, 256 // default batch size
+                    );
+
+            // Write the config to this consensus node's block-nodes.json
+            Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+            Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
+
+            log.info(
+                    "Updated block node configuration for node {} with {} simulator servers",
+                    node.getNodeId(),
+                    simulatedBlockNodes.size());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to update block node configuration for node " + node.getNodeId(), e);
+        }
     }
 
     /**
@@ -193,7 +377,44 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void terminate() {
+        // Then stop network nodes first to prevent new streaming requests
         nodes.forEach(HederaNode::stopFuture);
+
+        // Stop block node containers
+        for (BlockNodeContainer container : blockNodeContainers) {
+            container.stop();
+        }
+        blockNodeContainers.clear();
+
+        // Stop simulated block nodes with grace period
+        Duration shutdownTimeout = Duration.ofSeconds(30);
+        log.info(
+                "Gracefully stopping {} simulated block nodes with {} timeout",
+                simulatedBlockNodes.size(),
+                shutdownTimeout);
+
+        List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
+        for (SimulatedBlockNodeServer server : simulatedBlockNodes) {
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                try {
+                    server.stop();
+                    log.info("Successfully stopped simulated block node on port {}", server.getPort());
+                } catch (Exception e) {
+                    log.error("Error stopping simulated block node on port {}", server.getPort(), e);
+                }
+            });
+            shutdownFutures.add(future);
+        }
+
+        try {
+            // Wait for all servers to stop or timeout
+            CompletableFuture.allOf(shutdownFutures.toArray(new CompletableFuture[0]))
+                    .get(shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("All simulated block nodes stopped successfully");
+        } catch (Exception e) {
+            log.error("Timeout or error while stopping simulated block nodes", e);
+        }
+        simulatedBlockNodes.clear();
     }
 
     /**
@@ -529,5 +750,19 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         } catch (IOException | ParseException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private int findAvailablePort() {
+        // Find a random available port between 30000 and 40000
+        int attempts = 0;
+        while (attempts < 100) {
+            int port = RANDOM.nextInt(FIRST_CANDIDATE_PORT, LAST_CANDIDATE_PORT);
+            try (ServerSocket socket = new ServerSocket(port)) {
+                return port;
+            } catch (IOException e) {
+                attempts++;
+            }
+        }
+        throw new RuntimeException("Could not find available port after 100 attempts");
     }
 }

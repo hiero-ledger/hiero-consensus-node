@@ -6,16 +6,23 @@ import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
+import com.hedera.services.bdd.junit.hedera.WithBlockNodes;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 
 /**
@@ -25,6 +32,7 @@ import org.junit.platform.launcher.TestPlan;
  */
 public class SharedNetworkLauncherSessionListener implements LauncherSessionListener {
     public static final int CLASSIC_HAPI_TEST_NETWORK_SIZE = 4;
+    private static final Logger log = LogManager.getLogger(SharedNetworkLauncherSessionListener.class);
 
     @Override
     public void launcherSessionOpened(@NonNull final LauncherSession session) {
@@ -59,7 +67,44 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                                 SubProcessNetwork.initializeNextPortsForNetwork(
                                         CLASSIC_HAPI_TEST_NETWORK_SIZE, initialPort);
                             }
-                            yield SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+                            SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
+                                    SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+
+                            // Check test classes for WithBlockNodes annotation
+                            log.info("Checking test classes for WithBlockNodes annotation...");
+
+                            Set<TestIdentifier> allIdentifiers = new HashSet<>();
+                            testPlan.getRoots().forEach(root -> {
+                                log.info("Found root: {}", root.getDisplayName());
+                                allIdentifiers.add(root);
+                                root.getSource().ifPresent(source -> log.info("Root source: {}", source));
+
+                                // Get all descendants of this root
+                                testPlan.getChildren(root.getUniqueId()).forEach(child -> {
+                                    log.info("Found child: {}", child.getDisplayName());
+                                    allIdentifiers.add(child);
+                                    child.getSource().ifPresent(source -> log.info("Child source: {}", source));
+                                });
+                            });
+
+                            allIdentifiers.stream()
+                                    .filter(test -> test.getSource().isPresent())
+                                    .map(test -> test.getSource().get())
+                                    .filter(source -> source instanceof ClassSource)
+                                    .map(source -> ((ClassSource) source).getJavaClass())
+                                    .distinct()
+                                    .filter(clazz -> clazz.isAnnotationPresent(WithBlockNodes.class))
+                                    .findFirst()
+                                    .ifPresent(clazz -> {
+                                        WithBlockNodes annotation = clazz.getAnnotation(WithBlockNodes.class);
+                                        log.info(
+                                                "Found @WithBlockNodes on class {} with mode: {}",
+                                                clazz.getName(),
+                                                annotation.value());
+                                        subProcessNetwork.setBlockNodeMode(annotation.value());
+                                    });
+
+                            yield subProcessNetwork;
                         }
                             // For the default Test task, we need to run some tests in concurrent embedded mode and
                             // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode

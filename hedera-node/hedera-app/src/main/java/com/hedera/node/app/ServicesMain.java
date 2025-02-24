@@ -41,6 +41,7 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.state.StateLifecyclesImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
@@ -85,6 +86,7 @@ import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Optional;
@@ -355,6 +357,12 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 .withSystemTransactionEncoderCallback(hedera::encodeSystemTransaction);
         final var platform = platformBuilder.build();
         hedera.init(platform, selfId);
+
+        // Initialize block node connections before starting the platform
+        final var waitPeriodForActiveConnection =
+                platformConfig.getConfigData(BlockStreamConfig.class).waitPeriodForActiveConnection();
+        hedera.initializeBlockNodeConnections(Duration.ofMinutes(waitPeriodForActiveConnection));
+
         platform.start();
         hedera.run();
     }

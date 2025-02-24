@@ -64,7 +64,7 @@ public class StateEditorCp extends StateEditorOperation {
 
         // Invalidate hashes in path down from root
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorCp.run()")) {
-            new MerkleRouteIterator(reservedSignedState.get().getState(), parent.getRoute())
+            new MerkleRouteIterator(reservedSignedState.get().getState().getRoot(), parent.getRoute())
                     .forEachRemaining(Hashable::invalidateHash);
         }
     }
