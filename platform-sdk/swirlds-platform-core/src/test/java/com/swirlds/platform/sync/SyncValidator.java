@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.sync;
+package com.swirlds.platform.sync;
 
 import static com.swirlds.platform.test.fixtures.sync.SyncTestUtils.printEvents;
 import static com.swirlds.platform.test.fixtures.sync.SyncTestUtils.printTasks;
