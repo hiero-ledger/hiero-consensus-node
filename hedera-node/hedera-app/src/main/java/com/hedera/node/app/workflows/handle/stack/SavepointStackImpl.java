@@ -560,7 +560,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                             }
                         }
                     } else if (builder.category() == CHILD) {
-                        for (int j = i - 1; j >= indexOfTopLevelRecord; j--) {
+                        for (int j = i - 1; j > indexOfTopLevelRecord; j--) {
                             if (builders.get(j).category() == BATCH) {
                                 idBuilder = builders.get(j).transactionID().copyBuilder();
                                 break;

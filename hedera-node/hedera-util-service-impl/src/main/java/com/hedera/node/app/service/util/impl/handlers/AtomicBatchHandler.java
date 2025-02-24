@@ -69,6 +69,7 @@ public class AtomicBatchHandler implements TransactionHandler {
 
     private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
+
     /**
      * Constructs a {@link AtomicBatchHandler}
      */
@@ -145,9 +146,8 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         final var txns = op.transactions();
 
-        // The parsing check, timebox, and duplication checks are done in the pre-handle workflow
-        // So, no need to repeat here
-        // dispatch all the inner transactions
+        // The parsing check is done in the pre-handle workflow,
+        // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
         for (final var txn : txns) {
             final var body = txn.bodyOrThrow();
@@ -173,8 +173,9 @@ public class AtomicBatchHandler implements TransactionHandler {
 
     /**
      * Checks if the given transaction type is not allowed to be included as an inner transaction in an atomic batch.
+     *
      * @param transactionBody the transaction body to check
-     * @param config the atomic batch configuration
+     * @param config          the atomic batch configuration
      * @return true if the transaction type is not allowed, false otherwise
      */
     private boolean isNotAllowedFunction(
@@ -207,8 +208,9 @@ public class AtomicBatchHandler implements TransactionHandler {
         public record Charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable AccountID nodeAccountId) {
             /**
              * Replays the charge on the given {@link Context}.
+             *
              * @param ctx the context to replay the charge on
-             * @param cb the callback to be used in the replay
+             * @param cb  the callback to be used in the replay
              */
             public void replay(@NonNull final Context ctx, @NonNull ObjLongConsumer<AccountID> cb) {
                 if (nodeAccountId == null) {
@@ -252,6 +254,7 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         /**
          * Invokes the given action for each recorded {@link StreamBuilder} with its associated balance adjustments.
+         *
          * @param cb the action to be invoked for each recorded charging event
          */
         public void forEachRecorded(@NonNull final BiConsumer<ReplayableFeeStreamBuilder, List<Charge>> cb) {
@@ -316,6 +319,7 @@ public class AtomicBatchHandler implements TransactionHandler {
 
     /**
      * Converts a map of account adjustments to a {@link TransferList}.
+     *
      * @param adjustments the map of account adjustments
      * @return the {@link TransferList} representing the adjustments
      */
