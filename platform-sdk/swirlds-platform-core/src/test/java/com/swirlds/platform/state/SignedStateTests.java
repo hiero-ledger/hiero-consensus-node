@@ -13,7 +13,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.base.utility.Pair;
 import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -42,9 +41,11 @@ class SignedStateTests {
     /**
      * Generate a signed state.
      */
-    private Pair<SignedState, TestPlatformStateFacade> generateSignedStateFacadePair(
-            final Random random, final MerkleNodeState state) {
-        return new RandomSignedStateGenerator(random).setState(state).buildWithFacade();
+    private SignedState generateSignedState(final Random random, final MerkleNodeState state) {
+        return new RandomSignedStateGenerator(random)
+                .setState(state)
+                .buildWithFacade()
+                .left();
     }
 
     @BeforeEach
@@ -109,11 +110,7 @@ class SignedStateTests {
                     released.set(true);
                 });
 
-        Pair<SignedState, TestPlatformStateFacade> pair = generateSignedStateFacadePair(random, state);
-        final SignedState signedState = pair.left();
-        final TestPlatformStateFacade platformStateFacade = pair.right();
-        final PlatformStateModifier platformState = new PlatformState();
-        when(platformStateFacade.getWritablePlatformStateOf(state)).thenReturn(platformState);
+        final SignedState signedState = generateSignedState(random, state);
 
         final ReservedSignedState reservedSignedState;
         reservedSignedState = signedState.reserve("test");
@@ -176,11 +173,7 @@ class SignedStateTests {
                     released.set(true);
                 });
 
-        Pair<SignedState, TestPlatformStateFacade> pair = generateSignedStateFacadePair(random, state);
-        final SignedState signedState = pair.left();
-        final TestPlatformStateFacade platformStateFacade = pair.right();
-        final PlatformStateModifier platformState = new PlatformState();
-        when(platformStateFacade.getWritablePlatformStateOf(state)).thenReturn(platformState);
+        final SignedState signedState = generateSignedState(random, state);
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
