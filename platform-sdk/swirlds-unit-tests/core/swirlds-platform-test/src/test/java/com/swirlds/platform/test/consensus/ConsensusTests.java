@@ -9,6 +9,8 @@ import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.test.PlatformTest;
+import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
+import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

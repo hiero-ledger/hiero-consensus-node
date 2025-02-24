@@ -13,8 +13,8 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.eventhandling.EventConfig_;
+import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import java.util.stream.Stream;
-import org.junit.jupiter.params.provider.Arguments;
 
 public class ConsensusTestArgs {
 
@@ -34,130 +34,129 @@ public class ConsensusTestArgs {
                     .getOrCreateConfig())
             .build();
 
-    static Stream<Arguments> orderInvarianceTests() {
+    static Stream<ConsensusTestParams> orderInvarianceTests() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(2, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(50, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(50, RANDOM, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(2, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC),
+                new ConsensusTestParams(50, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC),
+                new ConsensusTestParams(50, RANDOM, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> reconnectSimulation() {
+    static Stream<ConsensusTestParams> reconnectSimulation() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(4, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(4, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)),
-                Arguments.of(
-                        new ConsensusTestParams(10, SINGLE_NODE_STRONG_MINORITY, SINGLE_NODE_STRONG_MINORITY_DESC)),
-                Arguments.of(new ConsensusTestParams(10, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(10, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(4, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC),
+                new ConsensusTestParams(4, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC),
+                new ConsensusTestParams(10, SINGLE_NODE_STRONG_MINORITY, SINGLE_NODE_STRONG_MINORITY_DESC),
+                new ConsensusTestParams(10, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC),
+                new ConsensusTestParams(10, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> staleEvent() {
+    static Stream<ConsensusTestParams> staleEvent() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(6, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(6, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(6, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC)));
+                new ConsensusTestParams(6, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(6, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(6, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> forkingTests() {
+    static Stream<ConsensusTestParams> forkingTests() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> partitionTests() {
+    static Stream<ConsensusTestParams> partitionTests() {
         return Stream.of(
                 // Uses balanced weights for 4 so that each partition can continue to create events.
                 // This limitation if one of the test, not the consensus algorithm.
-                // Arguments.of(new ConsensusTestParams(4, BALANCED_REAL_WEIGHT,
-                // BALANCED_REAL_WEIGHT_DESC)),
+                // new ConsensusTestParams(4, BALANCED_REAL_WEIGHT,
+                // BALANCED_REAL_WEIGHT_DESC),
 
                 // Use uneven stake such that no single node has a strong minority and could be
                 // put in a partition by itself and no longer generate events. This limitation if
                 // one
                 // of the test, not the consensus algorithm.
-                // Arguments.of(new ConsensusTestParams(5, INCREMENTING,
-                // INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)));
+                // new ConsensusTestParams(5, INCREMENTING,
+                // INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> subQuorumPartitionTests() {
+    static Stream<ConsensusTestParams> subQuorumPartitionTests() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(7, BALANCED_REAL_WEIGHT, BALANCED_REAL_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(
+                new ConsensusTestParams(7, BALANCED_REAL_WEIGHT, BALANCED_REAL_WEIGHT_DESC),
+                new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(
                         9,
                         ONE_THIRD_ZERO_WEIGHT,
                         ONE_THIRD_NODES_ZERO_WEIGHT_DESC,
                         // used to cause a stale mismatch, documented in
                         // swirlds/swirlds-platform/issues/5007
                         3101029514312517274L,
-                        -4115810541946354865L)));
+                        -4115810541946354865L));
     }
 
-    static Stream<Arguments> cliqueTests() {
+    static Stream<ConsensusTestParams> cliqueTests() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> variableRateTests() {
+    static Stream<ConsensusTestParams> variableRateTests() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> nodeUsesStaleOtherParents() {
+    static Stream<ConsensusTestParams> nodeUsesStaleOtherParents() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(
+                new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(
                         4,
                         INCREMENTING,
                         INCREMENTAL_NODE_WEIGHT_DESC,
                         // seed was failing because Consensus ratio is 0.6611, which is less
                         // than what was previously
                         // set
-                        458078453642476240L)),
-                Arguments.of(new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)));
+                        458078453642476240L),
+                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> nodeProvidesStaleOtherParents() {
+    static Stream<ConsensusTestParams> nodeProvidesStaleOtherParents() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> quorumOfNodesGoDownTests() {
+    static Stream<ConsensusTestParams> quorumOfNodesGoDownTests() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> subQuorumOfNodesGoDownTests() {
+    static Stream<ConsensusTestParams> subQuorumOfNodesGoDownTests() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
-    static Stream<Arguments> ancientEventTests() {
-        return Stream.of(Arguments.of(new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC)));
+    static Stream<ConsensusTestParams> ancientEventTests() {
+        return Stream.of(new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC));
     }
 
-    public static Stream<Arguments> restartWithEventsParams() {
+    public static Stream<ConsensusTestParams> restartWithEventsParams() {
         return Stream.of(
-                Arguments.of(new ConsensusTestParams(5, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(10, RANDOM, RANDOM_WEIGHT_DESC)),
-                Arguments.of(new ConsensusTestParams(20, RANDOM, RANDOM_WEIGHT_DESC)));
+                new ConsensusTestParams(5, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(10, RANDOM, RANDOM_WEIGHT_DESC),
+                new ConsensusTestParams(20, RANDOM, RANDOM_WEIGHT_DESC));
     }
 
     public static Stream<ConsensusTestParams> nodeRemoveTestParams() {
