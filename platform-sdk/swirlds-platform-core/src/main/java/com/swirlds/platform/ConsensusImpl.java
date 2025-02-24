@@ -739,7 +739,6 @@ public class ConsensusImpl implements Consensus {
         return new ConsensusRound(
                 roster,
                 consensusEvents,
-                recentEvents.getLast().getBaseEvent(),
                 new EventWindow(decidedRoundNumber, nonAncientThreshold, nonExpiredThreshold, ancientMode),
                 new ConsensusSnapshot(
                         decidedRoundNumber,

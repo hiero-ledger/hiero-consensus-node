@@ -77,7 +77,6 @@ public abstract class AbstractGraphGenerator implements GraphGenerator {
     public final EventImpl generateEvent() {
         final EventImpl next = generateEventWithoutIndex();
 
-        next.getBaseEvent().setStreamSequenceNumber(numEventsGenerated);
         return next;
     }
 

@@ -67,7 +67,6 @@ class StatsSigningTestingToolStateTest {
         round = new ConsensusRound(
                 roster,
                 List.of(event),
-                event,
                 eventWindow,
                 Mockito.mock(ConsensusSnapshot.class),
                 false,

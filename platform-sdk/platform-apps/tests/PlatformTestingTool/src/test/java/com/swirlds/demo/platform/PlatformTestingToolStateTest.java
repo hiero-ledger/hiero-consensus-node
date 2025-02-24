@@ -207,7 +207,6 @@ class PlatformTestingToolStateTest {
         round = new ConsensusRound(
                 roster,
                 List.of(platformEvent),
-                platformEvent,
                 eventWindow,
                 Mockito.mock(ConsensusSnapshot.class),
                 false,
@@ -308,7 +307,6 @@ class PlatformTestingToolStateTest {
         round = new ConsensusRound(
                 roster,
                 List.of(platformEvent),
-                platformEvent,
                 eventWindow,
                 Mockito.mock(ConsensusSnapshot.class),
                 false,
