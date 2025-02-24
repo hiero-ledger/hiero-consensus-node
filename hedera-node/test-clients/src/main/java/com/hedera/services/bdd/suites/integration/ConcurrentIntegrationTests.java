@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
@@ -17,13 +18,16 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateStakingInfos;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateToken;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewMappedValue;
@@ -34,6 +38,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.mutateNode;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
@@ -49,32 +54,45 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileAppendsPerBurst;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.TransactionResult;
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
+import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
+import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
+import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -86,6 +104,7 @@ import org.junit.jupiter.api.Tag;
 
 @Order(0)
 @Tag(INTEGRATION)
+@HapiTestLifecycle
 @TargetEmbeddedMode(CONCURRENT)
 public class ConcurrentIntegrationTests {
     private static final Logger log = LogManager.getLogger(ConcurrentIntegrationTests.class);
@@ -112,6 +131,87 @@ public class ConcurrentIntegrationTests {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("hollowAccount"))
                         .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                 getAccountInfo("hollowAccount").isNotHollow());
+    }
+
+    @LeakyHapiTest(overrides = {"ledger.nftTransfers.maxLen"})
+    final Stream<DynamicTest> chargedFeesReplayedAfterBatchFailure(
+            @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftOne,
+            @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftTwo) {
+        final List<SortedMap<AccountID, Long>> successfulRecordFees = new ArrayList<>();
+        return hapiTest(
+                cryptoCreate("operator").maxAutomaticTokenAssociations(2),
+                nftOne.doWith(
+                        token -> cryptoTransfer(movingUnique(nftOne.name(), 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L)
+                                .between(nftOne.treasury().name(), "operator"))),
+                nftTwo.doWith(
+                        token -> cryptoTransfer(movingUnique(nftTwo.name(), 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L)
+                                .between(nftTwo.treasury().name(), "operator"))),
+                // First do a batch where everything succeeds
+                atomicBatch(
+                                cryptoTransfer(movingUnique(nftOne.name(), 1L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"))
+                        .signedByPayerAnd("operator"),
+                getAccountRecords("operator").exposingTo(records -> {
+                    assertEquals(3, records.size());
+                    records.forEach(r -> successfulRecordFees.add(asMap(r.getTransferList())));
+                }),
+                // Now change max transfer len and do a batch where the last fails
+                overriding("ledger.nftTransfers.maxLen", "2"),
+                atomicBatch(
+                                cryptoTransfer(movingUnique(nftTwo.name(), 1L)
+                                                .between(
+                                                        "operator",
+                                                        nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftTwo.name(), 2L, 3L)
+                                                .between(
+                                                        "operator",
+                                                        nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftTwo.name(), 4L, 5L, 6L)
+                                                .between(
+                                                        "operator",
+                                                        nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"))
+                        .signedByPayerAnd("operator")
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getAccountRecords("operator").exposingTo(records -> {
+                    assertEquals(6, records.size());
+                    final var nextRecords = records.subList(3, 6);
+                    final List<SortedMap<AccountID, Long>> unsuccessfulRecordFees = new ArrayList<>();
+                    nextRecords.forEach(r -> unsuccessfulRecordFees.add(asMap(r.getTransferList())));
+                    for (int i = 0; i < 3; i++) {
+                        assertEquals(
+                                successfulRecordFees.get(i),
+                                unsuccessfulRecordFees.get(i),
+                                "Wrong fees at inner txn index=" + i);
+                    }
+                }));
     }
 
     @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
@@ -215,5 +315,18 @@ public class ConcurrentIntegrationTests {
                 .map(BlockItem::transactionResultOrThrow)
                 .map(TransactionResult::status)
                 .anyMatch(status::equals);
+    }
+
+    private static SortedMap<AccountID, Long> asMap(@NonNull final TransferList list) {
+        return list.getAccountAmountsList().stream()
+                .map(aa -> AccountAmount.newBuilder()
+                        .accountID(CommonPbjConverters.toPbj(aa.getAccountID()))
+                        .amount(aa.getAmount())
+                        .build())
+                .collect(Collectors.toMap(
+                        AccountAmount::accountID,
+                        AccountAmount::amount,
+                        Long::sum,
+                        () -> new TreeMap<>(ACCOUNT_ID_COMPARATOR)));
     }
 }

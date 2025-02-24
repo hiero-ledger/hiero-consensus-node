@@ -86,6 +86,7 @@ import com.hedera.services.bdd.spec.transactions.token.HapiTokenUpdate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenUpdateNfts;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenWipe;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
 import com.hedera.services.bdd.spec.transactions.util.HapiUtilPrng;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.ContractCreateTransactionBody;
@@ -795,5 +796,9 @@ public class TxnVerbs {
 
     public static HapiUtilPrng hapiPrng(int range) {
         return new HapiUtilPrng(range);
+    }
+
+    public static HapiAtomicBatch atomicBatch(HapiTxnOp<?>... ops) {
+        return new HapiAtomicBatch(ops);
     }
 }

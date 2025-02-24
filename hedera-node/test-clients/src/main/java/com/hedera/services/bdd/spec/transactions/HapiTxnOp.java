@@ -52,6 +52,7 @@ import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionGetReceiptResponse;
 import com.hederahashgraph.api.proto.java.TransactionReceipt;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -855,5 +856,20 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public ResponseCodeEnum getActualStatus() {
         return lastReceipt.getStatus();
+    }
+
+    public void updateStateFromRecord(TransactionRecord record, HapiSpec spec) throws Throwable {
+        this.actualStatus = record.getReceipt().getStatus();
+        this.lastReceipt = record.getReceipt();
+        updateStateOf(spec);
+    }
+
+    public T batchKey(String key) {
+        batchKey = Optional.of(spec -> spec.registry().getKey(key));
+        return self();
+    }
+
+    public Optional<AccountID> getNode() {
+        return node;
     }
 }

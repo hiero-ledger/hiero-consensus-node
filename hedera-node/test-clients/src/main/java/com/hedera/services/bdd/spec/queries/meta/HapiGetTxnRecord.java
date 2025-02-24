@@ -45,6 +45,7 @@ import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.QueryHeader;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ResponseType;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenAssociation;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
@@ -108,6 +109,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     private Optional<TransactionID> explicitTxnId = Optional.empty();
     private Optional<TransactionRecordAsserts> priorityExpectations = Optional.empty();
     private Optional<TransactionID> expectedParentId = Optional.empty();
+    private Optional<Timestamp> expectedParentConsensusTime = Optional.empty();
     private Optional<List<TransactionRecordAsserts>> childRecordsExpectations = Optional.empty();
     private Optional<BiConsumer<TransactionRecord, Logger>> format = Optional.empty();
     private Optional<String> creationName = Optional.empty();
@@ -384,6 +386,11 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
         return this;
     }
 
+    public HapiGetTxnRecord hasParentConsensusTime(final Timestamp parentConsensusTime) {
+        expectedParentConsensusTime = Optional.of(parentConsensusTime);
+        return this;
+    }
+
     public HapiGetTxnRecord hasDuplicates(final ErroringAssertsProvider<List<TransactionRecord>> provider) {
         duplicateExpectations = Optional.of(provider);
         return this;
@@ -474,6 +481,8 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
             final List<Throwable> errors = asserts.errorsIn(actualRecord);
             rethrowSummaryError(LOG, "Bad priority record!", errors);
         }
+        expectedParentConsensusTime.ifPresent(
+                timestamp -> assertEquals(timestamp, actualRecord.getParentConsensusTimestamp()));
         expectedDebits.ifPresent(debits -> assertEquals(debits, asDebits(actualRecord.getTransferList())));
     }
 

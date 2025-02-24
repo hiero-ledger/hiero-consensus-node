@@ -40,4 +40,14 @@ service UtilService {
        * [UtilPrngTransactionBody](#proto.UtilPrngTransactionBody)
      */
     rpc prng (Transaction) returns (TransactionResponse);
+
+
+    /**
+    * Execute a batch of transactions atomically.
+    * <p>
+    * All transactions in the batch will be executed in order, and if any
+    * transaction fails, the entire batch will fail.
+    // TODO: Add more details about the batch transaction
+    */
+    rpc atomicBatch (Transaction) returns (TransactionResponse);
 }

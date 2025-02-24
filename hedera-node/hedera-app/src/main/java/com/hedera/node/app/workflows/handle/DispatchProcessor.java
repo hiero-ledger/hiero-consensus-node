@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
@@ -123,7 +124,7 @@ public class DispatchProcessor {
      * FEE_ONLY as work done. If it catches an unexpected exception, it will charge
      * the payer for the fees and return FEE_ONLY as work done.
      *
-     * @param dispatch the dispatch to be processed
+     * @param dispatch   the dispatch to be processed
      * @param validation the due diligence report for the dispatch
      */
     private void tryHandle(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
@@ -137,6 +138,7 @@ public class DispatchProcessor {
             rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.recordBuilder());
             if (e.shouldRollbackStack()) {
                 chargePayer(dispatch, validation, false);
+                e.maybeReplayFees(dispatch);
             }
             // Since there is no easy way to say how much work was done in the failed dispatch,
             // and current throttling is very rough-grained, we just return USER_TRANSACTION here
@@ -183,9 +185,9 @@ public class DispatchProcessor {
      * Handles the exception for the dispatch. It will rollback the stack, charge
      * the payer for the fees and return FEE_ONLY as work done.
      *
-     * @param dispatch the dispatch to be processed
+     * @param dispatch   the dispatch to be processed
      * @param validation the due diligence report for the dispatch
-     * @param status the status to set
+     * @param status     the status to set
      */
     private void rollbackAndRechargeFee(
             @NonNull final Dispatch dispatch,
@@ -199,22 +201,26 @@ public class DispatchProcessor {
     /**
      * Charges the creator for the network fee. This will be called when there is a due diligence failure.
      *
-     * @param dispatch the dispatch to be processed
+     * @param dispatch   the dispatch to be processed
      * @param validation the validation of the charging scenario
      */
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         dispatch.recordBuilder().status(validation.errorStatusOrThrow());
+        // If the transaction is a batch inner transaction, we don't charge the creator
+        if (dispatch.category() == BATCH) {
+            return;
+        }
         dispatch.feeAccumulator()
                 .chargeNetworkFee(
-                        dispatch.creatorInfo().accountId(), dispatch.fees().networkFee());
+                        dispatch.creatorInfo().accountId(), dispatch.fees().networkFee(), null);
     }
 
     /**
      * Charges the payer for the fees. If the payer is unable to pay the service fee, the service fee
      * will be charged to the creator. If the transaction is a duplicate, the service fee will be waived.
      *
-     * @param dispatch the dispatch to be processed
-     * @param validation the validation of the charging scenario
+     * @param dispatch        the dispatch to be processed
+     * @param validation      the validation of the charging scenario
      * @param waiveServiceFee whether to waive the service fee from the dispatch
      */
     private void chargePayer(
@@ -240,9 +246,9 @@ public class DispatchProcessor {
      * Rolls back the stack and sets the status of the transaction in case of a failure.
      *
      * @param rollbackStack whether to rollback the stack. Will be false when the failure is due to a
-     * {@link HandleException} that is due to a contract call revert.
-     * @param status the status to set
-     * @param stack the save point stack to rollback
+     *                      {@link HandleException} that is due to a contract call revert.
+     * @param status        the status to set
+     * @param stack         the save point stack to rollback
      */
     private void rollback(
             final boolean rollbackStack,
@@ -260,7 +266,7 @@ public class DispatchProcessor {
      * the dispatch. If it has, it will set the status of the dispatch's record builder and return true.
      * Otherwise, it will return false.
      *
-     * @param dispatch the dispatch to be processed
+     * @param dispatch   the dispatch to be processed
      * @param validation the due diligence report for the dispatch
      * @return true if the transaction has already failed, false otherwise
      */

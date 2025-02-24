@@ -56,7 +56,7 @@ class AppFeeChargingTest {
 
         subject.charge(ctx, result, FEES);
 
-        verify(ctx).charge(PAYER_ID, FEES, CREATOR_ID);
+        verify(ctx).charge(PAYER_ID, FEES, CREATOR_ID, null);
     }
 
     @Test
@@ -66,7 +66,7 @@ class AppFeeChargingTest {
 
         subject.charge(ctx, result, FEES);
 
-        verify(ctx).charge(PAYER_ID, FEES.withoutServiceComponent(), CREATOR_ID);
+        verify(ctx).charge(PAYER_ID, FEES.withoutServiceComponent(), CREATOR_ID, null);
     }
 
     @Test
@@ -76,7 +76,7 @@ class AppFeeChargingTest {
 
         subject.charge(ctx, result, FEES);
 
-        verify(ctx).charge(PAYER_ID, FEES.withoutServiceComponent(), CREATOR_ID);
+        verify(ctx).charge(PAYER_ID, FEES.withoutServiceComponent(), CREATOR_ID, null);
     }
 
     @Test
@@ -86,6 +86,6 @@ class AppFeeChargingTest {
 
         subject.charge(ctx, result, FEES);
 
-        verify(ctx).charge(PAYER_ID, FEES);
+        verify(ctx).charge(PAYER_ID, FEES, null);
     }
 }

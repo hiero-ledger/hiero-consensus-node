@@ -169,6 +169,7 @@ public interface HandleWorkflowModule {
                 hintsHandlers.keyPublicationHandler(),
                 hintsHandlers.preprocessingVoteHandler(),
                 hintsHandlers.partialSignatureHandler(),
-                utilHandlers.prngHandler());
+                utilHandlers.prngHandler(),
+                utilHandlers.atomicBatchHandler());
     }
 }

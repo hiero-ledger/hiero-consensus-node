@@ -7,15 +7,18 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +30,7 @@ public class MiscellaneousFeesSuite {
     private static final String ALICE = "alice";
     private static final double BASE_FEE_MISC_GET_VERSION = 0.0001;
     private static final double BASE_FEE_MISC_PRNG_TRX = 0.001;
+    private static final double BASE_FEE_ATOMIC_BATCH = 0.001;
     public static final double BASE_FEE_MISC_GET_TRX_RECORD = 0.0001;
     private static final double EXPECTED_FEE_PRNG_RANGE_TRX = 0.0010010316;
 
@@ -89,5 +93,21 @@ public class MiscellaneousFeesSuite {
                 getTxnRecord(createTxn).signedBy(BOB).payingWith(BOB).via(baseTransactionGetRecord),
                 sleepFor(1000),
                 validateChargedUsd(baseTransactionGetRecord, BASE_FEE_MISC_GET_TRX_RECORD));
+    }
+
+    @HapiTest
+    @DisplayName("USD base fee as expected for atomic batch transaction")
+    public Stream<DynamicTest> simpleBatchTest() {
+        final var batchOperator = "batchOperator";
+
+        final var innerTxn = cryptoCreate("foo")
+                .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                .balance(ONE_HBAR)
+                .batchKey(batchOperator);
+
+        return hapiTest(
+                cryptoCreate(batchOperator).balance(ONE_HBAR),
+                atomicBatch(innerTxn).payingWith(batchOperator).via("batchTxn"),
+                validateChargedUsd("batchTxn", BASE_FEE_ATOMIC_BATCH));
     }
 }

@@ -237,6 +237,13 @@ message TransactionBody {
      */
     string memo = 6;
 
+    /**
+     * The <b>entire public key</b> of the trusted batch assembler.
+     *
+     * Only Ed25519 and ECDSA(secp256k1) keys and hence signatures are currently supported.
+     */
+    Key batch_key = 73;
+
     // The fields here are ordered in strictly ascending field ordinal
     // order due to limitations in PBJ.
     oneof data {
@@ -638,6 +645,8 @@ message TransactionBody {
          * A transaction body for broadcasting a node's crs publication
          */
         com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication = 72;
+
+        AtomicBatchTransactionBody atomic_batch = 74;
     }
 
     /**
@@ -648,4 +657,12 @@ message TransactionBody {
      * If used with a transaction type that does not support custom fee limits, the transaction will fail.
      */
     repeated CustomFeeLimit max_custom_fees = 1001;
+}
+
+/**
+ * Create an atomic batch.
+ */
+message AtomicBatchTransactionBody {
+  // <<<pbj.java_package = "com.hedera.hapi.node.util">>> This comment is special code for setting PBJ Compiler java package
+  repeated Transaction transactions = 1;
 }

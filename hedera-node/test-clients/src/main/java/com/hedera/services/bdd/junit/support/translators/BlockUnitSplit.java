@@ -92,7 +92,8 @@ public class BlockUnitSplit {
         PendingBlockTransactionParts pendingParts = new PendingBlockTransactionParts();
         final List<BlockTransactionParts> unitParts = new ArrayList<>();
         final List<StateChange> unitStateChanges = new ArrayList<>();
-        for (final var item : block.items()) {
+        for (int i = 0; i < block.items().size(); i++) {
+            final var item = block.items().get(i);
             switch (item.item().kind()) {
                 case UNSET, RECORD_FILE -> throw new IllegalStateException(
                         "Cannot split block with item of kind " + item.item().kind());
@@ -107,7 +108,12 @@ public class BlockUnitSplit {
                         if (pendingParts.areComplete()) {
                             unitParts.add(pendingParts.toBlockTransactionParts());
                         }
-                        final var txnIdType = classifyTxnId(txnId, unitTxnId, nextParts, lastTxnIdType);
+                        final boolean hasParentConsensusTimestamp = block.items()
+                                .get(i + 1)
+                                .transactionResultOrThrow()
+                                .hasParentConsensusTimestamp();
+                        final var txnIdType =
+                                classifyTxnId(txnId, unitTxnId, nextParts, lastTxnIdType, hasParentConsensusTimestamp);
                         if (txnIdType == TxnIdType.NEW_UNIT_BY_ID && !unitParts.isEmpty()) {
                             completeAndAdd(units, unitParts, unitStateChanges);
                         }
@@ -145,7 +151,8 @@ public class BlockUnitSplit {
             @NonNull final TransactionID nextId,
             @Nullable final TransactionID unitTxnId,
             @NonNull final TransactionParts parts,
-            @Nullable final TxnIdType lastTxnIdType) {
+            @Nullable final TxnIdType lastTxnIdType,
+            final boolean hasParentConsensusTimestamp) {
         if (isAutoEntityMgmtTxn(parts)) {
             return TxnIdType.AUTO_SYSFILE_MGMT_ID;
         }
@@ -156,11 +163,13 @@ public class BlockUnitSplit {
         if (unitTxnId == null) {
             return TxnIdType.NEW_UNIT_BY_ID;
         }
-        // Scheduled transactions never begin a new transactional unit and
-        final var radicallyDifferent = !nextId.scheduled()
+        // Scheduled or batch inner transactions never begin a new transactional unit
+        final var radicallyDifferent = !hasParentConsensusTimestamp
+                && !nextId.scheduled()
                 && (!nextId.accountIDOrElse(AccountID.DEFAULT).equals(unitTxnId.accountIDOrElse(AccountID.DEFAULT))
                         || !nextId.transactionValidStartOrElse(Timestamp.DEFAULT)
-                                .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT)));
+                                .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT))
+                        || unitTxnId.equals(nextId));
         return radicallyDifferent ? TxnIdType.NEW_UNIT_BY_ID : TxnIdType.SAME_UNIT_BY_ID;
     }
 

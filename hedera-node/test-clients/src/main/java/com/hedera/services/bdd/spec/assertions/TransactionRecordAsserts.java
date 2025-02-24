@@ -197,6 +197,18 @@ public class TransactionRecordAsserts extends BaseErroringAssertsProvider<Transa
         return this;
     }
 
+    public TransactionRecordAsserts parentConsensusTime(final Timestamp parentTime) {
+        this.<Timestamp>registerTypedProvider("parentConsensusTimestamp", spec -> actualTime -> {
+            try {
+                assertEquals(parentTime, actualTime);
+            } catch (Throwable t) {
+                return List.of(t);
+            }
+            return EMPTY_LIST;
+        });
+        return this;
+    }
+
     public TransactionRecordAsserts txnId(TransactionID expectedTxn) {
         this.<TransactionID>registerTypedProvider("transactionID", spec -> txnId -> {
             try {

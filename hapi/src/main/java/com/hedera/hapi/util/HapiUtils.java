@@ -164,6 +164,7 @@ public class HapiUtils {
 
     public static HederaFunctionality functionOf(final TransactionBody txn) throws UnknownHederaFunctionality {
         return switch (txn.data().kind()) {
+            case ATOMIC_BATCH -> HederaFunctionality.ATOMIC_BATCH;
             case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
             case CONSENSUS_UPDATE_TOPIC -> HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
             case CONSENSUS_DELETE_TOPIC -> HederaFunctionality.CONSENSUS_DELETE_TOPIC;
@@ -186,14 +187,21 @@ public class HapiUtils {
             case FILE_UPDATE -> HederaFunctionality.FILE_UPDATE;
             case FILE_DELETE -> HederaFunctionality.FILE_DELETE;
             case FREEZE -> HederaFunctionality.FREEZE;
+            case NODE_CREATE -> HederaFunctionality.NODE_CREATE;
+            case NODE_DELETE -> HederaFunctionality.NODE_DELETE;
             case NODE_STAKE_UPDATE -> HederaFunctionality.NODE_STAKE_UPDATE;
+            case NODE_UPDATE -> HederaFunctionality.NODE_UPDATE;
             case SCHEDULE_CREATE -> HederaFunctionality.SCHEDULE_CREATE;
             case SCHEDULE_SIGN -> HederaFunctionality.SCHEDULE_SIGN;
             case SCHEDULE_DELETE -> HederaFunctionality.SCHEDULE_DELETE;
+            case STATE_SIGNATURE_TRANSACTION -> HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
             case SYSTEM_DELETE -> HederaFunctionality.SYSTEM_DELETE;
             case SYSTEM_UNDELETE -> HederaFunctionality.SYSTEM_UNDELETE;
+            case TOKEN_AIRDROP -> HederaFunctionality.TOKEN_AIRDROP;
             case TOKEN_ASSOCIATE -> HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
             case TOKEN_BURN -> HederaFunctionality.TOKEN_BURN;
+            case TOKEN_CANCEL_AIRDROP -> HederaFunctionality.TOKEN_CANCEL_AIRDROP;
+            case TOKEN_CLAIM_AIRDROP -> HederaFunctionality.TOKEN_CLAIM_AIRDROP;
             case TOKEN_CREATION -> HederaFunctionality.TOKEN_CREATE;
             case TOKEN_DELETION -> HederaFunctionality.TOKEN_DELETE;
             case TOKEN_DISSOCIATE -> HederaFunctionality.TOKEN_DISSOCIATE_FROM_ACCOUNT;
@@ -202,22 +210,15 @@ public class HapiUtils {
             case TOKEN_GRANT_KYC -> HederaFunctionality.TOKEN_GRANT_KYC_TO_ACCOUNT;
             case TOKEN_MINT -> HederaFunctionality.TOKEN_MINT;
             case TOKEN_PAUSE -> HederaFunctionality.TOKEN_PAUSE;
+            case TOKEN_REJECT -> HederaFunctionality.TOKEN_REJECT;
             case TOKEN_REVOKE_KYC -> HederaFunctionality.TOKEN_REVOKE_KYC_FROM_ACCOUNT;
             case TOKEN_UNFREEZE -> HederaFunctionality.TOKEN_UNFREEZE_ACCOUNT;
             case TOKEN_UNPAUSE -> HederaFunctionality.TOKEN_UNPAUSE;
             case TOKEN_UPDATE -> HederaFunctionality.TOKEN_UPDATE;
             case TOKEN_UPDATE_NFTS -> HederaFunctionality.TOKEN_UPDATE_NFTS;
             case TOKEN_WIPE -> HederaFunctionality.TOKEN_ACCOUNT_WIPE;
-            case UTIL_PRNG -> HederaFunctionality.UTIL_PRNG;
             case UNCHECKED_SUBMIT -> HederaFunctionality.UNCHECKED_SUBMIT;
-            case NODE_CREATE -> HederaFunctionality.NODE_CREATE;
-            case NODE_UPDATE -> HederaFunctionality.NODE_UPDATE;
-            case NODE_DELETE -> HederaFunctionality.NODE_DELETE;
-            case TOKEN_REJECT -> HederaFunctionality.TOKEN_REJECT;
-            case TOKEN_AIRDROP -> HederaFunctionality.TOKEN_AIRDROP;
-            case TOKEN_CANCEL_AIRDROP -> HederaFunctionality.TOKEN_CANCEL_AIRDROP;
-            case TOKEN_CLAIM_AIRDROP -> HederaFunctionality.TOKEN_CLAIM_AIRDROP;
-            case STATE_SIGNATURE_TRANSACTION -> HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+            case UTIL_PRNG -> HederaFunctionality.UTIL_PRNG;
             case HINTS_PREPROCESSING_VOTE -> HederaFunctionality.HINTS_PREPROCESSING_VOTE;
             case HINTS_KEY_PUBLICATION -> HederaFunctionality.HINTS_KEY_PUBLICATION;
             case HINTS_PARTIAL_SIGNATURE -> HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
