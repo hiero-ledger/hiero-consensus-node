@@ -93,8 +93,9 @@ public class AppFeeCharging implements FeeCharging {
                 result.serviceFeeStatus() == UNABLE_TO_PAY_SERVICE_FEE || result.duplicateStatus() == DUPLICATE;
         final var feesToCharge = shouldWaiveServiceFee ? fees.withoutServiceComponent() : fees;
         switch (ctx.category()) {
-            case USER, NODE -> ctx.charge(result.payerOrThrow().accountIdOrThrow(), feesToCharge, result.creatorId());
-            default -> ctx.charge(result.payerOrThrow().accountIdOrThrow(), feesToCharge);
+            case USER, NODE -> ctx.charge(
+                    result.payerOrThrow().accountIdOrThrow(), feesToCharge, result.creatorId(), null);
+            default -> ctx.charge(result.payerOrThrow().accountIdOrThrow(), feesToCharge, null);
         }
     }
 }

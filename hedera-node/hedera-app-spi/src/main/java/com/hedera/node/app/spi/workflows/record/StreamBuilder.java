@@ -201,6 +201,8 @@ public interface StreamBuilder {
      */
     int getNumAutoAssociations();
 
+    HederaFunctionality functionality();
+
     /**
      * Sets the congestion multiplier used for charging the fees for this transaction. This is set if non-zero.
      * @param congestionMultiplier the congestion multiplier
