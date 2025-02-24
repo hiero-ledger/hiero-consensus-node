@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.stats;
+package com.swirlds.platform.stats;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;

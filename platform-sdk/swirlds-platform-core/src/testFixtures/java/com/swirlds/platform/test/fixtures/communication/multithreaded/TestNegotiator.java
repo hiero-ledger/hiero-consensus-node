@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network.communication.multithreaded;
+package com.swirlds.platform.test.fixtures.communication.multithreaded;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -9,7 +9,7 @@ import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
-import com.swirlds.platform.test.network.communication.TestPeerProtocol;
+import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
