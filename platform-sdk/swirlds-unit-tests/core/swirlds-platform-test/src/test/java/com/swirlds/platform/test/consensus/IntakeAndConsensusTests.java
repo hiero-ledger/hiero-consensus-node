@@ -13,7 +13,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.validation.Consens
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
-import com.swirlds.platform.test.graph.OtherParentMatrixFactory;
+import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;

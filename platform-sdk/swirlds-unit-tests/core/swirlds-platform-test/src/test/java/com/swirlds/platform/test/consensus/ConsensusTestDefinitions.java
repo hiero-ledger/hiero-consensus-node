@@ -2,10 +2,10 @@
 package com.swirlds.platform.test.consensus;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
-import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
-import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createCliqueOtherParentMatrix;
-import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
-import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
+import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
+import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createCliqueOtherParentMatrix;
+import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
+import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.platform.NodeId;

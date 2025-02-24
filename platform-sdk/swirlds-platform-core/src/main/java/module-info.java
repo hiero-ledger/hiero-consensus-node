@@ -95,6 +95,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gossip.sync.config to
             com.swirlds.config.impl,
             com.swirlds.common,
+            com.swirlds.platform.core.test.fixtures,
             com.hedera.node.test.clients;
 
     opens com.swirlds.platform.cli to

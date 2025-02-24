@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.sync;
+package com.swirlds.platform.test.fixtures.sync;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 

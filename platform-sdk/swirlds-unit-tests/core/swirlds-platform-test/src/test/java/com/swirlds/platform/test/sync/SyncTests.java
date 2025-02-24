@@ -32,9 +32,13 @@ import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
-import com.swirlds.platform.test.graph.OtherParentMatrixFactory;
-import com.swirlds.platform.test.graph.PartitionedGraphCreator;
-import com.swirlds.platform.test.graph.SplitForkGraphCreator;
+import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
+import com.swirlds.platform.test.fixtures.graph.PartitionedGraphCreator;
+import com.swirlds.platform.test.fixtures.graph.SplitForkGraphCreator;
+import com.swirlds.platform.test.fixtures.sync.SyncNode;
+import com.swirlds.platform.test.fixtures.sync.SyncTestExecutor;
+import com.swirlds.platform.test.fixtures.sync.SyncTestParams;
+import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileNotFoundException;
 import java.net.SocketException;
@@ -441,8 +445,10 @@ public class SyncTests {
         });
 
         executor.setCustomInitialization((caller, listener) -> {
-            PartitionedGraphCreator.setupPartitionForNode(params, caller, callerPartitionNodes);
-            PartitionedGraphCreator.setupPartitionForNode(params, listener, listenerPartitionNodes);
+            PartitionedGraphCreator.setupPartitionForNode(
+                    caller, callerPartitionNodes, params.getNumCommonEvents(), params.getNumNetworkNodes());
+            PartitionedGraphCreator.setupPartitionForNode(
+                    listener, listenerPartitionNodes, params.getNumCommonEvents(), params.getNumNetworkNodes());
         });
 
         executor.execute();
