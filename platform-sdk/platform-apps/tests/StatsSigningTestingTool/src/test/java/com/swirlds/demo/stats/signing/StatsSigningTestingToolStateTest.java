@@ -65,12 +65,7 @@ class StatsSigningTestingToolStateTest {
         final var roster = new Roster(Collections.EMPTY_LIST);
         when(event.transactionIterator()).thenReturn(Collections.emptyIterator());
         round = new ConsensusRound(
-                roster,
-                List.of(event),
-                eventWindow,
-                Mockito.mock(ConsensusSnapshot.class),
-                false,
-                Instant.now());
+                roster, List.of(event), eventWindow, Mockito.mock(ConsensusSnapshot.class), false, Instant.now());
 
         consumedSystemTransactions = new ArrayList<>();
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);
