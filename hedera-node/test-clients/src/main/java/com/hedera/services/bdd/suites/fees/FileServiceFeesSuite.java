@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,26 @@
 
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.*;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -126,7 +135,8 @@ public class FileServiceFeesSuite {
     @HapiTest
     @DisplayName("USD base fee as expected for file get content transaction")
     final Stream<DynamicTest> fileGetContentBaseUSDFee() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!").memo(MEMO),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
@@ -137,7 +147,8 @@ public class FileServiceFeesSuite {
     @HapiTest
     @DisplayName("USD base fee as expected for file get info transaction")
     final Stream<DynamicTest> fileGetInfoBaseUSDFee() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!").memo(MEMO),
                 getFileInfo("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileInfoBasic"),
