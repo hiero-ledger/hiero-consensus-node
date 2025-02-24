@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.graph;
+package com.swirlds.platform.test.fixtures.graph;
 
 import java.util.ArrayList;
 import java.util.Collection;

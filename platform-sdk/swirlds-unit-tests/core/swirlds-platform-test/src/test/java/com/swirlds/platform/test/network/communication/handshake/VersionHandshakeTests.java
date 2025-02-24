@@ -17,7 +17,7 @@ import com.swirlds.platform.network.communication.handshake.VersionCompareHandsh
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.test.sync.ConnectionFactory;
+import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
