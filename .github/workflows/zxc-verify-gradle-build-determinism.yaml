@@ -17,7 +17,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.4"
+        default: "21.0.6"
 
     secrets:
       gradle-cache-username:
