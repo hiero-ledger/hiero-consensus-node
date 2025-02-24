@@ -8,11 +8,11 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.merkledb.MerkleDb;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -68,7 +68,11 @@ class BirthRoundStateMigrationTests {
         }
 
         final ConsensusSnapshot snapshot = new ConsensusSnapshot(
-                round, judgeHashes, minimumJudgeInfoList, nextConsensusNumber, PbjConverter.toPbjTimestamp(consensusTimestamp));
+                round,
+                judgeHashes,
+                minimumJudgeInfoList,
+                nextConsensusNumber,
+                PbjConverter.toPbjTimestamp(consensusTimestamp));
 
         return new RandomSignedStateGenerator(random)
                 .setConsensusSnapshot(snapshot)

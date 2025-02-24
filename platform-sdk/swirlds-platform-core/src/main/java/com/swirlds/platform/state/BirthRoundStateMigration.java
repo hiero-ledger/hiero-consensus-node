@@ -2,10 +2,10 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static java.util.stream.Collectors.toList;
 
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
@@ -16,8 +16,6 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.crypto.Hash;
 
 /**
  * A utility for migrating the state when birth round mode is first enabled.

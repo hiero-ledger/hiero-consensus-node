@@ -5,11 +5,11 @@ import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicV
 import static com.swirlds.platform.test.fixtures.event.EventUtils.weightedChoice;
 import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
@@ -474,10 +474,11 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         // reinitialize the internal consensus with the last snapshot
         initializeInternalConsensus();
         consensus.loadSnapshot(consensusSnapshot);
-        linker.setNonAncientThreshold(RoundCalculationUtils.getAncientThreshold(platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient(),
+        linker.setNonAncientThreshold(RoundCalculationUtils.getAncientThreshold(
+                platformContext
+                        .getConfiguration()
+                        .getConfigData(ConsensusConfig.class)
+                        .roundsNonAncient(),
                 consensusSnapshot));
         // re-add all non-ancient events
         for (final EventImpl event : nonAncientEvents) {

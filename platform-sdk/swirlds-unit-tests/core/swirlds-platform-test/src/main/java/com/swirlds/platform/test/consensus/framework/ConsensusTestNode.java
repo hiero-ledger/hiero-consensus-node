@@ -3,8 +3,8 @@ package com.swirlds.platform.test.consensus.framework;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.consensus.TestIntake;

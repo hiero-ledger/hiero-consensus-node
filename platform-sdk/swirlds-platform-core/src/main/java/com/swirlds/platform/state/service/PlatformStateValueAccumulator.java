@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import com.swirlds.common.crypto.Hash;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.platform.event.AncientMode;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.swirlds.common.crypto.Hash;
+import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;

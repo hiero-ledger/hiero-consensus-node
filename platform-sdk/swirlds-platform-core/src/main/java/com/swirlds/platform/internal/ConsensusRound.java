@@ -2,8 +2,8 @@
 package com.swirlds.platform.internal;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.base.utility.ToStringBuilder;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.state.service.PbjConverter;

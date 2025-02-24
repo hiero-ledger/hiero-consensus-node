@@ -10,10 +10,10 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.Round;
@@ -299,8 +299,7 @@ public class PlatformStateFacade {
     /**
      * @param snapshot the consensus snapshot for this round
      */
-    public void setSnapshotTo(
-            @NonNull final State state, @NonNull ConsensusSnapshot snapshot) {
+    public void setSnapshotTo(@NonNull final State state, @NonNull ConsensusSnapshot snapshot) {
         getWritablePlatformStateOf(state).setSnapshot(snapshot);
     }
 

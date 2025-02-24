@@ -36,7 +36,8 @@ public final class RoundCalculationUtils {
      * @return minimum non-ancient generation
      */
     public static long getAncientThreshold(final int roundsNonAncient, @NonNull final ConsensusSnapshot snapshot) {
-        final long oldestNonAncientRound = RoundCalculationUtils.getOldestNonAncientRound(roundsNonAncient, snapshot.round());
+        final long oldestNonAncientRound =
+                RoundCalculationUtils.getOldestNonAncientRound(roundsNonAncient, snapshot.round());
         return getMinimumJudgeAncientThreshold(oldestNonAncientRound, snapshot);
     }
 

@@ -6,13 +6,12 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -87,8 +86,7 @@ public final class PbjConverter {
 
         com.hedera.hapi.platform.state.ConsensusSnapshot.Builder consensusSnapshotBuilder;
         if (accumulator.isSnapshotUpdated()) {
-            consensusSnapshotBuilder =
-                    accumulator.getSnapshot().copyBuilder();
+            consensusSnapshotBuilder = accumulator.getSnapshot().copyBuilder();
         } else {
             consensusSnapshotBuilder = previousState
                     .consensusSnapshotOrElse(com.hedera.hapi.platform.state.ConsensusSnapshot.DEFAULT)

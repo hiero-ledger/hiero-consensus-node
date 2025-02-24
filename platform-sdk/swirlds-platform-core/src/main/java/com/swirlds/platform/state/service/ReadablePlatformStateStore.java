@@ -7,9 +7,9 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.crypto.Hash;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;

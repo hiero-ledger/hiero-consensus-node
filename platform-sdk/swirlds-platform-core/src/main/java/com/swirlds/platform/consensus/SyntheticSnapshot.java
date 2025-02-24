@@ -2,9 +2,9 @@
 package com.swirlds.platform.consensus;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
-import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;

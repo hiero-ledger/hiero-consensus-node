@@ -11,7 +11,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.SoftwareVersion;

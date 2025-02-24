@@ -7,9 +7,11 @@ import static com.swirlds.platform.consensus.ConsensusConstants.FIRST_CONSENSUS_
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventConsensusData;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
@@ -19,7 +21,6 @@ import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.consensus.ConsensusRounds;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
@@ -50,7 +51,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.swirlds.common.crypto.Hash;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
@@ -242,8 +242,8 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
-        initJudges = new InitJudges(snapshot.round(), snapshot.judgeHashes().stream().map(Hash::new).collect(
-                Collectors.toSet()));
+        initJudges = new InitJudges(
+                snapshot.round(), snapshot.judgeHashes().stream().map(Hash::new).collect(Collectors.toSet()));
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
         lastConsensusTime = PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp());
