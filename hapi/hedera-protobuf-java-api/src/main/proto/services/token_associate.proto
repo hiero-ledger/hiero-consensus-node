@@ -1,0 +1,79 @@
+/**
+ * # Token Associate
+ * Transaction to associate an Hedera Token Service (HTS) token with an
+ * account.<br/>
+ * Accounts cannot transact in a token (send or receive) until the account
+ * and token are associated.
+ *
+ * > Note
+ * >> An "airdrop" transaction MAY initiate sending tokens to an
+ * >> unassociated account, but the transfer remains in a "pending"
+ * >> state until the recipient executes a "claim" transaction
+ * >> that both accepts the tokens and associates that account
+ * >> with the token type.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Associate an Hedera Token Service (HTS) token and an account.
+ *
+ * An association MUST exist between an account and a token before that
+ * account may transfer or receive that token.<br/>
+ * If the identified account is not found,
+ * the transaction SHALL return `INVALID_ACCOUNT_ID`.<br/>
+ * If the identified account has been deleted,
+ * the transaction SHALL return `ACCOUNT_DELETED`.<br/>
+ * If any of the identified tokens is not found,
+ * the transaction SHALL return `INVALID_TOKEN_REF`.<br/>
+ * If any of the identified tokens has been deleted,
+ * the transaction SHALL return `TOKEN_WAS_DELETED`.<br/>
+ * If an association already exists for any of the identified tokens,
+ * the transaction SHALL return `TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT`.<br/>
+ * The identified account MUST sign this transaction.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message TokenAssociateTransactionBody {
+    /**
+     * An account identifier.
+     * <p>
+     * The identified account SHALL be associated to each of the
+     * tokens identified in the `tokens` field.<br/>
+     * This field is REQUIRED and MUST be a valid account identifier.<br/>
+     * The identified account MUST exist in state.<br/>
+     * The identified account MUST NOT be deleted.<br/>
+     * The identified account MUST NOT be expired.
+     */
+    AccountID account = 1;
+
+    /**
+     * A list of token identifiers.
+     * <p>
+     * Each token identified in this list SHALL be separately associated with
+     * the account identified in the `account` field.<br/>
+     * This list MUST NOT be empty.
+     * Each entry in this list MUST be a valid token identifier.<br/>
+     * Each entry in this list MUST NOT be currently associated to the
+     * account identified in `account`.<br/>
+     * Each entry in this list MUST NOT be expired.<br/>
+     * Each entry in this list MUST NOT be deleted.
+     */
+    repeated TokenID tokens = 2;
+}

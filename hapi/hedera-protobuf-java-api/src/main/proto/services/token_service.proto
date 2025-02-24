@@ -1,0 +1,220 @@
+/**
+ * # Token Service
+ * gRPC definitions for token service transactions.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.service.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+
+import "services/query.proto";
+import "services/response.proto";
+import "services/transaction_response.proto";
+import "services/transaction.proto";
+
+/**
+ * Transactions and queries for the Token Service
+ */
+service TokenService {
+    // The following queries are permanently removed
+    // getAccountNftInfos, getTokenNftInfos
+
+    /**
+     * Create a new token.
+     */
+    rpc createToken (Transaction) returns (TransactionResponse);
+
+    /**
+     * Update a token.
+     */
+    rpc updateToken (Transaction) returns (TransactionResponse);
+
+    /**
+     * Mint one or more tokens to the treasury account.
+     * <p>
+     * This MAY specify a quantity of fungible/common tokens or
+     * a list of specific non-fungible/unique tokes, but
+     * MUST NOT specify both.
+     */
+    rpc mintToken (Transaction) returns (TransactionResponse);
+
+    /**
+     * Burn one or more tokens from the treasury account.
+     * <p>
+     * This MAY specify a quantity of fungible/common tokens or
+     * a list of specific non-fungible/unique tokes, but
+     * MUST NOT specify both.
+     */
+    rpc burnToken (Transaction) returns (TransactionResponse);
+
+    /**
+     * Delete a token.
+     */
+    rpc deleteToken (Transaction) returns (TransactionResponse);
+
+    /**
+     * Wipe one or more tokens from an identified Account.
+     * <p>
+     * This MAY specify a quantity of fungible/common tokens or
+     * a list of specific non-fungible/unique tokes, but
+     * MUST NOT specify both.
+     */
+    rpc wipeTokenAccount (Transaction) returns (TransactionResponse);
+
+    /**
+     * Freeze the transfer of tokens to or from an identified Account.
+     */
+    rpc freezeTokenAccount (Transaction) returns (TransactionResponse);
+
+    /**
+     * Unfreeze the transfer of tokens to or from an identified Account.
+     */
+    rpc unfreezeTokenAccount (Transaction) returns (TransactionResponse);
+
+    /**
+     * Assert that KYC requirements are met for a specific account with
+     * respect to a specific token.
+     */
+    rpc grantKycToTokenAccount (Transaction) returns (TransactionResponse);
+
+    /**
+     * Assert that KYC requirements are _not_ met for a specific account with
+     * respect to a specific token.
+     */
+    rpc revokeKycFromTokenAccount (Transaction) returns (TransactionResponse);
+
+    /**
+     * Associate one or more tokens to an account.
+     */
+    rpc associateTokens (Transaction) returns (TransactionResponse);
+
+    /**
+     * Dissociate one or more tokens from an account.
+     */
+    rpc dissociateTokens (Transaction) returns (TransactionResponse);
+
+    /**
+     * Update the custom fee schedule for a token.
+     */
+    rpc updateTokenFeeSchedule (Transaction) returns (TransactionResponse);
+
+    /**
+     * Retrieve the detail characteristics for a token.
+     * <p>
+     * This query SHALL return information for the token type as a whole.<br/>
+     * This query SHALL NOT return information for individual tokens.
+     */
+    rpc getTokenInfo (Query) returns (Response);
+
+    /**
+     * Retrieve the metadata for a specific non-fungible/unique token.<br/>
+     * The NFT to query is identified by token identifier and serial number.
+     * <p>
+     * This query SHALL return token metadata and, if an allowance is defined,
+     * the designated "spender" account for the queried NFT.
+     */
+    rpc getTokenNftInfo (Query) returns (Response);
+
+    /**
+     * Pause a token.
+     */
+    rpc pauseToken (Transaction) returns (TransactionResponse);
+
+    /**
+     * Unpause (resume) a token.
+     */
+    rpc unpauseToken (Transaction) returns (TransactionResponse);
+
+    /**
+     * Update multiple non-fungible/unique tokens (NFTs) in a collection.<br/>
+     * The NFTs are identified by token identifier and one or more
+     * serial numbers.
+     * <p>
+     * This transaction SHALL update NFT metadata only.<br/>
+     * This transaction MUST be signed by the token `metadata_key`.
+     */
+    rpc updateNfts (Transaction) returns (TransactionResponse);
+
+    /**
+     * Reject one or more tokens.
+     * <p>
+     * This transaction SHALL transfer the full balance of one or more tokens
+     * from the requesting account to the treasury for each token.<br/>
+     * This transfer SHALL NOT charge any custom fee or royalty defined for
+     * the token(s) to be rejected.<br/>
+     * ### Effects on success
+     * <ul>
+     *   <li>If the rejected token is fungible/common, the requesting account
+     *       SHALL have a balance of 0 for the rejected token.<br/>
+     *       The treasury balance SHALL increase by the amount that the
+     *       requesting account decreased.</li>
+     *   <li>If the rejected token is non-fungible/unique the requesting
+     *       account SHALL NOT hold the specific serialized token that
+     *       is rejected.<br/>
+     *       The treasury account SHALL hold each specific serialized token
+     *       that was rejected.</li>
+     * </li>
+     */
+    rpc rejectToken (Transaction) returns (TransactionResponse);
+
+    /**
+     * Airdrop one or more tokens to one or more accounts.
+     * <p>
+     * This transaction SHALL distribute tokens from the balance of one or
+     * more sending account(s) to the balance of one or more
+     * recipient accounts.<br/>
+     * Accounts SHALL receive the tokens in one of four ways.
+     * <ul>
+     *   <li>An account already associated to the token to be distributed
+     *       SHALL receive the airdropped tokens immediately to the
+     *       recipient account balance.</li>
+     *   <li>An account with available automatic association slots SHALL
+     *       be automatically associated to the token, and SHALL
+     *       immediately receive the airdropped tokens to the recipient
+     *       account balance.</li>
+     *   <li>An account with "receiver signature required" set SHALL have
+     *       a "Pending Airdrop" created and MUST claim that airdrop with
+     *       a `claimAirdrop` transaction.</li>
+     *   <li>An account with no available automatic association slots SHALL
+     *       have a "Pending Airdrop" created and MUST claim that airdrop
+     *       with a `claimAirdrop` transaction. </li>
+     * </ul>
+     * Any airdrop that completes immediately SHALL be irreversible.<br/>
+     * Any airdrop that results in a "Pending Airdrop" MAY be canceled via
+     * a `cancelAirdrop` transaction.<br/>
+     * All transfer fees (including custom fees and royalties), as well as
+     * the rent cost for the first auto-renewal period for any
+     * automatic-association slot occupied by the airdropped tokens,
+     * SHALL be charged to the account submitting this transaction.
+     */
+    rpc airdropTokens (Transaction) returns (TransactionResponse);
+
+    /**
+     * Cancel one or more pending airdrops.
+     * <p>
+     * This transaction MUST be signed by _each_ account *sending* an
+     * airdrop to be canceled.
+     */
+    rpc cancelAirdrop (Transaction) returns (TransactionResponse);
+
+    /**
+     * Claim one or more pending airdrops.
+     * <p>
+     * This transaction MUST be signed by _each_ account **receiving**
+     * an airdrop to be claimed.<br>
+     * If a "Sender" lacks sufficient balance to fulfill the airdrop at
+     * the time the claim is made, that claim SHALL fail.
+     */
+    rpc claimAirdrop (Transaction) returns (TransactionResponse);
+
+}

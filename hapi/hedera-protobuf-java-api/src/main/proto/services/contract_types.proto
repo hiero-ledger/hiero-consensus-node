@@ -1,0 +1,233 @@
+/**
+ * # Contract Message Types
+ * Message types used in contract transactions.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.contract">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "google/protobuf/wrappers.proto";
+
+/**
+ * A contract "nonce" reference.<br/>
+ * This connects a contract and its "nonce" value, and is primarily for use in
+ * query responses.  A "nonce" is short for "nonsense" and is usually a value
+ * with no particular meaning.
+ *
+ * The nonce of a contract SHALL be incremented when that contract creates
+ * another contract.
+ */
+message ContractNonceInfo {
+    /**
+     * A contract identifier.<br/>
+     * This refers to the contract that holds this nonce value.
+     */
+    ContractID contract_id = 1;
+
+    /**
+     * A "nonce" value.
+     * The current value of the nonce associated with the identified contract.
+     */
+    int64 nonce = 2;
+}
+
+/**
+ * EVM log data for a contract call.<br/>
+ * The EVM log information produced by a smart contract function call.
+ *
+ * Each contract function call MAY return zero or more log events.
+ */
+message ContractLoginfo {
+    /**
+     * A contract identifier.<br/>
+     * This refers to the contract that generated this log entry.
+     */
+    ContractID contractID = 1;
+
+    /**
+     * A bloom filter.<br/>
+     * This filter applies to this log entry and indexes the contract log data
+     * in the full data of the Ethereum block.<br/>
+     * EIP-7668 proposes to remove bloom filters as they are quite low value
+     * in practice and separate indexing services are more effective.
+     */
+    bytes bloom = 2;
+
+    /**
+     * A list of the "topics" in this log entry.<br/>
+     * The EVM permits up to 4 topics, each of which is 32 bytes (one EVM word).
+     * <p>
+     * The first "topic" is special, and MUST contain the keccak256 hash of the
+     * event signature, if the event is not anonymous.
+     */
+    repeated bytes topic = 3;
+
+    /**
+     * Event data for this log entry.<br/>
+     * This is binary data consisting of an arbitrary number of 256 bit
+     * (32 byte) words. The content of that data is determined by the smart
+     * contract code.<br/>
+     */
+    bytes data = 4;
+}
+
+/**
+ * A contract function result.<br/>
+ * The result returned by a call to a smart contract function. This is part of
+ * the response to a ContractCallLocal query, and is in the record for a
+ * ContractCall. The ContractCreateInstance transaction record also carries a
+ * function result, which is the results of the call to the constructor.
+ */
+message ContractFunctionResult {
+    // No comments here: PBJ issue #217
+    reserved 8; // Removed Field.
+
+    /**
+     * A contract identifier.<br/>
+     * This identifies the smart contract that defines the function called.
+     */
+    ContractID contractID = 1;
+
+    /**
+     * Result data from the function call.
+     * <p>
+     * This SHALL be encoded in RLP bytecode format.
+     */
+    bytes contractCallResult = 2;
+
+    /**
+     * Any error message produced by the contract call.
+     * <p>
+     * This SHALL be unset if the contract call succeeded.
+     */
+    string errorMessage = 3;
+
+    /**
+     * A bloom filter produced by this contract call.<br/>
+     * Ethereum uses this bloom filter to search for call results in the
+     * Ethereum block history. High false positive rates make the bloom
+     * filters quite limited value.
+     */
+    bytes bloom = 4;
+
+    /**
+     * A quantity of "gas" used.<br/>
+     * This represents the resource units expended to execute this
+     * contract call, and correlates to transaction costs.
+     */
+    uint64 gasUsed = 5;
+
+    /**
+     * Any Log events produced by this contract call.
+     */
+    repeated ContractLoginfo logInfo = 6;
+
+    /**
+     * Replaced by values in transaction records to support
+     * `CREATE2` calls.<br/>
+     * <p>
+     * The list of smart contracts that were created by the function call.<br/>
+     * The created ids will now _also_ be externalized through internal
+     * transaction records, where each record has its alias field populated
+     * with the new contract's EVM address.<br/>
+     * This is needed for contracts created with CREATE2, which removes the
+     * trivial relationship between a new contract's Identifier and its
+     * Solidity address.
+     */
+    repeated ContractID createdContractIDs = 7 [deprecated = true];
+
+    /**
+     * A created contract address.<br/>
+     * If the function created a new contract (e.g. `CREATE2`),
+     * this is the primary 20-byte EVM address for that contract.
+     * <p>
+     * Every contract SHALL have a "base" EVM address that is determined by its
+     * `shard.realm.num` contract ID.<br/>
+     * This address is constructed as follows
+     * <ol>
+     *   <li>The first 4 bytes are the big-endian
+     *       representation of the shard.</li>
+     *   <li>The next 8 bytes are the big-endian
+     *       representation of the realm.</li>
+     *   <li>The final 8 bytes are the big-endian
+     *       representation of the number.</li>
+     * </ol>
+     * <p>
+     * Contracts created via `CREATE2` SHALL have an _additional_, primary,
+     * address that is derived from the
+     * <a href="https://eips.ethereum.org/EIPS/eip-1014"><tt>EIP-1014</tt></a>
+     * specification. This additional address SHALL NOT be directly related to
+     * the `shard.realm.num` contract ID.<br/>
+     * It should be emphasized that Contracts created via a `CREATE2` call can
+     * also be referenced via the same "base" EVM address as described above.
+     */
+    google.protobuf.BytesValue evm_address = 9;
+
+    /**
+     * The amount of gas available for this call, sometimes referred to as the
+     * gasLimit.<br/>
+     * This field SHALL NOT be populated when the associated `TransactionBody`
+     * in the block stream is a `ContractCreateTransactionBody` or
+     * a `ContractCallTransactionBody`.
+     */
+    int64 gas = 10;
+
+    /**
+     * An amount, in tinybar, sent by this function call.<br/>
+     * This SHALL be zero(0) if the function called is not `payable`.<br/>
+     * This field SHALL NOT be populated when the associated `TransactionBody`
+     * in the block stream is a `ContractCreateTransactionBody` or
+     * a `ContractCallTransactionBody`.
+     */
+    int64 amount = 11;
+
+    /**
+     * The smart contract function to call, and the parameters to pass to that
+     * function.<br/>
+     * These SHALL be presented in EVM bytecode function call format.<br/>
+     * This field SHALL NOT be populated when the associated `TransactionBody`
+     * in the block stream is a `ContractCreateTransactionBody` or
+     * a `ContractCallTransactionBody`.
+     */
+    bytes functionParameters = 12;
+
+    /**
+     * The account that was the "sender" for this contract call.<br/>
+     * If this is not set it SHALL be read from the accountId in the
+     * transactionId for the contract call.<br/>
+     * This field SHALL NOT be populated when the associated `TransactionBody`
+     * in the block stream is a `ContractCreateTransactionBody` or
+     * a `ContractCallTransactionBody`.
+     */
+    AccountID sender_id = 13;
+
+    /**
+     * A list of contract account nonce values.<br/>
+     * This list SHALL contain a nonce value for each contract account modified
+     * as a result of this contract call. These nonce values SHALL be the value
+     * after the contract call is completed.
+     */
+    repeated ContractNonceInfo contract_nonces = 14;
+
+    /**
+     * A nonce value for the "signer account".<br/>
+     * If the contract call updated the signer nonce for the signer account
+     * (i.e. by creating another contract), this field SHALL contain the
+     * updated value.<br/>
+     * If the signer account nonce was not updated, this field SHALL be `null`.
+     */
+    google.protobuf.Int64Value signer_nonce = 15;
+}

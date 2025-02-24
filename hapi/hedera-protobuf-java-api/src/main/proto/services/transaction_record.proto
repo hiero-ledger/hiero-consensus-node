@@ -1,0 +1,233 @@
+/**
+ * # Transaction Record
+ * The record of a single transaction, including receipt and transaction
+ * results such as transfer lists, entropy, contract call result, etc...<br/>
+ * The record also includes fees, consensus time, EVM information, and
+ * other result metadata.<br/>
+ * Only values appropriate to the requested transaction are populated, all
+ * other fields will not be set (i.e. null or default values).
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "services/basic_types.proto";
+import "services/custom_fees.proto";
+import "services/transaction_receipt.proto";
+import "services/contract_types.proto";
+
+/**
+ * Response when the client sends the node TransactionGetRecordResponse
+ */
+message TransactionRecord {
+    /**
+     * A transaction receipt.
+     * <p>
+     * This SHALL report consensus status (reach consensus, failed,
+     * unknown) and the ID of any new entity (i.e. account, file,
+     * contract, schedule, etc...) created.
+     */
+    TransactionReceipt receipt = 1;
+
+    /**
+     * A transaction hash value.
+     * <p>
+     * This SHALL be the hash of the Transaction that executed and
+     * SHALL NOT be the hash of any Transaction that failed for
+     * having a duplicate TransactionID.
+     */
+    bytes transactionHash = 2;
+
+    /**
+     * A consensus timestamp.
+     * <p>
+     * This SHALL be null if the transaction did not reach consensus yet.
+     */
+    Timestamp consensusTimestamp = 3;
+
+    /**
+     * A transaction identifier to the transaction associated to this record.
+     */
+    TransactionID transactionID = 4;
+
+    /**
+     * A transaction memo.<br/>
+     * This is the memo that was submitted as part of the transaction.
+     * <p>
+     * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+     * (default 100) bytes when encoded as UTF-8.
+     */
+    string memo = 5;
+
+    /**
+     * A transaction fee charged.
+     * <p>
+     * This SHALL be the actual transaction fee charged.<br/>
+     * This MAY NOT match the original `transactionFee` value
+     * from the `TransactionBody`.
+     */
+    uint64 transactionFee = 6;
+
+    oneof body {
+        /**
+         * A contract call result.<br/>
+         * A record of the value returned by the smart contract function (if
+         * it completed and didn't fail) from a `ContractCallTransaction`.
+         */
+        ContractFunctionResult contractCallResult = 7;
+
+        /**
+         * A contract creation result.<br/>
+         * A record of the value returned by the smart contract constructor (if
+         * it completed and didn't fail) from a `ContractCreateTransaction`.
+         */
+        ContractFunctionResult contractCreateResult = 8;
+    }
+
+    /**
+     * A transfer list for this transaction.<br/>
+     * This is a list of all HBAR transfers completed for this transaction.
+     * <p>
+     * This MAY include fees, transfers performed by the transaction,
+     * transfers initiated by a smart contract it calls, or the creation
+     * of threshold records that it triggers.
+     */
+    TransferList transferList = 10;
+
+    /**
+     * A token transfer list for this transaction.<br/>
+     * This is a list of all non-HBAR token transfers
+     * completed for this transaction.<br/>
+     */
+    repeated TokenTransferList tokenTransferLists = 11;
+
+    /**
+     * A schedule reference.<br/>
+     * The reference to a schedule ID for the schedule that initiated this
+     * transaction, if this this transaction record represents a scheduled
+     * transaction.
+     */
+    ScheduleID scheduleRef = 12;
+
+    /**
+     * A list of all custom fees that were assessed during a CryptoTransfer.
+     * <p>
+     * These SHALL be paid if the transaction status resolved to SUCCESS.
+     */
+    repeated AssessedCustomFee assessed_custom_fees = 13;
+
+    /**
+     * A list of all token associations implicitly or automatically
+     * created while handling this transaction.
+     */
+    repeated TokenAssociation automatic_token_associations = 14;
+
+    /**
+     * A consensus timestamp for a child record.
+     * <p>
+     * This SHALL be the consensus timestamp of a user transaction that
+     * spawned an internal child transaction.
+     */
+    Timestamp parent_consensus_timestamp = 15;
+
+    /**
+     * A new account alias.<br/>
+     * <p>
+     * This is the new alias assigned to an account created as part
+     * of a CryptoCreate transaction triggered by a user transaction
+     * with a (previously unused) alias.
+     */
+    bytes alias = 16;
+
+    /**
+     * A keccak256 hash of the ethereumData.
+     * <p>
+     * This field SHALL only be populated for EthereumTransaction.
+     */
+    bytes ethereum_hash = 17;
+
+    /**
+     * A list of staking rewards paid.
+     * <p>
+     * This SHALL be a list accounts with the corresponding staking
+     * rewards paid as a result of this transaction.
+     */
+    repeated AccountAmount paid_staking_rewards = 18;
+
+    oneof entropy {
+        /**
+         * A pseudorandom 384-bit sequence.
+         * <p>
+         * This SHALL be returned in the record of a UtilPrng transaction
+         * with no output range,
+         */
+        bytes prng_bytes = 19;
+
+        /**
+         * A pseudorandom 32-bit integer.<br/>
+         * <p>
+         * This SHALL be returned in the record of a PRNG transaction with
+         * an output range specified.
+         */
+        int32 prng_number = 20;
+    }
+
+    /**
+     * A new default EVM address for an account created by
+     * this transaction.
+     * <p>
+     * This field SHALL be populated only when the EVM address is not
+     * specified in the related transaction body.
+     */
+    bytes evm_address = 21;
+
+    /**
+     * A list of pending token airdrops.
+     * <p>
+     * Each pending airdrop SHALL represent a single requested transfer
+     * from a sending account to a recipient account.<br/>
+     * These pending transfers are issued unilaterally by the sending
+     * account, and MUST be claimed by the recipient account before
+     * the transfer SHALL complete.<br/>
+     * A sender MAY cancel a pending airdrop before it is claimed.<br/>
+     * An airdrop transaction SHALL emit a pending airdrop when the
+     * recipient has no available automatic association slots available
+     * or when the recipient has set `receiver_sig_required`.
+     */
+    repeated PendingAirdropRecord new_pending_airdrops = 22;
+}
+
+/**
+ * A record of a new pending airdrop.
+ */
+message PendingAirdropRecord {
+    /**
+     * A unique, composite, identifier for a pending airdrop.
+     * <p>
+     * This field is REQUIRED.
+     */
+    PendingAirdropId pending_airdrop_id = 1;
+
+    /**
+     * A single pending airdrop amount.
+     * <p>
+     * If the pending airdrop is for a fungible/common token this field
+     * is REQUIRED and SHALL be the current amount of tokens offered.<br/>
+     * If the pending airdrop is for a non-fungible/unique token,
+     * this field SHALL NOT be set.
+     */
+    PendingAirdropValue pending_airdrop_value = 2;
+}

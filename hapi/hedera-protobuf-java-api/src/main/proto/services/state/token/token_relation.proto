@@ -1,0 +1,123 @@
+/**
+ * # Token Relationship.
+ * This is a connection between one Account, one _fungible_ Token, and
+ * associated balance within the Hedera network.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/basic_types.proto";
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * An Hedera Token Service token relationship.
+ *
+ * A token relationship connects an Account with a Token and is necessary for
+ * that Account to transact in that Token. TokenRelationship defines a
+ * connection between one account and one token type.
+ *
+ * A TokenRelation SHALL be identified by the combination of token_id and
+ * account_id.<br/>
+ * A TokenRelation SHALL contain, for the referenced token,<br/>
+ * The account's current balance, whether the account has KYC granted,
+ * and whether the assets are frozen.
+ *
+ * TokenRelation entries SHALL be connected via a "virtual linked list" with the
+ * next TokenID and previous TokenID stored in the TokenRelation.
+ * These TokenIDs MUST be combined with the AccountID to find the next or
+ * previous relationship in the list.
+ */
+message TokenRelation {
+    /**
+     * A token identifier.
+     * <p>
+     * This SHALL identify the token involved in this association.
+     */
+    TokenID token_id = 1;
+
+    /**
+     * An account identifier.
+     * <p>
+     * This SHALL identify the account involved in this association.
+     */
+    AccountID account_id = 2;
+
+    /**
+     * The fungible token balance of this token relationship.
+     * <p>
+     * This MUST be a whole number.
+     */
+    int64 balance = 3;
+
+    /**
+     * A flag indicating that this token relationship is frozen.
+     * <p>
+     * When a token relationship is frozen the associated account SHALL NOT be
+     * permitted to transfer to or from the associated balance.
+     * <p>
+     * This flag is associated with the Token value `freeze_key`, and any
+     * transaction to set this flag MUST be signed by that key. If the Token
+     * does not have a `freeze_key` set, then this flag SHALL NOT be set true
+     * for relationships between accounts and that token.
+     */
+    bool frozen = 4;
+
+    /**
+     * A flag indicating that this token relationship has been granted KYC status.
+     * <p>
+     * If the token flag `accounts_kyc_granted_by_default` is set true, then
+     * this flag SHALL be set true for all accounts subsequently associated to
+     * that token. Otherwise this flag SHALL NOT be set until a transaction
+     * is submitted, and signed with the Token `kyc_key` to
+     * set the flag true.<br/>
+     * If the Token does not have a `kyc_key` set and the token flag
+     * `accounts_kyc_granted_by_default` is not set true, then this value MUST
+     * be false for all accounts subsequently associated to that token.
+     * <p>
+     * Typically a transaction to set this value to true is considered
+     * equivalent to asserting that the "Know Your Customer" (KYC) requirements
+     * have been met for this combination of account and token and the relevant
+     * records are available as required.
+     */
+    bool kyc_granted = 5;
+
+    /**
+     * A flag indicating that this token relationship was created using
+     * automatic association.
+     * <p>
+     * If this is true then there MUST NOT exist a customer-signed transaction
+     * associating this account and token combination and the account
+     * `used_auto_associations` SHALL be incremented when this relationship
+     * is created.
+     */
+    bool automatic_association = 6;
+
+    /**
+     * The Token ID of the previous entry in the associated Account's
+     * "virtual double-linked list" of token relationships.
+     * <p>
+     * This must be combined with the value of `account_id` to identify the
+     * actual `TokenRelation` referenced.
+     */
+    TokenID previous_token = 7;
+
+    /**
+     * The Token ID of the next entry in the associated Account's "virtual
+     * double-linked list" of token relationships.
+     * <p>
+     * This must be combined with the value of `account_id` to identify the
+     * actual `TokenRelation` referenced.
+     */
+    TokenID next_token = 8;
+}

@@ -1,0 +1,170 @@
+/**
+ * # Update Topic
+ * Update a topic for the Hedera Consensus Service (HCS).
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.consensus">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+import "services/basic_types.proto";
+import "services/custom_fees.proto";
+import "services/duration.proto";
+import "services/timestamp.proto";
+
+/**
+ * Update the fields of an existing HCS topic.
+ *
+ * The topicID field is REQUIRED. All other fields are OPTIONAL.<br/>
+ * Fields set on this transaction SHALL be updated.<br/>
+ * Fields _not_ set on this transaction SHALL NOT be updated.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message ConsensusUpdateTopicTransactionBody {
+    /**
+     * The topic ID specifying the topic to update.
+     * <p>
+     * A topic with this ID MUST exist and MUST NOT be deleted.<br/>
+     * This value is REQUIRED.
+     */
+    TopicID topicID = 1;
+
+    /**
+     * An updated memo to be associated with this topic.
+     * <p>
+     * If this value is set, the current `adminKey` for the topic MUST sign
+     * this transaction.<br/>
+     * This value, if set, SHALL be encoded UTF-8 and SHALL NOT exceed
+     * 100 bytes when so encoded.
+     */
+    google.protobuf.StringValue memo = 2;
+
+    /**
+     * An updated expiration time for this topic, in seconds since the epoch.
+     * <p>
+     * For this purpose, `epoch` SHALL be the UNIX epoch
+     * with 0 at `1970-01-01T00:00:00.000Z`.<br/>
+     * The expirationTime MUST NOT be greater than the sum of
+     * `MAX_AUTORENEW_PERIOD` and the actual consensus timestamp of
+     * this transaction.<br/>
+     * If `adminKey` is <b>unset</b> for the _topic_, this transaction MUST NOT
+     * modify any other field.
+     */
+    Timestamp expirationTime = 4;
+
+    /**
+     * Updated access control for modification of the topic.
+     * <p>
+     * If this field is set, that key and the previously set key MUST both
+     * sign this transaction.<br/>
+     * If this value is an empty `KeyList`, the prior key MUST sign this
+     * transaction, and the topic SHALL be immutable after this transaction
+     * completes, except for expiration and renewal.
+     */
+    Key adminKey = 6;
+
+    /**
+     * Updated access control for message submission to the topic.
+     * <p>
+     * If this value is set, the current `adminKey` for the topic MUST sign
+     * this transaction.<br/>
+     * If this value is set to an empty `KeyList`, the `submitKey` for the
+     * topic will be unset after this transaction completes. When the
+     * `submitKey` is unset, any account may submit a message on the topic,
+     * without restriction.
+     */
+    Key submitKey = 7;
+
+    /*
+     * An updated value for the number of seconds by which the topic expiration
+     * will be automatically extended upon expiration, if it has a valid
+     * auto-renew account.
+     * <p>
+     * If this value is set, the current `adminKey` for the topic MUST sign
+     * this transaction.<br/>
+     * This value, if set, MUST be greater than the
+     * configured MIN_AUTORENEW_PERIOD.<br/>
+     * This value, if set, MUST be less than the
+     * configured MAX_AUTORENEW_PERIOD.
+     */
+    Duration autoRenewPeriod = 8;
+
+    /**
+     * An updated ID for the account to be charged renewal fees at the topic's
+     * `expirationTime` to extend the lifetime of the topic.
+     * <p>
+     * If this value is set and not the "sentinel account", the referenced
+     * account MUST sign this transaction.<br/>
+     * If this value is set, the current `adminKey` for the topic MUST sign
+     * this transaction.<br/>
+     * If this value is set to the "sentinel account", which is `0.0.0`, the
+     * `autoRenewAccount` SHALL be removed from the topic.
+     */
+    AccountID autoRenewAccount = 9;
+
+    /**
+     * Access control for update/delete of custom fees.
+     * <p>
+     * If set, subsequent consensus_update_topic transactions signed with this
+     * key MAY update or delete the custom fees for this topic.<br/>
+     * If this field is set, the admin key MUST sign this transaction.<br/>
+     * If this field is set, the previous value SHALL be replaced.<br/>
+     * If set to a 'Key' containing an empty 'KeyList', the previous value
+     * SHALL be cleared.<br/>
+     * If not set, the current key SHALL NOT change.<br/>
+     * If unset in state, this field MUST NOT be set in this transaction.<br/>
+     * If not set when the topic is created, this field CANNOT be set via
+     * update.<br/>
+     */
+    Key fee_schedule_key = 10;
+
+    /**
+     * A set of keys<br/>
+     * Keys in this list are permitted to submit messages to this topic without
+     * paying custom fees associated with this topic.
+     * <p>
+     * If a submit transaction is signed by _any_ key included in this set,
+     * custom fees SHALL NOT be charged for that transaction.<br/>
+     * If this field is not set, the current set of keys SHALL NOT change.<br/>
+     * If this field is set, but contains an empty list, any existing fee-exempt
+     * keys SHALL be removed.<br/>
+     * A `fee_exempt_key_list` MUST NOT contain more than
+     * `MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST` keys.<br/>
+     * A `fee_exempt_key_list` MUST NOT contain any duplicate keys.<br/>
+     * A `fee_exempt_key_list` MAY contain keys for accounts that are inactive,
+     * deleted, or non-existent.
+     */
+    FeeExemptKeyList fee_exempt_key_list = 11;
+
+    /**
+     * A set of custom fee definitions.<br/>
+     * These are fees to be assessed for each submit to this topic.
+     * <p>
+     * Each fee defined in this set SHALL be evaluated for
+     * each message submitted to this topic, and the resultant
+     * total assessed fees SHALL be charged.<br/>
+     * Custom fees defined here SHALL be assessed in addition to the base
+     * network and node fees.<br/>
+     * If this field is not set, the current set of custom fees
+     * SHALL NOT change.<br/>
+     * If this field is set, but contains an empty list, all current custom fees
+     * SHALL be removed.
+     * custom_fees list SHALL NOT contain more than
+     * `MAX_CUSTOM_FEE_ENTRIES_FOR_TOPICS` entries.
+     */
+    FixedCustomFeeList custom_fees = 12;
+}

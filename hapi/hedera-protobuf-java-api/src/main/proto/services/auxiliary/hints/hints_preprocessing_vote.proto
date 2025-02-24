@@ -1,0 +1,44 @@
+/**
+ * # hinTS Aggregation Vote Transaction
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.services.auxiliary.hints;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/state/hints/hints_types.proto";
+
+option java_package = "com.hedera.hapi.services.auxiliary.hints.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.services.auxiliary.hints">>> This comment is special code for setting PBJ Compiler java package
+
+option java_multiple_files = true;
+
+/**
+ * A transaction body to publish a node's vote for the results of
+ * aggregating the hinTS keys for a specified construction id. The
+ * node can either give their explicit aggregation results, or
+ * delegate their vote to another node's results.
+ */
+message HintsPreprocessingVoteTransactionBody {
+  /**
+   * The id of the hinTS construction this vote is for. Because
+   * the network only ever performs one construction a time, this
+   * is somewhat redundant, but included to detect any strange
+   * edge cases where a node is so far behind it votes on the wrong
+   * construction.
+   */
+  uint64 construction_id = 1;
+
+  /**
+   * The vote the node is casting for the aggregation of the hints
+   * in the given construction (which should be ongoing).
+   */
+  com.hedera.hapi.node.state.hints.PreprocessingVote vote = 2;
+}

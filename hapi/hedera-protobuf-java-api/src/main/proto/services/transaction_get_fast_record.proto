@@ -1,0 +1,80 @@
+/**
+ * # Get Fast Record
+ * Get a recent transaction record "fast".
+ *
+ * > Important
+ * >> This query is obsolete and not supported.<br/>
+ * >> Any query of this type that is submitted SHALL fail with a `PRE_CHECK`
+ * >> result of `NOT_SUPPORTED`.
+ *
+ * > Implementation Note
+ * >> This query is _defined_ for "Crypto" service, but is _implemented_ by
+ * >> the "Network Admin" service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/transaction_record.proto";
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+
+/**
+ * Get the tx record of a transaction, given its transaction ID.
+ *
+ * Once a transaction reaches consensus, then information about whether it
+ * succeeded or failed will be available until the end of the receipt period.
+ * Before and after the receipt period, and for a transaction that was never
+ * submitted, the receipt is unknown.<br/>
+ * This query is free (the payment field is left empty).
+ */
+message TransactionGetFastRecordQuery {
+    option deprecated = true;
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * The ID of the transaction for which the record is requested.
+     */
+    TransactionID transactionID = 2;
+}
+
+/**
+ * Response when the client sends the node TransactionGetFastRecordQuery.
+ * If it created a new entity (account, file, or smart contract instance) then
+ * one of the three ID fields will be filled in with the ID of the new entity.
+ * Sometimes a single transaction will create more than one new entity, such
+ * as when a new contract instance is created, and this also creates the new
+ * account that it owned by that instance.
+ */
+message TransactionGetFastRecordResponse {
+    option deprecated = true;
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * The requested transaction records
+     */
+    TransactionRecord transactionRecord = 2;
+}

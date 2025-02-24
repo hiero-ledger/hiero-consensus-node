@@ -1,0 +1,135 @@
+/**
+ * # File Get Information
+ * Messages for a query to retrieve the metadata for a file in the
+ * Hedera File Service (HFS).
+ *
+ * The query defined here does not include the content of the file.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.file">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+
+/**
+ * Query to request file metadata from the Hedera File Service (HFS).<br/>
+ * This query requests all of the information _about_ a file, but none of the
+ * _content_ of a file. A client should submit a `fileGetContents` query to
+ * view the content of a file. File content _may_ also be available from a
+ * block node or mirror node, generally at lower cost.
+ *
+ * File metadata SHALL be available for active files and deleted files.<br/>
+ * The size of a deleted file SHALL be `0` and the content SHALL be empty.
+ */
+message FileGetInfoQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * A file identifier.
+     * <p>
+     * This MUST be the identifier of a file that exists in HFS.<br/>
+     * This value SHALL identify the file to be queried.
+     */
+    FileID fileID = 2;
+}
+
+/**
+ * A response to a query for the metadata of a file in the HFS.
+ */
+message FileGetInfoResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    message FileInfo {
+        /**
+         * A file identifier.
+         * <p>
+         * This SHALL be the identifier of a file that exists in HFS.<br/>
+         * This value SHALL identify the file that was queried.
+         */
+        FileID fileID = 1;
+
+        /**
+         * A size, in bytes, for the file.
+         */
+        int64 size = 2;
+
+        /**
+         * An expiration timestamp.
+         * <p>
+         * The file SHALL NOT expire before the network consensus time
+         * exceeds this value.<br/>
+         * The file SHALL expire after the network consensus time
+         * exceeds this value.<br/>
+         */
+        Timestamp expirationTime = 3;
+
+        /**
+         * A flag indicating this file is deleted.
+         * <p>
+         * A deleted file SHALL have a size `0` and empty content.
+         */
+        bool deleted = 4;
+
+        /**
+         * A KeyList listing all keys that "own" the file.
+         * <p>
+         * All keys in this list MUST sign a transaction to append to the
+         * file content, or to modify file metadata.<br/>
+         * At least _one_ key in this list MUST sign a transaction to delete
+         * this file.<br/>
+         * If this is an empty `KeyList`, the file is immutable, cannot be
+         * modified or deleted, but MAY expire. A `fileUpdate` transaction MAY
+         * extend the expiration time for an immutable file.
+         */
+        KeyList keys = 5;
+
+        /**
+         * A short description for this file.
+         * <p>
+         * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+         * (default 100) bytes when encoded as UTF-8.
+         */
+        string memo = 6;
+
+        /**
+         * A ledger identifier for the responding network.
+         * <p>
+         * This value SHALL identify the distributed ledger that responded to
+         * this query.
+         */
+        bytes ledger_id = 7;
+    }
+
+    /**
+     * A combination of fields from the requested file metadata.
+     * <p>
+     * This SHALL NOT be set if the identified file does not exist
+     * or has expired.
+     */
+    FileInfo fileInfo = 2;
+}

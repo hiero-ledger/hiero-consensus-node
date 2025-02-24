@@ -1,0 +1,49 @@
+/**
+ * # hinTS Key Publication Transaction
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.services.auxiliary.hints;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/state/hints/hints_types.proto";
+
+option java_package = "com.hedera.hapi.services.auxiliary.hints.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.services.auxiliary.hints">>> This comment is special code for setting PBJ Compiler java package
+
+option java_multiple_files = true;
+
+/**
+ * A transaction body to publish a node's hinTS key for a certain
+ * party id and number of parties. A hinTS key is an extended
+ * public key; that is, a BLS public key combined with "hints"
+ * derived from the matching private key that a signature
+ * aggregator can use to prove well-formedness of an aggregate
+ * public key by an efficiently verifiable SNARK.
+ */
+message HintsKeyPublicationTransactionBody {
+  /**
+   * The party id for which the hinTS key is being published;
+   * must be in the range [0, num_parties).
+   * <p>
+   * This value MUST be set to a non-negative integer.<br/>
+   */
+  uint32 party_id = 1;
+
+  /**
+   * The number of parties in the hinTS scheme.
+   */
+  uint32 num_parties = 2;
+
+  /**
+   * The party's hinTS key.
+   */
+  bytes hints_key = 3;
+}

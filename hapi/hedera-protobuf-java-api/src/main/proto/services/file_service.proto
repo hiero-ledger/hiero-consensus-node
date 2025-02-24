@@ -1,0 +1,123 @@
+/**
+ * # File Service
+ * gRPC definitions for the Hedera File Service (HFS).
+ *
+ * The HFS manages bulk data in the form of byte arrays of arbitrary
+ * size, up to a network-configured maximum size. These files are
+ * most often used to store bulk data for distributed applications
+ * and smart contracts.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.service.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.file">>> This comment is special code for setting PBJ Compiler java package
+
+import "services/query.proto";
+import "services/response.proto";
+import "services/transaction_response.proto";
+import "services/transaction.proto";
+
+/**
+ * Service gRPC definitions for the Hedera File Service (HFS).
+ *
+ * #### Signature Requirements
+ * The HFS manages file authorization differently, depending on type of file
+ * transaction, and this can be surprising.<br/>
+ * The core element of file authorization is the `keys` field,
+ * which is a `KeyList`; a list of individual `Key` messages, each of which
+ * may represent a simple or complex key.<br/>
+ * The file service transactions treat this list differently.<br/>
+ * A `fileCreate`, `fileAppend`, or `fileUpdate` MUST have a valid signature
+ * from _each_ key in the list.<br/>
+ * A `fileDelete` MUST have a valid signature from _at least one_ key in
+ * the list. This is different, and allows a file "owned" by many entities
+ * to be deleted by any one of those entities. A deleted file cannot be
+ * restored, so it is important to consider this when assigning keys for
+ * a file.<br/>
+ * If any of the keys in a `KeyList` are complex, the full requirements of
+ * each complex key must be met to count as a "valid signature" for that key.
+ * A complex key structure (i.e. a `ThresholdKey`, or `KeyList`, possibly
+ * including additional `ThresholdKey` or `KeyList` descendants) may be
+ * assigned as the sole entry in a file `keys` field to ensure all transactions
+ * have the same signature requirements.
+ */
+service FileService {
+    /**
+     * Create a file in HFS.
+     */
+    rpc createFile (Transaction) returns (TransactionResponse);
+
+    /**
+     * Update a file in HFS.
+     */
+    rpc updateFile (Transaction) returns (TransactionResponse);
+
+    /**
+     * Delete a file in HFS.<br/>
+     * The content of a file deleted in this manner is completely removed
+     * from network state, but the file metadata remains.
+     */
+    rpc deleteFile (Transaction) returns (TransactionResponse);
+
+    /**
+     * Append content to a file in HFS.
+     */
+    rpc appendContent (Transaction) returns (TransactionResponse);
+
+    /**
+     * Retrieve the content of a file in HFS.<br/>
+     * Note that this query retrieves _only_ the file content, not any of
+     * the metadata for the file.
+     */
+    rpc getFileContent (Query) returns (Response);
+
+    /**
+     * Retrieve the metadata for a file in HFS.<br/>
+     * Note that this query does not retrieve the file _content_.
+     */
+    rpc getFileInfo (Query) returns (Response);
+
+    /**
+     * Delete a "regular" file without "owner" authorization.<br/>
+     * This transaction _does not_ require signatures for the keys in
+     * the file `keys` list, but must be signed by a "privileged" account.
+     * <p>
+     * This transaction SHALL NOT accept a file identifier for
+     * a "system" file.<br/>
+     * This transaction SHALL NOT remove the _content_ of the file from state.
+     * This permits use of the `systemUndelete` to reverse this action if
+     * performed in error.
+     * <p>
+     * This is a privileged transaction, and only accounts 2-59 are permitted
+     * to call this function, by default. The actual restriction is in the
+     * `api-permission.properties` file in the consensus node configuration.
+     */
+    rpc systemDelete (Transaction) returns (TransactionResponse);
+
+    /**
+     * Undelete a "regular" file.
+     * This transaction must be signed by a "privileged" account.<br/>
+     * <p>
+     * This transaction SHALL NOT accept a file identifier for
+     * a "system" file.<br/>
+     * The file identified SHOULD have been previously deleted.<br/>
+     * This transaction SHALL NOT recover the _content_ of a file unless that
+     * file was deleted with a `systemDelete` transaction. The _content_ of a
+     * file deleted with a `fileDelete` transaction is not retained in state.
+     * <p>
+     * This is a privileged transaction, and only accounts 2-60 are permitted
+     * to call this function, by default. The actual restriction is in the
+     * `api-permission.properties` file in the consensus node configuration.
+     */
+    rpc systemUndelete (Transaction) returns (TransactionResponse);
+}

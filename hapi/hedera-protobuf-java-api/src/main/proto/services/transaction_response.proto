@@ -1,0 +1,61 @@
+/**
+ * # Transaction Response
+ * Message(s) sent in response to submitting a transaction.
+ * The response(s) detailed here SHALL only represent that the transaction
+ * was received and checked by the single node to which it was submitted.<br/>
+ * To obtain the result from _network consensus_, a client MUST submit a
+ * `getTransactionReceipts` query.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/response_code.proto";
+
+/**
+ * A message sent by a node in response to a transaction submission.<br/>
+ * This message only acknowledges that the individual node has checked
+ * the transaction, completed pre-check, and checked the fee offered.
+ *
+ * If the transaction fee is not sufficient, the `nodeTransactionPrecheckCode`
+ * value SHALL be `INSUFFICIENT_TX_FEE` and the `cost` field SHALL be the
+ * actual transaction fee, in tinybar, required.<br/>
+ * If the client requires acknowledgement of the network consensus result
+ * for a transaction, the client SHOULD request a transaction receipt or
+ * detailed transaction record. A client MAY also obtain network consensus
+ * results from a mirror node.
+ */
+message TransactionResponse {
+    /**
+     * A pre-consensus response code.
+     * <p>
+     * This response SHALL represent the response of the individual node, and
+     * SHALL NOT represent the consensus of the network.
+     */
+    ResponseCodeEnum nodeTransactionPrecheckCode = 1;
+
+    /**
+     * An approximate transaction fee.
+     * <p>
+     * This value SHALL be `0` unless the `nodeTransactionPrecheckCode` is
+     * `INSUFFICIENT_TX_FEE`.<br/>
+     * This value SHOULD be an amount, in tinybar, that _would have_ succeeded
+     * at the time the transaction was submitted.<br/>
+     * Note that this amount is not guaranteed to succeed in a future
+     * transaction due to uncontrolled variables, such as network congestion,
+     * but should be considered a close approximation.
+     */
+    uint64 cost = 2;
+}

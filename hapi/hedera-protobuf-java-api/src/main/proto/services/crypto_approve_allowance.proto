@@ -1,0 +1,243 @@
+/**
+ * # Approve Allowance
+ * This transaction body provides a mechanism to add "allowance" entries
+ * for an account. These allowances enable one account to spend or transfer
+ * token balances (for fungible/common tokens), individual tokens (for
+ * non-fungible/unique tokens), or all non-fungible tokens owned by the
+ * account, now or in the future (if `approved_for_all` is set).
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "google/protobuf/wrappers.proto";
+
+/**
+ * Create ("Approve") allowances for one account to transfer tokens owned
+ * by a different account.<br/>
+ * An allowance permits a "spender" account to independently transfer tokens
+ * owned by a separate "owner" account. Each such allowance permits spending
+ * any amount, up to a specified limit, for fungible/common tokens; a single
+ * specified non-fungible/unique token, or all non-fungible/unique tokens
+ * of a particular token type held by the "owner" account.
+ *
+ * If the "owner" account is not specified for any allowance in this
+ * transaction (the `owner` field is not set), the `payer` account for this
+ * transaction SHALL be owner for that allowance.<br/>
+ * Each `owner` account specified in any allowance approved in this
+ * transaction MUST sign this transaction.<br/>
+ * If the `amount` field for any fungible/common allowance in this
+ * transaction is `0`, then that allowance SHOULD match an existing,
+ * previously approved, allowance which SHALL be removed.<br/>
+ * There are three lists in this message. Each list MAY be empty, but
+ * _at least one_ list MUST contain _at least one_ entry.
+ *
+ * Example for the `payer` rule.<br/>
+ *  - Given an account `0.0.X` that pays for this transaction, and owner
+ *    is not specified in an allowance of `200` HBAR to spender account
+ *    `0.0.Y`. At consensus the spender account `0.0.Y` will have a new
+ *    allowance to spend `200` HBAR from the balance of account `0.0.X`.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message CryptoApproveAllowanceTransactionBody {
+    /**
+     * List of hbar allowances approved by the account owner.
+     * <p>
+     * This list MAY be empty, provided at least one other list is
+     * not empty.
+     */
+    repeated CryptoAllowance cryptoAllowances = 1;
+
+    /**
+     * List of non-fungible token allowances approved by the account owner.
+     * <p>
+     * This list MAY be empty, provided at least one other list is
+     * not empty.
+     */
+    repeated NftAllowance nftAllowances = 2;
+
+    /**
+     * List of fungible token allowances approved by the account owner.
+     * <p>
+     * This list MAY be empty, provided at least one other list is
+     * not empty.
+     */
+    repeated TokenAllowance tokenAllowances = 3;
+}
+
+/**
+ * An approved allowance of hbar transfers.
+ * This message specifies one allowance for a single, unique, combination
+ * of owner, spender, and amount.
+ *
+ * If `owner` is not set, the effective `owner` SHALL be the `payer` for the
+ * enclosing transaction.<br/>
+ * The `spender` MUST be specified and MUST be a valid account.<br/>
+ * The `amount` MUST be a whole number, and SHOULD be greater than `0` unless
+ * this allowance is intended to _remove_ a previously approved allowance.
+ */
+message CryptoAllowance {
+    /**
+     * An owner account identifier.<br/>
+     * This is the account identifier of the account granting an allowance
+     * for the `spender` to transfer tokens held by this account.
+     */
+    AccountID owner = 1;
+
+    /**
+     * A spender account identifier.<br/>
+     * This is the account identifier of the account permitted to transfer
+     * tokens held by the `owner`.
+     */
+    AccountID spender = 2;
+
+    /**
+     * An amount of tinybar (10<sup>-8</sup> HBAR).<br/>
+     * This is the amount of HBAR held by the `owner` that the
+     * `spender` is permitted to transfer.
+     * <p>
+     * This value MUST be a whole number.<br/>
+     * This value MUST be greater than 0 to create a new allowance.<br/>
+     * This value MAY be exactly `0` to _remove_ an existing allowance.<br/>
+     */
+    int64 amount = 3;
+}
+
+/**
+ * An approved allowance of non-fungible tokens.<br/>
+ * This type of allowance may permit transfers for one or more individual
+ * unique tokens, or may permit transfers for all unique tokens of the
+ * specified type.
+ *
+ * If `owner` is not set, the effective `owner` SHALL be the `payer` for the
+ * enclosing transaction.<br/>
+ * The `spender` MUST be specified and MUST be a valid account.<br/>
+ * If `approve_for_all` is set, then `serial_numbers` SHOULD be empty
+ * and SHALL be ignored.
+ * If `approve_for_all` is unset, then `serial_numbers` MUST NOT be empty.
+ */
+message NftAllowance {
+    /**
+     * A token identifier.<br/>
+     * This identifies the type of token the `spender` is permitted to
+     * transfer from the `owner`.
+     * <p>
+     * The identified token type MUST be a non-fungible/unique token.
+     */
+    TokenID tokenId = 1;
+
+    /**
+     * An owner account identifier.<br/>
+     * This is the account identifier of the account granting an allowance
+     * for the `spender` to transfer tokens held by this account.
+     */
+    AccountID owner = 2;
+
+    /**
+     * A spender account identifier.<br/>
+     * This is the account identifier of the account permitted to transfer
+     * tokens held by the `owner`.
+     */
+    AccountID spender = 3;
+
+    /**
+     * A list of token serial numbers.<br/>
+     * The list of serial numbers that the spender is permitted to transfer.
+     * <p>
+     * The `owner` MUST currently hold each token identified in this list.
+     */
+    repeated int64 serial_numbers = 4;
+
+    /**
+     * A flag indicating this allowance applies to all tokens of the
+     * specified (non-fungible/unique) type.
+     * <p>
+     * If true, the `spender` SHALL be permitted to transfer any or all
+     * of the `owner`'s tokens of the specified token type.
+     * This SHALL apply not only to currently owned tokens, but to all
+     * such tokens acquired in the future, unless the
+     * allowance is `delete`d.
+     */
+    google.protobuf.BoolValue approved_for_all = 5;
+
+    /**
+     * A spender-owner account identifier.<br/>
+     * This account identifier identifies a `spender` for whom an existing
+     * `approved_for_all` allowance was previously created. This enables
+     * an account with such broad access to grant allowances to transfer
+     * individual tokens from the original owner without involving that
+     * original owner.
+     * <p>
+     * If this is set, the account identified MUST sign this transaction, but
+     * the `owner` account MAY NOT sign this transaction.<br/>
+     * If this is set, there MUST exist an active `approved_for_all`
+     * allowance from the `owner` for the `delegating_spender` to transfer
+     * all tokens of the type identified by the `tokenId` field.<br/>
+     * If this value is set, the `approved_for_all` flag MUST be `false`.
+     */
+    AccountID delegating_spender = 6;
+}
+
+/**
+ * An approved allowance of fungible/common token transfers.
+ * This message specifies one allowance for a single, unique, combination
+ * of token, owner, spender, and amount.
+ *
+ * If `owner` is not set, the effective `owner` SHALL be the `payer` for the
+ * enclosing transaction.<br/>
+ * The `tokenId` MUST be specified and MUST be a valid
+ * fungible/common token type.<br/>
+ * The `spender` MUST be specified and MUST be a valid account.<br/>
+ * The `amount` MUST be a whole number, and SHOULD be greater than `0` unless
+ * this allowance is intended to _remove_ a previously approved allowance.
+ */
+message TokenAllowance {
+    /**
+     * A token identifier.<br/>
+     * This identifies the type of token the `spender` is permitted to
+     * transfer from the `owner`.
+     * <p>
+     * The identified token type MUST be a fungible/common token.
+     */
+    TokenID tokenId = 1;
+
+    /**
+     * An owner account identifier.<br/>
+     * This is the account identifier of the account granting an allowance
+     * for the `spender` to transfer tokens held by this account.
+     */
+    AccountID owner = 2;
+
+    /**
+     * A spender account identifier.<br/>
+     * This is the account identifier of the account permitted to transfer
+     * tokens held by the `owner`.
+     */
+    AccountID spender = 3;
+
+    /**
+     * An amount of fractional tokens (10<sup>-decimals</sup> tokens).<br/>
+     * This is the amount of tokens held by the `owner` that the
+     * `spender` is permitted to transfer.
+     * <p>
+     * This value MUST be a whole number.<br/>
+     * This value MUST be greater than 0 to create a new allowance.<br/>
+     * This value MAY be exactly `0` to _remove_ an existing allowance.<br/>
+     */
+    int64 amount = 4;
+}

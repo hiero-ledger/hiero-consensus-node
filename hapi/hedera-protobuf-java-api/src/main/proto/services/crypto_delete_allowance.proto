@@ -1,0 +1,93 @@
+/**
+ * # Crypto Delete Allowance
+ * Delete one or more NFT allowances that permit transfer of tokens from
+ * an "owner" account by a different, "spender", account.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Delete one or more allowances.<br/>
+ * Given one or more, previously approved, allowances for non-fungible/unique
+ * tokens to be transferred by a spending account from an owning account;
+ * this transaction removes a specified set of those allowances.
+ *
+ * The owner account for each listed allowance MUST sign this transaction.<br/>
+ * Allowances for HBAR cannot be removed with this transaction. The owner
+ * account MUST submit a new `cryptoApproveAllowance` transaction with the
+ * amount set to `0` to "remove" that allowance.<br/>
+ * Allowances for fungible/common tokens cannot be removed with this
+ * transaction. The owner account MUST submit a new `cryptoApproveAllowance`
+ * transaction with the amount set to `0` to "remove" that allowance.<br/>
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message CryptoDeleteAllowanceTransactionBody {
+    /**
+     * List of non-fungible/unique token allowances to remove.
+     * <p>
+     * This list MUST NOT be empty.
+     */
+    repeated NftRemoveAllowance nftAllowances = 2;
+
+    // Note: Field numbers 1 and 3 were very briefly used in early
+    //     versions of this file, but were removed prior to any release
+    //     version. Those field numbers MAY be reused.
+}
+
+/**
+ * A single allowance for one non-fungible/unique token.
+ * This is specific to removal, and the allowance is identified for that
+ * specific purpose.
+ *
+ * All fields in this message are REQUIRED.
+ * The `serial_numbers` list MUST NOT be empty.
+ * The combination of field values in this message MUST match existing
+ * allowances for one or more individual non-fungible/unique tokens.
+ *
+ * ### Removing an allowance that is `approve_for_all`
+ * To remove an allowance that has set the `approve_for_all` flag, the
+ * `owner` account must first _approve_ a **new** allowance for a specific
+ * serial number using a `cryptoApproveAllowance`, and then, if desired,
+ * that newly approved allowance to a specific serial number may be
+ * deleted in a separate `cryptoDeleteAllowance` transaction.
+ */
+message NftRemoveAllowance {
+    /**
+     * A token identifier.
+     * <p>
+     * This MUST be a valid token identifier for a non-fungible/unique
+     * token type.
+     */
+    TokenID token_id = 1;
+
+    /**
+     * An `owner` account identifier.
+     * <p>
+     * This account MUST sign the transaction containing this message.
+     */
+    AccountID owner = 2;
+
+    /**
+     * The list of serial numbers to remove allowances from.
+     * <p>
+     * This list MUST NOT be empty.
+     */
+    repeated int64 serial_numbers = 3;
+}

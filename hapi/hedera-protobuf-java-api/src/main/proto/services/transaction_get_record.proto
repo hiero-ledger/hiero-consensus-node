@@ -1,0 +1,178 @@
+/**
+ * # Get Transaction Record
+ * Messages for a query to obtain a transaction record. This particular
+ * query is used by `getTxRecordByTxID` in the "Crypto" service API.
+ *
+ * > Note
+ * >> Much more detailed information for transaction records is available
+ * >> from a mirror node, and the mirror node retains transaction records
+ * >> long term, rather than for a short "cache" duration. Clients may
+ * >> prefer the mirror node graph API to query transaction records, rather
+ * >> than this query.
+ *
+ * > Implementation Note
+ * >> This query is _defined_ for "Crypto" service, but is _implemented_ by
+ * >> the "Network Admin" service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/transaction_record.proto";
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+
+/**
+ * Request for a `TransactionGetRecord` (a.k.a. `getTxRecordByTxID`) query.
+ * <p>
+ * A transaction record SHALL be available after the network reaches
+ * consensus and completes execution for a transaction.<br/>
+ * A transaction record SHALL NOT be available after the end of the network
+ * configured "record cache duration".
+ *
+ * <dl>
+ *   <dt>What is the "first" transaction?</dt>
+ *   <dd>The "first" transaction SHALL be the the transaction with
+ *       the earliest consensus time and a status that is neither
+ *       `INVALID_NODE_ACCOUNT` nor `INVALID_PAYER_SIGNATURE`.<br/>
+ *       If no transaction is found meeting this status criteria, the
+ *       "first" transaction SHALL be the transaction with the earliest
+ *       consensus time.</dd>
+ *  <dt>What is a "child" transaction?</dt>
+ *  <dd>A "child" transaction is any transaction created in the process of
+ *      completing another transaction. These are most common with a smart
+ *      contract call, where a call to a contract may initiate one or more
+ *      additional transactions to complete a complex process.</dd>
+ * </dl>
+ */
+message TransactionGetRecordQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * A transaction identifier.
+     * <p>
+     * This MUST contain the full identifier, as submitted, for the
+     * transaction to query.
+     */
+    TransactionID transactionID = 2;
+
+    /**
+     * A flag to request duplicates.
+     * <p>
+     * If set, every transaction record within the record cache duration that
+     * matches the requested transaction identifier SHALL be returned.<br/>
+     * If not set, duplicate transactions SHALL NOT be returned.<br/>
+     * If not set, only the record for the first matching transaction to
+     * reach consensus SHALL be returned.
+     */
+    bool includeDuplicates = 3;
+
+    /**
+     * A flag to request "child" records.
+     * <p>
+     * If set, the response SHALL include records for each child transaction
+     * executed as part of the requested parent transaction.<br/>
+     * If not set, the response SHALL NOT include any records for child
+     * transactions.
+     */
+    bool include_child_records = 4;
+}
+
+/**
+ * Response message for a `getTxRecordByTxID` query.
+ *
+ * The `transactionRecord` field SHALL return the record for the "first"
+ * transaction that matches the transaction identifier requested.<br/>
+ * If records for duplicate transactions are requested, those duplicate
+ * records SHALL be present in the `duplicateTransactionReceipts` list.<br/>
+ * If records for child transactions are requested, those child records SHALL
+ * be present in the `child_transaction_records` list.<br/>
+ * A state proof MAY be provided for this response; provided the record is
+ * still available from the consensus nodes.
+ *
+ * <dl>
+ *   <dt>What is the "first" transaction?</dt>
+ *   <dd>The "first" transaction receipt SHALL be the receipt for the
+ *       first transaction with status that is neither
+ *       `INVALID_NODE_ACCOUNT` nor `INVALID_PAYER_SIGNATURE`.<br/>
+ *       If no transaction is found meeting the status criteria, the
+ *       "first" transaction SHALL be the first transaction by
+ *       consensus time.</dd>
+ *  <dt>What is a "child" transaction?</dt>
+ *  <dd>A "child" transaction is any transaction created in the process of
+ *      completing another transaction. These are most common with a smart
+ *      contract call, where a call to a contract may initiate one or more
+ *      additional transactions to complete a complex process.</dd>
+ * </dl>
+ *
+ */
+message TransactionGetRecordResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * A transaction record.
+     * <p>
+     * This SHALL be the record for the "first" transaction that matches
+     * the transaction identifier requested.<br/>
+     * If the identified transaction has not reached consensus, this
+     * record SHALL have a `status` of `UNKNOWN`.<br/>
+     * If the identified transaction reached consensus prior to the
+     * current configured record cache duration, this record SHALL
+     * have a `status` of `UNKNOWN`.
+     */
+    TransactionRecord transactionRecord = 3;
+
+    /**
+     * A list of duplicate transaction records.
+     * <p>
+     * If the request set the `includeDuplicates` flat, this list SHALL
+     * include the records for each duplicate transaction associated to the
+     * requested transaction identifier.
+     * If the request did not set the `includeDuplicates` flag, this list
+     * SHALL be empty.<br/>
+     * If the `transactionRecord` status is `UNKNOWN`, this list
+     * SHALL be empty.<br/>
+     * This list SHALL be in order by consensus timestamp.
+     */
+    repeated TransactionRecord duplicateTransactionRecords = 4;
+
+    /**
+     * A list of records for all child transactions spawned by the requested
+     * transaction.
+     * <p>
+     * If the request set the `include_child_records` flag, this list SHALL
+     * include records for each child transaction executed as part of the
+     * requested parent transaction.<br/>
+     * If the request did not set the `include_child_records` flag, this
+     * list SHALL be empty. <br/>
+     * If the parent transaction did not initiate any child transactions
+     * this list SHALL be empty.<br/>
+     * If the `transactionRecord` status is `UNKNOWN`, this list
+     * SHALL be empty.<br/>
+     * This list SHALL be in order by consensus timestamp.
+     */
+    repeated TransactionRecord child_transaction_records = 5;
+}
