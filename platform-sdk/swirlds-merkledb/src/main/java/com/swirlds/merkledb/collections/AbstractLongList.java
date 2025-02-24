@@ -306,7 +306,8 @@ public abstract class AbstractLongList<C> implements LongList {
     }
 
     /**
-     * Reads a specified range of elements from a file channel into the given buffer.
+     * Reads a specified range of elements from a file channel into the given buffer, starting from
+     * the given start index (inc) and up to the given end index (exc).
      * <p>
      * This method computes the appropriate byte offsets within the buffer and the number of bytes
      * to read based on the provided {@code startIndex} and {@code endIndex}. It then performs a

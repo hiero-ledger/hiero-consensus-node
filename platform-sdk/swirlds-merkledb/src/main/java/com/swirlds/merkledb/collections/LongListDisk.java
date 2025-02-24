@@ -300,7 +300,7 @@ public class LongListDisk extends AbstractLongList<Long> {
                 }
                 if (i == (totalNumOfChunks - 1)) {
                     // the last array, so set limit to only the data needed
-                    final long bytesWrittenSoFar = (long) memoryChunkSize * (long) i;
+                    final long bytesWrittenSoFar = (long) memoryChunkSize * i;
                     final long remainingBytes = (size() * Long.BYTES) - bytesWrittenSoFar;
                     transferBuffer.limit(toIntExact(remainingBytes));
                 } else {
