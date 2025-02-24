@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.sync;
+package com.swirlds.platform.sync;
 
 import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
 import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
