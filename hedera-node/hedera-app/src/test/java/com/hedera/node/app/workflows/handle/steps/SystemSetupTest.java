@@ -392,7 +392,7 @@ class SystemSetupTest {
       "throttleGroups": [
         {
           "opsPerSec": 1,
-          "operations": [ "TokenMint" ]
+          "operations": [ "TOKEN_MINT" ]
         }
       ]
     }
@@ -462,7 +462,7 @@ class SystemSetupTest {
       "throttleGroups": [
         {
           "opsPerSec": 1,
-          "operations": [ "TokenMint" ]
+          "operations": [ "TOKEN_MINT" ]
         }
       ]
     }

@@ -15,7 +15,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRATION_TIM
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRY_IS_BUSY;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.childAsOrdinary;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.createProvisionalSchedule;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
@@ -27,12 +26,14 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
@@ -51,7 +52,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -245,25 +245,25 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
                 .feeCalculatorFactory()
                 .feeCalculator(subType)
                 .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(body),
+                        body,
                         sigValueObj,
                         schedulingConfig.longTermEnabled(),
                         ledgerConfig.scheduleTxExpiryTimeSecs()));
     }
 
     private @NonNull FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
+            @NonNull final TransactionBody txn,
             @NonNull final SigValueObj svo,
             final boolean longTermEnabled,
             final long scheduledTxExpiryTimeSecs) {
-        final var op = txn.getScheduleCreate();
+        final var op = txn.scheduleCreate();
         final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
         final long lifetimeSecs;
         if (op.hasExpirationTime() && longTermEnabled) {
             lifetimeSecs = Math.max(
                     0L,
-                    op.getExpirationTime().getSeconds()
-                            - txn.getTransactionID().getTransactionValidStart().getSeconds());
+                    op.expirationTime().seconds()
+                            - txn.transactionID().transactionValidStart().seconds());
         } else {
             lifetimeSecs = scheduledTxExpiryTimeSecs;
         }

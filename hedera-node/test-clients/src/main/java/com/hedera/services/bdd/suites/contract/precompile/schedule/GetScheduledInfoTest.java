@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSui
 import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSuite.getTokenInfoStructForNonFungibleToken;
 import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSuite.getTokenKeyFromSpec;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -139,7 +140,9 @@ public class GetScheduledInfoTest {
                             .exposingCreatedIdTo(scheduleId::set));
             allRunFor(
                     spec,
-                    contract.call("getFungibleCreateTokenInfo", ConversionUtils.headlongAddressOf(scheduleId.get()))
+                    contract.call(
+                                    "getFungibleCreateTokenInfo",
+                                    ConversionUtils.headlongAddressOf(toPbj(scheduleId.get())))
                             .via("getFungibleCreateTokenInfo"),
                     childRecordsCheck(
                             "getFungibleCreateTokenInfo",
@@ -210,7 +213,9 @@ public class GetScheduledInfoTest {
                             .exposingCreatedIdTo(scheduleId::set));
             allRunFor(
                     spec,
-                    contract.call("getNonFungibleCreateTokenInfo", ConversionUtils.headlongAddressOf(scheduleId.get()))
+                    contract.call(
+                                    "getNonFungibleCreateTokenInfo",
+                                    ConversionUtils.headlongAddressOf(toPbj(scheduleId.get())))
                             .via("getNonFungibleCreateTokenInfo"),
                     childRecordsCheck(
                             "getNonFungibleCreateTokenInfo",

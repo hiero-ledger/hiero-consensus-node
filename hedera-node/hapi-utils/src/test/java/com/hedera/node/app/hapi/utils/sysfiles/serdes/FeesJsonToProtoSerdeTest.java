@@ -10,8 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.common.io.Files;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
-import com.hederahashgraph.api.proto.java.SubType;
+import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -50,11 +51,11 @@ class FeesJsonToProtoSerdeTest {
         final var typedSchedules = loadFeeScheduleFromStream(in);
         // and:
         final var tmpFile = newTempFile();
-        Files.write(typedSchedules.toByteArray(), tmpFile);
+        Files.write(CurrentAndNextFeeSchedule.PROTOBUF.toBytes(typedSchedules).toByteArray(), tmpFile);
 
         // and sanity check:
-        Assertions.assertDoesNotThrow(() ->
-                CurrentAndNextFeeSchedule.parseFrom(java.nio.file.Files.readAllBytes(Paths.get(tmpFile.getPath()))));
+        Assertions.assertDoesNotThrow(() -> CurrentAndNextFeeSchedule.PROTOBUF.parse(
+                Bytes.wrap(java.nio.file.Files.readAllBytes(Paths.get(tmpFile.getPath())))));
     }
 
     @Test
@@ -63,11 +64,11 @@ class FeesJsonToProtoSerdeTest {
         final var typedSchedules = loadFeeScheduleFromJson(TYPED_FEE_SCHEDULE_JSON_RESOURCE);
         // and:
         final var tmpFile = newTempFile();
-        Files.write(typedSchedules.toByteArray(), tmpFile);
+        Files.write(CurrentAndNextFeeSchedule.PROTOBUF.toBytes(typedSchedules).toByteArray(), tmpFile);
 
         // and sanity check:
-        Assertions.assertDoesNotThrow(() ->
-                CurrentAndNextFeeSchedule.parseFrom(java.nio.file.Files.readAllBytes(Paths.get(tmpFile.getPath()))));
+        Assertions.assertDoesNotThrow(() -> CurrentAndNextFeeSchedule.PROTOBUF.parse(
+                Bytes.wrap(java.nio.file.Files.readAllBytes(Paths.get(tmpFile.getPath())))));
     }
 
     @Test
@@ -79,18 +80,18 @@ class FeesJsonToProtoSerdeTest {
         final var typedSchedules = parseFeeScheduleFromJson(jsonLiteral);
         final var tmpFile = newTempFile();
         // and:
-        Files.write(typedSchedules.toByteArray(), tmpFile);
+        Files.write(CurrentAndNextFeeSchedule.PROTOBUF.toBytes(typedSchedules).toByteArray(), tmpFile);
 
         // and sanity check:
-        Assertions.assertDoesNotThrow(() ->
-                CurrentAndNextFeeSchedule.parseFrom(java.nio.file.Files.readAllBytes(Paths.get(tmpFile.getPath()))));
+        Assertions.assertDoesNotThrow(() -> CurrentAndNextFeeSchedule.PROTOBUF.parse(
+                Bytes.wrap(java.nio.file.Files.readAllBytes(Paths.get(tmpFile.getPath())))));
     }
 
     @Test
     void preservesR4Behavior() throws Exception {
         // given:
-        CurrentAndNextFeeSchedule expectedR4 =
-                CurrentAndNextFeeSchedule.parseFrom(Files.toByteArray(new File(UNTYPED_FEE_SCHEDULE_REPR_PATH)));
+        CurrentAndNextFeeSchedule expectedR4 = CurrentAndNextFeeSchedule.PROTOBUF.parse(
+                Bytes.wrap(Files.toByteArray(new File(UNTYPED_FEE_SCHEDULE_REPR_PATH))));
 
         // when:
         CurrentAndNextFeeSchedule actual = loadFeeScheduleFromJson("sysfiles/R4FeeSchedule.json");

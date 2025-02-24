@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CIVILIAN_OWNED_NFT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
@@ -10,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
@@ -77,7 +77,7 @@ public class GetApprovedCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(GetApprovedTranslator.HAPI_GET_APPROVED
                         .getOutputs()
-                        .encode(Tuple.of(SUCCESS.getNumber(), headlongAddressOf(OPERATOR)))
+                        .encode(Tuple.of(SUCCESS.protoOrdinal(), headlongAddressOf(OPERATOR)))
                         .array()),
                 result.getOutput());
     }

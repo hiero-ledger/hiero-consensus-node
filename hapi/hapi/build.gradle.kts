@@ -8,22 +8,10 @@ plugins {
 
 description = "Hedera API"
 
-// Remove the following line to enable all 'javac' lint checks that we have turned on by default
-// and then fix the reported issues.
-tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.add("-Xlint:-exports,-deprecation,-removal")
-}
-
 sourceSets {
     val protoApiSrc = "../hedera-protobuf-java-api/src/main/proto"
     main {
         pbj {
-            srcDir(layout.projectDirectory.dir(protoApiSrc))
-            exclude("mirror", "sdk")
-        }
-        // The below should be replaced with a 'requires com.hedera.protobuf.java.api'
-        // in testFixtures scope - #14026
-        proto {
             srcDir(layout.projectDirectory.dir(protoApiSrc))
             exclude("mirror", "sdk")
         }
@@ -32,8 +20,11 @@ sourceSets {
 
 testModuleInfo {
     requires("com.hedera.node.hapi")
+    requires("com.hedera.node.hapi.test.fixtures")
     // we depend on the protoc compiled hapi during test as we test our pbj generated code
     // against it to make sure it is compatible
+    requires("com.hedera.protobuf.java.api")
+    requires("com.google.protobuf")
     requires("com.google.protobuf.util")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

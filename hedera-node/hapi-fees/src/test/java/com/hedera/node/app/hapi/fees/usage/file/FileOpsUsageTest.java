@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.file;
 
+import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.node.app.hapi.fees.test.UsageUtils.A_USAGES_MATRIX;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASE_FILEINFO_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
-import static com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,8 +16,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.StringValue;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.QueryHeader;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.file.FileCreateTransactionBody;
+import com.hedera.hapi.node.file.FileGetInfoQuery;
+import com.hedera.hapi.node.file.FileUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
@@ -26,17 +35,7 @@ import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.FileCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.FileGetInfoQuery;
-import com.hederahashgraph.api.proto.java.FileUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.KeyList;
-import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.QueryHeader;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.function.Function;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -114,7 +113,7 @@ class FileOpsUsageTest {
         final var ctx = ExtantFileContext.newBuilder()
                 .setCurrentExpiry(expiry)
                 .setCurrentMemo(memo)
-                .setCurrentWacl(wacl.getKeyList())
+                .setCurrentWacl(wacl.keyList())
                 .setCurrentSize(contents.length)
                 .build();
         // and:
@@ -153,7 +152,7 @@ class FileOpsUsageTest {
         // setup:
         final long oldExpiry = expiry - 1_234L;
         final byte[] oldContents = "Archiac".getBytes();
-        final KeyList oldWacl = KeyUtils.A_KEY_LIST.getKeyList();
+        final KeyList oldWacl = KeyUtils.A_KEY_LIST.keyList();
         final String oldMemo = "Lettuce";
         // and:
         final long bytesUsed = reprSize() - FileOpsUsage.bytesInBaseRepr();
@@ -162,7 +161,7 @@ class FileOpsUsageTest {
                 * (oldContents.length
                         + oldMemo.length()
                         + getAccountKeyStorageSize(
-                                Key.newBuilder().setKeyList(oldWacl).build()));
+                                Key.newBuilder().keyList(oldWacl).build()));
         // and:
         final long newSbs = (expiry - now) * bytesUsed;
 
@@ -190,7 +189,7 @@ class FileOpsUsageTest {
         // setup:
         final long oldExpiry = expiry - 1_234L;
         final byte[] oldContents = "Archiac".getBytes();
-        final KeyList oldWacl = KeyUtils.A_KEY_LIST.getKeyList();
+        final KeyList oldWacl = KeyUtils.A_KEY_LIST.keyList();
         final String oldMemo = "Lettuce";
 
         givenEmptyUpdateOp();
@@ -230,51 +229,51 @@ class FileOpsUsageTest {
 
     private void givenEmptyUpdateOp() {
         updateOp = FileUpdateTransactionBody.newBuilder()
-                .setExpirationTime(Timestamp.newBuilder().setSeconds(expiry))
+                .expirationTime(Timestamp.newBuilder().seconds(expiry))
                 .build();
         setUpdateTxn();
     }
 
     private void givenUpdateOp() {
         updateOp = FileUpdateTransactionBody.newBuilder()
-                .setContents(ByteString.copyFrom(contents))
-                .setMemo(StringValue.newBuilder().setValue(memo))
-                .setExpirationTime(Timestamp.newBuilder().setSeconds(expiry))
-                .setKeys(wacl.getKeyList())
+                .contents(Bytes.wrap(contents))
+                .memo(memo)
+                .expirationTime(Timestamp.newBuilder().seconds(expiry))
+                .keys(wacl.keyList())
                 .build();
         setUpdateTxn();
     }
 
     private void givenInfoOp() {
         query = Query.newBuilder()
-                .setFileGetInfo(FileGetInfoQuery.newBuilder()
-                        .setHeader(QueryHeader.newBuilder().setResponseType(ANSWER_STATE_PROOF)))
+                .fileGetInfo(FileGetInfoQuery.newBuilder()
+                        .header(QueryHeader.newBuilder().responseType(ANSWER_STATE_PROOF)))
                 .build();
     }
 
     private void givenCreationOp() {
         creationOp = FileCreateTransactionBody.newBuilder()
-                .setContents(ByteString.copyFrom(contents))
-                .setMemo(memo)
-                .setKeys(wacl.getKeyList())
-                .setExpirationTime(Timestamp.newBuilder().setSeconds(expiry))
+                .contents(Bytes.wrap(contents))
+                .memo(memo)
+                .keys(wacl.keyList())
+                .expirationTime(Timestamp.newBuilder().seconds(expiry))
                 .build();
         setCreateTxn();
     }
 
     private void setCreateTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setFileCreate(creationOp)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .fileCreate(creationOp)
                 .build();
     }
 
     private void setUpdateTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setFileUpdate(updateOp)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .fileUpdate(updateOp)
                 .build();
     }
 }

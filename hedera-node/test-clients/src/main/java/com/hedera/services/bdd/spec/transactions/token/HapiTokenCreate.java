@@ -8,6 +8,8 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddres
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.defaultExpiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
@@ -272,7 +274,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     @Override
     protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) throws Throwable {
-        final var txnSubType = getTxnSubType(CommonUtils.extractTransactionBody(txn));
+        final var txnSubType = getTxnSubType(fromPbj(CommonUtils.extractTransactionBody(toPbj(txn))));
         return spec.fees()
                 .forActivityBasedOp(
                         HederaFunctionality.TokenCreate, txnSubType, this::usageEstimate, txn, numPayerKeys);
@@ -292,7 +294,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
         final var accumulator = new UsageAccumulator();
-        final var tokenCreateMeta = TOKEN_OPS_USAGE_UTILS.tokenCreateUsageFrom(txn);
+        final var tokenCreateMeta = TOKEN_OPS_USAGE_UTILS.tokenCreateUsageFrom(toPbj(txn));
         final var baseTransactionMeta =
                 new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
         final TokenOpsUsage tokenOpsUsage = new TokenOpsUsage();
@@ -459,7 +461,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
             throw new IllegalStateException("Token has not been created");
         }
         final var registry = spec.registry();
-        final var submittedBody = extractTransactionBodyUnchecked(txnSubmitted);
+        final var submittedBody = fromPbj(extractTransactionBodyUnchecked(toPbj(txnSubmitted)));
         final var op = submittedBody.getTokenCreation();
         if (op.hasKycKey()) {
             registry.saveKycKey(token, op.getKycKey());
@@ -503,7 +505,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     public List<KeyMetadata> allCreatedKeyMetadata(@NonNull final HapiSpec spec) {
         final List<KeyMetadata> metadata = new ArrayList<>();
-        final var submittedBody = extractTransactionBodyUnchecked(txnSubmitted);
+        final var submittedBody = fromPbj(extractTransactionBodyUnchecked(toPbj(txnSubmitted)));
         final var op = submittedBody.getTokenCreation();
         if (op.hasKycKey()) {
             metadata.add(KeyMetadata.from(op.getKycKey(), spec, HapiSpecRegistry::saveKycKey));

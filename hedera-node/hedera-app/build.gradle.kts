@@ -22,7 +22,6 @@ mainModuleInfo {
 
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
-    requires("com.google.protobuf")
     requires("com.google.common.jimfs")
     requires("com.hedera.cryptography.bls")
     requires("com.hedera.cryptography.pairings.api")

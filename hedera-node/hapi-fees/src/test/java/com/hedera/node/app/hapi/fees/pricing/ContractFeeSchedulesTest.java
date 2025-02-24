@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.pricing;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractAutoRenew;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_AUTO_RENEW;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
 
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
@@ -10,6 +10,6 @@ import org.junit.jupiter.api.Test;
 class ContractFeeSchedulesTest extends FeeSchedulesTestHelper {
     @Test
     void computesExpectedPriceForContractAutoRenew() throws IOException {
-        testCanonicalPriceFor(ContractAutoRenew, DEFAULT, 0.00001);
+        testCanonicalPriceFor(CONTRACT_AUTO_RENEW, DEFAULT, 0.00001);
     }
 }

@@ -7,6 +7,8 @@ import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySize
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
@@ -20,8 +22,6 @@ import com.hedera.node.app.hapi.fees.usage.token.meta.TokenPauseMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenUnfreezeMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenUnpauseMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenWipeMeta;
-import com.hederahashgraph.api.proto.java.CustomFee;
-import com.hederahashgraph.api.proto.java.SubType;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -66,7 +66,7 @@ public final class TokenOpsUsage {
         int numRoyaltyHbarFallbackFees = 0;
         for (final var fee : feeSchedule) {
             if (fee.hasFixedFee()) {
-                if (fee.getFixedFee().hasDenominatingTokenId()) {
+                if (fee.fixedFee().hasDenominatingTokenId()) {
                     numFixedHtsFees++;
                 } else {
                     numFixedHbarFees++;
@@ -74,9 +74,9 @@ public final class TokenOpsUsage {
             } else if (fee.hasFractionalFee()) {
                 numFractionalFees++;
             } else {
-                final var royaltyFee = fee.getRoyaltyFee();
+                final var royaltyFee = fee.royaltyFee();
                 if (royaltyFee.hasFallbackFee()) {
-                    if (royaltyFee.getFallbackFee().hasDenominatingTokenId()) {
+                    if (royaltyFee.fallbackFee().hasDenominatingTokenId()) {
                         numRoyaltyHtsFallbackFees++;
                     } else {
                         numRoyaltyHbarFallbackFees++;

@@ -1,27 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.forensics;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_NONCE;
+import static com.hedera.hapi.streams.ContractAction.ResultDataOneOfType.REVERT_REASON;
+import static com.hedera.hapi.streams.ContractAction.ResultDataOneOfType.UNSET;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.findDifferencesBetweenV6;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusHistograms;
 import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.parseV6RecordStreamEntriesIn;
 import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.parseV6SidecarRecordsByConsTimeIn;
 import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.visitWithSidecars;
-import static com.hedera.services.stream.proto.ContractAction.ResultDataCase.RESULTDATA_NOT_SET;
-import static com.hedera.services.stream.proto.ContractAction.ResultDataCase.REVERT_REASON;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileAppend;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WRONG_NONCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.google.protobuf.ByteString;
-import com.hedera.services.stream.proto.ContractAction;
-import com.hedera.services.stream.proto.TransactionSidecarRecord;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.Transaction;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionRecord;
+import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.hapi.streams.TransactionSidecarRecord;
+import com.hedera.pbj.runtime.OneOf;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -37,7 +38,7 @@ class OrderedComparisonTest {
             Paths.get("src", "test", "resources", "forensics", "CaseOfTheObviouslyWrongNonce");
     private static final Path ABSENT_RESULT_STREAMS_DIR =
             Paths.get("src", "test", "resources", "forensics", "CaseOfTheAbsentResult");
-    private static final TransactionRecord MOCK_RECORD = TransactionRecord.getDefaultInstance();
+    private static final TransactionRecord MOCK_RECORD = TransactionRecord.DEFAULT;
     private static final Instant THEN = Instant.ofEpochSecond(1_234_567, 890);
     private static final Instant NOW = Instant.ofEpochSecond(9_999_999, 001);
 
@@ -62,8 +63,7 @@ class OrderedComparisonTest {
 
     @Test
     void onlyEqualLengthsCanBeDiffed() {
-        final var parts = new TransactionParts(
-                Transaction.getDefaultInstance(), TransactionBody.getDefaultInstance(), FileAppend);
+        final var parts = new TransactionParts(Transaction.DEFAULT, TransactionBody.DEFAULT, FILE_APPEND);
         final var aEntry = new RecordStreamEntry(parts, MOCK_RECORD, NOW);
         final var firstList = Collections.<RecordStreamEntry>emptyList();
         final var secondList = List.of(aEntry);
@@ -76,8 +76,7 @@ class OrderedComparisonTest {
 
     @Test
     void allTimestampsMustMatch() {
-        final var parts = new TransactionParts(
-                Transaction.getDefaultInstance(), TransactionBody.getDefaultInstance(), FileAppend);
+        final var parts = new TransactionParts(Transaction.DEFAULT, TransactionBody.DEFAULT, FILE_APPEND);
         final var aEntry = new RecordStreamEntry(parts, MOCK_RECORD, THEN);
         final var bEntry = new RecordStreamEntry(parts, MOCK_RECORD, NOW);
         final var firstList = List.of(aEntry);
@@ -91,12 +90,12 @@ class OrderedComparisonTest {
 
     @Test
     void allTransactionsMustMatch() {
-        final var aMockTxn = Transaction.getDefaultInstance();
+        final var aMockTxn = Transaction.DEFAULT;
         final var bMockTxn = Transaction.newBuilder()
-                .setSignedTransactionBytes(ByteString.copyFromUtf8("ABCDEFG"))
+                .signedTransactionBytes(Bytes.wrap("ABCDEFG"))
                 .build();
-        final var aParts = new TransactionParts(aMockTxn, TransactionBody.getDefaultInstance(), FileAppend);
-        final var bParts = new TransactionParts(bMockTxn, TransactionBody.getDefaultInstance(), FileAppend);
+        final var aParts = new TransactionParts(aMockTxn, TransactionBody.DEFAULT, FILE_APPEND);
+        final var bParts = new TransactionParts(bMockTxn, TransactionBody.DEFAULT, FILE_APPEND);
         final var aEntry = new RecordStreamEntry(aParts, MOCK_RECORD, THEN);
         final var bEntry = new RecordStreamEntry(bParts, MOCK_RECORD, THEN);
         final var firstList = List.of(aEntry);
@@ -115,12 +114,12 @@ class OrderedComparisonTest {
 
         final var histograms = statusHistograms(entries);
         final var expectedEthTxHist = Map.of(INVALID_ACCOUNT_ID, 1);
-        assertEquals(expectedEthTxHist, histograms.get(HederaFunctionality.EthereumTransaction));
+        assertEquals(expectedEthTxHist, histograms.get(ETHEREUM_TRANSACTION));
 
-        final var fileAppends = OrderedComparison.filterByFunction(entries, FileAppend);
+        final var fileAppends = OrderedComparison.filterByFunction(entries, FILE_APPEND);
         assertEquals(3, fileAppends.size());
-        final var appendTarget = fileAppends.get(0).body().getFileAppend().getFileID();
-        assertEquals(48287857L, appendTarget.getFileNum());
+        final var appendTarget = fileAppends.get(0).body().fileAppend().fileID();
+        assertEquals(48287857L, appendTarget.fileNum());
     }
 
     @Test
@@ -133,12 +132,13 @@ class OrderedComparisonTest {
 
         visitWithSidecars(entries, sidecarRecords, (entry, records) -> {
             final var parts = entry.parts();
-            if (parts.function() == HederaFunctionality.EthereumTransaction) {
-                final var expected = List.of(RESULTDATA_NOT_SET, REVERT_REASON);
+            if (parts.function() == ETHEREUM_TRANSACTION) {
+                final var expected = List.of(UNSET, REVERT_REASON);
                 final var actual = records.stream()
                         .filter(TransactionSidecarRecord::hasActions)
-                        .flatMap(r -> r.getActions().getContractActionsList().stream())
-                        .map(ContractAction::getResultDataCase)
+                        .flatMap(r -> r.actions().contractActions().stream())
+                        .map(ContractAction::resultData)
+                        .map(OneOf::kind)
                         .toList();
                 assertEquals(expected, actual);
             }

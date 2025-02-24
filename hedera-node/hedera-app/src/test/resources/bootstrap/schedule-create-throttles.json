@@ -6,8 +6,8 @@
       "throttleGroups": [
         {
           "operations": [
-            "CryptoTransfer",
-            "ConsensusSubmitMessage"
+            "CRYPTO_TRANSFER",
+            "CONSENSUS_SUBMIT_MESSAGE"
           ],
           "opsPerSec": 10000
         }
@@ -19,15 +19,15 @@
       "throttleGroups": [
         {
           "operations": [
-            "CryptoCreate"
+            "CRYPTO_CREATE"
           ],
           "opsPerSec": 2
         },
         {
           "operations": [
-            "ScheduleCreate",
-            "ScheduleSign",
-            "TokenAssociateToAccount"
+            "SCHEDULE_CREATE",
+            "SCHEDULE_SIGN",
+            "TOKEN_ASSOCIATE_TO_ACCOUNT"
           ],
           "opsPerSec": 100
         }

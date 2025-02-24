@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.dsl.entities;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.state.token.Nft;

@@ -2,7 +2,7 @@
 package com.hedera.node.app.hapi.fees.usage.token.meta;
 
 import com.google.common.base.MoreObjects;
-import com.hederahashgraph.api.proto.java.SubType;
+import com.hedera.hapi.node.base.SubType;
 
 public abstract class TokenOpMetaBase {
     private final int bpt;
