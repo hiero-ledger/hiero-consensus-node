@@ -1,22 +1,6 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui;
 
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
 
 import com.swirlds.common.context.PlatformContext;
@@ -26,6 +10,7 @@ import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
@@ -52,7 +37,7 @@ public class GuiEventStorage {
     private ConsensusRound lastConsensusRound;
 
     /**
-     * Constructor
+     * Creates an empty instance
      *
      * @param configuration this node's configuration
      * @param addressBook   the network's address book
@@ -64,8 +49,27 @@ public class GuiEventStorage {
 
         this.consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
-        // Future work: birth round compatibility for GUI
-        this.linker = new SimpleLinker(GENERATION_THRESHOLD);
+        this.linker =
+                new SimpleLinker(configuration.getConfigData(EventConfig.class).getAncientMode());
+    }
+
+    /**
+     * Creates an instance with the given consensus, linker, and configuration.
+     * @param consensus the consensus object
+     * @param linker the linker object
+     * @param configuration the configuration object
+     */
+    public GuiEventStorage(
+            @NonNull final Consensus consensus,
+            @NonNull final SimpleLinker linker,
+            @NonNull final Configuration configuration) {
+        this.consensus = consensus;
+        this.linker = linker;
+        this.configuration = configuration;
+        maxGeneration = linker.getNonAncientEvents().stream()
+                .mapToLong(EventImpl::getGeneration)
+                .max()
+                .orElse(FIRST_GENERATION);
     }
 
     /**
@@ -109,7 +113,7 @@ public class GuiEventStorage {
     public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
-        linker.setNonAncientThreshold(snapshot.getMinimumGenerationNonAncient(
+        linker.setNonAncientThreshold(snapshot.getAncientThreshold(
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient()));
         lastConsensusRound = null;
     }

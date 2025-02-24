@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
@@ -512,7 +497,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(idFactory.hexLongZero(3))
                 .stakingInfo(getExpectedStakingInfo());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationship());
@@ -535,7 +520,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(idFactory.hexLongZero(3))
                 .stakingInfo(getExpectedStakingInfo2());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationship());
@@ -580,7 +565,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(idFactory.hexLongZero(3L)) // "00000005000000000000000a0000000000000003")
                 .stakingInfo(getExpectedStakingInfo());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationships());
@@ -656,7 +641,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
 
     private Query createCryptoGetInfoQuery(final long accountId) {
         final var data = CryptoGetInfoQuery.newBuilder()
-                .accountID(AccountID.newBuilder().accountNum(accountId).build())
+                .accountID(idFactory.newAccountId(accountId))
                 .header(QueryHeader.newBuilder().build())
                 .build();
 

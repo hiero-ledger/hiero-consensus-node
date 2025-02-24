@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus;
 
 import static com.swirlds.platform.test.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
@@ -437,17 +422,6 @@ public class GraphGeneratorTests {
     }
 
     /**
-     * Make sure the copy constructor that changes the seed works.
-     */
-    public void validateCopyWithNewSeed(final GraphGenerator generator) {
-        System.out.println("Validate Copy With New Seed");
-        final GraphGenerator generator1 = generator.cleanCopy();
-        final GraphGenerator generator2 = generator.cleanCopy(1234);
-
-        assertNotEquals(generator1.generateEvents(1000), generator2.generateEvents(1000));
-    }
-
-    /**
      * Run a generator through a gauntlet of sanity checks.
      */
     public void generatorSanityChecks(final GraphGenerator generator) {
@@ -458,7 +432,6 @@ public class GraphGeneratorTests {
         validateParentDistribution(generator);
         validateOtherParentDistribution(generator);
         validateEventOrder(generator);
-        validateCopyWithNewSeed(generator);
         validateMaxGeneration(generator);
         validateBirthRoundAdvancing(generator);
     }
@@ -766,5 +739,35 @@ public class GraphGeneratorTests {
         final double deviation = Math.abs(repeatRatio - expectedRepeatRatio);
 
         assertTrue(deviation < 0.01, "OOB");
+    }
+
+    /**
+     * Tests if the node removal functionality works as expected.
+     */
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @Tag(TestComponentTags.PLATFORM)
+    @Tag(TestComponentTags.CONSENSUS)
+    @DisplayName("Node Remove Test")
+    void nodeRemoveTest(final boolean birthRoundAsAncientThreshold) {
+        final int numberOfEvents = 10_000;
+        final PlatformContext platformContext =
+                birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
+        final StandardGraphGenerator generator = new StandardGraphGenerator(
+                platformContext,
+                0,
+                new StandardEventSource(),
+                new StandardEventSource(),
+                new StandardEventSource(),
+                new StandardEventSource());
+        generator.generateEvents(numberOfEvents / 2);
+
+        final NodeId removalNode = generator.getAddressBook().getNodeId(0);
+        generator.removeNode(removalNode);
+
+        final List<EventImpl> postRemovalEvents = generator.generateEvents(numberOfEvents / 2);
+        for (final EventImpl removalEvent : postRemovalEvents) {
+            assertNotEquals(removalNode, removalEvent.getCreatorId());
+        }
     }
 }

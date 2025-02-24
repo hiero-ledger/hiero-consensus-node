@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -133,8 +118,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     private PureChecksContext pureChecksContext;
 
     private final long updateAccountNum = 32132L;
-    private final AccountID updateAccountId =
-            AccountID.newBuilder().accountNum(updateAccountNum).build();
+    private final AccountID updateAccountId = idFactory.newAccountId(updateAccountNum);
 
     private Account updateAccount;
     private Configuration configuration;
@@ -858,9 +842,11 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 builder.declineReward(declineReward.booleanValue());
             }
             if (stakedAccountId != null) {
-                builder.stakedAccountId(AccountID.newBuilder()
-                        .accountNum(stakedAccountId.longValue())
-                        .build());
+                if (stakedAccountId.equals(0L)) {
+                    builder.stakedAccountId(AccountID.newBuilder().accountNum(0).build());
+                } else {
+                    builder.stakedAccountId(idFactory.newAccountId(stakedAccountId.longValue()));
+                }
             } else if (stakeNodeId != null) {
                 builder.stakedNodeId(stakeNodeId.longValue());
             }
@@ -961,7 +947,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     private void updateReadableAccountStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyReadableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(accountID(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         readableAccounts = emptyStateBuilder.build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
@@ -972,7 +958,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     private void updateWritableAccountStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyWritableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(accountID(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         writableAccounts = emptyStateBuilder.build();
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);

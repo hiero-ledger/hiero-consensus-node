@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
@@ -46,6 +31,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildUpgradeZipFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.mutateNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
@@ -138,7 +124,9 @@ public class ConcurrentIntegrationTests {
                         .setNode(asEntityString(4))
                         .withSubmissionStrategy(usingVersion(PAST))
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY),
-                getAccountBalance("somebody").hasTinyBars(0L));
+                getAccountBalance("somebody").hasTinyBars(0L),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
@@ -168,7 +156,9 @@ public class ConcurrentIntegrationTests {
                 // Confirm the payer was still charged a non-zero fee
                 getAccountBalance("treasury")
                         .hasTinyBars(spec -> amount ->
-                                Optional.ofNullable(amount == ONE_HUNDRED_HBARS ? "Fee was not recharged" : null)));
+                                Optional.ofNullable(amount == ONE_HUNDRED_HBARS ? "Fee was not recharged" : null)),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest

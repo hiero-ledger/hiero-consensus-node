@@ -1,28 +1,18 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus.framework.validation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 
 public class ConsensusRoundValidation {
@@ -39,6 +29,21 @@ public class ConsensusRoundValidation {
                                 + "output1 has %d rounds, output2 has %d rounds",
                         output1.getConsensusRounds().size(),
                         output2.getConsensusRounds().size()));
+        validateAncientThresholdIncreases(output1.getConsensusRounds());
+    }
+
+    public static void validateAncientThresholdIncreases(@NonNull final List<ConsensusRound> rounds) {
+        long lastAncientThreshold = EventConstants.ANCIENT_THRESHOLD_UNDEFINED;
+        for (final ConsensusRound round : rounds) {
+            final MinimumJudgeInfo thresholdInfo =
+                    round.getSnapshot().getMinimumJudgeInfoList().getLast();
+            assertEquals(
+                    round.getRoundNum(), thresholdInfo.round(), "the last threshold should be for the current round");
+            assertTrue(
+                    thresholdInfo.minimumJudgeAncientThreshold() >= lastAncientThreshold,
+                    "the ancient threshold should never decrease");
+            lastAncientThreshold = thresholdInfo.minimumJudgeAncientThreshold();
+        }
     }
 
     public static void validateIterableRounds(

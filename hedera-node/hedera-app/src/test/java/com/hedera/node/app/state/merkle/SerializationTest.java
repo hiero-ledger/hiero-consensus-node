@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
@@ -203,11 +188,11 @@ class SerializationTest extends MerkleTestBase {
             // Force flush the VMs to disk to test serialization and deserialization
             forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY));
             copy.copy(); // make a fast copy because we can only write to disk an immutable copy
-            CRYPTO.digestTreeSync(copy);
-            serializedBytes = writeTree(copy, dir);
+            CRYPTO.digestTreeSync(copy.getRoot());
+            serializedBytes = writeTree(copy.getRoot(), dir);
         } else {
-            CRYPTO.digestTreeSync(copy);
-            serializedBytes = writeTree(originalTree, dir);
+            CRYPTO.digestTreeSync(copy.getRoot());
+            serializedBytes = writeTree(originalTree.getRoot(), dir);
         }
 
         final TestMerkleStateRoot loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
@@ -263,8 +248,8 @@ class SerializationTest extends MerkleTestBase {
 
         forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY));
         copy.copy(); // make a fast copy because we can only write to disk an immutable copy
-        CRYPTO.digestTreeSync(copy);
-        final byte[] serializedBytes = writeTree(copy, dir);
+        CRYPTO.digestTreeSync(copy.getRoot());
+        final byte[] serializedBytes = writeTree(copy.getRoot(), dir);
 
         TestMerkleStateRoot loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
         ((OnDiskReadableKVState) originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY)).reset();

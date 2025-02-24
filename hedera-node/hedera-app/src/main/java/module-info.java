@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 import com.hedera.node.app.config.ServicesConfigExtension;
 import com.swirlds.config.api.ConfigurationExtension;
 
@@ -42,6 +27,7 @@ module com.hedera.node.app {
     requires transitive com.swirlds.state.impl;
     requires transitive dagger;
     requires transitive io.grpc.stub;
+    requires transitive io.helidon.webclient.grpc;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
@@ -63,14 +49,13 @@ module com.hedera.node.app {
     requires io.grpc;
     requires io.helidon.common.tls;
     requires io.helidon.webclient.api;
-    requires io.helidon.webclient.grpc;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
     requires org.apache.commons.lang3;
     requires static com.github.spotbugs.annotations;
     requires static com.google.auto.service;
-    requires static java.compiler; // javax.annotation.processing.Generated
+    requires static java.compiler;
 
     exports com.hedera.node.app;
     exports com.hedera.node.app.state;
@@ -88,8 +73,8 @@ module com.hedera.node.app {
     exports com.hedera.node.app.info;
     exports com.hedera.node.app.grpc;
     exports com.hedera.node.app.hints;
-    exports com.hedera.node.app.hints.impl;
     exports com.hedera.node.app.hints.handlers;
+    exports com.hedera.node.app.hints.impl;
     exports com.hedera.node.app.history;
     exports com.hedera.node.app.history.handlers;
     exports com.hedera.node.app.history.impl;
@@ -116,6 +101,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.fees;
     exports com.hedera.node.app.throttle;
     exports com.hedera.node.app.blocks.impl;
+    exports com.hedera.node.app.blocks.impl.streaming;
     exports com.hedera.node.app.workflows.handle.metric;
     exports com.hedera.node.app.roster;
     exports com.hedera.node.app.tss;

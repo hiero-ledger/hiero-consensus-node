@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;
@@ -175,7 +160,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -365,7 +350,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiConsumer<Round, State> onSealConsensusRound;
+    private final BiPredicate<Round, State> onSealConsensusRound;
     /**
      * Once set, a future that resolves to the hash of the state used to initialize the application. This is known
      * immediately at genesis or on restart from a saved state; during reconnect, it is known when reconnect
@@ -536,10 +521,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             final Supplier<MerkleNodeState> baseSupplier = HederaStateRoot::new;
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
-            onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> {};
+            onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
             // And the factory for the MerkleStateRoot class id must be our constructor
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(HederaStateRoot.class, stateRootSupplier::get));
+            constructableRegistry.registerConstructable(new ClassConstructorPair(
+                    HederaStateRoot.class, () -> stateRootSupplier.get().getRoot()));
         } catch (final ConstructableRegistryException e) {
             logger.error("Failed to register " + HederaStateRoot.class + " factory with ConstructableRegistry", e);
             throw new IllegalStateException(e);
@@ -591,12 +576,30 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     public void notify(@NonNull final PlatformStatusChangeNotification notification) {
         this.platformStatus = notification.getNewStatus();
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
+        final var streamToBlockNodes = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> startGrpcServer();
-            case CATASTROPHIC_FAILURE -> shutdownGrpcServer();
+            case ACTIVE -> {
+                startGrpcServer();
+            }
             case FREEZE_COMPLETE -> {
-                closeRecordStreams();
+                logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
+                closeRecordStreams();
+                if (streamToBlockNodes && isNotEmbedded()) {
+                    logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
+                    daggerApp.blockNodeConnectionManager().shutdown();
+                }
+            }
+            case CATASTROPHIC_FAILURE -> {
+                logger.error("Platform status is now CATASTROPHIC_FAILURE");
+                shutdownGrpcServer();
+                if (streamToBlockNodes && isNotEmbedded()) {
+                    logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
+                    daggerApp.blockNodeConnectionManager().shutdown();
+                }
             }
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
                 // Nothing to do here, just enumerate for completeness
@@ -888,6 +891,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         shutdownGrpcServer();
 
         if (daggerApp != null) {
+            logger.debug("Shutting down the Block Node Connection Manager");
+            daggerApp.blockNodeConnectionManager().shutdown();
+
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
             if (state instanceof HederaStateRoot msr) {
@@ -968,9 +974,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         requireNonNull(state);
         requireNonNull(round);
-        onSealConsensusRound.accept(round, state);
-        // This logic to be completed in https://github.com/hashgraph/hedera-services/issues/17469
-        return true;
+        return onSealConsensusRound.test(round, state);
     }
 
     /*==================================================================================================================
@@ -1286,8 +1290,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return root;
     }
 
-    private void manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
-        daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
+        return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }
 
     /**
@@ -1333,6 +1337,28 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         if (tssConfig.hintsEnabled()) {
             hintsService.initSigningForNextScheme(
                     new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME)));
+        }
+    }
+
+    /**
+     * Initializes block node connections and waits for at least one connection to be established.
+     * This should be called before platform.start() to ensure we don't miss any blocks.
+     *
+     * @param timeout maximum time to wait for a connection
+     */
+    public void initializeBlockNodeConnections(java.time.Duration timeout) {
+        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+        if (!blockStreamConfig.streamToBlockNodes()) {
+            logger.info("Block stream to Block Nodes is disabled, skipping block node connection initialization");
+            return;
+        }
+
+        logger.info("Initializing block node connections with timeout {}", timeout);
+        boolean connected = daggerApp.blockNodeConnectionManager().waitForConnection(timeout);
+        if (blockStreamConfig.shutdownNodeOnNoBlockNodes() && !connected) {
+            logger.error("No block node connections established within timeout, shutting down");
+            this.shutdown();
+            System.exit(1);
         }
     }
 }

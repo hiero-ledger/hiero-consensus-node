@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
@@ -351,7 +336,7 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Hashing resulting signed state");
         try {
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(signedState.get().getState())
+                    .digestTreeAsync(signedState.get().getState().getRoot())
                     .get();
         } catch (final InterruptedException e) {
             throw new RuntimeException("interrupted while attempting to hash the state", e);
@@ -398,7 +383,15 @@ public final class EventRecoveryWorkflow {
                     getHashEventsCons(platformStateFacade.legacyRunningEventHashOf(newState), round));
             v.setConsensusTimestamp(currentRoundTimestamp);
             v.setSnapshot(SyntheticSnapshot.generateSyntheticSnapshot(
-                    round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, config, lastEvent));
+                    round.getRoundNum(),
+                    lastEvent.getConsensusOrder(),
+                    currentRoundTimestamp,
+                    config,
+                    platformContext
+                            .getConfiguration()
+                            .getConfigData(EventConfig.class)
+                            .getAncientMode(),
+                    lastEvent));
             v.setCreationSoftwareVersion(platformStateFacade.creationSoftwareVersionOf(previousState.getState()));
         });
 

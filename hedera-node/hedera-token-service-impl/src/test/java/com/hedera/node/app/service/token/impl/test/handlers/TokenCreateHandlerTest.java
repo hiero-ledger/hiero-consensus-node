@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
@@ -273,11 +258,11 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void failsIfAssociationLimitExceeded() {
         setUpTxnContext();
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("entities.limitTokenAssociations", "true")
                 .withValue("tokens.maxPerAccount", "0")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
                 .willReturn(new ExpiryMeta(1L, THREE_MONTHS_IN_SECONDS, null));
@@ -293,11 +278,11 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void failsIfAssociationAlreadyExists() {
         setUpTxnContext();
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("entities.limitTokenAssociations", "true")
                 .withValue("tokens.maxPerAccount", "10")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         assertThat(writableTokenStore.get(newTokenId)).isNull();
         assertThat(writableTokenRelStore.get(treasuryId, newTokenId)).isNull();
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
@@ -329,11 +314,11 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         txn = new TokenCreateBuilder().withCustomFees(customFees).build();
         given(handleContext.body()).willReturn(txn);
 
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("entities.limitTokenAssociations", "true")
                 .withValue("tokens.maxPerAccount", "1")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThat(writableTokenStore.get(newTokenId)).isNull();
         assertThat(writableTokenRelStore.get(treasuryId, newTokenId)).isNull();
@@ -359,11 +344,11 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         txn = new TokenCreateBuilder().withCustomFees(customFees).build();
         given(handleContext.body()).willReturn(txn);
 
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("entities.limitTokenAssociations", "true")
                 .withValue("tokens.maxPerAccount", "10")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
                 .willReturn(new ExpiryMeta(1L, THREE_MONTHS_IN_SECONDS, null));
@@ -394,11 +379,11 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     void uniqueNotSupportedIfNftsNotEnabled() {
         setUpTxnContext();
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.areEnabled", "false")
                 .getOrCreateConfig();
         txn = new TokenCreateBuilder().withUniqueToken().build();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         given(handleContext.body()).willReturn(txn);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -411,14 +396,14 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     @SuppressWarnings("java:S5961")
     void uniqueSupportedIfNftsEnabled() {
         setUpTxnContext();
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.areEnabled", "true")
                 .getOrCreateConfig();
         txn = new TokenCreateBuilder()
                 .withUniqueToken()
                 .withCustomFees(List.of(withRoyaltyFee(royaltyFee)))
                 .build();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         given(handleContext.body()).willReturn(txn);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
@@ -531,10 +516,10 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         txn = new TokenCreateBuilder()
                 .withSymbol("1234567890123456789012345678901234567890123456789012345678901234567890")
                 .build();
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.maxSymbolUtf8Bytes", "10")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configuration, 1));
         given(handleContext.body()).willReturn(txn);
         given(pureChecksContext.body()).willReturn(txn);
@@ -578,11 +563,11 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         txn = new TokenCreateBuilder()
                 .withName("1234567890123456789012345678901234567890123456789012345678901234567890")
                 .build();
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.maxTokenNameUtf8Bytes", "10")
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configuration, 1));
+        given(handleContext.configuration()).willReturn(configOverride);
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configOverride, 1));
         given(handleContext.body()).willReturn(txn);
         given(pureChecksContext.body()).willReturn(txn);
 
