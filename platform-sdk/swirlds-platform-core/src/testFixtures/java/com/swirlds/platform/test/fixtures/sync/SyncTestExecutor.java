@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.sync;
+package com.swirlds.platform.test.fixtures.sync;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
@@ -214,7 +214,7 @@ public class SyncTestExecutor {
             long listenerAncientThreshold = listenerExpiredThreshold;
             final double listenerDif = listenerMaxIndicator - listenerExpiredThreshold;
             if (listenerDif >= 3) {
-                listenerAncientThreshold += Math.floor(listenerDif / 3);
+                listenerAncientThreshold += (long) Math.floor(listenerDif / 3);
             } else if (listenerDif == 2) {
                 listenerAncientThreshold++;
             }
@@ -222,7 +222,7 @@ public class SyncTestExecutor {
             long callerAncientThreshold = callerExpiredThreshold;
             final double callerDif = callerMaxIndicator - callerExpiredThreshold;
             if (callerDif >= 3) {
-                callerAncientThreshold += Math.floor(callerDif / 3);
+                callerAncientThreshold += (long) Math.floor(callerDif / 3);
             } else if (callerDif == 2) {
                 callerAncientThreshold++;
             }

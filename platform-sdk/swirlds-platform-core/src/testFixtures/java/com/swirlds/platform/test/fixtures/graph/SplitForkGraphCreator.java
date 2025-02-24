@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.graph;
+package com.swirlds.platform.test.fixtures.graph;
 
-import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
-import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createForcedOtherParentMatrix;
-import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
+import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
+import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createForcedOtherParentMatrix;
+import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;

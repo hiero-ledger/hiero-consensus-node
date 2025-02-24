@@ -11,7 +11,7 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.consensus.AncestorSearch;
 import com.swirlds.platform.consensus.EventVisitedMark;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.test.graph.SimpleGraphs;
+import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;

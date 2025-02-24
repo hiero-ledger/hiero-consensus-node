@@ -17,7 +17,7 @@ import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.communication.handshake.HandshakeException;
 import com.swirlds.platform.network.communication.handshake.HashCompareHandshake;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import com.swirlds.platform.test.sync.ConnectionFactory;
+import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;

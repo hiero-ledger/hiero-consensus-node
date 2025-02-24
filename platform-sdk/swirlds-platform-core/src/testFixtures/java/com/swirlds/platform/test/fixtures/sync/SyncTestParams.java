@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.sync;
+package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.platform.event.AncientMode;

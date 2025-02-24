@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.sync;
 
-import static com.swirlds.platform.test.sync.SyncTestUtils.printEvents;
-import static com.swirlds.platform.test.sync.SyncTestUtils.printTasks;
-import static com.swirlds.platform.test.sync.SyncTestUtils.printTipSet;
+import static com.swirlds.platform.test.fixtures.sync.SyncTestUtils.printEvents;
+import static com.swirlds.platform.test.fixtures.sync.SyncTestUtils.printTasks;
+import static com.swirlds.platform.test.fixtures.sync.SyncTestUtils.printTipSet;
 import static java.lang.String.format;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -14,6 +14,7 @@ import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.test.fixtures.sync.SyncNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.ArrayList;
