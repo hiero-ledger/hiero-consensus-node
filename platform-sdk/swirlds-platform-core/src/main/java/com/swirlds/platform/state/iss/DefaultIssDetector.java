@@ -279,7 +279,7 @@ public class DefaultIssDetector implements IssDetector {
     /**
      * Handle postconsensus state signatures.
      *
-     * @param stateSignatureTransactions the transactions containining state signatures
+     * @param stateSignatureTransactions the transactions containing state signatures
      * @return a list of ISS notifications, which may be empty, but will not contain null
      */
     @NonNull

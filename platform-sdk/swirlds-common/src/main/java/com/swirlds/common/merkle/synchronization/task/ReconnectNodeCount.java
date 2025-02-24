@@ -2,7 +2,7 @@
 package com.swirlds.common.merkle.synchronization.task;
 
 /**
- * An object capable of tracking the number of leaves recieved during a reconnect.
+ * An object capable of tracking the number of leaves received during a reconnect.
  */
 public interface ReconnectNodeCount {
 
