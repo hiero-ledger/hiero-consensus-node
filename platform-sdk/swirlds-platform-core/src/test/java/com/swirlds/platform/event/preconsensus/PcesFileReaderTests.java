@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.event.preconsensus;
+package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertIteratorEquality;
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -24,11 +24,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.preconsensus.PcesConfig_;
-import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.event.preconsensus.PcesFileVersion;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileOutputStream;

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.event.preconsensus;
+package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.io.FileManipulation.corruptFile;
 import static com.swirlds.common.test.fixtures.io.FileManipulation.truncateFile;
+import static com.swirlds.platform.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
+import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
 import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
-import static com.swirlds.platform.test.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
-import static com.swirlds.platform.test.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -18,9 +18,6 @@ import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileIterator;
-import com.swirlds.platform.event.preconsensus.PcesMutableFile;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.consensus;
+package com.swirlds.platform.consensus;
 
 import static com.swirlds.common.test.fixtures.WeightGenerators.RANDOM;
-import static com.swirlds.platform.test.consensus.ConsensusTestArgs.RANDOM_WEIGHT_DESC;
+import static com.swirlds.platform.consensus.ConsensusTestArgs.RANDOM_WEIGHT_DESC;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.eventhandling.EventConfig_;
-import com.swirlds.platform.test.PlatformTest;
+import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
@@ -63,7 +63,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#orderInvarianceTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#orderInvarianceTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Order Invariance Tests")
@@ -76,7 +76,7 @@ class ConsensusTests extends PlatformTest {
                 .run();
     }
 
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#reconnectSimulation")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#reconnectSimulation")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Reconnect Simulation")
@@ -90,7 +90,7 @@ class ConsensusTests extends PlatformTest {
                 .run();
     }
 
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#staleEvent")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#staleEvent")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Stale Events Tests")
@@ -105,7 +105,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#forkingTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#forkingTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Forking Tests")
@@ -123,7 +123,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#partitionTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#partitionTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Partition Tests")
@@ -137,7 +137,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#subQuorumPartitionTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#subQuorumPartitionTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Sub Quorum Partition Tests")
@@ -151,7 +151,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#cliqueTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#cliqueTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Clique Tests")
@@ -165,7 +165,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#variableRateTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#variableRateTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Variable Rate Tests")
@@ -179,7 +179,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#nodeUsesStaleOtherParents")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#nodeUsesStaleOtherParents")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Node Uses Stale Other Parents")
@@ -193,7 +193,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#nodeProvidesStaleOtherParents")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#nodeProvidesStaleOtherParents")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Node Provides Stale Other Parents")
@@ -207,7 +207,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#quorumOfNodesGoDownTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#quorumOfNodesGoDownTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Quorum Of Nodes Go Down Tests")
@@ -221,7 +221,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#subQuorumOfNodesGoDownTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#subQuorumOfNodesGoDownTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Sub Quorum Of Nodes Go Down Tests")
@@ -235,7 +235,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#orderInvarianceTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#orderInvarianceTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Repeated Timestamp Test")
@@ -249,7 +249,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#ancientEventTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#ancientEventTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Consensus Receives Ancient Event")
@@ -263,7 +263,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#restartWithEventsParams")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#restartWithEventsParams")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Node restart with events")
@@ -277,7 +277,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#nodeRemoveTestParams")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#nodeRemoveTestParams")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Remove a node from the address book at restart")
@@ -301,7 +301,7 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.test.consensus.ConsensusTestArgs#orderInvarianceTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#orderInvarianceTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Genesis Snapshot Tests")

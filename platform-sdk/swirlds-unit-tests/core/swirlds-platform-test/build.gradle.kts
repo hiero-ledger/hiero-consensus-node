@@ -32,13 +32,10 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito.junit.jupiter")
     requires("com.swirlds.metrics.api")
-    requires("org.hiero.event.creator")
-    requires("org.hiero.event.creator.impl")
     requires("org.mockito")
     requires("org.hiero.consensus.gossip")
     requiresStatic("com.github.spotbugs.annotations")
     requires("com.swirlds.base")
-    requires("com.swirlds.component.framework")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.junit.jupiter.api")
 }
