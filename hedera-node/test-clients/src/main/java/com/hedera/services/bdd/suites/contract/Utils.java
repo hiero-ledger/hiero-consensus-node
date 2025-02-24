@@ -68,7 +68,10 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 public class Utils {
-    public static final String RESOURCE_PATH = "src/main/resources/contract/%1$s/%2$s/%2$s%3$s";
+    public static final String INITCODE_EXTENSION = ".bin";
+    public static final String BYTECODE_EXTENSION = ".bbin";
+    public static final String CONTRACT_RESOURCE_PATH = "src/main/resources/contract/%1$s/%2$s/%2$s%3$s";
+    public static final String DEFAULT_LAMBDAS_ROOT = "lambdas";
     public static final String DEFAULT_CONTRACTS_ROOT = "contracts";
 
     public static final String UNIQUE_CLASSPATH_RESOURCE_TPL = "contract/contracts/%s/%s";
@@ -123,7 +126,7 @@ public class Utils {
     }
 
     /**
-     * Returns the bytecode of the contract by the name of the contract from the classpath resource.
+     * Returns the initcode of the contract by the name of the contract from the classpath resource.
      *
      * @param contractName the name of the contract
      * @param variant the variant system contract if any
@@ -136,6 +139,42 @@ public class Utils {
         try {
             final var bytes = Files.readAllBytes(relocatedIfNotPresentInWorkingDir(Path.of(path)));
             return ByteString.copyFrom(bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Returns the initcode of the lambda with the given name from the classpath resource.
+     *
+     * @param lambda the name of the lambda
+     * @return the bytecode of the lambda
+     * @throws IllegalArgumentException if the lambda is not found
+     * @throws UncheckedIOException if an I/O error occurs
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes lambdaInitcodeFromResources(@NonNull final String lambda) {
+        final var path = getResourcePath(DEFAULT_LAMBDAS_ROOT, lambda, INITCODE_EXTENSION);
+        try {
+            return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
+                    Files.readAllBytes(relocatedIfNotPresentInWorkingDir(Path.of(path))));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Returns the pre-initialized bytecode of the lambda with the given name from the classpath resource.
+     *
+     * @param lambda the name of the lambda
+     * @return the bytecode of the lambda
+     * @throws IllegalArgumentException if the lambda is not found
+     * @throws UncheckedIOException if an I/O error occurs
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes lambdaBytecodeFromResources(@NonNull final String lambda) {
+        final var path = getResourcePath(DEFAULT_LAMBDAS_ROOT, lambda, BYTECODE_EXTENSION);
+        try {
+            return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
+                    Files.readAllBytes(relocatedIfNotPresentInWorkingDir(Path.of(path))));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -251,14 +290,20 @@ public class Utils {
     }
 
     /**
-     * Generates a path to a desired contract resource
-     *
-     * @param resourceName the name of the contract
-     * @param extension the type of the desired contract resource (.bin or .json)
+     * Tries to get a path to the resource from the given root directory, resource name, and extension.
+     * @param rootDirectory the root directory
+     * @param resourceName the name of the resource
+     * @param extension the extension of the resource
+     * @return the path to the resource
+     * @throws IllegalArgumentException if the resource is not found
      */
-    public static String getResourcePath(String rootDirectory, String resourceName, final String extension) {
+    public static String getResourcePath(
+            @NonNull final String rootDirectory, @NonNull String resourceName, @NonNull final String extension) {
+        requireNonNull(rootDirectory);
+        requireNonNull(resourceName);
+        requireNonNull(extension);
         resourceName = resourceName.replaceAll("\\d*$", "");
-        final var path = String.format(RESOURCE_PATH, rootDirectory, resourceName, extension);
+        final var path = String.format(CONTRACT_RESOURCE_PATH, rootDirectory, resourceName, extension);
         final var file = relocatedIfNotPresentInWorkingDir(new File(path));
         if (!file.exists()) {
             throw new IllegalArgumentException("Invalid argument: " + path.substring(path.lastIndexOf('/') + 1));

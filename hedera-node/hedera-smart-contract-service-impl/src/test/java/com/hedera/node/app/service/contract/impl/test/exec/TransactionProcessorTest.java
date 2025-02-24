@@ -171,7 +171,8 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
-                null);
+                null,
+                false);
         given(messageCallProcessor.isImplicitCreationEnabled(config)).willReturn(true);
         assertAbortsWith(invalidCreation, INVALID_CONTRACT_ID);
     }
@@ -192,7 +193,8 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
-                null);
+                null,
+                false);
         given(messageCallProcessor.isImplicitCreationEnabled(config)).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
@@ -242,7 +244,8 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
-                null);
+                null,
+                false);
         given(messageCallProcessor.isImplicitCreationEnabled(config)).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
@@ -295,7 +298,8 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
-                null);
+                null,
+                false);
         given(messageCallProcessor.isImplicitCreationEnabled(config)).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
@@ -345,7 +349,8 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
-                null);
+                null,
+                false);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(null);
 
@@ -370,7 +375,8 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
-                null);
+                null,
+                false);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
         given(worldUpdater.getHederaAccount(INVALID_CONTRACT_ADDRESS)).willThrow(IllegalArgumentException.class);

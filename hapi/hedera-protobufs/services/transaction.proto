@@ -98,6 +98,9 @@ import "auxiliary/history/history_proof_signature.proto";
 import "auxiliary/history/history_proof_key_publication.proto";
 import "auxiliary/history/history_proof_vote.proto";
 
+import "lambda_sstore.proto";
+import "hook_dispatch.proto";
+
 /**
  * A wrapper around signed transaction bytes.<br/>
  * This was originally a transaction with body, signatures, and/or bytes,
@@ -638,6 +641,16 @@ message TransactionBody {
          * A transaction body for broadcasting a node's crs publication
          */
         com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication = 72;
+
+        /**
+         * A transaction body for updating the storage of a lambda EVM hook.
+         */
+        LambdaSStoreTransactionBody lambda_sstore = 73;
+
+        /**
+         * An internal-only transaction body for dispatching a hook installation, removal, or execution.
+         */
+        HookDispatchTransactionBody evm_hook_dispatch = 74;
     }
 
     /**

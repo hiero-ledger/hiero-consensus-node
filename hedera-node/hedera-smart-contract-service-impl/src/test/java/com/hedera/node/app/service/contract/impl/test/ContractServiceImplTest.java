@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V0500ContractSchema;
+import com.hedera.node.app.service.contract.impl.schemas.V061ContractSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.config.data.ContractsConfig;
@@ -66,9 +67,10 @@ class ContractServiceImplTest {
         final var captor = ArgumentCaptor.forClass(Schema.class);
         final var mockRegistry = mock(SchemaRegistry.class);
         subject.registerSchemas(mockRegistry);
-        verify(mockRegistry, times(2)).register(captor.capture());
+        verify(mockRegistry, times(3)).register(captor.capture());
         final var schemas = captor.getAllValues();
         assertInstanceOf(V0490ContractSchema.class, schemas.getFirst());
-        assertInstanceOf(V0500ContractSchema.class, schemas.getLast());
+        assertInstanceOf(V0500ContractSchema.class, schemas.get(1));
+        assertInstanceOf(V061ContractSchema.class, schemas.getLast());
     }
 }
