@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.components;
+package com.swirlds.platform.components;
 
 import static com.swirlds.platform.event.EventUtils.calculateNewEventCreationTime;
 import static org.junit.jupiter.api.Assertions.assertEquals;

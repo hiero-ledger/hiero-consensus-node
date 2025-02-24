@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.consensus;
+package com.swirlds.platform.consensus;
 
 import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED;
 import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED_REAL_WEIGHT;
