@@ -7,11 +7,11 @@ import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createCli
 import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
 import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;

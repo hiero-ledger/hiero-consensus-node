@@ -3,11 +3,13 @@ package com.swirlds.platform.test;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import static com.swirlds.common.test.fixtures.RandomUtils.randomHashBytes;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 
-import com.swirlds.platform.consensus.ConsensusSnapshot;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
@@ -47,10 +49,10 @@ public final class PlatformStateUtils {
                 state,
                 new ConsensusSnapshot(
                         random.nextLong(),
-                        List.of(randomHash(random), randomHash(random), randomHash(random)),
+                        List.of(randomHashBytes(random), randomHashBytes(random), randomHashBytes(random)),
                         minimumJudgeInfo,
                         random.nextLong(),
-                        randomInstant(random)));
+                        PbjConverter.toPbjTimestamp(randomInstant(random))));
 
         return platformStateFacade.getWritablePlatformStateOf(state);
     }

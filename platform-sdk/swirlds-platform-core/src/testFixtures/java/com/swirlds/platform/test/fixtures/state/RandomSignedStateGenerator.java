@@ -3,6 +3,7 @@ package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import static com.swirlds.common.test.fixtures.RandomUtils.randomHashBytes;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
@@ -10,6 +11,8 @@ import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
@@ -22,11 +25,10 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -188,12 +190,12 @@ public class RandomSignedStateGenerator {
         if (consensusSnapshot == null) {
             consensusSnapshotInstance = new ConsensusSnapshot(
                     roundInstance,
-                    Stream.generate(() -> randomHash(random)).limit(10).toList(),
+                    Stream.generate(() -> randomHashBytes(random)).limit(10).toList(),
                     IntStream.range(0, roundsNonAncientInstance)
                             .mapToObj(i -> new MinimumJudgeInfo(roundInstance - i, 0L))
                             .toList(),
                     roundInstance,
-                    consensusTimestampInstance);
+                    PbjConverter.toPbjTimestamp(consensusTimestampInstance));
         } else {
             consensusSnapshotInstance = consensusSnapshot;
         }

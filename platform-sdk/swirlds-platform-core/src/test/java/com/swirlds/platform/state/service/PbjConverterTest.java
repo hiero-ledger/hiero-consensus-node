@@ -6,7 +6,6 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomString;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjAddressBook;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjConsensusSnapshot;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Arrays.asList;
@@ -16,14 +15,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.internal.CryptoUtils;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -34,7 +33,6 @@ import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.time.Instant;
-import java.util.List;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,21 +71,8 @@ class PbjConverterTest {
                 platformState.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
                 pbjPlatformState.firstVersionInBirthRoundMode());
 
-        assertSnapshot(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
+        assertEquals(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
         assertAddressBook(platformState.getAddressBook(), pbjPlatformState.addressBook());
-    }
-
-    @Test
-    void testToPbjConsensusSnapshot() {
-        final ConsensusSnapshot snapshot = randomSnapshot(randotron);
-        final com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot =
-                PbjConverter.toPbjConsensusSnapshot(snapshot);
-        assertSnapshot(snapshot, pbjSnapshot);
-    }
-
-    @Test
-    void testToPbjConsensusSnapshot_null() {
-        assertNull(PbjConverter.toPbjConsensusSnapshot(null));
     }
 
     @Test
@@ -127,18 +112,6 @@ class PbjConverterTest {
     }
 
     @Test
-    void testFRomConsensusSnapshot_null() {
-        assertNull(PbjConverter.fromPbjConsensusSnapshot(null));
-    }
-
-    @Test
-    void testFromPbjConsensusSnapshot() {
-        final com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot = randomPbjSnapshot();
-        final ConsensusSnapshot snapshot = PbjConverter.fromPbjConsensusSnapshot(pbjSnapshot);
-        assertSnapshot(snapshot, pbjSnapshot);
-    }
-
-    @Test
     void testToPbjPlatformState_acc_updateCreationSoftwareVersion() {
         var oldState = randomPbjPlatformState();
         var accumulator = new PlatformStateValueAccumulator();
@@ -172,25 +145,6 @@ class PbjConverterTest {
         accumulator.setRoundsNonAncient(newValue);
 
         assertEquals(newValue, toPbjPlatformState(oldState, accumulator).roundsNonAncient());
-    }
-
-    @Test
-    void testToPbjPlatformState_acc_snapshot() {
-        var oldState = randomPbjPlatformState();
-        var accumulator = new PlatformStateValueAccumulator();
-
-        // no change without update is expected
-        assertEquals(
-                oldState.consensusSnapshot(),
-                toPbjPlatformState(oldState, accumulator).consensusSnapshot());
-
-        var newValue = randomSnapshot(randotron);
-
-        accumulator.setSnapshot(newValue);
-
-        assertEquals(
-                toPbjConsensusSnapshot(newValue),
-                toPbjPlatformState(oldState, accumulator).consensusSnapshot());
     }
 
     @Test
@@ -371,7 +325,7 @@ class PbjConverterTest {
                 .usingRecursiveComparison(RecursiveComparisonConfiguration.builder()
                         .withIgnoredFields("round")
                         .build())
-                .isEqualTo(toPbjConsensusSnapshot(newSnapshot));
+                .isEqualTo(newSnapshot);
         assertEquals(
                 newRound,
                 toPbjPlatformState(oldState, accumulator).consensusSnapshot().round());
@@ -407,7 +361,7 @@ class PbjConverterTest {
                 .usingRecursiveComparison(RecursiveComparisonConfiguration.builder()
                         .withIgnoredFields("consensusTimestamp")
                         .build())
-                .isEqualTo(toPbjConsensusSnapshot(newSnapshot));
+                .isEqualTo(newSnapshot);
         assertEquals(
                 toPbjTimestamp(consensusTimestamp),
                 toPbjPlatformState(oldState, accumulator).consensusSnapshot().consensusTimestamp());
@@ -436,7 +390,7 @@ class PbjConverterTest {
 
         assertEquals(newValue.getCreationSoftwareVersion().getPbjSemanticVersion(), pbjState.creationSoftwareVersion());
         assertEquals(newValue.getRoundsNonAncient(), pbjState.roundsNonAncient());
-        assertEquals(toPbjConsensusSnapshot(newValue.getSnapshot()), pbjState.consensusSnapshot());
+        assertEquals(newValue.getSnapshot(), pbjState.consensusSnapshot());
         assertEquals(toPbjTimestamp(newValue.getLastFrozenTime()), pbjState.freezeTime());
         assertEquals(toPbjTimestamp(newValue.getLastFrozenTime()), pbjState.lastFrozenTime());
         assertArrayEquals(
@@ -519,40 +473,13 @@ class PbjConverterTest {
         }
     }
 
-    private void assertSnapshot(
-            ConsensusSnapshot snapshot, com.hedera.hapi.platform.state.ConsensusSnapshot pbjSnapshot) {
-        assertEquals(snapshot.round(), pbjSnapshot.round());
-        assertEquals(snapshot.judgeHashes().size(), pbjSnapshot.judgeHashes().size());
-        assertEquals(
-                snapshot.judgeHashes().get(0).getBytes(),
-                pbjSnapshot.judgeHashes().get(0));
-        assertEquals(
-                snapshot.judgeHashes().get(1).getBytes(),
-                pbjSnapshot.judgeHashes().get(1));
-        assertJudgeInfos(snapshot.getMinimumJudgeInfoList(), pbjSnapshot.minimumJudgeInfoList());
-        assertEquals(snapshot.nextConsensusNumber(), pbjSnapshot.nextConsensusNumber());
-        assertEquals(
-                snapshot.consensusTimestamp().getEpochSecond(),
-                pbjSnapshot.consensusTimestamp().seconds());
-    }
-
-    private void assertJudgeInfos(
-            List<MinimumJudgeInfo> expected, List<com.hedera.hapi.platform.state.MinimumJudgeInfo> actual) {
-        for (int i = 0; i < expected.size(); i++) {
-            assertEquals(
-                    expected.get(i).minimumJudgeAncientThreshold(),
-                    actual.get(i).minimumJudgeAncientThreshold());
-            assertEquals(expected.get(i).round(), actual.get(i).round());
-        }
-    }
-
     private static ConsensusSnapshot randomSnapshot(Randotron randotron) {
         return new ConsensusSnapshot(
                 nextInt(),
-                asList(randomHash(), randomHash()),
+                asList(randomHash().getBytes(), randomHash().getBytes()),
                 asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())),
                 nextInt(),
-                randomInstant(randotron));
+                PbjConverter.toPbjTimestamp(randomInstant(randotron)));
     }
 
     static AddressBook randomAddressBook(Randotron randotron) {

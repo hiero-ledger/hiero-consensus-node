@@ -72,7 +72,7 @@ public final class ConsensusUtils {
     /**
      * @return a list of all base hashes of the provided events
      */
-    public static @NonNull List<Hash> getHashes(@NonNull final Collection<EventImpl> events) {
-        return events.stream().map(EventImpl::getBaseHash).toList();
+    public static @NonNull List<Bytes> getHashBytes(@NonNull final Collection<EventImpl> events) {
+        return events.stream().map(EventImpl::getBaseHash).map(Hash::getBytes).toList();
     }
 }

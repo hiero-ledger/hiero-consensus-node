@@ -3,8 +3,8 @@ package com.swirlds.platform.publisher;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
