@@ -8,7 +8,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.test.network.FakeConnection;
+import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

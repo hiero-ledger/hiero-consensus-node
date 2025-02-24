@@ -8,6 +8,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkUtils;
+import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.time.Duration;
 import javax.net.ssl.SSLException;
 import org.junit.jupiter.api.Assertions;

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.InboundConnectionManager;
+import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
