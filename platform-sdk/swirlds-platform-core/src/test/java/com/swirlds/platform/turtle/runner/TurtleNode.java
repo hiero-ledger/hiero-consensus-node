@@ -34,6 +34,7 @@ import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -43,6 +44,8 @@ import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsListContainer;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
+import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStateHolder;
+import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStateListContainer;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -70,6 +73,7 @@ public class TurtleNode {
     private final DeterministicWiringModel model;
     private final Platform platform;
     private final ConsensusRoundsHolder consensusRoundsHolder;
+    private final SignedStateHolder signedStateHolder;
 
     /**
      * Create a new TurtleNode. Simulates a single consensus node in a TURTLE network.
@@ -163,6 +167,18 @@ public class TurtleNode {
         final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
                 platformWiring.getConsensusEngineOutputWire();
         consensusEngineOutputWire.solderTo(consensusRoundsHolderInputWire);
+
+        final OutputWire<List<ReservedSignedState>> stateSignatureCollectorOutputWire =
+                platformWiring.getStateSignatureCollectorWiring();
+        final ComponentWiring<SignedStateHolder, Void> signedStatesHolderWiring =
+                new ComponentWiring<>(model, SignedStateHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
+
+        signedStateHolder = new SignedStateListContainer();
+        signedStatesHolderWiring.bind(signedStateHolder);
+
+        final InputWire<List<ReservedSignedState>> signedStateHolderInputWire =
+                signedStatesHolderWiring.getInputWire(SignedStateHolder::interceptSignedStates);
+        stateSignatureCollectorOutputWire.solderTo(signedStateHolderInputWire);
 
         final SimulatedGossip gossip = network.getGossipInstance(nodeId);
         gossip.provideIntakeEventCounter(
