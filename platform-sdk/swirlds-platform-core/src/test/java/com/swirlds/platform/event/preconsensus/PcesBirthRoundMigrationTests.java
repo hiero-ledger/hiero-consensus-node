@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.event.preconsensus;
+package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
@@ -24,11 +24,6 @@ import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.event.preconsensus.PcesBirthRoundMigration;
-import com.swirlds.platform.event.preconsensus.PcesConfig_;
-import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileIterator;
-import com.swirlds.platform.event.preconsensus.PcesMutableFile;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;

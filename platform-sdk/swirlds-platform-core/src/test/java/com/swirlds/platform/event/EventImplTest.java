@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.event;
+package com.swirlds.platform.event;
 
 import static com.swirlds.platform.test.fixtures.event.EventImplTestUtils.createEventImpl;
 import static org.junit.jupiter.api.Assertions.assertTrue;

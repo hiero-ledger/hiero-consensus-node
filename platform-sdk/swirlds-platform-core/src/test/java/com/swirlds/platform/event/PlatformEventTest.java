@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.event;
+package com.swirlds.platform.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.event.EventSerializationUtils;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import com.swirlds.platform.test.fixtures.utils.EqualsVerifier;
 import java.io.IOException;

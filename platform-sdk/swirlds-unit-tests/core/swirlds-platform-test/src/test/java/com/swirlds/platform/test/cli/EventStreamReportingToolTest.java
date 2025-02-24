@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.cli;
 
-import static com.swirlds.platform.test.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
-
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.report.EventStreamReport;
 import com.swirlds.platform.event.report.EventStreamScanner;
@@ -27,6 +27,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class EventStreamReportingToolTest {
+
+    private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
+            TestPlatformContextBuilder.create().build();
+    ;
 
     @TempDir
     Path tmpDir;

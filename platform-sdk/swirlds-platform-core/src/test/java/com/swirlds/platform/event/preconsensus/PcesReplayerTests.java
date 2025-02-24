@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.event.preconsensus;
+package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
@@ -18,8 +18,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.event.preconsensus.PcesConfig_;
-import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.consensus;
+package com.swirlds.platform.consensus;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;

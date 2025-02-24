@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.consensus;
+package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.test.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
-import static com.swirlds.platform.test.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
+import static com.swirlds.platform.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
+import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areGenerationNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.gatherOtherParentAges;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
