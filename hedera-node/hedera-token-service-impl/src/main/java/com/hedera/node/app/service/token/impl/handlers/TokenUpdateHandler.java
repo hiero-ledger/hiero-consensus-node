@@ -26,6 +26,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SubType;
@@ -34,9 +35,9 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -56,7 +57,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -613,7 +613,7 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, token));
+                .legacyCalculate(sigValueObj -> usageGiven(body, sigValueObj, token));
     }
 
     private boolean isHapiCallOrNonZeroTreasuryAccount(final boolean isHapiCall, final TokenUpdateTransactionBody op) {
@@ -624,36 +624,19 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         return accountID.equals(ZERO_ACCOUNT_ID);
     }
 
-    private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj svo, final Token token) {
+    private FeeData usageGiven(final TransactionBody txn, final SigValueObj svo, final Token token) {
         final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
         if (token != null) {
             final var estimate = TokenUpdateUsage.newEstimate(
                             txn, txnEstimateFactory.get(sigUsage, txn, ESTIMATOR_UTILS))
-                    .givenCurrentAdminKey(
-                            token.hasAdminKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.adminKeyOrThrow()))
-                                    : Optional.empty())
+                    .givenCurrentAdminKey(token.hasAdminKey() ? Optional.of(token.adminKeyOrThrow()) : Optional.empty())
                     .givenCurrentFreezeKey(
-                            token.hasFreezeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.freezeKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentWipeKey(
-                            token.hasWipeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.wipeKeyOrThrow()))
-                                    : Optional.empty())
+                            token.hasFreezeKey() ? Optional.of(token.freezeKeyOrThrow()) : Optional.empty())
+                    .givenCurrentWipeKey(token.hasWipeKey() ? Optional.of(token.wipeKeyOrThrow()) : Optional.empty())
                     .givenCurrentSupplyKey(
-                            token.hasSupplyKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.supplyKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentKycKey(
-                            token.hasKycKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.kycKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentPauseKey(
-                            token.hasPauseKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.pauseKeyOrThrow()))
-                                    : Optional.empty())
+                            token.hasSupplyKey() ? Optional.of(token.supplyKeyOrThrow()) : Optional.empty())
+                    .givenCurrentKycKey(token.hasKycKey() ? Optional.of(token.kycKeyOrThrow()) : Optional.empty())
+                    .givenCurrentPauseKey(token.hasPauseKey() ? Optional.of(token.pauseKeyOrThrow()) : Optional.empty())
                     .givenCurrentName(token.name())
                     .givenCurrentMemo(token.memo())
                     .givenCurrentSymbol(token.symbol())

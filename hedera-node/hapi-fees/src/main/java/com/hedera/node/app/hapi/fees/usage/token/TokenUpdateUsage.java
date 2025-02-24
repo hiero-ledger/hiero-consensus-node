@@ -5,13 +5,16 @@ import static com.hedera.node.app.hapi.fees.usage.EstimatorUtils.MAX_ENTITY_LIFE
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.TokenUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Optional;
 
 public class TokenUpdateUsage extends TokenTxnUsage<TokenUpdateUsage> {
@@ -101,29 +104,28 @@ public class TokenUpdateUsage extends TokenTxnUsage<TokenUpdateUsage> {
     }
 
     public FeeData get() {
-        final var op = this.op.getTokenUpdate();
+        final var op = this.op.tokenUpdate();
 
         long newMutableRb = 0;
+        newMutableRb += keySizeIfPresent(op, TokenUpdateTransactionBody::hasKycKey, TokenUpdateTransactionBody::kycKey);
         newMutableRb +=
-                keySizeIfPresent(op, TokenUpdateTransactionBody::hasKycKey, TokenUpdateTransactionBody::getKycKey);
+                keySizeIfPresent(op, TokenUpdateTransactionBody::hasWipeKey, TokenUpdateTransactionBody::wipeKey);
         newMutableRb +=
-                keySizeIfPresent(op, TokenUpdateTransactionBody::hasWipeKey, TokenUpdateTransactionBody::getWipeKey);
+                keySizeIfPresent(op, TokenUpdateTransactionBody::hasAdminKey, TokenUpdateTransactionBody::adminKey);
         newMutableRb +=
-                keySizeIfPresent(op, TokenUpdateTransactionBody::hasAdminKey, TokenUpdateTransactionBody::getAdminKey);
-        newMutableRb += keySizeIfPresent(
-                op, TokenUpdateTransactionBody::hasSupplyKey, TokenUpdateTransactionBody::getSupplyKey);
-        newMutableRb += keySizeIfPresent(
-                op, TokenUpdateTransactionBody::hasFreezeKey, TokenUpdateTransactionBody::getFreezeKey);
+                keySizeIfPresent(op, TokenUpdateTransactionBody::hasSupplyKey, TokenUpdateTransactionBody::supplyKey);
         newMutableRb +=
-                keySizeIfPresent(op, TokenUpdateTransactionBody::hasPauseKey, TokenUpdateTransactionBody::getPauseKey);
+                keySizeIfPresent(op, TokenUpdateTransactionBody::hasFreezeKey, TokenUpdateTransactionBody::freezeKey);
+        newMutableRb +=
+                keySizeIfPresent(op, TokenUpdateTransactionBody::hasPauseKey, TokenUpdateTransactionBody::pauseKey);
         if (!removesAutoRenewAccount(op) && (currentlyUsingAutoRenew || op.hasAutoRenewAccount())) {
             newMutableRb += BASIC_ENTITY_ID_SIZE;
         }
-        newMutableRb += op.hasMemo() ? op.getMemo().getValue().length() : currentMemoLen;
-        newMutableRb += (op.getName().length() > 0) ? op.getName().length() : currentNameLen;
-        newMutableRb += (op.getSymbol().length() > 0) ? op.getSymbol().length() : currentSymbolLen;
+        newMutableRb += op.hasMemo() ? op.memo().length() : currentMemoLen;
+        newMutableRb += (op.name().length() > 0) ? op.name().length() : currentNameLen;
+        newMutableRb += (op.symbol().length() > 0) ? op.symbol().length() : currentSymbolLen;
         long newLifetime = ESTIMATOR_UTILS.relativeLifetime(
-                this.op, Math.max(op.getExpiry().getSeconds(), currentExpiry));
+                this.op, Math.max(op.expiryOrElse(Timestamp.DEFAULT).seconds(), currentExpiry));
         newLifetime = Math.min(newLifetime, MAX_ENTITY_LIFETIME);
         final long rbsDelta = Math.max(0, newLifetime * (newMutableRb - currentMutableRb));
         if (rbsDelta > 0) {
@@ -140,21 +142,21 @@ public class TokenUpdateUsage extends TokenTxnUsage<TokenUpdateUsage> {
     }
 
     private int noRbImpactBytes(final TokenUpdateTransactionBody op) {
-        return ((op.getExpiry().getSeconds() > 0) ? AMOUNT_REPR_BYTES : 0)
-                + ((op.getAutoRenewPeriod().getSeconds() > 0) ? AMOUNT_REPR_BYTES : 0)
+        return ((op.expiryOrElse(Timestamp.DEFAULT).seconds() > 0) ? AMOUNT_REPR_BYTES : 0)
+                + ((op.autoRenewPeriodOrElse(Duration.DEFAULT).seconds() > 0) ? AMOUNT_REPR_BYTES : 0)
                 + (op.hasTreasury() ? BASIC_ENTITY_ID_SIZE : 0)
                 + (op.hasAutoRenewAccount() ? BASIC_ENTITY_ID_SIZE : 0);
     }
 
     private boolean removesAutoRenewAccount(final TokenUpdateTransactionBody op) {
-        return op.hasAutoRenewAccount() && designatesAccountRemoval(op.getAutoRenewAccount());
+        return op.hasAutoRenewAccount() && designatesAccountRemoval(op.autoRenewAccount());
     }
 
     private boolean designatesAccountRemoval(final AccountID id) {
-        return id.getShardNum() == 0
-                && id.getRealmNum() == 0
-                && id.getAccountNum() == 0
-                && id.getAlias().isEmpty();
+        return id.shardNum() == 0
+                && id.realmNum() == 0
+                && id.accountNumOrElse(0L) == 0
+                && id.aliasOrElse(Bytes.EMPTY).length() == 0;
     }
 
     private void updateCurrentRb(final long amount) {

@@ -16,7 +16,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.file.FileAppendTransactionBody;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.file.FileSignatureWaivers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
@@ -129,9 +128,9 @@ public class FileAppendHandler implements TransactionHandler {
             throw new HandleException(FILE_DELETED);
         }
 
-        var contents = CommonPbjConverters.asBytes(file.contents());
+        var contents = asBytes(file.contents());
 
-        var newContents = ArrayUtils.addAll(contents, CommonPbjConverters.asBytes(data));
+        var newContents = ArrayUtils.addAll(contents, asBytes(data));
         validateContent(newContents, fileServiceConfig);
         /* Copy all the fields from existing file and change deleted flag */
         final var fileBuilder = new File.Builder()
@@ -145,6 +144,12 @@ public class FileAppendHandler implements TransactionHandler {
         /* --- Put the modified file. It will be in underlying state's modifications map.
         It will not be committed to state until commit is called on the state.--- */
         fileStore.put(fileBuilder.build());
+    }
+
+    private static @NonNull byte[] asBytes(@NonNull Bytes b) {
+        final var buf = new byte[Math.toIntExact(b.length())];
+        b.getBytes(0, buf);
+        return buf;
     }
 
     @NonNull

@@ -3,32 +3,29 @@ package com.hedera.node.app.hapi.fees.test;
 
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_MATRICES_CONST;
 
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
 
 public final class AdapterUtils {
     public static FeeData feeDataFrom(final UsageAccumulator usage) {
         final var usages = FeeData.newBuilder();
 
         final var network = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setBpt(usage.getUniversalBpt())
-                .setVpt(usage.getNetworkVpt())
-                .setRbh(usage.getNetworkRbh());
+                .constant(FEE_MATRICES_CONST)
+                .bpt(usage.getUniversalBpt())
+                .vpt(usage.getNetworkVpt())
+                .rbh(usage.getNetworkRbh());
         final var node = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setBpt(usage.getUniversalBpt())
-                .setVpt(usage.getNodeVpt())
-                .setBpr(usage.getNodeBpr())
-                .setSbpr(usage.getNodeSbpr());
+                .constant(FEE_MATRICES_CONST)
+                .bpt(usage.getUniversalBpt())
+                .vpt(usage.getNodeVpt())
+                .bpr(usage.getNodeBpr())
+                .sbpr(usage.getNodeSbpr());
         final var service = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setRbh(usage.getServiceRbh())
-                .setSbh(usage.getServiceSbh());
-        return usages.setNetworkdata(network)
-                .setNodedata(node)
-                .setServicedata(service)
-                .build();
+                .constant(FEE_MATRICES_CONST)
+                .rbh(usage.getServiceRbh())
+                .sbh(usage.getServiceSbh());
+        return usages.networkdata(network).nodedata(node).servicedata(service).build();
     }
 }

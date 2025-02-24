@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
@@ -58,8 +57,7 @@ class BlockNodeConnectionManagerTest {
 
     @Test
     void testNewBlockNodeConnectionManager() {
-        final var expectedGrpcEndpoint =
-                BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
+        final var expectedGrpcEndpoint = "publishBlockStream";
         assertEquals(expectedGrpcEndpoint, blockNodeConnectionManager.getGrpcEndPoint());
     }
 

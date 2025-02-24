@@ -5,16 +5,20 @@ import static com.hedera.node.app.hapi.fees.usage.token.entities.NftEntitySizes.
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 
-import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.QueryHeader;
+import com.hedera.hapi.node.token.TokenGetAccountNftInfosQuery;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.hapi.fees.usage.QueryUsage;
-import com.hederahashgraph.api.proto.java.Query;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 
 public class TokenGetAccountNftInfosUsage extends QueryUsage {
     private static final long INT_SIZE_AS_LONG = INT_SIZE;
 
     public TokenGetAccountNftInfosUsage(final Query query) {
-        super(query.getTokenGetAccountNftInfos().getHeader().getResponseType());
+        super(query.tokenGetAccountNftInfosOrElse(TokenGetAccountNftInfosQuery.DEFAULT)
+                .headerOrElse(QueryHeader.DEFAULT)
+                .responseType());
         addTb(BASIC_ENTITY_ID_SIZE);
         addTb(2 * INT_SIZE_AS_LONG);
     }
@@ -23,10 +27,10 @@ public class TokenGetAccountNftInfosUsage extends QueryUsage {
         return new TokenGetAccountNftInfosUsage(query);
     }
 
-    public TokenGetAccountNftInfosUsage givenMetadata(final List<ByteString> metadata) {
-        int additionalRb = 0;
-        for (final ByteString m : metadata) {
-            additionalRb += m.size();
+    public TokenGetAccountNftInfosUsage givenMetadata(final List<Bytes> metadata) {
+        long additionalRb = 0;
+        for (final Bytes m : metadata) {
+            additionalRb += m.length();
         }
         addRb(additionalRb);
         addRb(NFT_ENTITY_SIZES.fixedBytesInNftRepr() * metadata.size());

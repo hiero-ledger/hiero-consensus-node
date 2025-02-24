@@ -7,7 +7,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 
 import com.google.common.base.MoreObjects;
-import com.hederahashgraph.api.proto.java.CryptoUpdateTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -34,17 +34,14 @@ public class CryptoUpdateMeta {
     }
 
     public CryptoUpdateMeta(CryptoUpdateTransactionBody cryptoUpdateTxnBody, long transactionValidStartSecs) {
-        keyBytesUsed = cryptoUpdateTxnBody.hasKey() ? getAccountKeyStorageSize(cryptoUpdateTxnBody.getKey()) : 0;
+        keyBytesUsed = cryptoUpdateTxnBody.hasKey() ? getAccountKeyStorageSize(cryptoUpdateTxnBody.key()) : 0;
         msgBytesUsed = bytesUsedInTxn(cryptoUpdateTxnBody) + keyBytesUsed;
-        memoSize = cryptoUpdateTxnBody.hasMemo()
-                ? cryptoUpdateTxnBody.getMemo().getValueBytes().size()
-                : 0;
+        memoSize = cryptoUpdateTxnBody.hasMemo() ? cryptoUpdateTxnBody.memo().getBytes().length : 0;
         effectiveNow = transactionValidStartSecs;
-        expiry = cryptoUpdateTxnBody.getExpirationTime().getSeconds();
+        expiry = cryptoUpdateTxnBody.expirationTime().seconds();
         hasProxy = cryptoUpdateTxnBody.hasProxyAccountID();
         hasMaxAutomaticAssociations = cryptoUpdateTxnBody.hasMaxAutomaticTokenAssociations();
-        maxAutomaticAssociations =
-                cryptoUpdateTxnBody.getMaxAutomaticTokenAssociations().getValue();
+        maxAutomaticAssociations = cryptoUpdateTxnBody.maxAutomaticTokenAssociationsOrElse(0);
     }
 
     public long getMsgBytesUsed() {
@@ -81,7 +78,7 @@ public class CryptoUpdateMeta {
 
     private int bytesUsedInTxn(CryptoUpdateTransactionBody op) {
         return BASIC_ENTITY_ID_SIZE
-                + op.getMemo().getValueBytes().size()
+                + op.memo().getBytes().length
                 + (op.hasExpirationTime() ? LONG_SIZE : 0)
                 + (op.hasAutoRenewPeriod() ? LONG_SIZE : 0)
                 + (op.hasProxyAccountID() ? BASIC_ENTITY_ID_SIZE : 0)

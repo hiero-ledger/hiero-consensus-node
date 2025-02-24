@@ -6,13 +6,13 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEADER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.token.TokenGetInfoQuery;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.TokenGetInfoQuery;
-import com.hederahashgraph.api.proto.java.TokenID;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,13 +56,13 @@ class TokenGetInfoUsageTest {
         final var usage = subject.get();
 
         // then:
-        final var node = usage.getNodedata();
-        assertEquals(FeeBuilder.BASIC_QUERY_HEADER + BASIC_ENTITY_ID_SIZE, node.getBpt());
-        assertEquals(expectedBytes, node.getBpr());
+        final var node = usage.nodedata();
+        assertEquals(FeeBuilder.BASIC_QUERY_HEADER + BASIC_ENTITY_ID_SIZE, node.bpt());
+        assertEquals(expectedBytes, node.bpr());
     }
 
     private Query tokenQuery() {
-        final var op = TokenGetInfoQuery.newBuilder().setToken(id).build();
-        return Query.newBuilder().setTokenGetInfo(op).build();
+        final var op = TokenGetInfoQuery.newBuilder().token(id).build();
+        return Query.newBuilder().tokenGetInfo(op).build();
     }
 }

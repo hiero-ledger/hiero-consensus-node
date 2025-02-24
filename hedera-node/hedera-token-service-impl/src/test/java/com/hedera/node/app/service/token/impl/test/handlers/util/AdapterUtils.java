@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.CURRENTLY_UNUSED_ALIAS;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.FIRST_TOKEN_SENDER;
@@ -63,11 +62,9 @@ public class AdapterUtils {
     public static MapWritableKVState<ProtoBytes, AccountID> wellKnownAliasState() {
         final Map<ProtoBytes, AccountID> wellKnownAliases = Map.ofEntries(
                 Map.entry(new ProtoBytes(Bytes.wrap(CURRENTLY_UNUSED_ALIAS)), asAccount(0L, 0L, 0L)),
-                Map.entry(new ProtoBytes(Bytes.wrap(NO_RECEIVER_SIG_ALIAS)), toPbj(NO_RECEIVER_SIG)),
-                Map.entry(new ProtoBytes(Bytes.wrap(RECEIVER_SIG_ALIAS)), toPbj(RECEIVER_SIG)),
-                Map.entry(
-                        new ProtoBytes(Bytes.wrap(FIRST_TOKEN_SENDER_LITERAL_ALIAS.toByteArray())),
-                        toPbj(FIRST_TOKEN_SENDER)));
+                Map.entry(new ProtoBytes(Bytes.wrap(NO_RECEIVER_SIG_ALIAS)), NO_RECEIVER_SIG),
+                Map.entry(new ProtoBytes(Bytes.wrap(RECEIVER_SIG_ALIAS)), RECEIVER_SIG),
+                Map.entry(new ProtoBytes(FIRST_TOKEN_SENDER_LITERAL_ALIAS), FIRST_TOKEN_SENDER));
         return new MapWritableKVState<>(ALIASES_KEY, wellKnownAliases);
     }
 }

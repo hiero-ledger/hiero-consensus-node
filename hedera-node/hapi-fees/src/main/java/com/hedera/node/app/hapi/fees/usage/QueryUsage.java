@@ -5,9 +5,9 @@ import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMA
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_HEADER;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEADER;
 
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.ResponseType;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.ResponseType;
 
 public class QueryUsage {
     private long sb = 0;
@@ -24,8 +24,7 @@ public class QueryUsage {
     }
 
     public FeeData get() {
-        final var usage =
-                FeeComponents.newBuilder().setBpt(tb).setBpr(rb).setSbpr(sb).build();
+        final var usage = FeeComponents.newBuilder().bpt(tb).bpr(rb).sbpr(sb).build();
         return ESTIMATOR_UTILS.withDefaultQueryPartitioning(usage);
     }
 

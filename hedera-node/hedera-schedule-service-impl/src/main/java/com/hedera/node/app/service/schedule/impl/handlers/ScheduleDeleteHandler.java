@@ -7,17 +7,18 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_DELETE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.scheduled.ScheduleDeleteTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
@@ -34,7 +35,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -133,7 +133,7 @@ public class ScheduleDeleteHandler extends AbstractScheduleHandler implements Tr
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(op),
+                        op,
                         sigValueObj,
                         schedule,
                         feeContext
@@ -143,7 +143,7 @@ public class ScheduleDeleteHandler extends AbstractScheduleHandler implements Tr
     }
 
     private FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
+            @NonNull final TransactionBody txn,
             @NonNull final SigValueObj svo,
             @Nullable final Schedule schedule,
             final long scheduledTxExpiryTimeSecs) {
@@ -152,7 +152,7 @@ public class ScheduleDeleteHandler extends AbstractScheduleHandler implements Tr
             return scheduleOpsUsage.scheduleDeleteUsage(txn, sigUsage, schedule.calculatedExpirationSecond());
         } else {
             final long latestExpiry =
-                    txn.getTransactionID().getTransactionValidStart().getSeconds() + scheduledTxExpiryTimeSecs;
+                    txn.transactionID().transactionValidStart().seconds() + scheduledTxExpiryTimeSecs;
             return scheduleOpsUsage.scheduleDeleteUsage(txn, sigUsage, latestExpiry);
         }
     }

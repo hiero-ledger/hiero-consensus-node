@@ -14,6 +14,8 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.STATE_PROOF_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -28,8 +30,6 @@ import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Comparator;
 import javax.inject.Inject;
@@ -154,14 +154,14 @@ public class NetworkTransactionGetRecordHandler extends PaidQueryHandler {
                         ? STATE_PROOF_SIZE
                         : 0;
         final FeeComponents feeMatricesForTxNode = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setBpt(BASIC_QUERY_HEADER + BASIC_TX_ID_SIZE)
-                .setBpr(BASIC_QUERY_RES_HEADER + BASIC_TX_RECORD_SIZE + stateProofSize)
+                .constant(FEE_MATRICES_CONST)
+                .bpt(BASIC_QUERY_HEADER + BASIC_TX_ID_SIZE)
+                .bpr(BASIC_QUERY_RES_HEADER + BASIC_TX_RECORD_SIZE + stateProofSize)
                 .build();
         final FeeData perRecordFeeData = FeeData.newBuilder()
-                .setNetworkdata(FeeComponents.getDefaultInstance())
-                .setNodedata(feeMatricesForTxNode)
-                .setServicedata(FeeComponents.getDefaultInstance())
+                .networkdata(FeeComponents.DEFAULT)
+                .nodedata(feeMatricesForTxNode)
+                .servicedata(FeeComponents.DEFAULT)
                 .build();
 
         int recordCount = 1;
@@ -180,25 +180,25 @@ public class NetworkTransactionGetRecordHandler extends PaidQueryHandler {
 
     private static FeeData multiplierOfUsages(final FeeData feeData, final int multiplier) {
         return FeeData.newBuilder()
-                .setNodedata(multiplierOfScopedUsages(feeData.getNodedata(), multiplier))
-                .setNetworkdata(multiplierOfScopedUsages(feeData.getNetworkdata(), multiplier))
-                .setServicedata(multiplierOfScopedUsages(feeData.getServicedata(), multiplier))
+                .nodedata(multiplierOfScopedUsages(feeData.nodedata(), multiplier))
+                .networkdata(multiplierOfScopedUsages(feeData.networkdata(), multiplier))
+                .servicedata(multiplierOfScopedUsages(feeData.servicedata(), multiplier))
                 .build();
     }
 
     private static FeeComponents multiplierOfScopedUsages(final FeeComponents feeComponents, final int multiplier) {
         return FeeComponents.newBuilder()
-                .setMin(feeComponents.getMin())
-                .setMax(feeComponents.getMax())
-                .setConstant(feeComponents.getConstant() * multiplier)
-                .setBpt(feeComponents.getBpt() * multiplier)
-                .setVpt(feeComponents.getVpt() * multiplier)
-                .setRbh(feeComponents.getRbh() * multiplier)
-                .setSbh(feeComponents.getSbh() * multiplier)
-                .setGas(feeComponents.getGas() * multiplier)
-                .setTv(feeComponents.getTv() * multiplier)
-                .setBpr(feeComponents.getBpr() * multiplier)
-                .setSbpr(feeComponents.getSbpr() * multiplier)
+                .min(feeComponents.min())
+                .max(feeComponents.max())
+                .constant(feeComponents.constant() * multiplier)
+                .bpt(feeComponents.bpt() * multiplier)
+                .vpt(feeComponents.vpt() * multiplier)
+                .rbh(feeComponents.rbh() * multiplier)
+                .sbh(feeComponents.sbh() * multiplier)
+                .gas(feeComponents.gas() * multiplier)
+                .tv(feeComponents.tv() * multiplier)
+                .bpr(feeComponents.bpr() * multiplier)
+                .sbpr(feeComponents.sbpr() * multiplier)
                 .build();
     }
 }
