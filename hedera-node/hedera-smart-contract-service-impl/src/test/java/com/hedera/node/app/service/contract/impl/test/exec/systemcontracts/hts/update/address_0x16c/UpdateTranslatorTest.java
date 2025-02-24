@@ -8,7 +8,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeTranslator;
@@ -17,8 +16,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.ReadableTokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,19 +32,10 @@ class UpdateTranslatorTest extends CallTestBase {
     private AddressIdConverter addressIdConverter;
 
     @Mock
-    private VerificationStrategy verificationStrategy;
-
-    @Mock
     private VerificationStrategies verificationStrategies;
 
     @Mock
     private HederaWorldUpdater.Enhancement enhancement;
-
-    @Mock
-    private ReadableTokenStore readableTokenStore;
-
-    @Mock
-    private ReadableAccountStore readableAccountStore;
 
     @Mock
     private ContractMetrics contractMetrics;
