@@ -34,7 +34,6 @@ import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
@@ -89,7 +88,6 @@ public class StandaloneDispatchFactory {
     private final NetworkUtilizationManager networkUtilizationManager;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
     private final TransactionChecker transactionChecker;
-    private final DeduplicationCache deduplicationCache;
 
     @Inject
     public StandaloneDispatchFactory(
@@ -106,8 +104,7 @@ public class StandaloneDispatchFactory {
             @NonNull final TransactionDispatcher transactionDispatcher,
             @NonNull final NetworkUtilizationManager networkUtilizationManager,
             @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
-            @NonNull final TransactionChecker transactionChecker,
-            @NonNull final DeduplicationCache deduplicationCache) {
+            @NonNull final TransactionChecker transactionChecker) {
         this.feeManager = requireNonNull(feeManager);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
@@ -122,7 +119,6 @@ public class StandaloneDispatchFactory {
         this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.softwareVersionFactory = softwareVersionFactory;
         this.transactionChecker = requireNonNull(transactionChecker);
-        this.deduplicationCache = requireNonNull(deduplicationCache);
     }
 
     /**

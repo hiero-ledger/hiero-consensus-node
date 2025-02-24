@@ -110,7 +110,6 @@ public class ChildDispatchFactory {
     private final ExchangeRateManager exchangeRateManager;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
     private final TransactionChecker transactionChecker;
-    private final DeduplicationCache deduplicationCache;
 
     @Inject
     public ChildDispatchFactory(
@@ -133,7 +132,6 @@ public class ChildDispatchFactory {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
         this.transactionChecker = requireNonNull(transactionChecker);
-        this.deduplicationCache = requireNonNull(deduplicationCache);
     }
 
     /**

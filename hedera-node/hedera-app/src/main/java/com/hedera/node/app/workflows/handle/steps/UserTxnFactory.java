@@ -43,7 +43,6 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
@@ -105,7 +104,6 @@ public class UserTxnFactory {
     private final BlockStreamManager blockStreamManager;
     private final ChildDispatchFactory childDispatchFactory;
     private final TransactionChecker transactionChecker;
-    private final DeduplicationCache deduplicationCache;
 
     @Inject
     public UserTxnFactory(
@@ -125,8 +123,7 @@ public class UserTxnFactory {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
-            @NonNull final TransactionChecker transactionChecker,
-            @NonNull final DeduplicationCache deduplicationCache) {
+            @NonNull final TransactionChecker transactionChecker) {
         this.configProvider = requireNonNull(configProvider);
         this.kvStateChangeListener = requireNonNull(kvStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
@@ -148,7 +145,6 @@ public class UserTxnFactory {
                 .streamMode();
         this.softwareVersionFactory = softwareVersionFactory;
         this.transactionChecker = requireNonNull(transactionChecker);
-        this.deduplicationCache = requireNonNull(deduplicationCache);
     }
 
     /**

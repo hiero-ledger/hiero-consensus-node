@@ -242,7 +242,7 @@ message TransactionBody {
      *
      * Only Ed25519 and ECDSA(secp256k1) keys and hence signatures are currently supported.
      */
-    Key batchKey = 73;
+    Key batch_key = 73;
 
     // The fields here are ordered in strictly ascending field ordinal
     // order due to limitations in PBJ.
@@ -646,7 +646,7 @@ message TransactionBody {
          */
         com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication = 72;
 
-        AtomicBatchTransactionBody atomicBatch = 74;
+        AtomicBatchTransactionBody atomic_batch = 74;
     }
 
     /**

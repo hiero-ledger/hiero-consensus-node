@@ -278,7 +278,6 @@ class UserTxnTest {
                 blockStreamManager,
                 childDispatchFactory,
                 softwareVersionFactory,
-                transactionChecker,
-                deduplicationCache);
+                transactionChecker);
     }
 }

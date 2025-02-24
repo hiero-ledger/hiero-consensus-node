@@ -2,9 +2,9 @@
 package com.hedera.node.app.service.util.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_NOT_IN_WHITELIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
@@ -94,7 +94,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         Set<TransactionID> txIds = new HashSet<>();
         for (final var innerTx : innerTxs) {
             if (!innerTx.hasBody()) {
-                throw new PreCheckException(BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
+                throw new PreCheckException(BATCH_TRANSACTION_NOT_IN_WHITELIST);
             }
             final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
 
@@ -119,13 +119,12 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var config = context.configuration();
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
 
-        final var txnBodies = atomicBatchTransactionBody.transactions().stream()
-                .map(Transaction::bodyOrThrow)
-                .toList();
+        final var txns = atomicBatchTransactionBody.transactions();
         // not using stream below as throwing exception from middle of functional pipeline is a terrible idea
-        for (final var innerTxBody : txnBodies) {
+        for (final var txn : txns) {
+            final var innerTxBody = txn.bodyOrThrow();
             validateFalsePreCheck(
-                    isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_LIST_CONTAINS_INVALID_TRANSACTION);
+                    isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_NOT_IN_WHITELIST);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
@@ -144,13 +143,14 @@ public class AtomicBatchHandler implements TransactionHandler {
                                 .maxNumberOfTransactions(),
                 BATCH_SIZE_LIMIT_EXCEEDED);
 
-        final var txnBodies = op.transactions().stream().map(Transaction::body).toList();
+        final var txns = op.transactions();
 
         // The parsing check, timebox, and duplication checks are done in the pre-handle workflow
         // So, no need to repeat here
         // dispatch all the inner transactions
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
-        for (final var body : txnBodies) {
+        for (final var txn : txns) {
+            final var body = txn.bodyOrThrow();
             final var payerId = body.transactionIDOrThrow().accountIDOrThrow();
             // all the inner transactions' keys are verified in PreHandleWorkflow
             final var dispatchOptions =
