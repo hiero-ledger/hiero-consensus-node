@@ -8,33 +8,50 @@ import static com.swirlds.platform.test.consensus.framework.validation.Validatio
 import static com.swirlds.platform.test.consensus.framework.validation.Validations.ValidationType.RATIOS;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
 public class Validations {
-    private final Map<ValidationType, ConsensusOutputValidation> map = new HashMap<>(Map.of(
-            INPUTS_ARE_SAME, InputEventsValidation::validateInputsAreTheSame,
-            DIFFERENT_ORDER, InputEventsValidation::validateEventsAreInDifferentOrder,
-            CONSENSUS_EVENTS, ConsensusRoundValidation::validateConsensusRounds,
-            CONSENSUS_TIMESTAMPS, TimestampChecker::validateConsensusTimestamps));
 
-    public static @NonNull Validations standard() {
+    private final Map<ValidationType, ConsensusOutputValidation> consensusValidationsMap =
+            new EnumMap<>(ValidationType.class);
+
+    public static @NonNull Validations newInstance() {
         return new Validations();
     }
 
     public @NonNull Validations remove(final ValidationType type) {
-        map.remove(type);
+        consensusValidationsMap.remove(type);
+        return this;
+    }
+
+    public @NonNull Validations standard() {
+        consensusValidationsMap.putAll(Map.of(
+                INPUTS_ARE_SAME, InputEventsValidation::validateInputsAreTheSame,
+                DIFFERENT_ORDER, InputEventsValidation::validateEventsAreInDifferentOrder,
+                CONSENSUS_EVENTS, ConsensusRoundValidation::validateConsensusRounds,
+                CONSENSUS_TIMESTAMPS, TimestampChecker::validateConsensusTimestamps));
         return this;
     }
 
     public @NonNull Validations ratios(@NonNull final EventRatioValidation ratioValidation) {
-        map.put(RATIOS, ratioValidation);
+        consensusValidationsMap.put(RATIOS, ratioValidation);
+        return this;
+    }
+
+    public @NonNull Validations consensusEvents() {
+        consensusValidationsMap.put(CONSENSUS_EVENTS, ConsensusRoundValidation::validateConsensusRounds);
+        return this;
+    }
+
+    public @NonNull Validations consensusTimestamps() {
+        consensusValidationsMap.put(CONSENSUS_TIMESTAMPS, TimestampChecker::validateConsensusTimestamps);
         return this;
     }
 
     public @NonNull List<ConsensusOutputValidation> getList() {
-        return map.values().stream().toList();
+        return consensusValidationsMap.values().stream().toList();
     }
 
     public enum ValidationType {

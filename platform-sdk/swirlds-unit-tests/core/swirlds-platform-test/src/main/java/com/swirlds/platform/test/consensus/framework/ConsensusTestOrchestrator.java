@@ -112,6 +112,9 @@ public class ConsensusTestOrchestrator {
             for (final ConsensusOutputValidation validator : validations.getList()) {
                 validator.validate(node1.getOutput(), node2.getOutput());
             }
+            for (final ConsensusOutputValidation validator : validations.getList()) {
+                validator.validate(node1.getOutput(), node2.getOutput());
+            }
         }
     }
 
