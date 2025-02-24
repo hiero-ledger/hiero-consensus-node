@@ -6,7 +6,6 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
