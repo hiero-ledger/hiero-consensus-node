@@ -4,17 +4,18 @@ package com.hedera.node.app.service.schedule.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.transactionIdForScheduled;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
@@ -31,7 +32,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -121,7 +121,7 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(body),
+                        body,
                         sigValueObj,
                         schedule,
                         feeContext
@@ -131,7 +131,7 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
     }
 
     private FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
+            @NonNull final TransactionBody txn,
             @NonNull final SigValueObj svo,
             @Nullable final Schedule schedule,
             final long scheduledTxExpiryTimeSecs) {
@@ -140,7 +140,7 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
             return scheduleOpsUsage.scheduleSignUsage(txn, sigUsage, schedule.calculatedExpirationSecond());
         } else {
             final long latestExpiry =
-                    txn.getTransactionID().getTransactionValidStart().getSeconds() + scheduledTxExpiryTimeSecs;
+                    txn.transactionID().transactionValidStart().seconds() + scheduledTxExpiryTimeSecs;
             return scheduleOpsUsage.scheduleSignUsage(txn, sigUsage, latestExpiry);
         }
     }

@@ -13,6 +13,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -25,7 +26,6 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
 import com.hedera.node.app.hapi.fees.usage.crypto.ExtantCryptoContext;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.AliasUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
@@ -40,7 +40,6 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.Collections;
@@ -193,12 +192,12 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
         return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, account));
     }
 
-    private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Account account) {
+    private FeeData usageGiven(final Query query, final Account account) {
         if (account == null) {
             return CONSTANT_FEE_DATA;
         }
         final var ctx = ExtantCryptoContext.newBuilder()
-                .setCurrentKey(CommonPbjConverters.fromPbj(account.keyOrThrow()))
+                .setCurrentKey(account.keyOrThrow())
                 .setCurrentMemo(account.memo())
                 .setCurrentExpiry(account.expirationSecond())
                 .setCurrentNumTokenRels(account.numberAssociations())
@@ -208,6 +207,6 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
                 .setCurrentApproveForAllNftAllowances(Collections.emptySet())
                 .setCurrentlyHasProxy(false)
                 .build();
-        return cryptoOpsUsage.cryptoInfoUsage(CommonPbjConverters.fromPbj(query), ctx);
+        return cryptoOpsUsage.cryptoInfoUsage(query, ctx);
     }
 }

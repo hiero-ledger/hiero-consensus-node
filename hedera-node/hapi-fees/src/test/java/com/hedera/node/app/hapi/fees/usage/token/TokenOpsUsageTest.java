@@ -5,6 +5,11 @@ import static com.hedera.node.app.hapi.fees.test.AdapterUtils.feeDataFrom;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.hapi.node.transaction.FixedFee;
+import com.hedera.hapi.node.transaction.FractionalFee;
+import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.hapi.fees.pricing.ResourceProvider;
 import com.hedera.node.app.hapi.fees.pricing.UsableResource;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
@@ -18,11 +23,6 @@ import com.hedera.node.app.hapi.fees.usage.token.meta.TokenUnfreezeMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenUnpauseMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenWipeMeta;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.CustomFee;
-import com.hederahashgraph.api.proto.java.FixedFee;
-import com.hederahashgraph.api.proto.java.FractionalFee;
-import com.hederahashgraph.api.proto.java.RoyaltyFee;
-import com.hederahashgraph.api.proto.java.SubType;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -66,35 +66,28 @@ class TokenOpsUsageTest {
     @Test
     void canCountFeeTypes() {
         final List<CustomFee> aSchedule = new ArrayList<>();
+        aSchedule.add(CustomFee.newBuilder().fixedFee(FixedFee.DEFAULT).build());
         aSchedule.add(CustomFee.newBuilder()
-                .setFixedFee(FixedFee.getDefaultInstance())
+                .fixedFee(FixedFee.newBuilder().denominatingTokenId(IdUtils.asToken("1.2.3")))
                 .build());
         aSchedule.add(CustomFee.newBuilder()
-                .setFixedFee(FixedFee.newBuilder().setDenominatingTokenId(IdUtils.asToken("1.2.3")))
+                .fixedFee(FixedFee.newBuilder().denominatingTokenId(IdUtils.asToken("1.2.3")))
+                .build());
+        aSchedule.add(
+                CustomFee.newBuilder().fractionalFee(FractionalFee.DEFAULT).build());
+        aSchedule.add(
+                CustomFee.newBuilder().fractionalFee(FractionalFee.DEFAULT).build());
+        aSchedule.add(
+                CustomFee.newBuilder().fractionalFee(FractionalFee.DEFAULT).build());
+        aSchedule.add(CustomFee.newBuilder().royaltyFee(RoyaltyFee.DEFAULT).build());
+        aSchedule.add(CustomFee.newBuilder()
+                .royaltyFee(RoyaltyFee.newBuilder()
+                        .fallbackFee(FixedFee.newBuilder().build()))
                 .build());
         aSchedule.add(CustomFee.newBuilder()
-                .setFixedFee(FixedFee.newBuilder().setDenominatingTokenId(IdUtils.asToken("1.2.3")))
-                .build());
-        aSchedule.add(CustomFee.newBuilder()
-                .setFractionalFee(FractionalFee.getDefaultInstance())
-                .build());
-        aSchedule.add(CustomFee.newBuilder()
-                .setFractionalFee(FractionalFee.getDefaultInstance())
-                .build());
-        aSchedule.add(CustomFee.newBuilder()
-                .setFractionalFee(FractionalFee.getDefaultInstance())
-                .build());
-        aSchedule.add(CustomFee.newBuilder()
-                .setRoyaltyFee(RoyaltyFee.getDefaultInstance())
-                .build());
-        aSchedule.add(CustomFee.newBuilder()
-                .setRoyaltyFee(RoyaltyFee.newBuilder()
-                        .setFallbackFee(FixedFee.newBuilder().build()))
-                .build());
-        aSchedule.add(CustomFee.newBuilder()
-                .setRoyaltyFee(RoyaltyFee.newBuilder()
-                        .setFallbackFee(FixedFee.newBuilder()
-                                .setDenominatingTokenId(IdUtils.asToken("1.2.3"))
+                .royaltyFee(RoyaltyFee.newBuilder()
+                        .fallbackFee(FixedFee.newBuilder()
+                                .denominatingTokenId(IdUtils.asToken("1.2.3"))
                                 .build()))
                 .build());
 

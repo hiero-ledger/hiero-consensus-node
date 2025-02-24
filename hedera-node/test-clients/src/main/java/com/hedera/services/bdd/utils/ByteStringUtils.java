@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.hapi.utils;
+package com.hedera.services.bdd.utils;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ByteOutput;

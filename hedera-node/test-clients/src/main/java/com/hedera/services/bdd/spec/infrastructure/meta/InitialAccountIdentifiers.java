@@ -4,10 +4,10 @@ package com.hedera.services.bdd.spec.infrastructure.meta;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
-import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
+import com.hedera.services.bdd.utils.ByteStringUtils;
 import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.Nullable;

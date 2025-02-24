@@ -12,7 +12,7 @@ class HapiThrottleUtilsTest {
     void factoryWorks() throws IOException {
         final var proto = TestUtils.protoDefs("bootstrap/throttles.json");
 
-        final var bucketA = proto.getThrottleBuckets(0);
+        final var bucketA = proto.throttleBuckets().getFirst();
 
         final var fromResult = HapiThrottleUtils.hapiBucketFromProto(bucketA);
         final var fromToResult = HapiThrottleUtils.hapiBucketToProto(fromResult);

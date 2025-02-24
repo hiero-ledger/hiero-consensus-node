@@ -12,9 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.SchedulableTransactionBody;
 import java.util.EnumSet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -25,7 +25,7 @@ class ExtantScheduleContextTest {
     private final Key adminKey = KeyUtils.A_THRESHOLD_KEY;
     private final String memo = "Not since life began";
     private final SchedulableTransactionBody scheduledTxn =
-            SchedulableTransactionBody.newBuilder().setTransactionFee(123).build();
+            SchedulableTransactionBody.newBuilder().transactionFee(123).build();
 
     enum SettableField {
         NUM_SIGNERS,
@@ -45,7 +45,7 @@ class ExtantScheduleContextTest {
                 + BASIC_RICH_INSTANT_SIZE
                 + memo.getBytes().length
                 + getAccountKeyStorageSize(adminKey)
-                + scheduledTxn.getSerializedSize()
+                + SchedulableTransactionBody.PROTOBUF.toBytes(scheduledTxn).length()
                 + numSigners * KEY_SIZE;
 
         // then:
@@ -66,7 +66,7 @@ class ExtantScheduleContextTest {
         final long expectedNonBaseRb = ExtantScheduleContext.METADATA_SIZE
                 + BASIC_RICH_INSTANT_SIZE
                 + memo.getBytes().length
-                + scheduledTxn.getSerializedSize()
+                + SchedulableTransactionBody.PROTOBUF.toBytes(scheduledTxn).length()
                 + ctx.numSigners() * KEY_SIZE;
 
         // then:

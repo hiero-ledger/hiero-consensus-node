@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.pricing;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ACCOUNT_WIPE;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
+import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.node.app.hapi.fees.pricing.ScheduleGenerator.SUPPORTED_FUNCTIONS;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusSubmitMessage;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileAppend;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenAccountWipe;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.hederahashgraph.api.proto.java.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.SubType;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SubType;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -56,7 +56,7 @@ class ScheduleGeneratorTest {
     private static final List<Pair<HederaFunctionality, List<SubType>>> MISC_TEST_FUNCTIONS = List.of(
             /* Crypto */
             Pair.of(
-                    CryptoTransfer,
+                    CRYPTO_TRANSFER,
                     List.of(
                             DEFAULT,
                             TOKEN_FUNGIBLE_COMMON,
@@ -64,10 +64,10 @@ class ScheduleGeneratorTest {
                             TOKEN_NON_FUNGIBLE_UNIQUE,
                             TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES)),
             /* File */
-            Pair.of(FileAppend, List.of(DEFAULT)),
+            Pair.of(FILE_APPEND, List.of(DEFAULT)),
             /* Token */
-            Pair.of(TokenAccountWipe, List.of(TOKEN_NON_FUNGIBLE_UNIQUE)),
+            Pair.of(TOKEN_ACCOUNT_WIPE, List.of(TOKEN_NON_FUNGIBLE_UNIQUE)),
             /* Consensus */
-            Pair.of(ConsensusSubmitMessage, List.of(DEFAULT)),
-            Pair.of(ScheduleCreate, List.of(DEFAULT, SCHEDULE_CREATE_CONTRACT_CALL)));
+            Pair.of(CONSENSUS_SUBMIT_MESSAGE, List.of(DEFAULT)),
+            Pair.of(SCHEDULE_CREATE, List.of(DEFAULT, SCHEDULE_CREATE_CONTRACT_CALL)));
 }

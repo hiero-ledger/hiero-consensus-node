@@ -19,11 +19,12 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -43,7 +44,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -225,11 +225,10 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(subType)
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj));
+                .legacyCalculate(sigValueObj -> usageGiven(body, sigValueObj));
     }
 
-    private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj sigUsage) {
+    private FeeData usageGiven(final TransactionBody txn, final SigValueObj sigUsage) {
         return getConsensusCreateTopicFee(txn, sigUsage);
     }
 }

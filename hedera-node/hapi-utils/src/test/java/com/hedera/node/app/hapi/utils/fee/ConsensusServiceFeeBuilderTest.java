@@ -3,55 +3,51 @@ package com.hedera.node.app.hapi.utils.fee;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.StringValue;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
-import com.hederahashgraph.api.proto.java.ConsensusDeleteTopicTransactionBody;
-import com.hederahashgraph.api.proto.java.ConsensusUpdateTopicTransactionBody;
-import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.KeyList;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TopicID;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TopicID;
+import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
+import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
+import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
 
 class ConsensusServiceFeeBuilderTest {
     private static final Key A_KEY = Key.newBuilder()
-            .setEd25519(ByteString.copyFromUtf8("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+            .ed25519(Bytes.wrap("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
             .build();
     private static final String MEMO = "This is a memo.";
     private static final Timestamp TIMESTAMP =
-            Timestamp.newBuilder().setSeconds(100L).setNanos(100).build();
-    private static final AccountID ACCOUNT_A = AccountID.newBuilder()
-            .setAccountNum(3L)
-            .setRealmNum(0L)
-            .setShardNum(0L)
-            .build();
+            Timestamp.newBuilder().seconds(100L).nanos(100).build();
+    private static final AccountID ACCOUNT_A =
+            AccountID.newBuilder().accountNum(3L).realmNum(0L).shardNum(0L).build();
     private static final Duration DURATION =
-            Duration.newBuilder().setSeconds(1000L).build();
+            Duration.newBuilder().seconds(1000L).build();
     private static final SigValueObj SIG_VALUE_OBJ = new SigValueObj(1, 1, 1);
 
     @Test
     void getConsensusCreateTopicFeeHappyPath() {
         final var txnBodyA = TransactionBody.newBuilder()
-                .setConsensusCreateTopic(ConsensusCreateTopicTransactionBody.newBuilder()
-                        .setAdminKey(A_KEY)
-                        .setSubmitKey(A_KEY)
-                        .setMemo(MEMO)
-                        .setAutoRenewAccount(ACCOUNT_A)
-                        .setAutoRenewPeriod(DURATION)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.newBuilder()
+                        .adminKey(A_KEY)
+                        .submitKey(A_KEY)
+                        .memo(MEMO)
+                        .autoRenewAccount(ACCOUNT_A)
+                        .autoRenewPeriod(DURATION)
                         .build())
                 .build();
         final var txnBodyB = TransactionBody.newBuilder()
-                .setConsensusCreateTopic(ConsensusCreateTopicTransactionBody.newBuilder()
-                        .setAdminKey(A_KEY)
-                        .setSubmitKey(A_KEY)
-                        .setMemo(MEMO)
-                        .setAutoRenewAccount(ACCOUNT_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.newBuilder()
+                        .adminKey(A_KEY)
+                        .submitKey(A_KEY)
+                        .memo(MEMO)
+                        .autoRenewAccount(ACCOUNT_A)
                         .build())
                 .build();
 
@@ -67,17 +63,17 @@ class ConsensusServiceFeeBuilderTest {
     @Test
     void getConsensusUpdateTopicFeeHappyPath() {
         final var txnBodyA = TransactionBody.newBuilder()
-                .setConsensusUpdateTopic(ConsensusUpdateTopicTransactionBody.newBuilder()
-                        .setMemo(StringValue.of(MEMO))
-                        .setAdminKey(A_KEY)
-                        .setExpirationTime(TIMESTAMP)
-                        .setAutoRenewPeriod(DURATION)
+                .consensusUpdateTopic(ConsensusUpdateTopicTransactionBody.newBuilder()
+                        .memo(MEMO)
+                        .adminKey(A_KEY)
+                        .expirationTime(TIMESTAMP)
+                        .autoRenewPeriod(DURATION)
                         .build())
                 .build();
         final var txnBodyB = TransactionBody.newBuilder()
-                .setConsensusUpdateTopic(ConsensusUpdateTopicTransactionBody.newBuilder()
-                        .setMemo(StringValue.of(MEMO))
-                        .setAdminKey(A_KEY)
+                .consensusUpdateTopic(ConsensusUpdateTopicTransactionBody.newBuilder()
+                        .memo(MEMO)
+                        .adminKey(A_KEY)
                         .build())
                 .build();
 
@@ -93,24 +89,21 @@ class ConsensusServiceFeeBuilderTest {
     @Test
     void getUpdateTopicRbsIncreaseHappyPath() {
         final var bKey = Key.newBuilder()
-                .setEd25519(ByteString.copyFromUtf8("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-                .setKeyList(KeyList.newBuilder().build())
+                .ed25519(Bytes.wrap("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+                .keyList(KeyList.newBuilder().build())
                 .build();
-        final var emptyAccount = AccountID.newBuilder()
-                .setAccountNum(0L)
-                .setRealmNum(0L)
-                .setShardNum(0L)
-                .build();
+        final var emptyAccount =
+                AccountID.newBuilder().accountNum(0L).realmNum(0L).shardNum(0L).build();
         final var txnBodyA = ConsensusUpdateTopicTransactionBody.newBuilder()
-                .setMemo(StringValue.of(MEMO))
-                .setAdminKey(bKey)
-                .setSubmitKey(bKey)
-                .setAutoRenewPeriod(DURATION)
-                .setAutoRenewAccount(emptyAccount)
-                .setExpirationTime(TIMESTAMP)
+                .memo(MEMO)
+                .adminKey(bKey)
+                .submitKey(bKey)
+                .autoRenewPeriod(DURATION)
+                .autoRenewAccount(emptyAccount)
+                .expirationTime(TIMESTAMP)
                 .build();
         final var txnBodyB = ConsensusUpdateTopicTransactionBody.newBuilder()
-                .setAutoRenewPeriod(DURATION)
+                .autoRenewPeriod(DURATION)
                 .build();
 
         final var actualA = ConsensusServiceFeeBuilder.getUpdateTopicRbsIncrease(
@@ -124,14 +117,11 @@ class ConsensusServiceFeeBuilderTest {
 
     @Test
     void getConsensusDeleteTopicFeeHappyPath() {
-        final var topicId = TopicID.newBuilder()
-                .setTopicNum(5L)
-                .setRealmNum(0L)
-                .setShardNum(0L)
-                .build();
+        final var topicId =
+                TopicID.newBuilder().topicNum(5L).realmNum(0L).shardNum(0L).build();
         final var txnBody = TransactionBody.newBuilder()
-                .setConsensusDeleteTopic(ConsensusDeleteTopicTransactionBody.newBuilder()
-                        .setTopicID(topicId)
+                .consensusDeleteTopic(ConsensusDeleteTopicTransactionBody.newBuilder()
+                        .topicID(topicId)
                         .build())
                 .build();
 
@@ -165,21 +155,21 @@ class ConsensusServiceFeeBuilderTest {
             final long rbhNetwork,
             final long rbhService) {
         return FeeData.newBuilder()
-                .setNodedata(FeeComponents.newBuilder()
-                        .setConstant(constant)
-                        .setBpt(bpt)
-                        .setVpt(vpt)
-                        .setBpr(bpr)
+                .nodedata(FeeComponents.newBuilder()
+                        .constant(constant)
+                        .bpt(bpt)
+                        .vpt(vpt)
+                        .bpr(bpr)
                         .build())
-                .setNetworkdata(FeeComponents.newBuilder()
-                        .setConstant(constant)
-                        .setBpt(bpt)
-                        .setVpt(vpt)
-                        .setRbh(rbhNetwork)
+                .networkdata(FeeComponents.newBuilder()
+                        .constant(constant)
+                        .bpt(bpt)
+                        .vpt(vpt)
+                        .rbh(rbhNetwork)
                         .build())
-                .setServicedata(FeeComponents.newBuilder()
-                        .setConstant(constant)
-                        .setRbh(rbhService)
+                .servicedata(FeeComponents.newBuilder()
+                        .constant(constant)
+                        .rbh(rbhService)
                         .build())
                 .build();
     }

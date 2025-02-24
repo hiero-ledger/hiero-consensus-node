@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.transactions.token;
 
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
@@ -69,7 +70,7 @@ public class HapiTokenBurn extends HapiTxnOp<HapiTokenBurn> {
 
     private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
         final UsageAccumulator accumulator = new UsageAccumulator();
-        final var tokenBurnMeta = TOKEN_OPS_USAGE_UTILS.tokenBurnUsageFrom(txn, subType);
+        final var tokenBurnMeta = TOKEN_OPS_USAGE_UTILS.tokenBurnUsageFrom(toPbj(txn), toPbj(subType));
         final var baseTransactionMeta =
                 new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
         final TokenOpsUsage tokenOpsUsage = new TokenOpsUsage();

@@ -7,9 +7,9 @@ import static java.math.MathContext.DECIMAL128;
 import static java.math.RoundingMode.HALF_EVEN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.SubType;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.MathContext;

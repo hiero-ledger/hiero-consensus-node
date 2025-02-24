@@ -6,26 +6,26 @@
     "throttleGroups" : [ {
       "opsPerSec" : 10400,
       "milliOpsPerSec" : 10400000,
-      "operations" : [ "ScheduleCreate", "CryptoCreate", "CryptoTransfer", "CryptoUpdate", "CryptoDelete", "CryptoGetInfo", "CryptoGetAccountRecords", "ConsensusCreateTopic", "ConsensusSubmitMessage", "ConsensusUpdateTopic", "ConsensusDeleteTopic", "ConsensusGetTopicInfo", "TokenGetNftInfo", "TokenGetInfo", "ScheduleDelete", "ScheduleGetInfo", "FileGetContents", "FileGetInfo", "ContractUpdate", "ContractDelete", "ContractGetInfo", "ContractGetBytecode", "ContractGetRecords", "ContractCallLocal", "TransactionGetRecord", "GetVersionInfo", "TokenGetAccountNftInfos", "TokenGetNftInfos", "CryptoApproveAllowance", "CryptoDeleteAllowance" ]
+      "operations" : [ "SCHEDULE_CREATE", "CRYPTO_CREATE", "CRYPTO_TRANSFER", "CRYPTO_UPDATE", "CRYPTO_DELETE", "CRYPTO_GET_INFO", "CRYPTO_GET_ACCOUNT_RECORDS", "CONSENSUS_CREATE_TOPIC", "CONSENSUS_SUBMIT_MESSAGE", "CONSENSUS_UPDATE_TOPIC", "CONSENSUS_DELETE_TOPIC", "CONSENSUS_GET_TOPIC_INFO", "TOKEN_GET_NFT_INFO", "TOKEN_GET_INFO", "SCHEDULE_DELETE", "SCHEDULE_GET_INFO", "FILE_GET_CONTENTS", "FILE_GET_INFO", "CONTRACT_UPDATE", "CONTRACT_DELETE", "CONTRACT_GET_INFO", "CONTRACT_GET_BYTECODE", "CONTRACT_GET_RECORDS", "CONTRACT_CALL_LOCAL", "TRANSACTION_GET_RECORD", "GET_VERSION_INFO", "TOKEN_GET_ACCOUNT_NFT_INFOS", "TOKEN_GET_NFT_INFOS", "CRYPTO_APPROVE_ALLOWANCE", "CRYPTO_DELETE_ALLOWANCE" ]
     }, {
       "opsPerSec" : 13,
       "milliOpsPerSec" : 13000,
-      "operations" : [ "FileCreate", "FileUpdate", "FileAppend", "FileDelete" ]
+      "operations" : [ "FILE_CREATE", "FILE_UPDATE", "FILE_APPEND", "FILE_DELETE" ]
     }, {
       "opsPerSec" : 100,
       "milliOpsPerSec" : 100000,
-      "operations" : [ "ScheduleSign" ]
+      "operations" : [ "SCHEDULE_SIGN" ]
     }, {
       "opsPerSec" : 125,
-      "operations" : [ "TokenMint" ]
+      "operations" : [ "TOKEN_MINT" ]
     }, {
       "opsPerSec" : 350,
       "milliOpsPerSec" : 350000,
-      "operations" : [ "ContractCall", "ContractCreate", "EthereumTransaction" ]
+      "operations" : [ "CONTRACT_CALL", "CONTRACT_CREATE", "ETHEREUM_TRANSACTION" ]
     }, {
       "opsPerSec" : 3000,
       "milliOpsPerSec" : 3000000,
-      "operations" : [ "TokenCreate", "TokenDelete", "TokenBurn", "TokenUpdate", "TokenFeeScheduleUpdate", "TokenAssociateToAccount", "TokenAccountWipe", "TokenDissociateFromAccount", "TokenFreezeAccount", "TokenUnfreezeAccount", "TokenGrantKycToAccount", "TokenRevokeKycFromAccount", "TokenPause", "TokenUnpause" ]
+      "operations" : [ "TOKEN_CREATE", "TOKEN_DELETE", "TOKEN_BURN", "TOKEN_UPDATE", "TOKEN_FEE_SCHEDULE_UPDATE", "TOKEN_ASSOCIATE_TO_ACCOUNT", "TOKEN_ACCOUNT_WIPE", "TOKEN_DISSOCIATE_FROM_ACCOUNT", "TOKEN_FREEZE_ACCOUNT", "TOKEN_UNFREEZE_ACCOUNT", "TOKEN_GRANT_KYC_TO_ACCOUNT", "TOKEN_REVOKE_KYC_FROM_ACCOUNT", "TOKEN_PAUSE", "TOKEN_UNPAUSE" ]
     } ]
   }, {
     "burstPeriod" : 0,
@@ -34,7 +34,7 @@
     "throttleGroups" : [ {
       "opsPerSec" : 700,
       "milliOpsPerSec" : 700000,
-      "operations" : [ "FileGetContents", "FileGetInfo", "ContractGetInfo", "ContractGetBytecode", "ContractCallLocal" ]
+      "operations" : [ "FILE_GET_CONTENTS", "FILE_GET_INFO", "CONTRACT_GET_INFO", "CONTRACT_GET_BYTECODE", "CONTRACT_CALL_LOCAL" ]
     } ]
   }, {
     "burstPeriod" : 0,
@@ -42,7 +42,7 @@
     "name" : "PriorityReservations",
     "throttleGroups" : [ {
       "opsPerSec" : 10,
-      "operations" : [ "FileCreate", "FileUpdate", "FileAppend", "FileDelete" ]
+      "operations" : [ "FILE_CREATE", "FILE_UPDATE", "FILE_APPEND", "FILE_DELETE" ]
     } ]
   }, {
     "burstPeriod" : 0,
@@ -51,15 +51,15 @@
     "throttleGroups" : [ {
       "opsPerSec" : 2,
       "milliOpsPerSec" : 2000,
-      "operations" : [ "CryptoCreate" ]
+      "operations" : [ "CRYPTO_CREATE" ]
     }, {
       "opsPerSec" : 5,
       "milliOpsPerSec" : 5000,
-      "operations" : [ "ConsensusCreateTopic" ]
+      "operations" : [ "CONSENSUS_CREATE_TOPIC" ]
     }, {
       "opsPerSec" : 100,
       "milliOpsPerSec" : 100000,
-      "operations" : [ "TokenCreate", "TokenAssociateToAccount", "ScheduleCreate" ]
+      "operations" : [ "TOKEN_CREATE", "TOKEN_ASSOCIATE_TO_ACCOUNT", "SCHEDULE_CREATE" ]
     } ]
   }, {
     "burstPeriod" : 0,
@@ -68,7 +68,7 @@
     "throttleGroups" : [ {
       "opsPerSec" : 1000000,
       "milliOpsPerSec" : 1000000000,
-      "operations" : [ "CryptoGetAccountBalance", "TransactionGetReceipt" ]
+      "operations" : [ "CRYPTO_GET_ACCOUNT_BALANCE", "TRANSACTION_GET_RECEIPT" ]
     } ]
   } ]
 }

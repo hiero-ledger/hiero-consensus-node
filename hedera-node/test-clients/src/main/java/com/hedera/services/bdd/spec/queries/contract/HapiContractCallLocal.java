@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.HEXED_EVM_ADDRESS_LEN;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForCall;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 import com.google.common.base.MoreObjects;
@@ -245,7 +246,7 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
 
     @Override
     protected long costOnlyNodePayment(HapiSpec spec) {
-        return spec.fees().forOp(HederaFunctionality.ContractCallLocal, FeeBuilder.getCostForQueryByIdOnly());
+        return spec.fees().forOp(HederaFunctionality.ContractCallLocal, fromPbj(FeeBuilder.getCostForQueryByIdOnly()));
     }
 
     @Override

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.pricing;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
 import static com.hedera.node.app.hapi.fees.pricing.UsableResource.BPR;
 import static com.hedera.node.app.hapi.fees.pricing.UsableResource.CONSTANT;
 import static com.hedera.node.app.hapi.fees.pricing.UsableResource.VPT;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractUpdate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenAssociateToAccount;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenMint;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
@@ -32,9 +32,10 @@ class AssetsLoaderTest {
         final var prices = subject.loadCanonicalPrices();
 
         // then:
-        assertEquals(nftXferPrice, prices.get(CryptoTransfer).get(TOKEN_NON_FUNGIBLE_UNIQUE));
-        assertEquals(defaultScUpdPrice, prices.get(ContractUpdate).get(DEFAULT));
-        assertEquals(defaultTokenAssocPrice, prices.get(TokenAssociateToAccount).get(DEFAULT));
+        assertEquals(nftXferPrice, prices.get(CRYPTO_TRANSFER).get(TOKEN_NON_FUNGIBLE_UNIQUE));
+        assertEquals(defaultScUpdPrice, prices.get(CONTRACT_UPDATE).get(DEFAULT));
+        assertEquals(
+                defaultTokenAssocPrice, prices.get(TOKEN_ASSOCIATE_TO_ACCOUNT).get(DEFAULT));
     }
 
     @Test
@@ -64,8 +65,8 @@ class AssetsLoaderTest {
         final var weights = subject.loadConstWeights();
 
         // then:
-        assertEquals(tokenCreate, weights.get(TokenCreate));
-        assertEquals(scheduleCreate, weights.get(ScheduleCreate));
-        assertEquals(tokenMint, weights.get(TokenMint));
+        assertEquals(tokenCreate, weights.get(TOKEN_CREATE));
+        assertEquals(scheduleCreate, weights.get(SCHEDULE_CREATE));
+        assertEquals(tokenMint, weights.get(TOKEN_MINT));
     }
 }

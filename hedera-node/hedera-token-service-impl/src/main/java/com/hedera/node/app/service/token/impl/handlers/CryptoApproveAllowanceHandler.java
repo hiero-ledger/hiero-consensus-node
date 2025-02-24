@@ -567,7 +567,7 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
      * @param op the crypto approve allowance transaction body
      * @return the total bytes used in transaction
      */
-    private int bytesUsedInTxn(final CryptoApproveAllowanceTransactionBody op) {
+    private long bytesUsedInTxn(final CryptoApproveAllowanceTransactionBody op) {
         return op.cryptoAllowances().size() * CRYPTO_ALLOWANCE_SIZE
                 + op.tokenAllowances().size() * TOKEN_ALLOWANCE_SIZE
                 + op.nftAllowances().size() * NFT_ALLOWANCE_SIZE
@@ -667,8 +667,8 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
      * @param nftAllowancesList the list of nft allowances
      * @return the number of serials
      */
-    private int countSerials(final List<NftAllowance> nftAllowancesList) {
-        int totalSerials = 0;
+    private long countSerials(final List<NftAllowance> nftAllowancesList) {
+        long totalSerials = 0;
         for (var allowance : nftAllowancesList) {
             totalSerials += allowance.serialNumbers().size();
         }

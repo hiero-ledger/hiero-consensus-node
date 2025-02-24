@@ -20,6 +20,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -31,14 +32,12 @@ import com.hedera.hapi.node.token.TokenInfo;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.token.TokenGetInfoUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import javax.inject.Inject;
@@ -201,42 +200,22 @@ public class TokenGetInfoHandler extends PaidQueryHandler {
         final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
         final var token = tokenStore.get(tokenId);
 
-        return queryContext
-                .feeCalculator()
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(query), token));
+        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, token));
     }
 
-    private FeeData usageGiven(final com.hederahashgraph.api.proto.java.Query query, final Token token) {
+    private FeeData usageGiven(final Query query, final Token token) {
         if (token != null) {
             final var estimate = TokenGetInfoUsage.newEstimate(query)
-                    .givenCurrentAdminKey(
-                            token.hasAdminKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.adminKeyOrThrow()))
-                                    : Optional.empty())
+                    .givenCurrentAdminKey(token.hasAdminKey() ? Optional.of(token.adminKeyOrThrow()) : Optional.empty())
                     .givenCurrentFreezeKey(
-                            token.hasFreezeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.freezeKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentWipeKey(
-                            token.hasWipeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.wipeKeyOrThrow()))
-                                    : Optional.empty())
+                            token.hasFreezeKey() ? Optional.of(token.freezeKeyOrThrow()) : Optional.empty())
+                    .givenCurrentWipeKey(token.hasWipeKey() ? Optional.of(token.wipeKeyOrThrow()) : Optional.empty())
                     .givenCurrentSupplyKey(
-                            token.hasSupplyKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.supplyKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentKycKey(
-                            token.hasKycKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.kycKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentPauseKey(
-                            token.hasPauseKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.pauseKeyOrThrow()))
-                                    : Optional.empty())
+                            token.hasSupplyKey() ? Optional.of(token.supplyKeyOrThrow()) : Optional.empty())
+                    .givenCurrentKycKey(token.hasKycKey() ? Optional.of(token.kycKeyOrThrow()) : Optional.empty())
+                    .givenCurrentPauseKey(token.hasPauseKey() ? Optional.of(token.pauseKeyOrThrow()) : Optional.empty())
                     .givenCurrentMetadataKey(
-                            token.hasMetadataKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.metadataKeyOrThrow()))
-                                    : Optional.empty())
+                            token.hasMetadataKey() ? Optional.of(token.metadataKeyOrThrow()) : Optional.empty())
                     .givenCurrentName(token.name())
                     .givenCurrentMemo(token.memo())
                     .givenCurrentSymbol(token.symbol());

@@ -20,6 +20,8 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
@@ -40,6 +42,7 @@ import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.pbj.runtime.JsonCodec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -319,7 +322,7 @@ public class TxnUtils {
     public static String txnToString(final Transaction txn) {
         try {
             return toReadableString(txn);
-        } catch (final InvalidProtocolBufferException e) {
+        } catch (final InvalidProtocolBufferException | ParseException e) {
             log.error("Got Grpc protocol buffer error: ", e);
         }
         return null;
@@ -399,7 +402,7 @@ public class TxnUtils {
     }
 
     public static TransactionID extractTxnId(final Transaction txn) throws Throwable {
-        return extractTransactionBody(txn).getTransactionID();
+        return fromPbj(extractTransactionBody(toPbj(txn))).getTransactionID();
     }
 
     public static TransferList asTransferList(final List<AccountAmount>... specifics) {
@@ -634,13 +637,14 @@ public class TxnUtils {
      * @return generated readable string
      * @throws InvalidProtocolBufferException when protocol buffer is invalid
      */
-    public static String toReadableString(final Transaction grpcTransaction) throws InvalidProtocolBufferException {
-        final TransactionBody body = extractTransactionBody(grpcTransaction);
+    public static String toReadableString(final Transaction grpcTransaction)
+            throws InvalidProtocolBufferException, ParseException {
+        final TransactionBody body = fromPbj(extractTransactionBody(toPbj(grpcTransaction)));
         return "body="
                 + TextFormat.shortDebugString(body)
                 + "; sigs="
-                + TextFormat.shortDebugString(
-                        com.hedera.node.app.hapi.utils.CommonUtils.extractSignatureMap(grpcTransaction));
+                + TextFormat.shortDebugString(fromPbj(
+                        com.hedera.node.app.hapi.utils.CommonUtils.extractSignatureMap(toPbj(grpcTransaction))));
     }
 
     public static String bytecodePath(final String contractName) {
@@ -822,9 +826,9 @@ public class TxnUtils {
         if (txnId.getAccountID().getAccountNum() != sysAdminNum) {
             return false;
         } else {
-            final var entry = RecordStreamEntry.from(item);
-            return entry.function() == FileUpdate
-                    && idFilter.test(entry.body().getFileUpdate().getFileID());
+            final var entry = RecordStreamEntry.from(toPbj(item));
+            return fromPbj(entry.function()) == FileUpdate
+                    && idFilter.test(fromPbj(entry.body()).getFileUpdate().getFileID());
         }
     }
 }

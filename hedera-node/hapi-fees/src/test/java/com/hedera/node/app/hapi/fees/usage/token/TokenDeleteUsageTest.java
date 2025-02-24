@@ -8,16 +8,16 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.mock;
 import static org.mockito.BDDMockito.verify;
 
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.token.TokenDeleteTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TokenDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.TokenID;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -67,15 +67,15 @@ class TokenDeleteUsageTest {
     }
 
     private void givenOp() {
-        op = TokenDeleteTransactionBody.newBuilder().setToken(id).build();
+        op = TokenDeleteTransactionBody.newBuilder().token(id).build();
         setTxn();
     }
 
     private void setTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setTokenDeletion(op)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .tokenDeletion(op)
                 .build();
     }
 }

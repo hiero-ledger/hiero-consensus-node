@@ -1,231 +1,231 @@
 {
-  "CryptoCreate": {
+  "CRYPTO_CREATE": {
 	"DEFAULT": 0.05
   },
-  "CryptoAccountAutoRenew": {
+  "CRYPTO_ACCOUNT_AUTO_RENEW": {
 	"DEFAULT": 0.00022
   },
-  "CryptoUpdate": {
+  "CRYPTO_UPDATE": {
 	"DEFAULT": 0.00022
   },
-  "CryptoTransfer": {
+  "CRYPTO_TRANSFER": {
 	"DEFAULT": 0.0001,
 	"TOKEN_FUNGIBLE_COMMON": 0.001,
 	"TOKEN_NON_FUNGIBLE_UNIQUE": 0.001,
 	"TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES": 0.002,
 	"TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES": 0.002
   },
-  "TokenAirdrop": {
+  "TOKEN_AIRDROP": {
     "DEFAULT": 0.1
   },
-  "CryptoDelete": {
+  "CRYPTO_DELETE": {
 	"DEFAULT": 0.005
   },
-  "CryptoApproveAllowance": {
+  "CRYPTO_APPROVE_ALLOWANCE": {
 	"DEFAULT": 0.05
   },
-  "CryptoDeleteAllowance": {
+  "CRYPTO_DELETE_ALLOWANCE": {
 	"DEFAULT": 0.05
   },
-  "CryptoAddLiveHash": {
+  "CRYPTO_ADD_LIVE_HASH": {
 	"DEFAULT": 0.1
   },
-  "CryptoDeleteLiveHash": {
+  "CRYPTO_DELETE_LIVE_HASH": {
 	"DEFAULT": 0.005
   },
-  "CryptoGetLiveHash": {
+  "CRYPTO_GET_LIVE_HASH": {
 	"DEFAULT": 0.0001
   },
-  "CryptoGetAccountRecords": {
+  "CRYPTO_GET_ACCOUNT_RECORDS": {
 	"DEFAULT": 0.0001
   },
-  "CryptoGetAccountBalance": {
+  "CRYPTO_GET_ACCOUNT_BALANCE": {
 	"DEFAULT": 0
   },
-  "CryptoGetInfo": {
+  "CRYPTO_GET_INFO": {
 	"DEFAULT": 0.0001
   },
-  "CryptoGetStakers": {
+  "CRYPTO_GET_STAKERS": {
 	"DEFAULT": 0.0001
   },
-  "ConsensusCreateTopic": {
+  "CONSENSUS_CREATE_TOPIC": {
 	"DEFAULT": 0.01,
     "TOPIC_CREATE_WITH_CUSTOM_FEES": 2.00
   },
-  "ConsensusUpdateTopic": {
+  "CONSENSUS_UPDATE_TOPIC": {
 	"DEFAULT": 0.00022
   },
-  "ConsensusDeleteTopic": {
+  "CONSENSUS_DELETE_TOPIC": {
 	"DEFAULT": 0.005
   },
-  "ConsensusSubmitMessage": {
+  "CONSENSUS_SUBMIT_MESSAGE": {
 	"DEFAULT": 0.0001
   },
-  "ConsensusGetTopicInfo": {
+  "CONSENSUS_GET_TOPIC_INFO": {
 	"DEFAULT": 0.0001
   },
-  "TokenCreate": {
+  "TOKEN_CREATE": {
 	"TOKEN_FUNGIBLE_COMMON": 1.00,
 	"TOKEN_NON_FUNGIBLE_UNIQUE": 1.00,
 	"TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES": 2.00,
 	"TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES": 2.00
   },
-  "TokenDelete": {
+  "TOKEN_DELETE": {
 	"DEFAULT": 0.001
   },
-  "TokenUpdate": {
+  "TOKEN_UPDATE": {
 	"DEFAULT": 0.001
   },
-  "TokenUpdateNfts": {
+  "TOKEN_UPDATE_NFTS": {
     "DEFAULT": 0.001
   },
-  "TokenReject": {
+  "TOKEN_REJECT": {
     "TOKEN_FUNGIBLE_COMMON": 0.001,
     "TOKEN_NON_FUNGIBLE_UNIQUE": 0.001
   },
-  "TokenFeeScheduleUpdate": {
+  "TOKEN_FEE_SCHEDULE_UPDATE": {
 	"DEFAULT": 0.001
   },
-  "TokenMint": {
+  "TOKEN_MINT": {
 	"TOKEN_FUNGIBLE_COMMON": 0.001,
 	"TOKEN_NON_FUNGIBLE_UNIQUE": 0.02
   },
-  "TokenBurn": {
+  "TOKEN_BURN": {
 	"TOKEN_FUNGIBLE_COMMON": 0.001,
 	"TOKEN_NON_FUNGIBLE_UNIQUE": 0.001
   },
-  "TokenGetInfo": {
+  "TOKEN_GET_INFO": {
 	"DEFAULT": 0.0001
   },
-  "TokenAssociateToAccount": {
+  "TOKEN_ASSOCIATE_TO_ACCOUNT": {
 	"DEFAULT": 0.05
   },
-  "TokenDissociateFromAccount": {
+  "TOKEN_DISSOCIATE_FROM_ACCOUNT": {
 	"DEFAULT": 0.05
   },
-  "TokenGrantKycToAccount": {
+  "TOKEN_GRANT_KYC_TO_ACCOUNT": {
 	"DEFAULT": 0.001
   },
-  "TokenRevokeKycFromAccount": {
+  "TOKEN_REVOKE_KYC_FROM_ACCOUNT": {
 	"DEFAULT": 0.001
   },
-  "TokenFreezeAccount": {
+  "TOKEN_FREEZE_ACCOUNT": {
 	"DEFAULT": 0.001
   },
-  "TokenUnfreezeAccount": {
+  "TOKEN_UNFREEZE_ACCOUNT": {
 	"DEFAULT": 0.001
   },
-  "TokenPause": {
+  "TOKEN_PAUSE": {
 	"DEFAULT": 0.001
   },
-  "TokenUnpause": {
+  "TOKEN_UNPAUSE": {
 	"DEFAULT": 0.001
   },
-  "TokenAccountWipe": {
+  "TOKEN_ACCOUNT_WIPE": {
 	"TOKEN_FUNGIBLE_COMMON": 0.001,
 	"TOKEN_NON_FUNGIBLE_UNIQUE": 0.001
   },
-  "TokenClaimAirdrop": {
+  "TOKEN_CLAIM_AIRDROP": {
     "DEFAULT": 0.001
   },
-  "TokenCancelAirdrop": {
+  "TOKEN_CANCEL_AIRDROP": {
     "DEFAULT": 0.001
   },
-  "ContractCreate": {
+  "CONTRACT_CREATE": {
 	"DEFAULT": 1.0
   },
-  "ContractUpdate": {
+  "CONTRACT_UPDATE": {
 	"DEFAULT": 0.026
   },
-  "ContractDelete": {
+  "CONTRACT_DELETE": {
 	"DEFAULT": 0.007
   },
-  "ContractCall": {
+  "CONTRACT_CALL": {
 	"DEFAULT": 0.05
   },
-  "EthereumTransaction": {
+  "ETHEREUM_TRANSACTION": {
 	"DEFAULT": 0.0001
   },
-  "ContractCallLocal": {
+  "CONTRACT_CALL_LOCAL": {
 	"DEFAULT": 0.001
   },
-  "ContractGetBytecode": {
+  "CONTRACT_GET_BYTECODE": {
 	"DEFAULT": 0.05
   },
-  "GetBySolidityID": {
+  "GET_BY_SOLIDITY_ID": {
 	"DEFAULT": 0.0001
   },
-  "ContractGetInfo": {
+  "CONTRACT_GET_INFO": {
 	"DEFAULT": 0.0001
   },
-  "ContractGetRecords": {
+  "CONTRACT_GET_RECORDS": {
 	"DEFAULT": 0.0001
   },
-  "ContractAutoRenew": {
+  "CONTRACT_AUTO_RENEW": {
 	"DEFAULT": 0.026
   },
-  "FileCreate": {
+  "FILE_CREATE": {
 	"DEFAULT": 0.05
   },
-  "FileUpdate": {
+  "FILE_UPDATE": {
 	"DEFAULT": 0.05
   },
-  "FileDelete": {
+  "FILE_DELETE": {
 	"DEFAULT": 0.007
   },
-  "FileAppend": {
+  "FILE_APPEND": {
 	"DEFAULT": 0.05
   },
-  "FileGetContents": {
+  "FILE_GET_CONTENTS": {
 	"DEFAULT": 0.0001
   },
-  "FileGetInfo": {
+  "FILE_GET_INFO": {
 	"DEFAULT": 0.0001
   },
-  "ScheduleCreate": {
+  "SCHEDULE_CREATE": {
 	"DEFAULT": 0.01,
 	"SCHEDULE_CREATE_CONTRACT_CALL": 0.1
   },
-  "ScheduleSign": {
+  "SCHEDULE_SIGN": {
 	"DEFAULT": 0.01
   },
-  "ScheduleDelete": {
+  "SCHEDULE_DELETE": {
 	"DEFAULT": 0.005
   },
-  "ScheduleGetInfo": {
+  "SCHEDULE_GET_INFO": {
 	"DEFAULT": 0.0001
   },
-  "GetVersionInfo": {
+  "GET_VERSION_INFO": {
 	"DEFAULT": 0.001
   },
-  "GetByKey": {
+  "GET_BY_KEY": {
 	"DEFAULT": 0.0001
   },
-  "TransactionGetReceipt": {
+  "TRANSACTION_GET_RECEIPT": {
 	"DEFAULT": 0.0000
   },
-  "TransactionGetRecord": {
+  "TRANSACTION_GET_RECORD": {
 	"DEFAULT": 0.0001
   },
-  "SystemDelete": {
+  "SYSTEM_DELETE": {
 	"DEFAULT": 0
   },
-  "SystemUndelete": {
+  "SYSTEM_UNDELETE": {
 	"DEFAULT": 0
   },
-  "UtilPrng": {
+  "UTIL_PRNG": {
 	"DEFAULT": 0.001
   },
-  "NodeCreate": {
+  "NODE_CREATE": {
     "DEFAULT": 0.001
   },
-  "NodeUpdate": {
+  "NODE_UPDATE": {
     "DEFAULT": 0.001
   },
-  "NodeDelete": {
+  "NODE_DELETE": {
     "DEFAULT": 0.001
   },
-  "AtomicBatch": {
+  "ATOMIC_BATCH": {
     "DEFAULT": 0.001
   }
 }

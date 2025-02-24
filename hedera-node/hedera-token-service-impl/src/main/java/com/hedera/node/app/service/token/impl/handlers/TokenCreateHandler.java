@@ -22,7 +22,6 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -417,7 +416,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var body = feeContext.body();
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenCreateUsageFrom(CommonPbjConverters.fromPbj(body));
+        final var meta = TOKEN_OPS_USAGE_UTILS.tokenCreateUsageFrom(body);
         final var op = body.tokenCreationOrThrow();
         final var type = op.tokenType();
 

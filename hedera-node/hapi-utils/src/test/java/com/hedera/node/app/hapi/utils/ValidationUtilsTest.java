@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_BURN_AMOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_SYMBOL;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateFalse;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateFalseOrRevert;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrueOrRevert;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_BURN_AMOUNT;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_SYMBOL;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;

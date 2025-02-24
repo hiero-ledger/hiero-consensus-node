@@ -16,15 +16,15 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TOKEN_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
 import com.hedera.node.app.hapi.fees.usage.QueryUsage;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.ResponseType;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
 import javax.inject.Inject;
@@ -74,16 +74,16 @@ public class CryptoOpsUsage {
     }
 
     public FeeData cryptoInfoUsage(final Query cryptoInfoReq, final ExtantCryptoContext ctx) {
-        final var op = cryptoInfoReq.getCryptoGetInfo();
+        final var op = cryptoInfoReq.cryptoGetInfo();
 
-        final var estimate = queryEstimateFactory.apply(op.getHeader().getResponseType());
+        final var estimate = queryEstimateFactory.apply(op.header().responseType());
         return getUsage(estimate, ctx);
     }
 
     public FeeData accountDetailsUsage(final Query accountDetailsReq, final ExtantCryptoContext ctx) {
-        final var op = accountDetailsReq.getAccountDetails();
+        final var op = accountDetailsReq.accountDetails();
 
-        final var estimate = queryEstimateFactory.apply(op.getHeader().getResponseType());
+        final var estimate = queryEstimateFactory.apply(op.header().responseType());
         return getUsage(estimate, ctx);
     }
 

@@ -9,16 +9,16 @@ import static org.mockito.BDDMockito.mock;
 import static org.mockito.BDDMockito.verify;
 import static org.mockito.Mockito.times;
 
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.token.TokenRevokeKycTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TokenID;
-import com.hederahashgraph.api.proto.java.TokenRevokeKycTransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -68,15 +68,15 @@ class TokenRevokeKycUsageTest {
     }
 
     private void givenOp() {
-        op = TokenRevokeKycTransactionBody.newBuilder().setToken(id).build();
+        op = TokenRevokeKycTransactionBody.newBuilder().token(id).build();
         setTxn();
     }
 
     private void setTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setTokenRevokeKyc(op)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .tokenRevokeKyc(op)
                 .build();
     }
 }

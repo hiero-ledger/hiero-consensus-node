@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.dsl.entities;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static com.hedera.services.bdd.spec.dsl.utils.DslUtils.atMostOnce;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;

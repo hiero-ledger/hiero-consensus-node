@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.util;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
@@ -58,7 +59,7 @@ public class HapiUtilPrng extends HapiTxnOp<HapiUtilPrng> {
 
     private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
         final var baseMeta = new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
-        final var opMeta = new CryptoCreateMeta(txn.getCryptoCreateAccount());
+        final var opMeta = new CryptoCreateMeta(toPbj(txn.getCryptoCreateAccount()));
         final var accumulator = new UsageAccumulator();
         cryptoOpsUsage.cryptoCreateUsage(suFrom(svo), baseMeta, opMeta, accumulator);
         return AdapterUtils.feeDataFrom(accumulator);

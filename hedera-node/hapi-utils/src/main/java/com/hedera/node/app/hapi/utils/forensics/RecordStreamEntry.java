@@ -5,15 +5,14 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.timestampToInstant;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.services.stream.proto.RecordStreamItem;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.ScheduleID;
-import com.hederahashgraph.api.proto.java.Transaction;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
-import com.hederahashgraph.api.proto.java.TransactionRecord;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.streams.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 
@@ -39,11 +38,11 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
      * @return the constructed entry
      */
     public static RecordStreamEntry from(@NonNull final RecordStreamItem item) {
-        final var itemRecord = item.getRecord();
+        final var itemRecord = item.record();
         return new RecordStreamEntry(
-                TransactionParts.from(item.getTransaction()),
+                TransactionParts.from(item.transaction()),
                 itemRecord,
-                timestampToInstant(itemRecord.getConsensusTimestamp()));
+                timestampToInstant(itemRecord.consensusTimestamp()));
     }
 
     public Transaction submittedTransaction() {
@@ -55,7 +54,7 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
     }
 
     public ResponseCodeEnum finalStatus() {
-        return txnRecord.getReceipt().getStatus();
+        return txnRecord.receipt().status();
     }
 
     /**
@@ -64,7 +63,7 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
      * @return the created account ID
      */
     public AccountID createdAccountId() {
-        return CommonPbjConverters.toPbj(txnRecord.getReceipt().getAccountID());
+        return txnRecord.receipt().accountID();
     }
 
     /**
@@ -73,7 +72,7 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
      * @return the created file ID
      */
     public FileID createdFileId() {
-        return CommonPbjConverters.toPbj(txnRecord.getReceipt().getFileID());
+        return txnRecord.receipt().fileID();
     }
 
     /**
@@ -82,7 +81,7 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
      * @return the created schedule ID
      */
     public ScheduleID createdScheduleId() {
-        return txnRecord.getReceipt().getScheduleID();
+        return txnRecord.receipt().scheduleID();
     }
 
     /**
@@ -91,7 +90,7 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
      * @return the scheduled transaction ID
      */
     public TransactionID scheduledTransactionId() {
-        return txnRecord.getReceipt().getScheduledTransactionID();
+        return txnRecord.receipt().scheduledTransactionID();
     }
 
     public HederaFunctionality function() {
@@ -107,7 +106,7 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
      * @return the parent consensus timestamp
      */
     public Instant parentConsensusTimestamp() {
-        return timestampToInstant(txnRecord.getParentConsensusTimestamp());
+        return timestampToInstant(txnRecord.parentConsensusTimestamp());
     }
 
     /**
@@ -115,7 +114,7 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
      * @return the transaction ID
      */
     public TransactionID txnId() {
-        return txnRecord.getTransactionID();
+        return txnRecord.transactionID();
     }
 
     @Override

@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FeeComponents;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
@@ -39,7 +40,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.InstantSource;
@@ -307,25 +307,23 @@ class ContractCallLocalHandlerTest {
         when(contractCallLocalQuery.headerOrElse(QueryHeader.DEFAULT)).thenReturn(QueryHeader.DEFAULT);
 
         final var components = FeeComponents.newBuilder()
-                .setMax(15000)
-                .setBpt(25)
-                .setVpt(25)
-                .setRbh(25)
-                .setSbh(25)
-                .setGas(25)
-                .setTv(25)
-                .setBpr(25)
-                .setSbpr(25)
-                .setConstant(1)
+                .max(15000)
+                .bpt(25)
+                .vpt(25)
+                .rbh(25)
+                .sbh(25)
+                .gas(25)
+                .tv(25)
+                .bpr(25)
+                .sbpr(25)
+                .constant(1)
                 .build();
-        final var nodeData = com.hederahashgraph.api.proto.java.FeeData.newBuilder()
-                .setNodedata(components)
-                .build();
+        final var nodeData = FeeData.newBuilder().nodedata(components).build();
 
         when(feeCalculator.legacyCalculate(any())).thenAnswer(invocation -> {
-            Function<SigValueObj, com.hederahashgraph.api.proto.java.FeeData> function = invocation.getArgument(0);
+            Function<SigValueObj, FeeData> function = invocation.getArgument(0);
             final var feeData = function.apply(new SigValueObj(1, 1, 1));
-            long nodeFee = FeeBuilder.getComponentFeeInTinyCents(nodeData.getNodedata(), feeData.getNodedata());
+            long nodeFee = FeeBuilder.getComponentFeeInTinyCents(nodeData.nodedata(), feeData.nodedata());
             return new Fees(nodeFee, 0L, 0L);
         });
 

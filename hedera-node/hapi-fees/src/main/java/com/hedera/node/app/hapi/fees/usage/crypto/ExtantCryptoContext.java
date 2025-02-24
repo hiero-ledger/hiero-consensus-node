@@ -8,10 +8,10 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 
-import com.hederahashgraph.api.proto.java.GrantedCryptoAllowance;
-import com.hederahashgraph.api.proto.java.GrantedNftAllowance;
-import com.hederahashgraph.api.proto.java.GrantedTokenAllowance;
-import com.hederahashgraph.api.proto.java.Key;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.token.GrantedCryptoAllowance;
+import com.hedera.hapi.node.token.GrantedNftAllowance;
+import com.hedera.hapi.node.token.GrantedTokenAllowance;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;

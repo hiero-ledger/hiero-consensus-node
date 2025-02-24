@@ -7,6 +7,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTimestamp;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusUpdateTopic;
 
 import com.google.common.base.MoreObjects;
@@ -161,7 +163,7 @@ public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
             }
         });
         try {
-            final TransactionBody txn = CommonUtils.extractTransactionBody(txnSubmitted);
+            final TransactionBody txn = fromPbj(CommonUtils.extractTransactionBody(toPbj(txnSubmitted)));
             spec.registry().saveTopicMeta(topic, txn.getConsensusUpdateTopic());
         } catch (final Exception impossible) {
             throw new IllegalStateException(impossible);
@@ -255,23 +257,23 @@ public class HapiTopicUpdate extends HapiTxnOp<HapiTopicUpdate> {
             /* Computed the increase in RBS due to this update. */
             long tentativeRbsIncrease = 0;
             try {
-                final TransactionBody updateTxn = CommonUtils.extractTransactionBody(txn);
+                final TransactionBody updateTxn = fromPbj(CommonUtils.extractTransactionBody(toPbj(txn)));
                 tentativeRbsIncrease = ConsensusServiceFeeBuilder.getUpdateTopicRbsIncrease(
-                        updateTxn.getTransactionID().getTransactionValidStart(),
-                        oldMeta.getAdminKey(),
-                        oldMeta.getSubmitKey(),
+                        toPbj(updateTxn.getTransactionID().getTransactionValidStart()),
+                        toPbj(oldMeta.getAdminKey()),
+                        toPbj(oldMeta.getSubmitKey()),
                         oldMeta.getMemo(),
                         oldMeta.hasAutoRenewAccount(),
-                        Timestamp.newBuilder().setSeconds(oldExpiry).build(),
-                        updateTxn.getConsensusUpdateTopic());
+                        toPbj(Timestamp.newBuilder().setSeconds(oldExpiry).build()),
+                        toPbj(updateTxn.getConsensusUpdateTopic()));
             } catch (final Exception impossible) {
                 throw new IllegalStateException(impossible);
             }
 
             /* Create a custom activity metrics calculator based on the rbsIncrease. */
             final long rbsIncrease = tentativeRbsIncrease;
-            final FeeCalculator.ActivityMetrics metricsCalc = (txBody, sigUsage) ->
-                    ConsensusServiceFeeBuilder.getConsensusUpdateTopicFee(txBody, rbsIncrease, sigUsage);
+            final FeeCalculator.ActivityMetrics metricsCalc = (txBody, sigUsage) -> fromPbj(
+                    ConsensusServiceFeeBuilder.getConsensusUpdateTopicFee(toPbj(txBody), rbsIncrease, sigUsage));
 
             /* Return the net fee. */
             return spec.fees().forActivityBasedOp(ConsensusUpdateTopic, metricsCalc, txn, numPayerKeys);

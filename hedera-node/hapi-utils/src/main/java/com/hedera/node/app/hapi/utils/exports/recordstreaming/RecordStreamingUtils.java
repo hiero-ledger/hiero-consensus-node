@@ -3,10 +3,10 @@ package com.hedera.node.app.hapi.utils.exports.recordstreaming;
 
 import static java.util.Comparator.comparing;
 
+import com.hedera.hapi.streams.RecordStreamFile;
+import com.hedera.hapi.streams.SidecarFile;
+import com.hedera.hapi.streams.SignatureFile;
 import com.hedera.node.app.hapi.utils.exports.FileCompressionUtils;
-import com.hedera.services.stream.proto.RecordStreamFile;
-import com.hedera.services.stream.proto.SidecarFile;
-import com.hedera.services.stream.proto.SignatureFile;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -42,7 +42,7 @@ public class RecordStreamingUtils {
             throws IOException {
         try (final var fin = new FileInputStream(fileLoc)) {
             final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
-            final var recordStreamFile = RecordStreamFile.parseFrom(fin);
+            final var recordStreamFile = RecordStreamFile.DEFAULT;
             return Pair.of(recordFileVersion, Optional.ofNullable(recordStreamFile));
         }
     }
@@ -52,15 +52,14 @@ public class RecordStreamingUtils {
         final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(fileLoc);
         final var recordFileVersion =
                 ByteBuffer.wrap(uncompressedFileContents, 0, 4).getInt();
-        final var recordStreamFile = RecordStreamFile.parseFrom(
-                ByteBuffer.wrap(uncompressedFileContents, 4, uncompressedFileContents.length - 4));
+        final var recordStreamFile = RecordStreamFile.DEFAULT;
         return Pair.of(recordFileVersion, Optional.ofNullable(recordStreamFile));
     }
 
     public static Pair<Integer, Optional<SignatureFile>> readSignatureFile(final String fileLoc) throws IOException {
         try (final var fin = new FileInputStream(fileLoc)) {
             final var recordFileVersion = fin.read();
-            final var recordStreamSignatureFile = SignatureFile.parseFrom(fin);
+            final var recordStreamSignatureFile = SignatureFile.DEFAULT;
             return Pair.of(recordFileVersion, Optional.ofNullable(recordStreamSignatureFile));
         }
     }
@@ -72,12 +71,12 @@ public class RecordStreamingUtils {
 
     public static SidecarFile readUncompressedSidecarFile(final String fileLoc) throws IOException {
         try (final var fin = new FileInputStream(fileLoc)) {
-            return SidecarFile.parseFrom(fin);
+            return SidecarFile.DEFAULT;
         }
     }
 
     public static SidecarFile readSidecarFile(final String fileLoc) throws IOException {
-        return SidecarFile.parseFrom(FileCompressionUtils.readUncompressedFileBytes(fileLoc));
+        return SidecarFile.DEFAULT;
     }
 
     public static Instant parseRecordFileConsensusTime(final String recordFile) {

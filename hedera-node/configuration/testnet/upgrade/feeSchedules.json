@@ -411,7 +411,7 @@
         }
     }, {
         "transactionFeeSchedule": {
-            "hederaFunctionality": "TokenAirdrop",
+            "hederaFunctionality": "TOKEN_AIRDROP",
             "fees": [
                 {
                     "subType": "DEFAULT",
@@ -1464,7 +1464,7 @@
         }
     }, {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "TokenReject",
+                "hederaFunctionality": "TOKEN_REJECT",
                 "fees": [
                     {
                         "subType": "TOKEN_FUNGIBLE_COMMON",
@@ -1549,7 +1549,7 @@
         },
         {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "TokenUpdateNfts",
+                "hederaFunctionality": "TOKEN_UPDATE_NFTS",
                 "fees": [
                     {
                         "subType": "TOKEN_NON_FUNGIBLE_UNIQUE",
@@ -1595,7 +1595,7 @@
         },
         {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "NodeCreate",
+                "hederaFunctionality": "NODE_CREATE",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -1641,7 +1641,7 @@
         },
         {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "NodeUpdate",
+                "hederaFunctionality": "NODE_UPDATE",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -1687,7 +1687,7 @@
         },
         {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "NodeDelete",
+                "hederaFunctionality": "NODE_DELETE",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -1733,7 +1733,7 @@
         },
         {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "TokenBurn",
+                "hederaFunctionality": "TOKEN_BURN",
                 "fees": [
                     {
                         "subType": "TOKEN_FUNGIBLE_COMMON",
@@ -1903,7 +1903,7 @@
         }
     }, {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "TokenCancelAirdrop",
+                "hederaFunctionality": "TOKEN_CANCEL_AIRDROP",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -1992,7 +1992,7 @@
         }
     }, {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "TokenClaimAirdrop",
+                "hederaFunctionality": "TOKEN_CLAIM_AIRDROP",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -3625,7 +3625,7 @@
         }
     }, {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "AtomicBatch",
+                "hederaFunctionality": "ATOMIC_BATCH",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -3890,7 +3890,7 @@
         }
     }, {
         "transactionFeeSchedule": {
-            "hederaFunctionality": "TokenAirdrop",
+            "hederaFunctionality": "TOKEN_AIRDROP",
             "fees": [
                 {
                     "subType": "DEFAULT",
@@ -5138,7 +5138,7 @@
         }
     }, {
         "transactionFeeSchedule": {
-            "hederaFunctionality": "TokenReject",
+            "hederaFunctionality": "TOKEN_REJECT",
             "fees": [
                 {
                     "subType": "TOKEN_FUNGIBLE_COMMON",
@@ -5222,7 +5222,7 @@
         }
     }, {
         "transactionFeeSchedule": {
-            "hederaFunctionality": "TokenUpdateNfts",
+            "hederaFunctionality": "TOKEN_UPDATE_NFTS",
             "fees": [
                 {
                     "subType": "TOKEN_NON_FUNGIBLE_UNIQUE",
@@ -5268,7 +5268,7 @@
     },
         {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "NodeCreate",
+                "hederaFunctionality": "NODE_CREATE",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -5314,7 +5314,7 @@
         },
         {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "NodeUpdate",
+                "hederaFunctionality": "NODE_UPDATE",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -5360,7 +5360,7 @@
         },
         {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "NodeDelete",
+                "hederaFunctionality": "NODE_DELETE",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -5530,7 +5530,7 @@
         }
     }, {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "TokenCancelAirdrop",
+                "hederaFunctionality": "TOKEN_CANCEL_AIRDROP",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -5619,7 +5619,7 @@
         }
     }, {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "TokenClaimAirdrop",
+                "hederaFunctionality": "TOKEN_CLAIM_AIRDROP",
                 "fees": [
                     {
                         "subType": "DEFAULT",
@@ -7252,7 +7252,7 @@
         }
     }, {
             "transactionFeeSchedule": {
-                "hederaFunctionality": "AtomicBatch",
+                "hederaFunctionality": "ATOMIC_BATCH",
                 "fees": [
                     {
                         "subType": "DEFAULT",

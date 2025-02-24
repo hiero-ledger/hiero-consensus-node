@@ -15,7 +15,6 @@ import com.hedera.hapi.node.base.ResponseType;
 import com.hedera.hapi.node.network.NetworkGetVersionInfoResponse;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -105,6 +104,6 @@ public class NetworkGetVersionInfoHandler extends PaidQueryHandler {
     public Fees computeFees(@NonNull final QueryContext queryContext) {
         requireNonNull(queryContext);
 
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> CommonPbjConverters.fromPbj(FIXED_USAGE));
+        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> FIXED_USAGE);
     }
 }

@@ -7,13 +7,13 @@ import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
@@ -26,7 +26,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -115,11 +114,10 @@ public class ConsensusDeleteTopicHandler implements TransactionHandler {
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj));
+                .legacyCalculate(sigValueObj -> usageGiven(op, sigValueObj));
     }
 
-    private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj sigUsage) {
+    private FeeData usageGiven(final TransactionBody txn, final SigValueObj sigUsage) {
         return ConsensusServiceFeeBuilder.getConsensusDeleteTopicFee(txn, sigUsage);
     }
 }

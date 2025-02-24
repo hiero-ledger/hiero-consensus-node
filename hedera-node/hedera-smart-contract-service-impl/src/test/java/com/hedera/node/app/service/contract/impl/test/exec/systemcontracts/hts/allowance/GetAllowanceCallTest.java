@@ -3,8 +3,8 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -106,7 +106,7 @@ class GetAllowanceCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(GetAllowanceTranslator.GET_ALLOWANCE
                         .getOutputs()
-                        .encode(Tuple.of((long) SUCCESS.getNumber(), BigInteger.valueOf(0L)))
+                        .encode(Tuple.of((long) SUCCESS.protoOrdinal(), BigInteger.valueOf(0L)))
                         .array()),
                 result.getOutput());
     }

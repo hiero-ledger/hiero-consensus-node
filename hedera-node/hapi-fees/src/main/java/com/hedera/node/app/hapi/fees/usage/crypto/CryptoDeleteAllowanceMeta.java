@@ -5,8 +5,8 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_DELETE_ALLOWANCE_SIZE;
 
 import com.google.common.base.MoreObjects;
-import com.hederahashgraph.api.proto.java.CryptoDeleteAllowanceTransactionBody;
-import com.hederahashgraph.api.proto.java.NftRemoveAllowance;
+import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
+import com.hedera.hapi.node.token.NftRemoveAllowance;
 import java.util.List;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -27,15 +27,15 @@ public class CryptoDeleteAllowanceMeta {
         msgBytesUsed = bytesUsedInTxn(cryptoDeleteTxnBody);
     }
 
-    private int bytesUsedInTxn(CryptoDeleteAllowanceTransactionBody op) {
-        return op.getNftAllowancesCount() * NFT_DELETE_ALLOWANCE_SIZE
-                + countNftDeleteSerials(op.getNftAllowancesList()) * LONG_SIZE;
+    private long bytesUsedInTxn(CryptoDeleteAllowanceTransactionBody op) {
+        return op.nftAllowances().size() * NFT_DELETE_ALLOWANCE_SIZE
+                + countNftDeleteSerials(op.nftAllowances()) * LONG_SIZE;
     }
 
-    public static int countNftDeleteSerials(final List<NftRemoveAllowance> nftAllowancesList) {
+    public static long countNftDeleteSerials(final List<NftRemoveAllowance> nftAllowancesList) {
         int totalSerials = 0;
         for (var allowance : nftAllowancesList) {
-            totalSerials += allowance.getSerialNumbersCount();
+            totalSerials += allowance.serialNumbers().size();
         }
         return totalSerials;
     }

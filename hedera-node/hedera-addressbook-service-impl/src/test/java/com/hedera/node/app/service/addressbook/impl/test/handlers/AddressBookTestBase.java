@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
@@ -122,7 +121,7 @@ public class AddressBookTestBase {
     protected static final Key aPrimitiveKey = Key.newBuilder()
             .ed25519(Bytes.wrap("01234567890123456789012345678901"))
             .build();
-    protected static final ProtoBytes edKeyAlias = new ProtoBytes(Bytes.wrap(asBytes(Key.PROTOBUF, aPrimitiveKey)));
+    protected static final ProtoBytes edKeyAlias = new ProtoBytes(Key.PROTOBUF.toBytes(aPrimitiveKey));
     protected final AccountID alias = idFactory.newAccountIdWithAlias(edKeyAlias.value());
 
     protected final ServiceEndpoint endpoint1 = V053AddressBookSchema.endpointFor("127.0.0.1", 1234);

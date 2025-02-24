@@ -1,18 +1,18 @@
 {
     "buckets": [
         {
-            "name": "ArtificialScarcity",
+            "name": "ARTIFICIAL_SCARCITY",
             "burstPeriod": 5,
             "throttleGroups": [
                 {
                     "operations": [
-                        "ContractCall"
+                        "CONTRACT_CALL"
                     ],
                     "milliOpsPerSec": 800
                 },
                 {
                     "operations": [
-                        "CryptoTransfer"
+                        "CRYPTO_TRANSFER"
                     ],
                     "opsPerSec": 100
                 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.crypto;
 
-import com.hederahashgraph.api.proto.java.SubType;
+import com.hedera.hapi.node.base.SubType;
 
 public class CryptoTransferMeta {
     private int tokenMultiplier = 1;

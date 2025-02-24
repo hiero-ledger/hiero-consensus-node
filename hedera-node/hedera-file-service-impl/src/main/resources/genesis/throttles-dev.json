@@ -7,78 +7,78 @@
 		{
 		  "opsPerSec": 20000,
 		  "operations": [
-			"CryptoCreate",
-			"CryptoTransfer",
-			"CryptoUpdate",
-			"CryptoDelete",
-			"CryptoGetInfo",
-			"CryptoGetAccountRecords",
-			"CryptoApproveAllowance",
-			"CryptoDeleteAllowance",
-			"UtilPrng",
-			"ConsensusCreateTopic",
-			"ConsensusSubmitMessage",
-			"ConsensusUpdateTopic",
-			"ConsensusDeleteTopic",
-			"ConsensusGetTopicInfo",
-			"TokenGetInfo",
-			"TokenGetNftInfo",
-			"TokenGetNftInfos",
-			"TokenGetAccountNftInfos",
-			"ScheduleDelete",
-			"ScheduleGetInfo",
-			"FileGetContents",
-			"FileGetInfo",
-			"ContractUpdate",
-			"ContractDelete",
-			"ContractGetInfo",
-			"ContractGetBytecode",
-			"ContractGetRecords",
-			"ContractCallLocal",
-			"TransactionGetRecord",
-			"GetVersionInfo",
-			"NodeCreate",
-			"NodeUpdate",
-			"NodeDelete",
-		  	"AtomicBatch"
+			"CRYPTO_CREATE",
+			"CRYPTO_TRANSFER",
+			"CRYPTO_UPDATE",
+			"CRYPTO_DELETE",
+			"CRYPTO_GET_INFO",
+			"CRYPTO_GET_ACCOUNT_RECORDS",
+			"CRYPTO_APPROVE_ALLOWANCE",
+			"CRYPTO_DELETE_ALLOWANCE",
+			"UTIL_PRNG",
+			"CONSENSUS_CREATE_TOPIC",
+			"CONSENSUS_SUBMIT_MESSAGE",
+			"CONSENSUS_UPDATE_TOPIC",
+			"CONSENSUS_DELETE_TOPIC",
+			"CONSENSUS_GET_TOPIC_INFO",
+			"TOKEN_GET_INFO",
+			"TOKEN_GET_NFT_INFO",
+			"TOKEN_GET_NFT_INFOS",
+			"TOKEN_GET_ACCOUNT_NFT_INFOS",
+			"SCHEDULE_DELETE",
+			"SCHEDULE_GET_INFO",
+			"FILE_GET_CONTENTS",
+			"FILE_GET_INFO",
+			"CONTRACT_UPDATE",
+			"CONTRACT_DELETE",
+			"CONTRACT_GET_INFO",
+			"CONTRACT_GET_BYTECODE",
+			"CONTRACT_GET_RECORDS",
+			"CONTRACT_CALL_LOCAL",
+			"TRANSACTION_GET_RECORD",
+			"GET_VERSION_INFO",
+			"NODE_CREATE",
+			"NODE_UPDATE",
+			"NODE_DELETE",
+			"ATOMIC_BATCH"
 		  ]
 		},
 		{
 		  "opsPerSec": 1000,
 		  "operations": [
-			"ContractCall",
-			"ContractCreate",
-			"FileCreate",
-			"FileUpdate",
-			"FileAppend",
-			"FileDelete",
-            "EthereumTransaction"
+			"CONTRACT_CALL",
+			"CONTRACT_CREATE",
+			"FILE_CREATE",
+			"FILE_UPDATE",
+			"FILE_APPEND",
+			"FILE_DELETE",
+            "ETHEREUM_TRANSACTION"
           ]
 		},
 		{
 		  "opsPerSec": 6000,
 		  "operations": [
-			"ScheduleSign",
-			"TokenCreate",
-			"TokenDelete",
-			"TokenMint",
-			"TokenBurn",
-			"TokenPause",
-			"TokenUnpause",
-			"TokenUpdate",
-			"TokenFeeScheduleUpdate",
-			"TokenAssociateToAccount",
-			"TokenAccountWipe",
-			"TokenDissociateFromAccount",
-			"TokenFreezeAccount",
-			"TokenUnfreezeAccount",
-			"TokenGrantKycToAccount",
-			"TokenRevokeKycFromAccount",
-			"TokenUpdateNfts",
-			"TokenReject",
-			"TokenAirdrop",
-			"TokenClaimAirdrop",
-			"TokenCancelAirdrop"
+			"SCHEDULE_SIGN",
+			"TOKEN_CREATE",
+			"TOKEN_DELETE",
+			"TOKEN_MINT",
+			"TOKEN_BURN",
+			"TOKEN_PAUSE",
+			"TOKEN_UNPAUSE",
+			"TOKEN_UPDATE",
+			"TOKEN_FEE_SCHEDULE_UPDATE",
+			"TOKEN_ASSOCIATE_TO_ACCOUNT",
+			"TOKEN_ACCOUNT_WIPE",
+			"TOKEN_DISSOCIATE_FROM_ACCOUNT",
+			"TOKEN_FREEZE_ACCOUNT",
+			"TOKEN_UNFREEZE_ACCOUNT",
+			"TOKEN_GRANT_KYC_TO_ACCOUNT",
+			"TOKEN_REVOKE_KYC_FROM_ACCOUNT",
+			"TOKEN_UPDATE_NFTS",
+			"TOKEN_REJECT",
+			"TOKEN_AIRDROP",
+			"TOKEN_CLAIM_AIRDROP",
+			"TOKEN_CANCEL_AIRDROP"
 		  ]
 		}
 	  ]
@@ -90,13 +90,13 @@
 		{
 		  "opsPerSec": 1000,
 		  "operations": [
-			"ContractCall",
-			"ContractCreate",
-			"FileCreate",
-			"FileUpdate",
-			"FileAppend",
-			"FileDelete",
-            "EthereumTransaction"
+			"CONTRACT_CALL",
+			"CONTRACT_CREATE",
+			"FILE_CREATE",
+			"FILE_UPDATE",
+			"FILE_APPEND",
+			"FILE_DELETE",
+            "ETHEREUM_TRANSACTION"
           ]
 		}
 	  ]
@@ -108,29 +108,29 @@
 		{
 		  "opsPerSec": 2000,
 		  "operations": [
-			"CryptoCreate",
-			  "NodeCreate"
+			"CRYPTO_CREATE",
+			"NODE_CREATE"
 		  ]
 		},
 		{
 		  "opsPerSec": 1000,
 		  "operations": [
-			"FileCreate"
+			"FILE_CREATE"
 		  ]
 		},
 		{
 		  "opsPerSec": 5000,
 		  "operations": [
-			"ConsensusCreateTopic"
+			"CONSENSUS_CREATE_TOPIC"
 		  ]
 		},
 		{
 		  "opsPerSec": 10000,
 		  "operations": [
-			"TokenCreate",
-			"TokenAssociateToAccount",
-			"ScheduleCreate",
-			  "TokenAirdrop"
+			"TOKEN_CREATE",
+			"TOKEN_ASSOCIATE_TO_ACCOUNT",
+			"SCHEDULE_CREATE",
+			"TOKEN_AIRDROP"
 		  ]
 		}
 	  ]
@@ -142,8 +142,8 @@
 		{
 		  "opsPerSec": 1000000,
 		  "operations": [
-			"CryptoGetAccountBalance",
-			"TransactionGetReceipt"
+			"CRYPTO_GET_ACCOUNT_BALANCE",
+			"TRANSACTION_GET_RECEIPT"
 		  ]
 		}
 	  ]

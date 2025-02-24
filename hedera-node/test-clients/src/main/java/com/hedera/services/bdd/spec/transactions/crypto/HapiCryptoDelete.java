@@ -3,6 +3,8 @@ package com.hedera.services.bdd.spec.transactions.crypto;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.lookUpAccountWithAlias;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -76,7 +78,11 @@ public class HapiCryptoDelete extends HapiTxnOp<HapiCryptoDelete> {
     protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
         return spec.fees()
                 .forActivityBasedOp(
-                        HederaFunctionality.CryptoDelete, cryptoFees::getCryptoDeleteTxFeeMatrices, txn, numPayerKeys);
+                        HederaFunctionality.CryptoDelete,
+                        (txBody, sigValObj) ->
+                                fromPbj(cryptoFees.getCryptoDeleteTxFeeMatrices(toPbj(txBody), sigValObj)),
+                        txn,
+                        numPayerKeys);
     }
 
     @Override

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.fee;
 
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -57,14 +57,14 @@ public final class FileFeeBuilder extends FeeBuilder {
         sbpr = (long) BASIC_ENTITY_ID_SIZE + contentSize;
 
         FeeComponents feeMatrices = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getQueryFeeDataMatrices(feeMatrices);
@@ -93,14 +93,14 @@ public final class FileFeeBuilder extends FeeBuilder {
         // changed though?
 
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getFeeDataMatrices(feeMatricesForTx, numSignatures.getPayerAcctSigCount(), rbsNetwork);
@@ -127,14 +127,14 @@ public final class FileFeeBuilder extends FeeBuilder {
         // changed though?
 
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getFeeDataMatrices(feeMatricesForTx, numSignatures.getPayerAcctSigCount(), rbsNetwork);
@@ -165,14 +165,14 @@ public final class FileFeeBuilder extends FeeBuilder {
         long rbsNetwork = getDefaultRbhNetworkSize();
 
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
-                .setBpt(bpt)
-                .setVpt(vpt)
-                .setRbh(rbs)
-                .setSbh(sbs)
-                .setGas(gas)
-                .setTv(tv)
-                .setBpr(bpr)
-                .setSbpr(sbpr)
+                .bpt(bpt)
+                .vpt(vpt)
+                .rbh(rbs)
+                .sbh(sbs)
+                .gas(gas)
+                .tv(tv)
+                .bpr(bpr)
+                .sbpr(sbpr)
                 .build();
 
         return getFeeDataMatrices(feeMatricesForTx, sigValObj.getPayerAcctSigCount(), rbsNetwork);

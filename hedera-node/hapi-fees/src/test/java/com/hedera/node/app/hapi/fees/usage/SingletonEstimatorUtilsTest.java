@@ -13,16 +13,16 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.RECEIPT_STORAGE_TIME_SEC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.TxnUtils;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
-import com.hederahashgraph.api.proto.java.TransferList;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
@@ -56,12 +56,13 @@ class SingletonEstimatorUtilsTest {
     void hasExpectedBaseEstimate() {
         // given:
         final TransactionBody txn = TransactionBody.newBuilder()
-                .setMemo("You won't want to hear this.")
-                .setCryptoTransfer(CryptoTransferTransactionBody.newBuilder()
-                        .setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAmount(123L)
-                                        .setAccountID(AccountID.newBuilder().setAccountNum(75231)))))
+                .memo("You won't want to hear this.")
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .transfers(TransferList.newBuilder()
+                                .accountAmounts(AccountAmount.newBuilder()
+                                        .amount(123L)
+                                        .accountID(AccountID.newBuilder().accountNum(75231))
+                                        .build())))
                 .build();
         // and:
         final long expectedBpt = ESTIMATOR_UTILS.baseBodyBytes(txn) + sigUsage.sigsSize();
@@ -71,9 +72,9 @@ class SingletonEstimatorUtilsTest {
         final var est = ESTIMATOR_UTILS.baseEstimate(txn, sigUsage);
 
         // then:
-        assertEquals(1L * INT_SIZE, est.base().getBpr());
-        assertEquals(sigUsage.numSigs(), est.base().getVpt());
-        assertEquals(expectedBpt, est.base().getBpt());
+        assertEquals(1L * INT_SIZE, est.base().build().bpr());
+        assertEquals(sigUsage.numSigs(), est.base().build().vpt());
+        assertEquals(expectedBpt, est.base().build().bpt());
         assertEquals(expectedRbs, est.getRbs());
     }
 
@@ -104,8 +105,8 @@ class SingletonEstimatorUtilsTest {
         final long now = Instant.now().getEpochSecond();
         final long then = 4688462211L;
         final var txnId = TransactionID.newBuilder()
-                .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now));
-        final var txn = TransactionBody.newBuilder().setTransactionID(txnId).build();
+                .transactionValidStart(Timestamp.newBuilder().seconds(now));
+        final var txn = TransactionBody.newBuilder().transactionID(txnId).build();
 
         // when:
         final long lifetime = ESTIMATOR_UTILS.relativeLifetime(txn, then);
@@ -117,7 +118,7 @@ class SingletonEstimatorUtilsTest {
     @Test
     void getsBaseRecordBytesForNonTransfer() {
         // given:
-        final TransactionBody txn = TransactionBody.newBuilder().setMemo(memo).build();
+        final TransactionBody txn = TransactionBody.newBuilder().memo(memo).build();
         // and:
         final int expected = FeeBuilder.BASIC_TX_RECORD_SIZE + memo.length();
 
@@ -132,13 +133,13 @@ class SingletonEstimatorUtilsTest {
     void getsBaseRecordBytesForTransfer() {
         // given:
         final TransactionBody txn = TransactionBody.newBuilder()
-                .setMemo(memo)
-                .setCryptoTransfer(CryptoTransferTransactionBody.newBuilder().setTransfers(transfers))
+                .memo(memo)
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().transfers(transfers))
                 .build();
         // and:
         final int expected = FeeBuilder.BASIC_TX_RECORD_SIZE
                 + memo.length()
-                + FeeBuilder.BASIC_ACCOUNT_AMT_SIZE * transfers.getAccountAmountsCount();
+                + FeeBuilder.BASIC_ACCOUNT_AMT_SIZE * transfers.accountAmounts().size();
 
         // when:
         final int actual = ESTIMATOR_UTILS.baseRecordBytes(txn);

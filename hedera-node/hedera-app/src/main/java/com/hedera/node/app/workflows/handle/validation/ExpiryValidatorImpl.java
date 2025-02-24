@@ -18,7 +18,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hapi.utils.InvalidTransactionException;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -217,7 +216,7 @@ public class ExpiryValidatorImpl implements ExpiryValidator {
                 throw new HandleException(INVALID_AUTORENEW_ACCOUNT);
             }
         } catch (final InvalidTransactionException e) {
-            throw new HandleException(CommonPbjConverters.toPbj(e.getResponseCode()));
+            throw new HandleException(e.getResponseCode());
         }
     }
 

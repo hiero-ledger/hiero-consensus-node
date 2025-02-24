@@ -3,7 +3,6 @@ package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.util.HapiUtils.countOfCryptographicKeys;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_HEADER;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEADER;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
@@ -48,10 +47,10 @@ import java.util.function.Function;
 public class FeeCalculatorImpl implements FeeCalculator {
     /** From 'hapi-fees', accumulates the usage (rbt, sbt, etc.) for the transaction. */
     private final UsageAccumulator usage;
-    /** The current Google Protobuf representation of the fee data. */
-    private final com.hederahashgraph.api.proto.java.FeeData feeData;
-    /** The current Google Protobuf representation of the current exchange rate */
-    private final com.hederahashgraph.api.proto.java.ExchangeRate currentRate;
+    /** The current Protobuf representation of the fee data. */
+    private final FeeData feeData;
+    /** The current Protobuf representation of the current exchange rate */
+    private final ExchangeRate currentRate;
     /** The basic info from parsing the transaction */
     private final SigUsage sigUsage;
 
@@ -92,8 +91,8 @@ public class FeeCalculatorImpl implements FeeCalculator {
         //  Perform basic validations, and convert the PBJ objects to Google protobuf objects for `hapi-fees`.
         requireNonNull(txBody);
         requireNonNull(payerKey);
-        this.feeData = fromPbj(feeData);
-        this.currentRate = fromPbj(currentRate);
+        this.feeData = feeData;
+        this.currentRate = currentRate;
         if (numVerifications < 0) {
             throw new IllegalArgumentException("numVerifications must be >= 0");
         }
@@ -142,13 +141,13 @@ public class FeeCalculatorImpl implements FeeCalculator {
             this.feeData = null;
             this.usage = null;
         } else {
-            this.feeData = fromPbj(feeData);
+            this.feeData = feeData;
             this.usage = UsageAccumulator.fromGrpc(this.feeData);
             usage.reset();
             usage.addBpt(BASIC_QUERY_HEADER + BASIC_TX_ID_SIZE);
             usage.addBpr(BASIC_QUERY_RES_HEADER);
         }
-        this.currentRate = fromPbj(currentRate);
+        this.currentRate = currentRate;
         this.sigUsage = new SigUsage(0, 0, 0);
 
         this.congestionMultipliers = congestionMultipliers;
@@ -222,7 +221,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
 
     @NonNull
     @Override
-    public Fees legacyCalculate(@NonNull Function<SigValueObj, com.hederahashgraph.api.proto.java.FeeData> callback) {
+    public Fees legacyCalculate(@NonNull Function<SigValueObj, FeeData> callback) {
         final var sigValueObject = new SigValueObj(sigUsage.numSigs(), sigUsage.numPayerKeys(), sigUsage.sigsSize());
         final var matrix = callback.apply(sigValueObject);
         final var feeObject = FeeBuilder.getFeeObject(feeData, matrix, currentRate, 1);

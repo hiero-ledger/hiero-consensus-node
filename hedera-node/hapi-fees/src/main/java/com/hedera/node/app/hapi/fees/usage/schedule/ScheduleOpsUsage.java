@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.schedule;
 
+import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.schedule.entities.ScheduleEntitySizes.SCHEDULE_ENTITY_SIZES;
@@ -9,17 +10,17 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RICH_INSTANT_S
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
-import static com.hederahashgraph.api.proto.java.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
+import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
 import com.hedera.node.app.hapi.fees.usage.QueryUsage;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -41,9 +42,9 @@ public class ScheduleOpsUsage {
     }
 
     public FeeData scheduleInfoUsage(Query scheduleInfo, ExtantScheduleContext ctx) {
-        var op = scheduleInfo.getScheduleGetInfo();
+        var op = scheduleInfo.scheduleGetInfo();
 
-        var estimate = queryEstimateFactory.apply(op.getHeader().getResponseType());
+        var estimate = queryEstimateFactory.apply(op.header().responseType());
         estimate.addTb(BASIC_ENTITY_ID_SIZE);
         estimate.addRb(ctx.nonBaseRb());
 
@@ -51,11 +52,12 @@ public class ScheduleOpsUsage {
     }
 
     public FeeData scheduleCreateUsage(TransactionBody scheduleCreate, SigUsage sigUsage, long lifetimeSecs) {
-        var op = scheduleCreate.getScheduleCreate();
+        var op = scheduleCreate.scheduleCreate();
 
-        var scheduledTxn = op.getScheduledTransactionBody();
+        var scheduledTxn = op.scheduledTransactionBody();
         long msgBytesUsed =
-                (long) scheduledTxn.getSerializedSize() + op.getMemoBytes().size();
+                SchedulableTransactionBody.PROTOBUF.toBytes(scheduledTxn).length()
+                        + op.memo().getBytes().length;
         if (op.hasPayerAccountID()) {
             msgBytesUsed += BASIC_ENTITY_ID_SIZE;
         }
@@ -63,10 +65,10 @@ public class ScheduleOpsUsage {
         var creationCtx = ExtantScheduleContext.newBuilder()
                 .setScheduledTxn(scheduledTxn)
                 .setNumSigners(SCHEDULE_ENTITY_SIZES.estimatedScheduleSigs(sigUsage))
-                .setMemo(op.getMemo())
+                .setMemo(op.memo())
                 .setResolved(false);
         if (op.hasAdminKey()) {
-            var adminKey = op.getAdminKey();
+            var adminKey = op.adminKey();
             msgBytesUsed += getAccountKeyStorageSize(adminKey);
             creationCtx.setAdminKey(adminKey);
         } else {

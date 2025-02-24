@@ -8,6 +8,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.token.TokenAssociateUsage;
@@ -156,9 +158,9 @@ public class HapiTokenAirdrop extends HapiBaseTransfer<HapiTokenAirdrop> {
                 final var expiry = lookupExpiry(spec, receiver);
                 FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> {
                     var estimate = TokenAssociateUsage.newEstimate(
-                                    _txn, new TxnUsageEstimator(suFrom(svo), _txn, ESTIMATOR_UTILS))
+                                    toPbj(_txn), new TxnUsageEstimator(suFrom(svo), toPbj(_txn), ESTIMATOR_UTILS))
                             .givenCurrentExpiry(expiry);
-                    return estimate.get();
+                    return fromPbj(estimate.get());
                 };
                 // estimate and add to total fee
                 var tokenAssociateFees = spec.fees()

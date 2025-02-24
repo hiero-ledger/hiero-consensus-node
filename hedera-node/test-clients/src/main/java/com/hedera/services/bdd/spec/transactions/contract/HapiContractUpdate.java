@@ -5,6 +5,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnFactory.expiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.HEXED_EVM_ADDRESS_LEN;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCreate.DEPRECATED_CID_ADMIN_KEY;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -229,8 +231,8 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
                 expiryNowFor(spec, newExpirySecs.orElse(spec.setup().defaultExpirationSecs()));
         Timestamp oldExpiry = TxnUtils.currContractExpiry(contract, spec);
         final Timestamp expiry = TxnUtils.inConsensusOrder(oldExpiry, newExpiry) ? newExpiry : oldExpiry;
-        FeeCalculator.ActivityMetrics metricsCalc =
-                (txBody, sigUsage) -> scFees.getContractUpdateTxFeeMatrices(txBody, expiry, sigUsage);
+        FeeCalculator.ActivityMetrics metricsCalc = (txBody, sigUsage) ->
+                fromPbj(scFees.getContractUpdateTxFeeMatrices(toPbj(txBody), toPbj(expiry), sigUsage));
         return spec.fees().forActivityBasedOp(HederaFunctionality.ContractUpdate, metricsCalc, txn, numPayerKeys);
     }
 

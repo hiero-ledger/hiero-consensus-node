@@ -17,7 +17,7 @@
         {
           "opsPerSec": 100000,
           "operations": [
-            "TransactionGetReceipt", "FileGetInfo", "FileGetContents", "TokenGetInfo"
+            "TRANSACTION_GET_RECEIPT", "FileGetInfo", "FileGetContents", "TokenGetInfo"
           ]
         }
       ]

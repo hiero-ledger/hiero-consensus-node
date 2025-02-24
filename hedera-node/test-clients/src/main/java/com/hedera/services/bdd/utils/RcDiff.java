@@ -8,6 +8,7 @@ import static com.hedera.node.app.hapi.utils.forensics.DifferingEntries.FirstEnc
 import static com.hedera.node.app.hapi.utils.forensics.DifferingEntries.FirstEncounteredDifference.TRANSACTION_RECORD_MISMATCH;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.findDifferencesBetweenV6;
 import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.parseV6RecordStreamEntriesIn;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,7 +44,7 @@ import org.junit.jupiter.api.Assertions;
 public class RcDiff implements Callable<Integer> {
     private static final OrderedComparison.RecordDiffSummarizer DEFAULT_SUMMARIZER = (a, b) -> {
         try {
-            exactMatch(a, b, () -> "");
+            exactMatch(fromPbj(a), fromPbj(b), () -> "");
         } catch (final Throwable t) {
             return t.getMessage();
         }

@@ -3,14 +3,13 @@ package com.hedera.node.app.hapi.utils.forensics;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * Wraps up to two record stream entries that e.g. had different
- * {@link com.hederahashgraph.api.proto.java.TransactionRecord}s;
+ * {@link com.hedera.hapi.node.transaction.TransactionRecord}s;
  * or, in an even more extreme divergence, did not even have the
- * same {@link Transaction} or consensus time.
+ * same {@link com.hedera.hapi.node.base.Transaction} or consensus time.
  *
  * <p>If only one entry is non-null, it implies the other stream
  * did not have a corresponding entry; e.g., the first stream had

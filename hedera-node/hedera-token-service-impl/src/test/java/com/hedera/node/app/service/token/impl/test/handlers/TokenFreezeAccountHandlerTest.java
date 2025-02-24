@@ -8,7 +8,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.FIRST_TOKEN_SENDER_KT;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.KNOWN_TOKEN_NO_SPECIAL_KEYS;
@@ -146,7 +145,7 @@ class TokenFreezeAccountHandlerTest {
 
         @Test
         void accountNotPresentInTxnBody() {
-            final var pbjToken = toPbj(KNOWN_TOKEN_WITH_FREEZE);
+            final var pbjToken = KNOWN_TOKEN_WITH_FREEZE;
             final var noAcctTxn = newFreezeTxn(pbjToken, null);
             given(readableTokenStore.get(pbjToken))
                     .willReturn(Token.newBuilder().tokenId(pbjToken).build());
@@ -173,7 +172,7 @@ class TokenFreezeAccountHandlerTest {
 
         @Test
         void tokenPaused() throws HandleException {
-            final var token = toPbj(KNOWN_TOKEN_WITH_FREEZE);
+            final var token = KNOWN_TOKEN_WITH_FREEZE;
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).paused(true).build());
             final var txn = newFreezeTxn(token);
@@ -187,7 +186,7 @@ class TokenFreezeAccountHandlerTest {
 
         @Test
         void tokenDeleted() throws HandleException {
-            final var token = toPbj(KNOWN_TOKEN_WITH_FREEZE);
+            final var token = KNOWN_TOKEN_WITH_FREEZE;
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).deleted(true).build());
             final var txn = newFreezeTxn(token);
@@ -201,7 +200,7 @@ class TokenFreezeAccountHandlerTest {
 
         @Test
         void tokenHasNoFreezeKey() {
-            final var token = toPbj(KNOWN_TOKEN_NO_SPECIAL_KEYS);
+            final var token = KNOWN_TOKEN_NO_SPECIAL_KEYS;
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).build());
             given(readableTokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey(null));
@@ -216,11 +215,11 @@ class TokenFreezeAccountHandlerTest {
 
         @Test
         void accountNotFound() {
-            final var token = toPbj(KNOWN_TOKEN_WITH_FREEZE);
+            final var token = KNOWN_TOKEN_WITH_FREEZE;
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder()
                             .tokenId(token)
-                            .freezeKey(FIRST_TOKEN_SENDER_KT.asPbjKey())
+                            .freezeKey(FIRST_TOKEN_SENDER_KT.asKey())
                             .build());
             given(readableTokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey());
             given(readableAccountStore.getAccountById(ACCOUNT_13257)).willReturn(null);
@@ -235,7 +234,7 @@ class TokenFreezeAccountHandlerTest {
 
         @Test
         void tokenRelNotFound() throws HandleException {
-            final var token = toPbj(KNOWN_TOKEN_WITH_FREEZE);
+            final var token = KNOWN_TOKEN_WITH_FREEZE;
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).build());
             given(readableTokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey());
@@ -255,7 +254,7 @@ class TokenFreezeAccountHandlerTest {
 
         @Test
         void tokenRelFreezeSuccessful() {
-            final var token = toPbj(KNOWN_TOKEN_WITH_FREEZE);
+            final var token = KNOWN_TOKEN_WITH_FREEZE;
             given(readableTokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).build());
             given(readableTokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey());
@@ -285,7 +284,7 @@ class TokenFreezeAccountHandlerTest {
         }
 
         private ReadableTokenStore.TokenMetadata tokenMetaWithFreezeKey() {
-            return tokenMetaWithFreezeKey(FIRST_TOKEN_SENDER_KT.asPbjKey());
+            return tokenMetaWithFreezeKey(FIRST_TOKEN_SENDER_KT.asKey());
         }
 
         private ReadableTokenStore.TokenMetadata tokenMetaWithFreezeKey(Key freezeKey) {

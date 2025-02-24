@@ -1,31 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.pricing;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusSubmitMessage;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractAutoRenew;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileAppend;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleSign;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenAccountWipe;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenBurn;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenFeeScheduleUpdate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenMint;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.UtilPrng;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.hederahashgraph.api.proto.java.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
-import static com.hederahashgraph.api.proto.java.SubType.UNRECOGNIZED;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_AUTO_RENEW;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ACCOUNT_WIPE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
+import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SubType;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -34,7 +34,7 @@ class BaseOperationUsageTest {
     void picksAppropriateFileOp() {
         final var mock = Mockito.spy(new BaseOperationUsage());
 
-        mock.baseUsageFor(FileAppend, DEFAULT);
+        mock.baseUsageFor(FILE_APPEND, DEFAULT);
         verify(mock).fileAppend();
     }
 
@@ -42,7 +42,7 @@ class BaseOperationUsageTest {
     void picksAppropriateContractOp() {
         final var mock = Mockito.spy(new BaseOperationUsage());
 
-        mock.baseUsageFor(ContractAutoRenew, DEFAULT);
+        mock.baseUsageFor(CONTRACT_AUTO_RENEW, DEFAULT);
         verify(mock).contractAutoRenew();
     }
 
@@ -50,31 +50,31 @@ class BaseOperationUsageTest {
     void picksAppropriateCryptoOp() {
         final var mock = Mockito.spy(new BaseOperationUsage());
 
-        mock.baseUsageFor(CryptoTransfer, DEFAULT);
+        mock.baseUsageFor(CRYPTO_TRANSFER, DEFAULT);
         verify(mock).hbarCryptoTransfer();
 
-        mock.baseUsageFor(CryptoTransfer, TOKEN_FUNGIBLE_COMMON);
+        mock.baseUsageFor(CRYPTO_TRANSFER, TOKEN_FUNGIBLE_COMMON);
         verify(mock).htsCryptoTransfer();
 
-        mock.baseUsageFor(CryptoTransfer, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES);
+        mock.baseUsageFor(CRYPTO_TRANSFER, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES);
         verify(mock).htsCryptoTransferWithCustomFee();
 
-        mock.baseUsageFor(CryptoTransfer, TOKEN_NON_FUNGIBLE_UNIQUE);
+        mock.baseUsageFor(CRYPTO_TRANSFER, TOKEN_NON_FUNGIBLE_UNIQUE);
         verify(mock).nftCryptoTransfer();
 
-        mock.baseUsageFor(CryptoTransfer, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES);
+        mock.baseUsageFor(CRYPTO_TRANSFER, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES);
         verify(mock).nftCryptoTransferWithCustomFee();
 
-        mock.baseUsageFor(CryptoCreate, DEFAULT);
+        mock.baseUsageFor(CRYPTO_CREATE, DEFAULT);
         verify(mock).cryptoCreate(0);
 
-        mock.baseUsageFor(CryptoUpdate, DEFAULT);
+        mock.baseUsageFor(CRYPTO_UPDATE, DEFAULT);
         verify(mock).cryptoUpdate(0);
 
-        mock.baseUsageFor(HederaFunctionality.CryptoApproveAllowance, DEFAULT);
+        mock.baseUsageFor(HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE, DEFAULT);
         verify(mock).cryptoApproveAllowance();
 
-        mock.baseUsageFor(HederaFunctionality.CryptoDeleteAllowance, DEFAULT);
+        mock.baseUsageFor(HederaFunctionality.CRYPTO_DELETE_ALLOWANCE, DEFAULT);
         verify(mock).cryptoDeleteAllowance();
     }
 
@@ -82,40 +82,40 @@ class BaseOperationUsageTest {
     void picksAppropriateTokenOp() {
         final var mock = Mockito.spy(new BaseOperationUsage());
 
-        mock.baseUsageFor(TokenAccountWipe, TOKEN_FUNGIBLE_COMMON);
+        mock.baseUsageFor(TOKEN_ACCOUNT_WIPE, TOKEN_FUNGIBLE_COMMON);
         verify(mock).fungibleCommonTokenWipe();
 
-        mock.baseUsageFor(TokenAccountWipe, TOKEN_NON_FUNGIBLE_UNIQUE);
+        mock.baseUsageFor(TOKEN_ACCOUNT_WIPE, TOKEN_NON_FUNGIBLE_UNIQUE);
         verify(mock).uniqueTokenWipe();
 
-        mock.baseUsageFor(TokenBurn, TOKEN_FUNGIBLE_COMMON);
+        mock.baseUsageFor(TOKEN_BURN, TOKEN_FUNGIBLE_COMMON);
         verify(mock).fungibleCommonTokenBurn();
 
-        mock.baseUsageFor(TokenBurn, TOKEN_NON_FUNGIBLE_UNIQUE);
+        mock.baseUsageFor(TOKEN_BURN, TOKEN_NON_FUNGIBLE_UNIQUE);
         verify(mock).uniqueTokenBurn();
 
-        mock.baseUsageFor(TokenMint, TOKEN_FUNGIBLE_COMMON);
+        mock.baseUsageFor(TOKEN_MINT, TOKEN_FUNGIBLE_COMMON);
         verify(mock).fungibleCommonTokenMint();
 
-        mock.baseUsageFor(TokenMint, TOKEN_NON_FUNGIBLE_UNIQUE);
+        mock.baseUsageFor(TOKEN_MINT, TOKEN_NON_FUNGIBLE_UNIQUE);
         verify(mock).uniqueTokenMint();
 
-        mock.baseUsageFor(ConsensusSubmitMessage, DEFAULT);
+        mock.baseUsageFor(CONSENSUS_SUBMIT_MESSAGE, DEFAULT);
         verify(mock).submitMessage();
 
-        mock.baseUsageFor(TokenFeeScheduleUpdate, DEFAULT);
+        mock.baseUsageFor(TOKEN_FEE_SCHEDULE_UPDATE, DEFAULT);
         verify(mock).feeScheduleUpdate();
 
-        mock.baseUsageFor(TokenCreate, TOKEN_FUNGIBLE_COMMON);
+        mock.baseUsageFor(TOKEN_CREATE, TOKEN_FUNGIBLE_COMMON);
         verify(mock).fungibleTokenCreate();
 
-        mock.baseUsageFor(TokenCreate, TOKEN_NON_FUNGIBLE_UNIQUE);
+        mock.baseUsageFor(TOKEN_CREATE, TOKEN_NON_FUNGIBLE_UNIQUE);
         verify(mock).uniqueTokenCreate();
 
-        mock.baseUsageFor(TokenCreate, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES);
+        mock.baseUsageFor(TOKEN_CREATE, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES);
         verify(mock).fungibleTokenCreateWithCustomFees();
 
-        mock.baseUsageFor(TokenCreate, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES);
+        mock.baseUsageFor(TOKEN_CREATE, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES);
         verify(mock).uniqueTokenCreateWithCustomFees();
     }
 
@@ -123,10 +123,10 @@ class BaseOperationUsageTest {
     void picksAppropriateScheduleOp() {
         final var mock = Mockito.spy(new BaseOperationUsage());
 
-        mock.baseUsageFor(ScheduleCreate, DEFAULT);
+        mock.baseUsageFor(SCHEDULE_CREATE, DEFAULT);
         verify(mock).scheduleCreate();
 
-        mock.baseUsageFor(ScheduleCreate, SCHEDULE_CREATE_CONTRACT_CALL);
+        mock.baseUsageFor(SCHEDULE_CREATE, SCHEDULE_CREATE_CONTRACT_CALL);
         verify(mock).scheduleCreateWithContractCall();
     }
 
@@ -134,7 +134,7 @@ class BaseOperationUsageTest {
     void picksUtilPrngOp() {
         final var mock = Mockito.spy(new BaseOperationUsage());
 
-        mock.baseUsageFor(UtilPrng, DEFAULT);
+        mock.baseUsageFor(UTIL_PRNG, DEFAULT);
         verify(mock).utilPrng();
     }
 
@@ -142,39 +142,49 @@ class BaseOperationUsageTest {
     void failsOnUnrecognizedTokenTypes() {
         final var subject = new BaseOperationUsage();
 
-        assertThrows(IllegalArgumentException.class, () -> subject.baseUsageFor(TokenCreate, UNRECOGNIZED));
-
-        assertThrows(IllegalArgumentException.class, () -> subject.baseUsageFor(TokenMint, UNRECOGNIZED));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.baseUsageFor(TOKEN_CREATE, SubType.fromString("UNRECOGNIZED")));
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> subject.baseUsageFor(TokenAccountWipe, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES));
+                () -> subject.baseUsageFor(TOKEN_MINT, SubType.fromString("UNRECOGNIZED")));
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> subject.baseUsageFor(TokenBurn, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES));
+                () -> subject.baseUsageFor(TOKEN_ACCOUNT_WIPE, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.baseUsageFor(TOKEN_BURN, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES));
     }
 
     @Test
     void failsOnUnrecognizedCryptoTypes() {
         final var subject = new BaseOperationUsage();
 
-        assertThrows(IllegalArgumentException.class, () -> subject.baseUsageFor(CryptoTransfer, UNRECOGNIZED));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.baseUsageFor(CRYPTO_TRANSFER, SubType.fromString("UNRECOGNIZED")));
     }
 
     @Test
     void failsOnUnrecognizedFileTypes() {
         final var subject = new BaseOperationUsage();
 
-        assertThrows(IllegalArgumentException.class, () -> subject.baseUsageFor(FileAppend, UNRECOGNIZED));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.baseUsageFor(FILE_APPEND, SubType.fromString("UNRECOGNIZED")));
     }
 
     @Test
     void failsOnUnrecognizedScheduleTypes() {
         final var subject = new BaseOperationUsage();
 
-        assertThrows(IllegalArgumentException.class, () -> subject.baseUsageFor(ScheduleCreate, UNRECOGNIZED));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.baseUsageFor(SCHEDULE_CREATE, SubType.fromString("UNRECOGNIZED")));
 
-        assertThrows(IllegalArgumentException.class, () -> subject.baseUsageFor(ScheduleSign, DEFAULT));
+        assertThrows(IllegalArgumentException.class, () -> subject.baseUsageFor(SCHEDULE_SIGN, DEFAULT));
     }
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.keys;
 
-import com.google.protobuf.ByteString;
-import com.hederahashgraph.api.proto.java.Key;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,7 +15,7 @@ public class KeyTreeLeaf implements KeyTreeNode {
     private boolean usedToSign = true;
     private SignatureType sigType = SignatureType.ED25519;
     private final Key NONSENSE_RSA_KEY =
-            Key.newBuilder().setRSA3072(ByteString.copyFrom("MOME".getBytes())).build();
+            Key.newBuilder().rsa3072(Bytes.wrap("MOME".getBytes())).build();
     private final Map<KeyFactory, Key> keyCache = new HashMap<>();
 
     public KeyTreeLeaf(boolean usedToSign, String label, SignatureType sigType) {

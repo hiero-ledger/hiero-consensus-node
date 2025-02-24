@@ -3,9 +3,9 @@ package com.hedera.node.app.hapi.fees.usage;
 
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.HRS_DIVISOR;
 
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.TransactionBody;
 
 public class TxnUsageEstimator {
     private final SigUsage sigUsage;
@@ -40,10 +40,10 @@ public class TxnUsageEstimator {
     private void customize(UsageEstimate usage) {
         var baseUsage = usage.base();
         baseUsage
-                .setBpt(baseUsage.getBpt() + bpt)
-                .setVpt(baseUsage.getVpt() + vpt)
-                .setGas(baseUsage.getGas() + gas)
-                .setTv(baseUsage.getTv() + tv);
+                .bpt(baseUsage.build().bpt() + bpt)
+                .vpt(baseUsage.build().vpt() + vpt)
+                .gas(baseUsage.build().gas() + gas)
+                .tv(baseUsage.build().tv() + tv);
         usage.addRbs(rbs);
         usage.addSbs(sbs);
         this.networkRbs += utils.baseNetworkRbs();

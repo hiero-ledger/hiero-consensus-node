@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_NONE;
 import static com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal.fromDetails;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.pbjToProto;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;

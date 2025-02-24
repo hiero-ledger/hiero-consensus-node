@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
 import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
 import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromByteString;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 

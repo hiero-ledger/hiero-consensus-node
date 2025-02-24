@@ -6,27 +6,27 @@
       "throttleGroups": [
         {
           "operations": [
-            "CryptoTransfer",
-            "CryptoCreate"
+            "CRYPTO_TRANSFER",
+            "CRYPTO_CREATE"
           ],
           "opsPerSec": 10000
         },
         {
           "operations": [
-            "TokenAssociateToAccount"
+            "TOKEN_ASSOCIATE_TO_ACCOUNT"
           ],
           "opsPerSec": 100
         },
         {
           "operations": [
-            "ContractCall",
-            "EthereumTransaction"
+            "CONTRACT_CALL",
+            "ETHEREUM_TRANSACTION"
           ],
           "opsPerSec": 12
         },
         {
           "operations": [
-            "TokenMint"
+            "TOKEN_MINT"
           ],
           "opsPerSec": 3000
         }
@@ -38,7 +38,7 @@
       "throttleGroups": [
         {
           "operations": [
-            "ContractCall"
+            "CONTRACT_CALL"
           ],
           "opsPerSec": 10
         }
@@ -50,14 +50,14 @@
       "throttleGroups": [
         {
           "operations": [
-            "CryptoCreate"
+            "CRYPTO_CREATE"
           ],
           "opsPerSec": 2
         },
         {
           "operations": [
-            "TokenCreate",
-            "TokenAssociateToAccount"
+            "TOKEN_CREATE",
+            "TOKEN_ASSOCIATE_TO_ACCOUNT"
           ],
           "opsPerSec": 100
         }
@@ -69,13 +69,13 @@
       "throttleGroups": [
         {
           "operations": [
-            "TransactionGetReceipt"
+            "TRANSACTION_GET_RECEIPT"
           ],
           "opsPerSec": 10
         },
         {
           "operations": [
-            "GetVersionInfo"
+            "GET_VERSION_INFO"
           ],
           "opsPerSec": 1
         }
@@ -87,7 +87,7 @@
       "throttleGroups": [
         {
           "operations": [
-            "CryptoGetAccountBalance"
+            "CRYPTO_GET_ACCOUNT_BALANCE"
           ],
           "opsPerSec": 6
         }

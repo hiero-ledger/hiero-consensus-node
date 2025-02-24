@@ -6,7 +6,7 @@
       "throttleGroups": [
         {
           "operations": [
-            "ContractCallLocal"
+            "CONTRACT_CALL_LOCAL"
           ],
           "opsPerSec": 1
         }
@@ -18,8 +18,8 @@
       "throttleGroups": [
         {
           "operations": [
-            "CryptoTransfer",
-            "ConsensusSubmitMessage"
+            "CRYPTO_TRANSFER",
+            "CONSENSUS_SUBMIT_MESSAGE"
           ],
           "opsPerSec": 10
         }
@@ -31,8 +31,8 @@
       "throttleGroups": [
         {
           "operations": [
-            "ScheduleCreate",
-            "ScheduleSign"
+            "SCHEDULE_CREATE",
+            "SCHEDULE_SIGN"
           ],
           "opsPerSec": 10000
         }
