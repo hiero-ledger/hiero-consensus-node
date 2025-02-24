@@ -263,18 +263,6 @@ public final class PbjConverter {
                 address.memo());
     }
 
-    @NonNull
-    private static MinimumJudgeInfo fromPbjMinimumJudgeInfo(
-            @NonNull final com.hedera.hapi.platform.state.MinimumJudgeInfo v) {
-        return new MinimumJudgeInfo(v.round(), v.minimumJudgeAncientThreshold());
-    }
-
-    @NonNull
-    public static com.hedera.hapi.platform.state.MinimumJudgeInfo toPbjMinimumJudgeInfo(
-            @NonNull final MinimumJudgeInfo v) {
-        return new com.hedera.hapi.platform.state.MinimumJudgeInfo(v.round(), v.minimumJudgeAncientThreshold());
-    }
-
     @Nullable
     private static SerializableX509Certificate fromPbjX509Certificate(@Nullable final Bytes bytes) {
         if (bytes == null || bytes.length() == 0) {
