@@ -283,11 +283,21 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
         final AddressBook updatedAddressBook = configAddressBook.copy();
         onUpdateWeight(state, updatedAddressBook, context);
 
-        return equalsAsRoster(platformAddressBook, configAddressBook, true)
-                && equalsAsRoster(platformAddressBook, stateAddressBook, false)
-                && equalsAsRoster(platformAddressBook, usedAddressBook, true)
-                && equalsAsRoster(platformAddressBook, updatedAddressBook, true)
-                && removedNodeFromAddressBook(platformAddressBook, stateAddressBook);
+        boolean platformVsConfig = equalsAsRoster(platformAddressBook, configAddressBook, true);
+        boolean platformVsState = equalsAsRoster(platformAddressBook, stateAddressBook, false);
+        boolean platformVsUsed = equalsAsRoster(platformAddressBook, usedAddressBook, true);
+        boolean platformVsUpdated = equalsAsRoster(platformAddressBook, updatedAddressBook, true);
+        boolean removedNode = removedNodeFromAddressBook(platformAddressBook, stateAddressBook);
+
+        logger.info(
+                DEMO_INFO.getMarker(),
+                "platformVsConfig = {}, platformVsState = {}, platformVsUsed = {}, platformVsUpdated = {}, removedNode = {}",
+                platformVsConfig,
+                platformVsState,
+                platformVsUsed,
+                platformVsUpdated,
+                removedNode);
+        return platformVsConfig && platformVsState && platformVsUsed && platformVsUpdated && removedNode;
     }
 
     private boolean softwareUpgradeAddNodeWeightingBehavior1(
@@ -298,8 +308,11 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
         }
 
         final AddressBook platformAddressBook = RosterUtils.buildAddressBook(platform.getRoster());
+        logger.info(DEMO_INFO.getMarker(), "Platform AddressBook: {}", platformAddressBook);
         final AddressBook configAddressBook = getConfigAddressBook();
+        logger.info(DEMO_INFO.getMarker(), "Config AddressBook: {}", configAddressBook);
         final AddressBook stateAddressBook = getStateAddressBook();
+        logger.info(DEMO_INFO.getMarker(), "State AddressBook: {}", stateAddressBook);
         final AddressBook usedAddressBook = getUsedAddressBook();
 
         final AddressBook updatedAddressBook = configAddressBook.copy();
@@ -335,6 +348,7 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
         final AddressBook configAddressBook = getConfigAddressBook();
         final AddressBook stateAddressBook = getStateAddressBook();
         final AddressBook usedAddressBook = getUsedAddressBook();
+        logger.info(DEMO_INFO.getMarker(), "User AddressBook: {}", usedAddressBook);
         final AddressBook updatedAddressBook = configAddressBook.copy();
         onUpdateWeight(state, updatedAddressBook, context);
 
