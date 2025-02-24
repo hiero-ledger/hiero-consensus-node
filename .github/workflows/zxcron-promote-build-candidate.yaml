@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
   schedule:
     # Runs Promote Build Candidate at 2000 hours
-    - cron: '0 20 * * *'
+    - cron: "0 20 * * *"
 
 permissions:
   actions: write
@@ -37,7 +37,7 @@ env:
 jobs:
   determine-build-candidate:
     name: Fetch Latest Build Candidate
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     outputs:
       build-candidate-exists: ${{ steps.find-build-candidates.outputs.build-candidate-exists }}
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
@@ -51,7 +51,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: '0'
+          fetch-depth: "0"
           ref: main
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
@@ -92,7 +92,7 @@ jobs:
 
   promote-build-candidate:
     name: Promote Build Candidate
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs: determine-build-candidate
     outputs:
       build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
@@ -108,7 +108,7 @@ jobs:
         if: ${{ needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: '0'
+          fetch-depth: "0"
           ref: ${{ needs.determine-build-candidate.outputs.build-candidate-commit }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
@@ -138,7 +138,7 @@ jobs:
         uses: step-security/increment@f806ba7e868d0298aa216a18049c42690f0e4736 # v2.0.0
         id: increment
         with:
-          name: 'XTS_BUILD_PROMOTION_INDEX'
+          name: "XTS_BUILD_PROMOTION_INDEX"
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Preview Next Build
@@ -151,13 +151,13 @@ jobs:
 
   report-promotion:
     name: Report Build Promotion
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate
     if: ${{ needs.promote-build-candidate.result == 'success' &&
-            needs.determine-build-candidate.result == 'success' &&
-            needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
+      needs.determine-build-candidate.result == 'success' &&
+      needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
@@ -219,7 +219,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - determine-build-candidate
       - promote-build-candidate

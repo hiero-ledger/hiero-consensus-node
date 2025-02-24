@@ -63,7 +63,7 @@ env:
 jobs:
   generate-baseline:
     name: Generate Baseline
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       sha-abbrev: ${{ steps.commit.outputs.sha-abbrev }}
@@ -234,8 +234,8 @@ jobs:
           #- ubuntu-20.04
           #- macos-12
           #- macos-11
-          - network-node-linux-medium
-          - network-node-linux-large
+          - hiero-network-node-linux-medium
+          - hiero-network-node-linux-large
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3

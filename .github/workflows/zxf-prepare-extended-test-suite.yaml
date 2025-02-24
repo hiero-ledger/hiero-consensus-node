@@ -39,7 +39,7 @@ env:
 jobs:
   tag-for-xts:
     name: Tag for XTS promotion
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
@@ -49,8 +49,8 @@ jobs:
       - name: Checkout Default Branch
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: '0'
-          ref: 'main'
+          fetch-depth: "0"
+          ref: "main"
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Validate Input Ref
@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: ${{ steps.validate-input.outputs.commit_on_dev == 'true'}}
         with:
-          fetch-depth: '0'
+          fetch-depth: "0"
           ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 

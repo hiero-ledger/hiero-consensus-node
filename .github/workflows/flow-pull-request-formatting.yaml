@@ -43,7 +43,7 @@ permissions:
 jobs:
   title-check:
     name: Title Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
@@ -57,7 +57,7 @@ jobs:
 
   milestone-check:
     name: Milestone Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
@@ -67,12 +67,12 @@ jobs:
       - name: Check Milestone
         if: ${{ github.event.pull_request.milestone == null }}
         run: |
-            echo "Milestone is not set. Failing the workflow."
-            exit 1
+          echo "Milestone is not set. Failing the workflow."
+          exit 1
 
   assignee-check:
     name: Assignee Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
 
     steps:
       - name: Harden Runner
@@ -83,5 +83,5 @@ jobs:
       - name: Check Assignee
         if: ${{ github.event.pull_request.assignees == null || github.event.pull_request.assignees[0] == null }}
         run: |
-            echo "Assignee is not set. Failing the workflow."
-            exit 1
+          echo "Assignee is not set. Failing the workflow."
+          exit 1

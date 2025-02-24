@@ -37,7 +37,7 @@ permissions:
 jobs:
   prepare-tag-release:
     name: Prepare Release [Tag]
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
@@ -130,7 +130,7 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - release-branch
     steps:
@@ -142,7 +142,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: '0'
+          fetch-depth: "0"
           ref: main
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
@@ -187,12 +187,12 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-              "ref": "${{ inputs.ref }}"
+            "ref": "${{ inputs.ref }}"
             }'
 
   update-hedera-protobufs:
     name: Update Hedera Protobufs
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - prepare-tag-release
     steps:
@@ -206,13 +206,13 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           ref: main
-          fetch-depth: '0'
+          fetch-depth: "0"
 
       - name: Checkout Hedera Protobufs Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.PROTOBUFS_GH_ACCESS_TOKEN }}
-          fetch-depth: '0'
+          fetch-depth: "0"
           repository: hashgraph/hedera-protobufs
           path: hedera-protobufs
 
@@ -239,7 +239,7 @@ jobs:
       - name: Add & Commit
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
-          cwd: 'hedera-protobufs'
+          cwd: "hedera-protobufs"
           author_name: swirlds-eng-automation
           author_email: ${{ secrets.PROTOBUFS_GPG_USER_EMAIL }}
           commit: --signoff

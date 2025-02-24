@@ -17,7 +17,7 @@
 name: "ZXCron: [Platform] Release JRS Regression"
 on:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: "0 9 * * *"
   workflow_dispatch:
 
 permissions:
@@ -33,7 +33,7 @@ env:
 jobs:
   cron:
     name: Cron / Launch Workflows
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-small-scheduler
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3

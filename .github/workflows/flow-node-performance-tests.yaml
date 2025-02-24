@@ -17,7 +17,7 @@
 name: "Node: Performance Tests"
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 defaults:
@@ -27,8 +27,8 @@ defaults:
 env:
   TEST_SCRIPT: ".github/workflows/support/scripts/nightly.sh"
   CHECK_ACTIVE: ".github/workflows/support/scripts/loki-logs.sh"
-  VERSION_MIRRORNODE : "custom"
-  K8S_CLUSTER : "gke_hedera-testing-1_us-south1-c_nightly-perfnet"
+  VERSION_MIRRORNODE: "custom"
+  K8S_CLUSTER: "gke_hedera-testing-1_us-south1-c_nightly-perfnet"
 
   USERNAME: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
   PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
@@ -45,7 +45,7 @@ permissions:
 jobs:
   canonical-test:
     name: Canonical (10 hour)
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
