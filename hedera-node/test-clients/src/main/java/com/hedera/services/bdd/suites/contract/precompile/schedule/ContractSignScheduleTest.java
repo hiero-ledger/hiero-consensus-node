@@ -46,11 +46,11 @@ import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -285,7 +285,7 @@ public class ContractSignScheduleTest {
                     getScheduleInfo(SCHEDULE_H).isExecuted().hasSignatories(GENESIS, ED25519KEY));
         }
 
-        private @NotNull CustomSpecAssert signWithEd(
+        private @NonNull CustomSpecAssert signWithEd(
                 final AtomicReference<ScheduleID> scheduleID, final ResponseCodeEnum expectedStatus) {
             return withOpContext((spec, opLog) -> {
                 final var message = getMessageBytes(scheduleID);
@@ -315,7 +315,7 @@ public class ContractSignScheduleTest {
             });
         }
 
-        private @NotNull CustomSpecAssert signWithEcdsa(
+        private @NonNull CustomSpecAssert signWithEcdsa(
                 final AtomicReference<ScheduleID> scheduleID, final ResponseCodeEnum expectedStatus) {
             return withOpContext((spec, opLog) -> {
                 final var message = getMessageBytes(scheduleID);

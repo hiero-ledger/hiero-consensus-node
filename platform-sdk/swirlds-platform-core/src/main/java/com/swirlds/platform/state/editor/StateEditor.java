@@ -52,8 +52,8 @@ public class StateEditor {
 
         platformContext = PlatformContext.create(configuration);
 
-        final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readStateFile(configuration, statePath, DEFAULT_PLATFORM_STATE_FACADE);
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
+                configuration, statePath, DEFAULT_PLATFORM_STATE_FACADE, platformContext);
 
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             System.out.println("\nLoading state from " + statePath);
@@ -201,6 +201,7 @@ public class StateEditor {
                     false,
                     false,
                     DEFAULT_PLATFORM_STATE_FACADE);
+            newSignedState.init(platformContext);
 
             signedState.set(newSignedState, "StateEditor.getSignedStateCopy() 2");
 

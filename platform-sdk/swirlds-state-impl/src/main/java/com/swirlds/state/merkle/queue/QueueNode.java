@@ -13,7 +13,7 @@ import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.fcqueue.FCQueue;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.merkle.singleton.ValueLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -62,7 +62,7 @@ public class QueueNode<E> extends PartialBinaryMerkleInternal implements Labeled
             final long queueNodeClassId,
             final long leafClassId,
             @NonNull final Codec<E> codec) {
-        setLeft(new StringLeaf(StateUtils.computeLabel(serviceName, stateKey)));
+        setLeft(new StringLeaf(StateMetadata.computeLabel(serviceName, stateKey)));
         setRight(new FCQueue<ValueLeaf<E>>());
         this.codec = requireNonNull(codec);
         this.queueNodeClassId = queueNodeClassId;
