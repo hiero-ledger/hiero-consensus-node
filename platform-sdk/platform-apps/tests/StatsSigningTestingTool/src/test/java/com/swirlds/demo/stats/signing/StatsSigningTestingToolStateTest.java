@@ -63,8 +63,7 @@ class StatsSigningTestingToolStateTest {
         final var eventWindow = new EventWindow(10, 5, 20, AncientMode.BIRTH_ROUND_THRESHOLD);
         final var roster = new Roster(Collections.EMPTY_LIST);
         when(event.transactionIterator()).thenReturn(Collections.emptyIterator());
-        round = new ConsensusRound(
-                roster, List.of(event), event, eventWindow, new ConsensusSnapshot(), false, Instant.now());
+        round = new ConsensusRound(roster, List.of(event), eventWindow, new ConsensusSnapshot(), false, Instant.now());
 
         consumedSystemTransactions = new ArrayList<>();
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);
