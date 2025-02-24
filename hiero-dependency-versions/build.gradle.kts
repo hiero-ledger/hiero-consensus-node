@@ -39,7 +39,7 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
         because("io.helidon.webclient.grpc")
     }
-    api("org.awaitility:awaitility:4.2.2") { because("awaitility") }
+    api("org.awaitility:awaitility:4.3.0") { because("awaitility") }
     api("com.fasterxml.jackson.core:jackson-core:$jackson") {
         because("com.fasterxml.jackson.core")
     }
