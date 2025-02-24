@@ -12,7 +12,7 @@ import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -67,7 +67,7 @@ class BirthRoundStateMigrationTests {
             generation += random.nextLong(1, 100);
         }
 
-        final ConsensusSnapshotWrapper snapshot = new ConsensusSnapshotWrapper(
+        final ConsensusSnapshot snapshot = new ConsensusSnapshot(
                 round, judgeHashes, minimumJudgeInfoList, nextConsensusNumber, PbjConverter.toPbjTimestamp(consensusTimestamp));
 
         return new RandomSignedStateGenerator(random)

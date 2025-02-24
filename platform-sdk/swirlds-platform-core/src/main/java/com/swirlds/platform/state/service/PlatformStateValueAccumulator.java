@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.service;
 
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
@@ -77,7 +77,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     /**
      * A snapshot of the consensus state at the end of the round, used for restart/reconnect
      */
-    private ConsensusSnapshotWrapper snapshot;
+    private ConsensusSnapshot snapshot;
 
     private boolean snapshotUpdated;
 
@@ -284,7 +284,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      */
     @Override
     @Nullable
-    public ConsensusSnapshotWrapper getSnapshot() {
+    public ConsensusSnapshot getSnapshot() {
         return snapshot;
     }
 
@@ -292,7 +292,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * @param snapshot the consensus snapshot for this round
      */
     @Override
-    public void setSnapshot(@NonNull final ConsensusSnapshotWrapper snapshot) {
+    public void setSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         this.snapshot = Objects.requireNonNull(snapshot);
         snapshotUpdated = true;
     }

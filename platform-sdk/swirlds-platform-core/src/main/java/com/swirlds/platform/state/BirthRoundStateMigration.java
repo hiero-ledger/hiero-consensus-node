@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.stream.Collectors.toList;
 
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
@@ -63,7 +63,7 @@ public final class BirthRoundStateMigration {
 
         final long lastRoundBeforeMigration = platformStateFacade.roundOf(state);
 
-        final ConsensusSnapshotWrapper consensusSnapshot =
+        final ConsensusSnapshot consensusSnapshot =
                 Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(state));
         final List<MinimumJudgeInfo> judgeInfoList = consensusSnapshot.minimumJudgeInfoList();
         final long lowestJudgeGenerationBeforeMigration =
@@ -87,7 +87,7 @@ public final class BirthRoundStateMigration {
         for (final MinimumJudgeInfo judgeInfo : judgeInfoList) {
             modifiedJudgeInfoList.add(new MinimumJudgeInfo(judgeInfo.round(), lastRoundBeforeMigration));
         }
-        final ConsensusSnapshotWrapper modifiedConsensusSnapshot = new ConsensusSnapshotWrapper(
+        final ConsensusSnapshot modifiedConsensusSnapshot = new ConsensusSnapshot(
                 consensusSnapshot.round(),
                 consensusSnapshot.judgeHashes(),
                 modifiedJudgeInfoList,

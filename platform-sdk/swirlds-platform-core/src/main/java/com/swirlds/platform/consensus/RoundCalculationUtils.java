@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +35,7 @@ public final class RoundCalculationUtils {
      * @param roundsNonAncient the number of non-ancient rounds
      * @return minimum non-ancient generation
      */
-    public static long getAncientThreshold(final int roundsNonAncient, @NonNull final ConsensusSnapshotWrapper snapshot) {
+    public static long getAncientThreshold(final int roundsNonAncient, @NonNull final ConsensusSnapshot snapshot) {
         final long oldestNonAncientRound = RoundCalculationUtils.getOldestNonAncientRound(roundsNonAncient, snapshot.round());
         return getMinimumJudgeAncientThreshold(oldestNonAncientRound, snapshot);
     }
@@ -48,7 +49,7 @@ public final class RoundCalculationUtils {
      * @throws NoSuchElementException if the minimum judge info information for this round is not contained withing this
      *                                state
      */
-    public static long getMinimumJudgeAncientThreshold(final long round, @NonNull final ConsensusSnapshotWrapper snapshot) {
+    public static long getMinimumJudgeAncientThreshold(final long round, @NonNull final ConsensusSnapshot snapshot) {
         for (final MinimumJudgeInfo info : snapshot.minimumJudgeInfoList()) {
             if (info.round() == round) {
                 return info.minimumJudgeAncientThreshold();

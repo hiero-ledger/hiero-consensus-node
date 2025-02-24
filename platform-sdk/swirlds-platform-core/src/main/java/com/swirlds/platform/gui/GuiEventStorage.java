@@ -8,7 +8,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig;
@@ -111,7 +111,7 @@ public class GuiEventStorage {
      *
      * @param snapshot the snapshot to handle
      */
-    public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshotWrapper snapshot) {
+    public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
         linker.setNonAncientThreshold(

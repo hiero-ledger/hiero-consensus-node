@@ -3,7 +3,7 @@ package com.swirlds.platform.components.consensus;
 
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.Consensus;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.events.CesEvent;
@@ -39,7 +39,7 @@ public interface ConsensusEngine {
      *
      * @param snapshot the snapshot to adopt
      */
-    void outOfBandSnapshotUpdate(@NonNull ConsensusSnapshotWrapper snapshot);
+    void outOfBandSnapshotUpdate(@NonNull ConsensusSnapshot snapshot);
 
     /**
      * Extract a list of events intended for the consensus events stream

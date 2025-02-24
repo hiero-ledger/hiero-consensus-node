@@ -6,7 +6,6 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomString;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjAddressBook;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjConsensusSnapshot;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Arrays.asList;
@@ -20,7 +19,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.internal.CryptoUtils;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
@@ -73,13 +72,8 @@ class PbjConverterTest {
                 platformState.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
                 pbjPlatformState.firstVersionInBirthRoundMode());
 
-        assertEquals(platformState.getSnapshot().getSnapshot(), pbjPlatformState.consensusSnapshot());
+        assertEquals(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
         assertAddressBook(platformState.getAddressBook(), pbjPlatformState.addressBook());
-    }
-
-    @Test
-    void testToPbjConsensusSnapshot_null() {
-        assertNull(PbjConverter.toPbjConsensusSnapshot(null));
     }
 
     @Test
@@ -119,11 +113,6 @@ class PbjConverterTest {
     }
 
     @Test
-    void testFRomConsensusSnapshot_null() {
-        assertNull(PbjConverter.fromPbjConsensusSnapshot(null));
-    }
-
-    @Test
     void testToPbjPlatformState_acc_updateCreationSoftwareVersion() {
         var oldState = randomPbjPlatformState();
         var accumulator = new PlatformStateValueAccumulator();
@@ -157,25 +146,6 @@ class PbjConverterTest {
         accumulator.setRoundsNonAncient(newValue);
 
         assertEquals(newValue, toPbjPlatformState(oldState, accumulator).roundsNonAncient());
-    }
-
-    @Test
-    void testToPbjPlatformState_acc_snapshot() {
-        var oldState = randomPbjPlatformState();
-        var accumulator = new PlatformStateValueAccumulator();
-
-        // no change without update is expected
-        assertEquals(
-                oldState.consensusSnapshot(),
-                toPbjPlatformState(oldState, accumulator).consensusSnapshot());
-
-        var newValue = randomSnapshot(randotron);
-
-        accumulator.setSnapshot(newValue);
-
-        assertEquals(
-                toPbjConsensusSnapshot(newValue),
-                toPbjPlatformState(oldState, accumulator).consensusSnapshot());
     }
 
     @Test
@@ -356,7 +326,7 @@ class PbjConverterTest {
                 .usingRecursiveComparison(RecursiveComparisonConfiguration.builder()
                         .withIgnoredFields("round")
                         .build())
-                .isEqualTo(toPbjConsensusSnapshot(newSnapshot));
+                .isEqualTo(newSnapshot);
         assertEquals(
                 newRound,
                 toPbjPlatformState(oldState, accumulator).consensusSnapshot().round());
@@ -392,7 +362,7 @@ class PbjConverterTest {
                 .usingRecursiveComparison(RecursiveComparisonConfiguration.builder()
                         .withIgnoredFields("consensusTimestamp")
                         .build())
-                .isEqualTo(toPbjConsensusSnapshot(newSnapshot));
+                .isEqualTo(newSnapshot);
         assertEquals(
                 toPbjTimestamp(consensusTimestamp),
                 toPbjPlatformState(oldState, accumulator).consensusSnapshot().consensusTimestamp());
@@ -421,7 +391,7 @@ class PbjConverterTest {
 
         assertEquals(newValue.getCreationSoftwareVersion().getPbjSemanticVersion(), pbjState.creationSoftwareVersion());
         assertEquals(newValue.getRoundsNonAncient(), pbjState.roundsNonAncient());
-        assertEquals(toPbjConsensusSnapshot(newValue.getSnapshot()), pbjState.consensusSnapshot());
+        assertEquals(newValue.getSnapshot(), pbjState.consensusSnapshot());
         assertEquals(toPbjTimestamp(newValue.getLastFrozenTime()), pbjState.freezeTime());
         assertEquals(toPbjTimestamp(newValue.getLastFrozenTime()), pbjState.lastFrozenTime());
         assertArrayEquals(
@@ -504,8 +474,8 @@ class PbjConverterTest {
         }
     }
 
-    private static ConsensusSnapshotWrapper randomSnapshot(Randotron randotron) {
-        return new ConsensusSnapshotWrapper(
+    private static ConsensusSnapshot randomSnapshot(Randotron randotron) {
+        return new ConsensusSnapshot(
                 nextInt(),
                 asList(randomHash().getBytes(), randomHash().getBytes()),
                 asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())),

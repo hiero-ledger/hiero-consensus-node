@@ -7,7 +7,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
@@ -98,7 +98,7 @@ public record PlatformBuildingBlocks(
         @NonNull RosterHistory rosterHistory,
         @NonNull ApplicationCallbacks applicationCallbacks,
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
-        @Nullable Consumer<ConsensusSnapshotWrapper> snapshotOverrideConsumer,
+        @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull RandomBuilder randomBuilder,
         @NonNull TransactionPoolNexus transactionPoolNexus,

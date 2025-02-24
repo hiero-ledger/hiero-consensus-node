@@ -15,7 +15,7 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig_;
@@ -159,7 +159,7 @@ class StaleEventDetectorTests {
                 events,
                 mock(PlatformEvent.class),
                 eventWindow,
-                mock(ConsensusSnapshotWrapper.class),
+                mock(ConsensusSnapshot.class),
                 false,
                 Instant.now());
     }

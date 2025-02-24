@@ -6,7 +6,7 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHashBytes;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.PbjConverter;
@@ -47,7 +47,7 @@ public final class PlatformStateUtils {
         }
         platformStateFacade.setSnapshotTo(
                 state,
-                new ConsensusSnapshotWrapper(
+                new ConsensusSnapshot(
                         random.nextLong(),
                         List.of(randomHashBytes(random), randomHashBytes(random), randomHashBytes(random)),
                         minimumJudgeInfo,

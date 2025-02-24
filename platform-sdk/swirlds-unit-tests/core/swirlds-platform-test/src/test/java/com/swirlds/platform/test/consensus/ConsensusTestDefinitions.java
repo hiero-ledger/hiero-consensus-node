@@ -11,7 +11,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
@@ -552,7 +552,7 @@ public final class ConsensusTestDefinitions {
             n.getEventEmitter().reset();
             final Optional<EventImpl> maxGenEvent = events.stream()
                     .max(Comparator.comparingLong(EventImpl::getGeneration).thenComparing(EventImpl::getCreatorId));
-            final ConsensusSnapshotWrapper syntheticSnapshot = SyntheticSnapshot.generateSyntheticSnapshot(
+            final ConsensusSnapshot syntheticSnapshot = SyntheticSnapshot.generateSyntheticSnapshot(
                     round,
                     lastConsensusOrder,
                     snapshotTimestamp,

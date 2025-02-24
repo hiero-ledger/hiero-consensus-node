@@ -16,7 +16,7 @@ import com.swirlds.logging.api.Level;
 import com.swirlds.logging.api.extensions.event.LogEvent;
 import com.swirlds.logging.test.fixtures.LoggingMirror;
 import com.swirlds.logging.test.fixtures.WithLoggingMirror;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.durability.DefaultRoundDurabilityBuffer;
@@ -62,7 +62,7 @@ class RoundDurabilityBufferTests {
                 List.of(),
                 keystoneEvent,
                 mock(EventWindow.class),
-                mock(ConsensusSnapshotWrapper.class),
+                mock(ConsensusSnapshot.class),
                 false,
                 Instant.now());
     }

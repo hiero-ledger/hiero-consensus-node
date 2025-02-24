@@ -37,7 +37,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeysAndCerts;
@@ -209,7 +209,7 @@ class PlatformTestingToolStateTest {
                 List.of(platformEvent),
                 platformEvent,
                 eventWindow,
-                Mockito.mock(ConsensusSnapshotWrapper.class),
+                Mockito.mock(ConsensusSnapshot.class),
                 false,
                 Instant.now());
 
@@ -310,7 +310,7 @@ class PlatformTestingToolStateTest {
                 List.of(platformEvent),
                 platformEvent,
                 eventWindow,
-                Mockito.mock(ConsensusSnapshotWrapper.class),
+                Mockito.mock(ConsensusSnapshot.class),
                 false,
                 Instant.now());
     }

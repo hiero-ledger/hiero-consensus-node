@@ -23,7 +23,7 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -74,7 +74,7 @@ public class RandomSignedStateGenerator {
     private Hash stateHash = null;
     private Integer roundsNonAncient = null;
     private Hash epoch = null;
-    private ConsensusSnapshotWrapper consensusSnapshot;
+    private ConsensusSnapshot consensusSnapshot;
     private SignatureVerifier signatureVerifier;
     private boolean deleteOnBackgroundThread;
     private boolean pcesRound;
@@ -186,9 +186,9 @@ public class RandomSignedStateGenerator {
             roundsNonAncientInstance = roundsNonAncient;
         }
 
-        final ConsensusSnapshotWrapper consensusSnapshotInstance;
+        final ConsensusSnapshot consensusSnapshotInstance;
         if (consensusSnapshot == null) {
-            consensusSnapshotInstance = new ConsensusSnapshotWrapper(
+            consensusSnapshotInstance = new ConsensusSnapshot(
                     roundInstance,
                     Stream.generate(() -> randomHashBytes(random)).limit(10).toList(),
                     IntStream.range(0, roundsNonAncientInstance)
@@ -424,7 +424,7 @@ public class RandomSignedStateGenerator {
     }
 
     @NonNull
-    public RandomSignedStateGenerator setConsensusSnapshot(@NonNull final ConsensusSnapshotWrapper consensusSnapshot) {
+    public RandomSignedStateGenerator setConsensusSnapshot(@NonNull final ConsensusSnapshot consensusSnapshot) {
         this.consensusSnapshot = consensusSnapshot;
         return this;
     }

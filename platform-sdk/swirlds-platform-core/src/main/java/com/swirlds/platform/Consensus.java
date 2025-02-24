@@ -2,7 +2,7 @@
 package com.swirlds.platform;
 
 import com.swirlds.platform.consensus.ConsensusConstants;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +34,7 @@ public interface Consensus {
      * Load consensus from a snapshot. This will continue consensus from the round of the snapshot once all the required
      * events are provided. This method is called at restart and reconnect boundaries.
      */
-    void loadSnapshot(@NonNull ConsensusSnapshotWrapper snapshot);
+    void loadSnapshot(@NonNull ConsensusSnapshot snapshot);
 
     /**
      * Return the max round number for which we have an event. If there are none yet, return {@link

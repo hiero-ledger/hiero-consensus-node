@@ -2,7 +2,7 @@
 package com.swirlds.platform.state;
 
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
@@ -90,7 +90,7 @@ public interface PlatformStateAccessor {
      * @return the consensus snapshot for this round
      */
     @Nullable
-    ConsensusSnapshotWrapper getSnapshot();
+    ConsensusSnapshot getSnapshot();
 
     /**
      * Gets the time when the next freeze is scheduled to start. If null then there is no freeze scheduled.

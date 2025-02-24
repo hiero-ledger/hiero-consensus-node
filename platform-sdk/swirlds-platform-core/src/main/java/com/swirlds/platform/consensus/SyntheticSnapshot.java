@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
@@ -19,7 +20,7 @@ public final class SyntheticSnapshot {
     private SyntheticSnapshot() {}
 
     /**
-     * Generate a {@link ConsensusSnapshotWrapper} based on the supplied data. This snapshot is not the result of consensus
+     * Generate a {@link ConsensusSnapshot} based on the supplied data. This snapshot is not the result of consensus
      * but is instead generated to be used as a starting point for consensus. The snapshot will contain a single
      * judge whose generation will be almost ancient. All events older than the judge will be considered ancient.
      * The judge is the only event needed to continue consensus operations. Once the judge is added to
@@ -34,7 +35,7 @@ public final class SyntheticSnapshot {
      * @param judge the judge event
      * @return the synthetic snapshot
      */
-    public static @NonNull ConsensusSnapshotWrapper generateSyntheticSnapshot(
+    public static @NonNull ConsensusSnapshot generateSyntheticSnapshot(
             final long round,
             final long lastConsensusOrder,
             @NonNull final Instant roundTimestamp,
@@ -45,7 +46,7 @@ public final class SyntheticSnapshot {
                         RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)
                 .mapToObj(r -> new MinimumJudgeInfo(r, judge.getAncientIndicator(ancientMode)))
                 .toList();
-        return new ConsensusSnapshotWrapper(
+        return new ConsensusSnapshot(
                 round,
                 List.of(judge.getHash().getBytes()),
                 minimumJudgeInfos,
@@ -60,8 +61,8 @@ public final class SyntheticSnapshot {
      * @param ancientMode the ancient mode
      * @return the genesis snapshot, when loaded by consensus, it will start from genesis
      */
-    public static @NonNull ConsensusSnapshotWrapper getGenesisSnapshot(@NonNull final AncientMode ancientMode) {
-        return new ConsensusSnapshotWrapper(
+    public static @NonNull ConsensusSnapshot getGenesisSnapshot(@NonNull final AncientMode ancientMode) {
+        return new ConsensusSnapshot(
                 ConsensusConstants.ROUND_FIRST,
                 List.of(),
                 List.of(new MinimumJudgeInfo(

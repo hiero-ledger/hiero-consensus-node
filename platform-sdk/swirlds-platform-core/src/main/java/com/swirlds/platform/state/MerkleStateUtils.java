@@ -6,7 +6,7 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
@@ -30,7 +30,7 @@ public class MerkleStateUtils {
             @NonNull final MerkleNode state) {
         final Hash hashEventsCons = platformState.getLegacyRunningEventHash();
 
-        final ConsensusSnapshotWrapper snapshot = platformState.getSnapshot();
+        final ConsensusSnapshot snapshot = platformState.getSnapshot();
         final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot == null ? null : snapshot.minimumJudgeInfoList();
 
         final StringBuilder sb = new StringBuilder();

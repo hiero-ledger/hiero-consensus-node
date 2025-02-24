@@ -9,7 +9,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.AncientMode;
@@ -113,7 +113,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      * {@inheritDoc}
      */
     @Override
-    public void outOfBandSnapshotUpdate(@NonNull final ConsensusSnapshotWrapper snapshot) {
+    public void outOfBandSnapshotUpdate(@NonNull final ConsensusSnapshot snapshot) {
         final long ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
         final EventWindow eventWindow =
                 new EventWindow(snapshot.round(), ancientThreshold, ancientThreshold, ancientMode);

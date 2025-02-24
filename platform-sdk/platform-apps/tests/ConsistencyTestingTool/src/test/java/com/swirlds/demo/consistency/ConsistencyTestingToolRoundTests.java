@@ -10,7 +10,7 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
@@ -59,7 +59,7 @@ class ConsistencyTestingToolRoundTests {
                     .build();
             mockEvents.add(e);
         });
-        final ConsensusSnapshotWrapper mockSnapshot = mock(ConsensusSnapshotWrapper.class);
+        final ConsensusSnapshot mockSnapshot = mock(ConsensusSnapshot.class);
         Mockito.when(mockSnapshot.round()).thenReturn(roundReceived);
 
         return new ConsensusRound(

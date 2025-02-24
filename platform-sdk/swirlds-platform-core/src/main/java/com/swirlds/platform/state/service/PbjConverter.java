@@ -10,7 +10,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateAccessor;
@@ -49,7 +49,7 @@ public final class PbjConverter {
         return new PlatformState(
                 accessor.getCreationSoftwareVersion().getPbjSemanticVersion(),
                 accessor.getRoundsNonAncient(),
-                toPbjConsensusSnapshot(accessor.getSnapshot()),
+                accessor.getSnapshot(),
                 toPbjTimestamp(accessor.getFreezeTime()),
                 toPbjTimestamp(accessor.getLastFrozenTime()),
                 Optional.ofNullable(accessor.getLegacyRunningEventHash())
@@ -88,7 +88,7 @@ public final class PbjConverter {
         com.hedera.hapi.platform.state.ConsensusSnapshot.Builder consensusSnapshotBuilder;
         if (accumulator.isSnapshotUpdated()) {
             consensusSnapshotBuilder =
-                    toPbjConsensusSnapshot(accumulator.getSnapshot()).copyBuilder();
+                    accumulator.getSnapshot().copyBuilder();
         } else {
             consensusSnapshotBuilder = previousState
                     .consensusSnapshotOrElse(com.hedera.hapi.platform.state.ConsensusSnapshot.DEFAULT)
@@ -195,29 +195,6 @@ public final class PbjConverter {
             result.setNextNodeId(NodeId.of(addressBook.nextNodeId().id()));
         }
         return result;
-    }
-
-    //TODO remove
-    @Nullable
-    public static com.hedera.hapi.platform.state.ConsensusSnapshot toPbjConsensusSnapshot(
-            @Nullable final ConsensusSnapshotWrapper consensusSnapshot) {
-        return consensusSnapshot == null ? null : consensusSnapshot.getSnapshot();
-    }
-
-    //TODO remove
-    @Nullable
-    public static ConsensusSnapshotWrapper fromPbjConsensusSnapshot(
-            @Nullable final com.hedera.hapi.platform.state.ConsensusSnapshot consensusSnapshot) {
-        if (consensusSnapshot == null) {
-            return null;
-        }
-
-        return new ConsensusSnapshotWrapper(
-                consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes(),
-                consensusSnapshot.minimumJudgeInfoList(),
-                consensusSnapshot.nextConsensusNumber(),
-                consensusSnapshot.consensusTimestamp());
     }
 
     @Nullable
