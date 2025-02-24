@@ -3,7 +3,6 @@ package com.swirlds.platform.stats;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.platform.stats.AtomicMax;
 import org.junit.jupiter.api.Test;
 
 class AtomicMaxTest {
