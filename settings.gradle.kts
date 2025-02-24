@@ -1,13 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.3.3" }
-
-// Downgrade 'dependency-analysis-gradle-plugin' as 2.8.0 delivers unexpected results
-// we need to investigate
-buildscript {
-    dependencies.constraints {
-        classpath("com.autonomousapps:dependency-analysis-gradle-plugin:2.7.0!!")
-    }
-}
+plugins { id("org.hiero.gradle.build") version "0.3.4" }
 
 javaModules {
     // This "intermediate parent project" should be removed

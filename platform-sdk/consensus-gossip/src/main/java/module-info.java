@@ -3,5 +3,5 @@ module org.hiero.consensus.gossip {
     exports org.hiero.consensus.gossip;
 
     requires transitive com.swirlds.common;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

@@ -37,5 +37,4 @@ testModuleInfo {
     requires("org.hiero.event.creator.impl")
     requires("org.mockito")
     requires("org.hiero.consensus.gossip")
-    requiresStatic("com.github.spotbugs.annotations")
 }
