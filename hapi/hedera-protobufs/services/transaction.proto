@@ -238,9 +238,7 @@ message TransactionBody {
     string memo = 6;
 
     /**
-     * The <b>entire public key</b> of the trusted batch assembler.
-     *
-     * Only Ed25519 and ECDSA(secp256k1) keys and hence signatures are currently supported.
+     * The <b>public key</b> of the trusted batch assembler.
      */
     Key batch_key = 73;
 
@@ -646,6 +644,9 @@ message TransactionBody {
          */
         com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication = 72;
 
+        /**
+         * A transaction body for handling a set of transactions atomically.
+         */
         AtomicBatchTransactionBody atomic_batch = 74;
     }
 
@@ -660,7 +661,7 @@ message TransactionBody {
 }
 
 /**
- * Create an atomic batch.
+ * A transaction body for handling a set of transactions atomically.
  */
 message AtomicBatchTransactionBody {
   // <<<pbj.java_package = "com.hedera.hapi.node.util">>> This comment is special code for setting PBJ Compiler java package

@@ -1699,30 +1699,32 @@ enum ResponseCodeEnum {
     MAX_CUSTOM_FEES_IS_NOT_SUPPORTED = 387;
 
     /**
-    * The list of batch transactions is empty
-    */
+     * The list of batch transactions is empty
+     */
     BATCH_LIST_EMPTY = 388;
 
     /**
-    * The list of batch transactions contains duplicated transactions
-    */
+     * The list of batch transactions contains duplicated transactions
+     */
     BATCH_LIST_CONTAINS_DUPLICATES = 389;
 
     /**
-    * The list of batch transactions contains a disallowed transaction type.
-    */
+     * The list of batch transactions contains a transaction type that is not supported to be submitted in a batch.
+     */
     BATCH_TRANSACTION_NOT_IN_WHITELIST = 390;
 
     /**
-     * The inner transaction failed
+     * The inner transaction of a batch transaction failed
      */
     INNER_TRANSACTION_FAILED = 391;
+
     /**
-     * The inner batch transaction is missing a batch key
+     * The inner transaction of a batch transaction is missing a batch key
      */
     MISSING_BATCH_KEY = 392;
+
     /**
-     * The batch key is set for not inner transaction
+     * The batch key is set for a non batch transaction
      */
     BATCH_KEY_SET_ON_NON_INNER_TRANSACTION = 393;
 

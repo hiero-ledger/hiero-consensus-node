@@ -932,7 +932,8 @@ public class AtomicBatchTest {
                             .validateTxnOrder(
                                     signTxnId,
                                     scheduledTxnId, // scheduled txn is executed right after a sign txn
-                                    secondInnerTxnId));
+                                    secondInnerTxnId),
+                    getAccountBalance(receiver).logged());
         }
 
         @HapiTest
