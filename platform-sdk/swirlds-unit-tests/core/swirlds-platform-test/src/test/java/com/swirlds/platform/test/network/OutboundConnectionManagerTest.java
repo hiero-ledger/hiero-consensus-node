@@ -15,6 +15,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.OutboundConnectionManager;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
+import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;

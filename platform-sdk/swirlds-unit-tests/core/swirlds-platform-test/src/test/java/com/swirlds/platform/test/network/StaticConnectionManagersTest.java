@@ -18,6 +18,7 @@ import com.swirlds.platform.network.topology.NetworkTopology;
 import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.util.List;
 import java.util.Random;
 import org.junit.jupiter.api.extension.ExtendWith;
