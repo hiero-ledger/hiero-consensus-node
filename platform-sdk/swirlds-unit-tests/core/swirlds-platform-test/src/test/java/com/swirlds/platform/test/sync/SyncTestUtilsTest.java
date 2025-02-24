@@ -9,6 +9,7 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
+import com.swirlds.platform.test.fixtures.sync.EventFactory;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.sync;
 
-import static com.swirlds.platform.test.sync.EventEquality.identicalHashes;
+import static com.swirlds.platform.test.fixtures.sync.EventEquality.identicalHashes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
