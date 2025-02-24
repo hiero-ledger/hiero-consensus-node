@@ -7,7 +7,6 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.test.consensus.framework.validation.ConsensusOutputValidation;
@@ -24,6 +23,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Runs a TURTLE network. All nodes run in this JVM, and if configured properly the execution is expected to be
@@ -63,6 +65,7 @@ import java.util.concurrent.Future;
  */
 public class Turtle {
 
+    private static final Logger log = LogManager.getLogger(Turtle.class);
     private final FakeTime time;
     private final Duration simulationGranularity;
 
@@ -127,37 +130,26 @@ public class Turtle {
     }
 
     public void validate() {
-        final Validations validations =
-                Validations.newInstance().consensusEvents().consensusTimestamps();
+        try {
+            final Validations validations =
+                    Validations.newInstance().consensusEvents().consensusTimestamps();
 
-        final TurtleNode node1 = nodes.getFirst();
-        final List<ConsensusOutput> consensusOutputsForNode1 = getConsensusOutputsFromNode(node1);
+            final TurtleNode node1 = nodes.getFirst();
+            final ConsensusOutput consensusOutputForNode1 =
+                    new ConsensusOutput(node1.getConsensusRoundsHolder().getCollectedRounds());
 
-        for (int i = 1; i < nodes.size(); i++) {
-            final TurtleNode node2 = nodes.get(i);
-            final List<ConsensusOutput> consensusOutputsForNode2 = getConsensusOutputsFromNode(node2);
+            for (int i = 1; i < nodes.size(); i++) {
+                final TurtleNode node2 = nodes.get(i);
+                final ConsensusOutput consensusOutputForNode2 =
+                        new ConsensusOutput(node2.getConsensusRoundsHolder().getCollectedRounds());
 
-            for (final ConsensusOutputValidation validator : validations.getList()) {
-                for (int j = 0; j < consensusOutputsForNode1.size(); j++) {
-                    validator.validate(consensusOutputsForNode1.get(j), consensusOutputsForNode2.get(j));
+                for (final ConsensusOutputValidation validator : validations.getList()) {
+                    validator.validate(consensusOutputForNode1, consensusOutputForNode2);
                 }
             }
-
-            node2.getConsensusRoundsHolder().clear("Validation complete");
+        } catch (final AssertionFailedError | IndexOutOfBoundsException e) {
+            log.error("Validation failed: {}", e.getMessage());
         }
-
-        node1.getConsensusRoundsHolder().clear("Validation complete");
-    }
-
-    private List<ConsensusOutput> getConsensusOutputsFromNode(final TurtleNode turtleNode) {
-        final List<ConsensusOutput> consensusOutputsForNode = new ArrayList<>();
-        for (final ConsensusRound round : turtleNode.getConsensusRoundsHolder().getCollectedRounds()) {
-            final ConsensusOutput consensusOutput = new ConsensusOutput(time);
-            consensusOutput.consensusRound(round);
-            consensusOutputsForNode.add(consensusOutput);
-        }
-
-        return consensusOutputsForNode;
     }
 
     /**

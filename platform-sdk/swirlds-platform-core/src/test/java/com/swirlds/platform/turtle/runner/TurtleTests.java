@@ -40,6 +40,6 @@ class TurtleTests {
                 .build();
 
         turtle.start();
-        turtle.simulateTimeAndValidate(Duration.ofMinutes(5), Duration.ofSeconds(30));
+        turtle.simulateTimeAndValidate(Duration.ofMinutes(5), Duration.ofSeconds(20));
     }
 }

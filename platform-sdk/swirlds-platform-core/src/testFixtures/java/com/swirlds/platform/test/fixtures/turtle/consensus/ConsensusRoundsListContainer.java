@@ -15,9 +15,7 @@ public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
 
     @Override
     public void interceptRounds(final List<ConsensusRound> rounds) {
-        if (!rounds.isEmpty()) {
-            collectedRounds.addAll(rounds);
-        }
+        collectedRounds.addAll(rounds);
     }
 
     @Override

@@ -13,7 +13,7 @@ public interface ConsensusRoundsHolder {
     /**
      * Intercept the consensus rounds produced by the ConsensusEngine and adds them to a collection.
      *
-     * @param rounds
+     * @param rounds to intercept
      */
     void interceptRounds(final List<ConsensusRound> rounds);
 
