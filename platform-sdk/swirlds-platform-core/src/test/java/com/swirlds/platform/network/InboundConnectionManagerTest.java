@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network;
+package com.swirlds.platform.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.InboundConnectionManager;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.util.ArrayList;
 import java.util.List;

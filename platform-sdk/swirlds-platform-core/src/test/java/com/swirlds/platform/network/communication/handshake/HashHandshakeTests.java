@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network.communication.handshake;
+package com.swirlds.platform.network.communication.handshake;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,8 +14,6 @@ import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.communication.handshake.HandshakeException;
-import com.swirlds.platform.network.communication.handshake.HashCompareHandshake;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
