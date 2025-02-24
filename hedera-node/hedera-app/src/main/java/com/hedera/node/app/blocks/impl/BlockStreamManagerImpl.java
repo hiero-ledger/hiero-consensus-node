@@ -798,23 +798,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         log.fatal("Initiating fatal shutdown of block stream");
         fatalShutdownStatus.set(FatalShutdownStatus.INITIATED);
 
-        // Immediately write any pending blocks to disk
-        log.fatal("Writing {} pending blocks", pendingBlocks.size());
-        pendingBlocks.forEach(block -> writeEmptySignature(block.proofBuilder(), block.writer()));
+        pendingBlocks.forEach(block -> log.fatal("Skipping incomplete block proof for block {}", block.number()));
 
         // Close the current block (if possible)
         if (writer != null) {
             maybeFlushStateChanges();
-
-            // Construct an empty signature. Note that we can extract this block's starting state hash from the previous
-            // block, which will either be 1) correct or 2) empty; there's no additional value provided by including it
-            // here in either case. Similarly, since there can be no correct proof for the final block in an ISS
-            // scenario, we can safely omit the sibling hashes.
-            final var emptyProof = BlockProof.newBuilder()
-                    .block(blockNumber)
-                    .previousBlockRootHash(this.lastBlockHash)
-                    .blockSignature(Bytes.EMPTY);
-            writeEmptySignature(emptyProof, writer);
             log.fatal("Final block {} written", blockNumber);
 
             // Finally, close the writer
@@ -830,8 +818,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void awaitFatalShutdown(@Nullable final java.time.Duration timeout) {
-        Function<Integer, Boolean> timeRemains = (Integer ignore) -> true;
+        Function<Integer, Boolean> timeRemains = (Integer ignore) -> false;
         Function<Integer, String> timeoutMessage = (Integer ignore) -> FATAL_SHUTDOWN_BASE_MSG;
+
+        // Assign the behavior of the timeout (if given)
         if (timeout != null) {
             final var secondsTimeout = timeout.getSeconds();
             timeRemains = (Integer secondsCounter) -> secondsCounter < secondsTimeout;
@@ -839,6 +829,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     FATAL_SHUTDOWN_BASE_MSG + " (" + secondsCounter + " of ~" + secondsTimeout + "s)";
         }
 
+        // Wait for the fatal shutdown to complete
         int secondsCounter = 0;
         while (!fatalShutdownStatus.get().isComplete() && timeRemains.apply(secondsCounter)) {
             log.fatal(timeoutMessage.apply(secondsCounter));
@@ -851,16 +842,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         log.fatal("Block stream fatal shutdown complete");
-    }
-
-    private static void writeEmptySignature(final BlockProof.Builder proofBuilder, final BlockItemWriter writer) {
-        final var emptyProof = proofBuilder.blockSignature(Bytes.EMPTY);
-        final var proofItem = BlockItem.newBuilder().blockProof(emptyProof).build();
-
-        log.fatal(
-                "Writing empty proof for block {}",
-                proofItem.blockProofOrThrow().block());
-        writer.writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
     }
 
     private void maybeFlushStateChanges() {
