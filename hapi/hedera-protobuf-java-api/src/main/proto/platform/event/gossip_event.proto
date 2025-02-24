@@ -29,7 +29,7 @@ package com.hedera.hapi.platform.event;
  * limitations under the License.
  */
 
-import "event/event_core.proto";
+import "platform/event/event_core.proto";
 
 option java_package = "com.hedera.hapi.platform.event.legacy";
 // <<<pbj.java_package = "com.hedera.hapi.platform.event">>> This comment is special code for setting PBJ Compiler java package

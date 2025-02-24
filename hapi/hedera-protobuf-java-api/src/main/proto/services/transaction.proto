@@ -92,7 +92,7 @@ import "platform/event/state_signature_transaction.proto";
 import "services/auxiliary/hints/hints_key_publication.proto";
 import "services/auxiliary/hints/hints_preprocessing_vote.proto";
 import "services/auxiliary/hints/hints_partial_signature.proto";
-import "auxiliary/hints/crs_publication.proto";
+import "services/auxiliary/hints/crs_publication.proto";
 
 import "services/auxiliary/history/history_proof_signature.proto";
 import "services/auxiliary/history/history_proof_key_publication.proto";
