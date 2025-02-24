@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.consensus;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.consensus.framework.TestInput;
+import com.swirlds.platform.test.fixtures.consensus.framework.TestInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;

@@ -5,7 +5,7 @@ import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createBal
 import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
 
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.event.emitter.EventEmitter;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.sync.SyncNode;
 import com.swirlds.platform.test.sync.SyncTestParams;
