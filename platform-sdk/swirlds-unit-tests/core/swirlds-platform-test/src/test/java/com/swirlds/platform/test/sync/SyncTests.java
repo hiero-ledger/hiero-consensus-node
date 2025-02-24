@@ -385,9 +385,17 @@ public class SyncTests {
 
         executor.setCustomInitialization((caller, listener) -> {
             SplitForkGraphCreator.createSplitForkConditions(
-                    params, (StandardEventEmitter) caller.getEmitter(), creatorToFork, callerOtherParent);
+                    (StandardEventEmitter) caller.getEmitter(),
+                    creatorToFork,
+                    callerOtherParent,
+                    params.getNumCommonEvents(),
+                    params.getNumNetworkNodes());
             SplitForkGraphCreator.createSplitForkConditions(
-                    params, (StandardEventEmitter) listener.getEmitter(), creatorToFork, listenerOtherParent);
+                    (StandardEventEmitter) listener.getEmitter(),
+                    creatorToFork,
+                    listenerOtherParent,
+                    params.getNumCommonEvents(),
+                    params.getNumNetworkNodes());
         });
 
         executor.execute();
