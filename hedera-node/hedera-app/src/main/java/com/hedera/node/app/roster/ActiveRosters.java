@@ -165,7 +165,7 @@ public class ActiveRosters {
      * Assuming the {@link RosterService} is in a transition phase, returns the transition weights
      * from the source roster to the target roster.
      *
-     * @throws IllegalStateException if the {@link RosterService} is not in a transition phase
+     * @throws IllegalStateException if the {@link RosterService} is in a handoff phase
      */
     public RosterTransitionWeights transitionWeights() {
         return switch (phase) {

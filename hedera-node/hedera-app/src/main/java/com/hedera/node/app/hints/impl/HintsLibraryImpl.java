@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 
 /**
- * Default implementation of {@link HintsLibrary}.
+ * Default implementation of {@link HintsLibrary} (all TODO).
  */
 public class HintsLibraryImpl implements HintsLibrary {
     @Override

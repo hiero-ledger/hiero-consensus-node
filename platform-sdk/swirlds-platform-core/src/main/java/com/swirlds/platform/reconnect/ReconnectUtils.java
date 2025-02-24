@@ -47,7 +47,9 @@ public final class ReconnectUtils {
      */
     static void hashStateForReconnect(final MerkleNodeState workingState) {
         try {
-            MerkleCryptoFactory.getInstance().digestTreeAsync(workingState).get();
+            MerkleCryptoFactory.getInstance()
+                    .digestTreeAsync(workingState.getRoot())
+                    .get();
         } catch (final ExecutionException e) {
             logger.error(
                     EXCEPTION.getMarker(),

@@ -52,6 +52,7 @@ import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
@@ -110,13 +111,16 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock
     private ConfigProvider configProvider;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private FinalizeRecordHandler subject;
 
     @BeforeEach
     public void setUp() {
         super.setUp();
         when(configProvider.getConfiguration()).thenReturn(versionedConfig);
-        subject = new FinalizeRecordHandler(stakingRewardsHandler, configProvider);
+        subject = new FinalizeRecordHandler(stakingRewardsHandler, configProvider, entityIdFactory);
     }
 
     @Test

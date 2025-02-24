@@ -2,25 +2,24 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNGIBLE_TOKEN_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNGIBLE_TOKEN_V3;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V1;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V3;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_FUNGIBLE_TOKEN_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_FUNGIBLE_TOKEN_V3;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V1;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V3;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V1_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V2_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V3_TUPLE;
@@ -47,13 +46,11 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.ClassicCreatesCall;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateDecoder;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.config.api.Configuration;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,7 +62,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * Unit tests for {@link CreateTranslator}.
  */
 @ExtendWith(MockitoExtension.class)
-public class CreateTranslatorTest extends CallTestBase {
+class CreateTranslatorTest extends CallTestBase {
 
     @Mock
     private HtsCallAttempt attempt;
@@ -84,12 +81,6 @@ public class CreateTranslatorTest extends CallTestBase {
 
     @Mock
     private VerificationStrategy verificationStrategy;
-
-    @Mock
-    private ContractsConfig contractsConfig;
-
-    @Mock
-    Configuration configuration;
 
     @Mock
     private ContractMetrics contractMetrics;
@@ -145,21 +136,6 @@ public class CreateTranslatorTest extends CallTestBase {
     }
 
     @Test
-    void matchesCreateFungibleTokenWithMetadata() {
-        enableConfig();
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                CREATE_FUNGIBLE_TOKEN_WITH_METADATA,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-        assertThat(subject.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
     void matchesCreateFungibleTokenWithCustomFeesV1() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1,
@@ -195,21 +171,6 @@ public class CreateTranslatorTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void matchesCreateFungibleTokenWithMetadataAndCustomFees() {
-        enableConfig();
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -253,21 +214,6 @@ public class CreateTranslatorTest extends CallTestBase {
     }
 
     @Test
-    void matchesCreateNonFungibleTokenWithMetadata() {
-        enableConfig();
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-        assertThat(subject.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
     void matchesCreateNonFungibleTokenWithCustomFeesV1() {
         attempt = prepareHtsAttemptWithSelector(
                 CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1,
@@ -303,21 +249,6 @@ public class CreateTranslatorTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 systemContractMethodRegistry);
-        assertThat(subject.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void matchesCreateNonFungibleTokenWithMetadataAndCustomFees() {
-        enableConfig();
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -562,10 +493,5 @@ public class CreateTranslatorTest extends CallTestBase {
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         assertThat(subject.callFrom(attempt)).isInstanceOf(ClassicCreatesCall.class);
-    }
-
-    private void enableConfig() {
-        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
-        given(contractsConfig.metadataKeyAndFieldEnabled()).willReturn(true);
     }
 }

@@ -16,6 +16,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -34,6 +35,7 @@ public class ReconnectListener implements ReconnectCompleteListener {
 
     private final Executor executor;
     private final ConfigProvider configProvider;
+    private final EntityIdFactory entityIdFactory;
 
     @NonNull
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
@@ -42,10 +44,12 @@ public class ReconnectListener implements ReconnectCompleteListener {
     public ReconnectListener(
             @NonNull @Named("FreezeService") final Executor executor,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.executor = requireNonNull(executor);
         this.configProvider = requireNonNull(configProvider);
         this.softwareVersionFactory = softwareVersionFactory;
+        this.entityIdFactory = entityIdFactory;
     }
 
     @Override
@@ -70,7 +74,8 @@ public class ReconnectListener implements ReconnectCompleteListener {
                 executor,
                 upgradeFileStore,
                 upgradeNodeStore,
-                upgradeStakingInfoStore);
+                upgradeStakingInfoStore,
+                entityIdFactory);
         try {
             // Because we only leave the latest Dagger infrastructure registered with the platform
             // notification system when the reconnect state is initialized, this platform state

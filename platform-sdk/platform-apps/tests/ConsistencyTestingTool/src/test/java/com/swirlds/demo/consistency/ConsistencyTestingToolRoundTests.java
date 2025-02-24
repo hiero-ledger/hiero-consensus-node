@@ -63,13 +63,7 @@ class ConsistencyTestingToolRoundTests {
         Mockito.when(mockSnapshot.round()).thenReturn(roundReceived);
 
         return new ConsensusRound(
-                mock(Roster.class),
-                mockEvents,
-                mock(PlatformEvent.class),
-                mock(EventWindow.class),
-                mockSnapshot,
-                false,
-                Instant.now());
+                mock(Roster.class), mockEvents, mock(EventWindow.class), mockSnapshot, false, Instant.now());
     }
 
     @Test

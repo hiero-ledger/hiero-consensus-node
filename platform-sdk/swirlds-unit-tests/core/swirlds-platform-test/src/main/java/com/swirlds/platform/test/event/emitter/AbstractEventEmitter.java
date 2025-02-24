@@ -61,12 +61,4 @@ public abstract class AbstractEventEmitter implements EventEmitter {
         graphGenerator.reset();
         numEventsEmitted = 0;
     }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setGraphGeneratorSeed(final long seed) {
-        graphGenerator = graphGenerator.cleanCopy(seed);
-    }
 }

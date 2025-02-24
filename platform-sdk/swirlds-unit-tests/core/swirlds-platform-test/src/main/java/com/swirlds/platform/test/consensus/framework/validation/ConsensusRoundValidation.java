@@ -3,11 +3,16 @@ package com.swirlds.platform.test.consensus.framework.validation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 
 public class ConsensusRoundValidation {
@@ -24,6 +29,21 @@ public class ConsensusRoundValidation {
                                 + "output1 has %d rounds, output2 has %d rounds",
                         output1.getConsensusRounds().size(),
                         output2.getConsensusRounds().size()));
+        validateAncientThresholdIncreases(output1.getConsensusRounds());
+    }
+
+    public static void validateAncientThresholdIncreases(@NonNull final List<ConsensusRound> rounds) {
+        long lastAncientThreshold = EventConstants.ANCIENT_THRESHOLD_UNDEFINED;
+        for (final ConsensusRound round : rounds) {
+            final MinimumJudgeInfo thresholdInfo =
+                    round.getSnapshot().getMinimumJudgeInfoList().getLast();
+            assertEquals(
+                    round.getRoundNum(), thresholdInfo.round(), "the last threshold should be for the current round");
+            assertTrue(
+                    thresholdInfo.minimumJudgeAncientThreshold() >= lastAncientThreshold,
+                    "the ancient threshold should never decrease");
+            lastAncientThreshold = thresholdInfo.minimumJudgeAncientThreshold();
+        }
     }
 
     public static void validateIterableRounds(
