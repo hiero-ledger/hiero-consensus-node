@@ -58,6 +58,7 @@ import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
+import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.address.AddressBook;
@@ -257,7 +258,7 @@ public class Browser {
                     MerkleCryptographyFactory.create(configuration, CryptographyHolder.get()));
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
-            PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> appMain.getSoftwareVersion());
+            PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
             // Create the initial state for the platform
             StateLifecycles stateLifecycles = appMain.newStateLifecycles();
             final HashedReservedSignedState reservedState = getInitialState(
