@@ -13,7 +13,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE_DEFAULT_KEYLIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE_KEYLIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN_V2;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN_16C;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.LEDGER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
@@ -93,7 +93,7 @@ class TokenInfoCallTest extends CallTestBase {
                 gasCalculator,
                 mockEnhancement(),
                 false,
-                FUNGIBLE_EVERYTHING_TOKEN_V2,
+                FUNGIBLE_EVERYTHING_TOKEN_16C,
                 config,
                 TOKEN_INFO_V2.function());
 
