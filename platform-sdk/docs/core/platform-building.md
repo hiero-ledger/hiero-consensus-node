@@ -113,9 +113,23 @@ The use of the `PlatformBuilder` ends with the construction of the `PlatformComp
 move the `SwirldsPlatform` creation logic inside the `PlatformBuilder` itself. And/or even merging the 2 builders
 and have a common one.
 
+The reason why we have a separate PlatformBuilder is due to the need of a given application to construct their own specific
+Platform instance. The main production one is built inside `ServicesMain`, where the main consensus node class called Hedera
+is created with production specific configs, state instance, etc. Currently, however, we support multiple demo and test related
+Hedera apps, which are constructed by the `Browser` class, which is deprecated. It needs to construct a specific
+`Platform` instance based on the various apps. That's why we have a separate `PlatformBuilder` that accepts
+these unique app configurations and properties and create the needed `Platform` instance. It was initially created by
+extracting common logic from the `Browser`.
+
+Here we can see the specific fields that are passed to build the platform and them main classes, which initialize the
+different applications with the customized platform.
+
+![](app-and-platform-dependency.png)
+
 ### Overview
 
 Here is a diagram illustrating the connection and sequence between all of the builders and key components used to
-construct the `SwirldsPlatform`
+construct the `SwirldsPlatform` and their dependencies with the different applications and main classes that start the
+consensus node.
 
-![](platform-building.png)
+![](platform-building-chain.png)
