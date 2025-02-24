@@ -6,7 +6,7 @@ import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createFor
 import static com.swirlds.platform.test.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.event.emitter.StandardEventEmitter;
+import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.sync.SyncTestParams;
 import java.util.List;
 import java.util.Random;
