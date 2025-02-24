@@ -68,7 +68,7 @@ public class ConsensusTestNode {
      */
     public void removeNode(@NonNull final NodeId nodeId) {
         eventEmitter.getGraphGenerator().removeNode(nodeId);
-        final ConsensusSnapshot snapshot = Objects.requireNonNull(
+        final ConsensusSnapshotWrapper snapshot = Objects.requireNonNull(
                         getOutput().getConsensusRounds().peekLast())
                 .getSnapshot();
         intake.loadSnapshot(snapshot);

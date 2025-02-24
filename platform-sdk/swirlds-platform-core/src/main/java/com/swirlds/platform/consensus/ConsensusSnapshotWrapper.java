@@ -81,35 +81,6 @@ public class ConsensusSnapshotWrapper {
         return Objects.requireNonNull(PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp()));
     }
 
-    /**
-     * Returns the minimum generation below which all events are ancient
-     *
-     * @param roundsNonAncient the number of non-ancient rounds
-     * @return minimum non-ancient generation
-     */
-    public long getAncientThreshold(final int roundsNonAncient) {
-        final long oldestNonAncientRound = RoundCalculationUtils.getOldestNonAncientRound(roundsNonAncient, round);
-        return getMinimumJudgeAncientThreshold(oldestNonAncientRound);
-    }
-
-    /**
-     * The minimum ancient threshold of famous witnesses (i.e. judges) for the round specified. This method only looks
-     * at non-ancient rounds contained within this state.
-     *
-     * @param round the round whose minimum judge ancient indicator will be returned
-     * @return the minimum judge ancient indicator for the round specified
-     * @throws NoSuchElementException if the minimum judge info information for this round is not contained withing this
-     *                                state
-     */
-    public long getMinimumJudgeAncientThreshold(final long round) {
-        for (final MinimumJudgeInfo info : minimumJudgeInfoList()) {
-            if (info.round() == round) {
-                return info.minimumJudgeAncientThreshold();
-            }
-        }
-        throw new NoSuchElementException("No minimum judge info found for round: " + round);
-    }
-
     @Override
     public String toString() {
         return snapshot.toString();

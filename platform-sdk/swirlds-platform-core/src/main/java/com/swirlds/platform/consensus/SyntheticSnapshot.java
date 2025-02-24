@@ -59,8 +59,8 @@ public final class SyntheticSnapshot {
      * @param ancientMode the ancient mode
      * @return the genesis snapshot, when loaded by consensus, it will start from genesis
      */
-    public static @NonNull ConsensusSnapshot getGenesisSnapshot(@NonNull final AncientMode ancientMode) {
-        return new ConsensusSnapshot(
+    public static @NonNull ConsensusSnapshotWrapper getGenesisSnapshot(@NonNull final AncientMode ancientMode) {
+        return new ConsensusSnapshotWrapper(
                 ConsensusConstants.ROUND_FIRST,
                 List.of(),
                 List.of(new MinimumJudgeInfo(

@@ -11,6 +11,7 @@ import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
+import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.linking.ConsensusLinker;
@@ -113,7 +114,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     public void outOfBandSnapshotUpdate(@NonNull final ConsensusSnapshotWrapper snapshot) {
-        final long ancientThreshold = snapshot.getAncientThreshold(roundsNonAncient);
+        final long ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
         final EventWindow eventWindow =
                 new EventWindow(snapshot.round(), ancientThreshold, ancientThreshold, ancientMode);
 
