@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
-import com.swirlds.platform.test.utils.EqualsVerifier;
+import com.swirlds.platform.test.fixtures.utils.EqualsVerifier;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

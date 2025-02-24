@@ -11,7 +11,7 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.event.EventSerializationUtils;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
-import com.swirlds.platform.test.utils.EqualsVerifier;
+import com.swirlds.platform.test.fixtures.utils.EqualsVerifier;
 import java.io.IOException;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
