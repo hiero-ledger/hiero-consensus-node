@@ -59,14 +59,6 @@ public class ConsensusSnapshotWrapper {
         return snapshot.nextConsensusNumber();
     }
 
-    /**
-     * @return the consensus time of this snapshot
-     */
-    //TODO remove
-    public @NonNull Instant consensusTimestampOld() {
-        return Objects.requireNonNull(PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp()));
-    }
-
     public @NonNull Timestamp consensusTimestamp() {
         return Objects.requireNonNull(snapshot.consensusTimestamp());
     }

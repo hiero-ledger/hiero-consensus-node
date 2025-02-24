@@ -21,6 +21,7 @@ import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -83,7 +84,7 @@ class UptimeTests {
         final ConsensusRound round = new ConsensusRound(
                 roster, events, mock(PlatformEvent.class), mock(EventWindow.class), snapshot, false, Instant.now());
         final Instant consensusTimestamp = events.get(events.size() - 1).getConsensusTimestamp();
-        when(snapshot.consensusTimestampOld()).thenReturn(consensusTimestamp);
+        when(snapshot.consensusTimestamp()).thenReturn(PbjConverter.toPbjTimestamp(consensusTimestamp));
         when(snapshot.round()).thenReturn(roundNum);
         when(round.getRoundNum()).thenReturn(roundNum);
         return round;
