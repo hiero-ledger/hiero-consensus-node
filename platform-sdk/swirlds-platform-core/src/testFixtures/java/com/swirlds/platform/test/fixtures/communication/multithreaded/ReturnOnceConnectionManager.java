@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network.communication.multithreaded;
+package com.swirlds.platform.test.fixtures.communication.multithreaded;
 
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;

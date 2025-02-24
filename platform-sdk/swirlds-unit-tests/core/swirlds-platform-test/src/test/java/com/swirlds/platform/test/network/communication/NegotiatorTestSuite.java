@@ -6,6 +6,8 @@ import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.communication.NegotiationException;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.Negotiator;
+import com.swirlds.platform.test.fixtures.communication.ReadWriteFakeConnection;
+import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;

@@ -3,6 +3,7 @@ package com.swirlds.platform.test.network.communication;
 
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.protocol.PeerProtocol;
+import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;

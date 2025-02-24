@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.network.communication.multithreaded;
+package com.swirlds.platform.test.fixtures.communication.multithreaded;
 
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
-import com.swirlds.platform.test.network.communication.TestPeerProtocol;
+import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Assertions;
 /**
  * Constructs a pair of negotiators and a connection they can use to communicate between them
  */
-class NegotiatorPair {
+public class NegotiatorPair {
     private final TestNegotiator n1;
     private final TestNegotiator n2;
 

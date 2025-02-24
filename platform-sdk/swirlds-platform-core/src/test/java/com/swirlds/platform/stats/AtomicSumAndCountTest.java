@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.stats;
+package com.swirlds.platform.stats;
 
 import com.swirlds.platform.stats.atomic.AtomicSumAndCount;
 import org.junit.jupiter.api.Assertions;
