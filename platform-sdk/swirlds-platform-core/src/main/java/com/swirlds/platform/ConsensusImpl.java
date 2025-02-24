@@ -34,6 +34,7 @@ import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.util.MarkerFileWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -245,7 +246,7 @@ public class ConsensusImpl implements Consensus {
                 Collectors.toSet()));
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = snapshot.consensusTimestamp();
+        lastConsensusTime = PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp());
     }
 
     /** Reset this instance to a state of a newly created instance */
@@ -742,10 +743,10 @@ public class ConsensusImpl implements Consensus {
                 new EventWindow(decidedRoundNumber, nonAncientThreshold, nonExpiredThreshold, ancientMode),
                 new ConsensusSnapshotWrapper(
                         decidedRoundNumber,
-                        ConsensusUtils.getHashes(judges),
+                        ConsensusUtils.getHashBytes(judges),
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
-                        lastConsensusTime),
+                        PbjConverter.toPbjTimestamp(lastConsensusTime)),
                 pcesMode,
                 time.now());
     }

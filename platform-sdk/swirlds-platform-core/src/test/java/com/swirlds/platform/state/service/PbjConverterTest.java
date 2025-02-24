@@ -507,10 +507,10 @@ class PbjConverterTest {
     private static ConsensusSnapshotWrapper randomSnapshot(Randotron randotron) {
         return new ConsensusSnapshotWrapper(
                 nextInt(),
-                asList(randomHash(), randomHash()),
+                asList(randomHash().getBytes(), randomHash().getBytes()),
                 asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())),
                 nextInt(),
-                randomInstant(randotron));
+                PbjConverter.toPbjTimestamp(randomInstant(randotron)));
     }
 
     static AddressBook randomAddressBook(Randotron randotron) {

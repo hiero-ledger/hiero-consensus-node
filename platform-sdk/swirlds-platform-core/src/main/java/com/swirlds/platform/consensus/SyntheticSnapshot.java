@@ -4,6 +4,7 @@ package com.swirlds.platform.consensus;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -46,10 +47,10 @@ public final class SyntheticSnapshot {
                 .toList();
         return new ConsensusSnapshotWrapper(
                 round,
-                List.of(judge.getHash()),
+                List.of(judge.getHash().getBytes()),
                 minimumJudgeInfos,
                 lastConsensusOrder + 1,
-                ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp));
+                PbjConverter.toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)));
     }
 
     /**
@@ -69,6 +70,6 @@ public final class SyntheticSnapshot {
                                 ? EventConstants.FIRST_GENERATION
                                 : ConsensusConstants.ROUND_FIRST)),
                 ConsensusConstants.FIRST_CONSENSUS_NUMBER,
-                Instant.EPOCH);
+                PbjConverter.toPbjTimestamp(Instant.EPOCH));
     }
 }

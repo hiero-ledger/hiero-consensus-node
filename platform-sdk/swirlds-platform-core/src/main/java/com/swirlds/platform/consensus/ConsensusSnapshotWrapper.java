@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
-import static java.util.stream.Collectors.toList;
-
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.state.service.PbjConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
-import com.swirlds.platform.state.service.PbjConverter;
 
 /**
  * A snapshot of consensus at a particular round. This is all the information (except events) consensus needs to
@@ -22,29 +18,18 @@ import com.swirlds.platform.state.service.PbjConverter;
 public class ConsensusSnapshotWrapper {
     private final ConsensusSnapshot snapshot;
 
-    /**
-     * @param round                the latest round for which fame has been decided
-     * @param judgeHashes          the hashes of all the judges for this round, ordered by their creator ID
-     * @param minimumJudgeInfoList the minimum ancient threshold for all judges per round, for all non-ancient rounds
-     * @param nextConsensusNumber  the consensus order of the next event that will reach consensus
-     * @param consensusTimestamp   the consensus time of this snapshot
-     */
     public ConsensusSnapshotWrapper(
             final long round,
-            @NonNull final List<Hash> judgeHashes,
+            @NonNull final List<Bytes> judgeHashes,
             @NonNull final List<MinimumJudgeInfo> minimumJudgeInfoList,
             final long nextConsensusNumber,
-            @NonNull final Instant consensusTimestamp) {
+            @NonNull final Timestamp consensusTimestamp) {
         this.snapshot = new ConsensusSnapshot(
                 round,
-                judgeHashes.stream().map(Hash::getBytes).collect(toList()),
+                judgeHashes,
                 minimumJudgeInfoList,
                 nextConsensusNumber,
-                toPbjTimestamp(consensusTimestamp));
-    }
-
-    public ConsensusSnapshotWrapper(final ConsensusSnapshot snapshot) {
-        this.snapshot = snapshot;
+                consensusTimestamp);
     }
 
     @NonNull
@@ -77,8 +62,13 @@ public class ConsensusSnapshotWrapper {
     /**
      * @return the consensus time of this snapshot
      */
-    public @NonNull Instant consensusTimestamp() {
+    //TODO remove
+    public @NonNull Instant consensusTimestampOld() {
         return Objects.requireNonNull(PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp()));
+    }
+
+    public @NonNull Timestamp consensusTimestamp() {
+        return Objects.requireNonNull(snapshot.consensusTimestamp());
     }
 
     @Override

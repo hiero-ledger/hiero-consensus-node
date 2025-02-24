@@ -83,7 +83,7 @@ class UptimeTests {
         final ConsensusRound round = new ConsensusRound(
                 roster, events, mock(PlatformEvent.class), mock(EventWindow.class), snapshot, false, Instant.now());
         final Instant consensusTimestamp = events.get(events.size() - 1).getConsensusTimestamp();
-        when(snapshot.consensusTimestamp()).thenReturn(consensusTimestamp);
+        when(snapshot.consensusTimestampOld()).thenReturn(consensusTimestamp);
         when(snapshot.round()).thenReturn(roundNum);
         when(round.getRoundNum()).thenReturn(roundNum);
         return round;

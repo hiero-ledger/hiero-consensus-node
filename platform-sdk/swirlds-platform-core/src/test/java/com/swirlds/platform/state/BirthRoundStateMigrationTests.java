@@ -9,10 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.consensus.ConsensusSnapshotWrapper;
 import com.swirlds.platform.event.AncientMode;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -47,10 +49,10 @@ class BirthRoundStateMigrationTests {
 
         final long round = random.nextLong(1, 1_000_000);
 
-        final List<Hash> judgeHashes = new ArrayList<>();
+        final List<Bytes> judgeHashes = new ArrayList<>();
         final int judgeHashCount = random.nextInt(5, 10);
         for (int i = 0; i < judgeHashCount; i++) {
-            judgeHashes.add(randomHash(random));
+            judgeHashes.add(randomHash(random).getBytes());
         }
 
         final Instant consensusTimestamp = randomInstant(random);
@@ -66,7 +68,7 @@ class BirthRoundStateMigrationTests {
         }
 
         final ConsensusSnapshotWrapper snapshot = new ConsensusSnapshotWrapper(
-                round, judgeHashes, minimumJudgeInfoList, nextConsensusNumber, consensusTimestamp);
+                round, judgeHashes, minimumJudgeInfoList, nextConsensusNumber, PbjConverter.toPbjTimestamp(consensusTimestamp));
 
         return new RandomSignedStateGenerator(random)
                 .setConsensusSnapshot(snapshot)

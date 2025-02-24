@@ -197,29 +197,27 @@ public final class PbjConverter {
         return result;
     }
 
+    //TODO remove
     @Nullable
     public static com.hedera.hapi.platform.state.ConsensusSnapshot toPbjConsensusSnapshot(
             @Nullable final ConsensusSnapshotWrapper consensusSnapshot) {
         return consensusSnapshot == null ? null : consensusSnapshot.getSnapshot();
     }
 
+    //TODO remove
     @Nullable
     public static ConsensusSnapshotWrapper fromPbjConsensusSnapshot(
             @Nullable final com.hedera.hapi.platform.state.ConsensusSnapshot consensusSnapshot) {
         if (consensusSnapshot == null) {
             return null;
         }
-        Instant consensusTimestamp = fromPbjTimestamp(consensusSnapshot.consensusTimestamp());
-        requireNonNull(consensusTimestamp);
 
         return new ConsensusSnapshotWrapper(
                 consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes().stream().map(Hash::new).collect(toList()),
-                consensusSnapshot.minimumJudgeInfoList().stream()
-                        .map(PbjConverter::fromPbjMinimumJudgeInfo)
-                        .collect(toList()),
+                consensusSnapshot.judgeHashes(),
+                consensusSnapshot.minimumJudgeInfoList(),
                 consensusSnapshot.nextConsensusNumber(),
-                consensusTimestamp);
+                consensusSnapshot.consensusTimestamp());
     }
 
     @Nullable

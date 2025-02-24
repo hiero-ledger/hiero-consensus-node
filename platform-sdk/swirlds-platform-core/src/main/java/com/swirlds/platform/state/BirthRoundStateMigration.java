@@ -89,7 +89,7 @@ public final class BirthRoundStateMigration {
         }
         final ConsensusSnapshotWrapper modifiedConsensusSnapshot = new ConsensusSnapshotWrapper(
                 consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes().stream().map(Hash::new).collect(toList()),
+                consensusSnapshot.judgeHashes(),
                 modifiedJudgeInfoList,
                 consensusSnapshot.nextConsensusNumber(),
                 consensusSnapshot.consensusTimestamp());

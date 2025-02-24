@@ -199,7 +199,7 @@ public class ConsensusRound implements Round {
      */
     @Override
     public @NonNull Instant getConsensusTimestamp() {
-        return snapshot.consensusTimestamp();
+        return snapshot.consensusTimestampOld();
     }
 
     /**

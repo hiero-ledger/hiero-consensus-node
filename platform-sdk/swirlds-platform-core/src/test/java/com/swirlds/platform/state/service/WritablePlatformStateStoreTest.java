@@ -56,7 +56,7 @@ class WritablePlatformStateStoreTest {
         assertEquals(platformState.getPreviousAddressBook(), store.getPreviousAddressBook());
         assertEquals(platformState.getSnapshot().round(), store.getRound());
         assertEquals(platformState.getLegacyRunningEventHash(), store.getLegacyRunningEventHash());
-        assertEquals(platformState.getSnapshot().consensusTimestamp(), store.getConsensusTimestamp());
+        assertEquals(platformState.getSnapshot().consensusTimestampOld(), store.getConsensusTimestamp());
         assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
         assertEquals(platformState.getSnapshot(), store.getSnapshot());
         assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
