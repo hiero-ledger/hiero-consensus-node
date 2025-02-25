@@ -20,8 +20,12 @@ import com.hedera.services.bdd.suites.crypto.ParseableIssBlockStreamValidationOp
 import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
+@Tag("ISS")
 @IssHapiTest
+@Order(Integer.MAX_VALUE - 3)
 class IssHandlingTestSuite {
     private static final long NODE_0_ACCT_ID = 3; // The ISS node
     private static final long NODE_1_ACCT_ID = 4; // One of the Non-ISS nodes
@@ -32,6 +36,10 @@ class IssHandlingTestSuite {
         final var node0Selector = NodeSelector.byOperatorAccountId(
                 AccountID.newBuilder().accountNum(NODE_0_ACCT_ID).build());
         return hapiTest(
+                // Log Preconditions: Make sure the network is configured to simulate an ISS
+                UtilVerbs.assertHgcaaLogContains(node0Selector, "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                UtilVerbs.assertHgcaaLogContains(
+                        NodeSelector.byName("node2"), "ledger.transfers.maxLen = 3", Duration.ofSeconds(10)),
                 newKeyNamed("key1"),
                 newKeyNamed("key2"),
                 newKeyNamed("key3"),
