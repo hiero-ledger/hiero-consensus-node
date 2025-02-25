@@ -203,6 +203,16 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return new RentFactors(account.contractKvPairsNumber(), account.expirationSecond());
     }
 
+    @Override
+    public long shard() {
+        return nativeOperations.shard();
+    }
+
+    @Override
+    public long realm() {
+        return nativeOperations.realm();
+    }
+
     /**
      * {@inheritDoc}
      */

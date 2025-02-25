@@ -29,6 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
@@ -101,6 +102,9 @@ class ContractCallLocalHandlerTest {
 
     @Mock
     private EntityIdFactory entityIdFactory;
+
+    @Mock
+    private ProxyWorldUpdater proxyWorldUpdater;
 
     private final ContractID invalidContract =
             ContractID.newBuilder().evmAddress(Bytes.fromHex("abcdabcd")).build();
@@ -250,7 +254,7 @@ class ContractCallLocalHandlerTest {
         given(factory.create(any(), any(), eq(HederaFunctionality.CONTRACT_CALL_LOCAL)))
                 .willReturn(component);
         given(component.contextQueryProcessor()).willReturn(processor);
-        final var expectedResult = SUCCESS_RESULT.asQueryResult();
+        final var expectedResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
                 expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null);
         given(processor.call()).willReturn(expectedOutcome);

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PENDING_REMOVAL;
@@ -145,12 +130,15 @@ public class ContractUpdateHandler implements TransactionHandler {
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
         final var toBeUpdated = accountStore.getContractById(target);
         validateSemantics(toBeUpdated, context, op, accountStore);
-        final var changed = update(requireNonNull(toBeUpdated), context, op);
+        final var toBeUpdatedAccountId = requireNonNull(toBeUpdated).accountIdOrThrow();
+        final var changed = update(toBeUpdated, context, op);
         context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed);
         context.savepointStack()
                 .getBaseBuilder(ContractUpdateStreamBuilder.class)
                 .contractID(ContractID.newBuilder()
-                        .contractNum(toBeUpdated.accountIdOrThrow().accountNumOrThrow())
+                        .shardNum(toBeUpdatedAccountId.shardNum())
+                        .realmNum(toBeUpdatedAccountId.realmNum())
+                        .contractNum(toBeUpdatedAccountId.accountNumOrThrow())
                         .build());
     }
 

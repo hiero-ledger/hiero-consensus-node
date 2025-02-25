@@ -209,6 +209,8 @@ public class ClassicCreatesCall extends AbstractCall {
                         baseVerificationStrategy,
                         new ActiveContractVerificationStrategy(
                                 ContractID.newBuilder()
+                                        .shardNum(shardOf(frame))
+                                        .realmNum(realmOf(frame))
                                         .contractNum(legacyActivation.contractNum())
                                         .build(),
                                 legacyActivation.pbjAddress(),

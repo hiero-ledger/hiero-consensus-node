@@ -269,10 +269,10 @@ public class ConversionUtils {
      * @param logs the Besu {@link Log}s
      * @return the PBJ {@link ContractLoginfo}s
      */
-    public static List<ContractLoginfo> pbjLogsFrom(@NonNull final List<Log> logs) {
+    public static List<ContractLoginfo> pbjLogsFrom(final long shard, final long realm, @NonNull final List<Log> logs) {
         final List<ContractLoginfo> pbjLogs = new ArrayList<>();
         for (final var log : logs) {
-            pbjLogs.add(pbjLogFrom(log));
+            pbjLogs.add(pbjLogFrom(shard, realm, log));
         }
         return pbjLogs;
     }
@@ -321,14 +321,15 @@ public class ConversionUtils {
      * @param log the Besu {@link Log}
      * @return the PBJ {@link ContractLoginfo}
      */
-    public static ContractLoginfo pbjLogFrom(@NonNull final Log log) {
+    public static ContractLoginfo pbjLogFrom(final long shard, final long realm, @NonNull final Log log) {
         final var loggerNumber = numberOfLongZero(log.getLogger());
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> loggedTopics = new ArrayList<>();
         for (final var topic : log.getTopics()) {
             loggedTopics.add(tuweniToPbjBytes(topic));
         }
         return ContractLoginfo.newBuilder()
-                .contractID(ContractID.newBuilder().contractNum(loggerNumber))
+                .contractID(
+                        ContractID.newBuilder().shardNum(shard).realmNum(realm).contractNum(loggerNumber))
                 .data(tuweniToPbjBytes(log.getData()))
                 .topic(loggedTopics)
                 .bloom(bloomFor(log))
@@ -975,16 +976,15 @@ public class ConversionUtils {
      * that contains a self-managed admin key (contract key with the new account number).
      *
      * @param op the creation body
-     * @param accountNum the new account number for the about to be newly created contract
+     * @param contractID the contractID for the about to be newly created contract
      * @return the fully customized creation body
      */
     public static @NonNull ContractCreateTransactionBody selfManagedCustomizedCreation(
-            @NonNull final ContractCreateTransactionBody op, final long accountNum) {
+            @NonNull final ContractCreateTransactionBody op, @NonNull final ContractID contractID) {
         requireNonNull(op);
         final var builder = op.copyBuilder();
         return builder.adminKey(Key.newBuilder()
-                        .contractID(
-                                ContractID.newBuilder().contractNum(accountNum).build())
+                        .contractID(contractID.copyBuilder().build())
                         .build())
                 .build();
     }

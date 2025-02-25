@@ -179,7 +179,7 @@ class ConversionUtilsTest {
                 .topic(List.of(TOPIC))
                 .build();
 
-        final var actual = pbjLogFrom(BESU_LOG);
+        final var actual = pbjLogFrom(shard, realm, BESU_LOG);
 
         assertEquals(expected, actual);
     }
@@ -194,7 +194,7 @@ class ConversionUtilsTest {
                 .topic(List.of(TOPIC))
                 .build();
 
-        final var actual = pbjLogsFrom(List.of(BESU_LOG));
+        final var actual = pbjLogsFrom(shard, realm, List.of(BESU_LOG));
 
         assertEquals(List.of(expected), actual);
     }
@@ -240,7 +240,8 @@ class ConversionUtilsTest {
     void selfManagedCustomizedCreationTest() {
         final var op = ContractCreateTransactionBody.DEFAULT;
         final long newContractNum = 1005L;
-        final var actual = ConversionUtils.selfManagedCustomizedCreation(op, newContractNum);
+        final var actual = ConversionUtils.selfManagedCustomizedCreation(
+                op, ContractID.newBuilder().contractNum(newContractNum).build());
         assertTrue(actual.adminKey().hasContractID());
         assertEquals(
                 newContractNum,

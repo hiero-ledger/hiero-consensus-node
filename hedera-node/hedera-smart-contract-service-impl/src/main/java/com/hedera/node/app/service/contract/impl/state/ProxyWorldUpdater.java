@@ -151,6 +151,8 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             // Also return ids for pending creations
             if (pendingCreation != null && pendingCreation.address().equals(address)) {
                 return ContractID.newBuilder()
+                        .shardNum(shard())
+                        .realmNum(realm())
                         .contractNum(pendingCreation.number())
                         .build();
             } else {
@@ -337,14 +339,22 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             enhancement
                     .operations()
                     .createContract(
-                            number,
+                            ContractID.newBuilder()
+                                    .shardNum(shard())
+                                    .realmNum(realm())
+                                    .contractNum(number)
+                                    .build(),
                             requireNonNull(pendingCreation.body()),
                             pendingCreation.aliasIfApplicable(shard(), realm()));
         } else {
             enhancement
                     .operations()
                     .createContract(
-                            number,
+                            ContractID.newBuilder()
+                                    .shardNum(shard())
+                                    .realmNum(realm())
+                                    .contractNum(number)
+                                    .build(),
                             pendingCreation.parentNumber(),
                             pendingCreation.aliasIfApplicable(shard(), realm()));
         }

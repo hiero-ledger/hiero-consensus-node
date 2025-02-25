@@ -181,12 +181,19 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
         final var contractNum = maybeMissingNumberOf(senderAddress(), nativeOperations());
         if (isOnlyDelegatableContractKeysActive()) {
             return Set.of(Key.newBuilder()
-                    .delegatableContractId(
-                            ContractID.newBuilder().contractNum(contractNum).build())
+                    .delegatableContractId(ContractID.newBuilder()
+                            .shardNum(enhancement().nativeOperations().shard())
+                            .realmNum(enhancement().nativeOperations().realm())
+                            .contractNum(contractNum)
+                            .build())
                     .build());
         } else {
             return Set.of(Key.newBuilder()
-                    .contractID(ContractID.newBuilder().contractNum(contractNum).build())
+                    .contractID(ContractID.newBuilder()
+                            .shardNum(enhancement().nativeOperations().shard())
+                            .realmNum(enhancement().nativeOperations().realm())
+                            .contractNum(contractNum)
+                            .build())
                     .build());
         }
     }

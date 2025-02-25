@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
@@ -124,8 +109,13 @@ public class ContractGetBytecodeHandler extends PaidQueryHandler {
 
     private Bytes bytecodeFrom(@NonNull final QueryContext context, @NonNull Account contract) {
         final var store = context.createStore(ContractStateStore.class);
-        var contractNumber = contract.accountIdOrThrow().accountNumOrThrow();
-        var contractId = ContractID.newBuilder().contractNum(contractNumber).build();
+        var accountId = contract.accountIdOrThrow();
+        var contractNumber = accountId.accountNumOrThrow();
+        var contractId = ContractID.newBuilder()
+                .shardNum(accountId.shardNum())
+                .realmNum(accountId.realmNum())
+                .contractNum(contractNumber)
+                .build();
         final var bytecode = store.getBytecode(contractId);
         return bytecode.code();
     }

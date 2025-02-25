@@ -304,7 +304,10 @@ class ProxyWorldUpdaterTest {
         subject.createAccount(SOME_EVM_ADDRESS, 1, Wei.ZERO);
 
         verify(hederaOperations)
-                .createContract(NEXT_NUMBER, ADDRESS_6.toBigInteger().longValueExact(), aliasFrom(SOME_EVM_ADDRESS));
+                .createContract(
+                        ContractID.newBuilder().contractNum(NEXT_NUMBER).build(),
+                        ADDRESS_6.toBigInteger().longValueExact(),
+                        aliasFrom(SOME_EVM_ADDRESS));
     }
 
     @Test
@@ -318,7 +321,10 @@ class ProxyWorldUpdaterTest {
         subject.createAccount(SOME_EVM_ADDRESS, 1, Wei.ZERO);
 
         verify(hederaOperations)
-                .createContract(NEXT_NUMBER, ContractCreateTransactionBody.DEFAULT, aliasFrom(SOME_EVM_ADDRESS));
+                .createContract(
+                        ContractID.newBuilder().contractNum(NEXT_NUMBER).build(),
+                        ContractCreateTransactionBody.DEFAULT,
+                        aliasFrom(SOME_EVM_ADDRESS));
     }
 
     @Test
@@ -340,7 +346,11 @@ class ProxyWorldUpdaterTest {
         assertEquals(NEXT_LONG_ZERO_ADDRESS, subject.setupTopLevelCreate(ContractCreateTransactionBody.DEFAULT));
         subject.createAccount(NEXT_LONG_ZERO_ADDRESS, 1, Wei.ZERO);
 
-        verify(hederaOperations).createContract(NEXT_NUMBER, ContractCreateTransactionBody.DEFAULT, null);
+        verify(hederaOperations)
+                .createContract(
+                        ContractID.newBuilder().contractNum(NEXT_NUMBER).build(),
+                        ContractCreateTransactionBody.DEFAULT,
+                        null);
     }
 
     @Test
