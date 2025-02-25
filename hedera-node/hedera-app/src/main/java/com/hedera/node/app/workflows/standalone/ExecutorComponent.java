@@ -48,7 +48,7 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
-            PlatformStateModule.class
+            PlatformStateModule.class,
         })
 public interface ExecutorComponent {
     @Component.Builder
