@@ -4,8 +4,8 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator.TOKEN_INFO;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator.TOKEN_INFO_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.address_0x167.TokenInfoTranslator.TOKEN_INFO_167;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.address_0x16c.TokenInfoTranslator.TOKEN_INFO_16C;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_FIXED_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_FRACTIONAL_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_KEYLIST_V2;
@@ -49,13 +49,13 @@ class TokenInfoCallTest extends CallTestBase {
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
 
         final var subject = new TokenInfoCall(
-                gasCalculator, mockEnhancement(), false, FUNGIBLE_EVERYTHING_TOKEN, config, TOKEN_INFO.function());
+                gasCalculator, mockEnhancement(), false, FUNGIBLE_EVERYTHING_TOKEN, config, TOKEN_INFO_167.function());
 
         final var result = subject.execute().fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                Bytes.wrap(TOKEN_INFO
+                Bytes.wrap(TOKEN_INFO_167
                         .getOutputs()
                         .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
@@ -95,13 +95,13 @@ class TokenInfoCallTest extends CallTestBase {
                 false,
                 FUNGIBLE_EVERYTHING_TOKEN_V2,
                 config,
-                TOKEN_INFO_V2.function());
+                TOKEN_INFO_16C.function());
 
         final var result = subject.execute().fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                Bytes.wrap(TOKEN_INFO_V2
+                Bytes.wrap(TOKEN_INFO_16C
                         .getOutputs()
                         .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
@@ -138,13 +138,13 @@ class TokenInfoCallTest extends CallTestBase {
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
 
         final var subject =
-                new TokenInfoCall(gasCalculator, mockEnhancement(), false, null, config, TOKEN_INFO.function());
+                new TokenInfoCall(gasCalculator, mockEnhancement(), false, null, config, TOKEN_INFO_167.function());
 
         final var result = subject.execute().fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                Bytes.wrap(TOKEN_INFO
+                Bytes.wrap(TOKEN_INFO_167
                         .getOutputs()
                         .encode(Tuple.of(
                                 INVALID_TOKEN_ID.protoOrdinal(),
@@ -178,7 +178,7 @@ class TokenInfoCallTest extends CallTestBase {
         when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
 
         final var subject =
-                new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO.function());
+                new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO_167.function());
 
         final var result = subject.execute().fullResult().result();
 
@@ -192,7 +192,7 @@ class TokenInfoCallTest extends CallTestBase {
         when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
 
         final var subject =
-                new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO_V2.function());
+                new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO_16C.function());
 
         final var result = subject.execute().fullResult().result();
 
