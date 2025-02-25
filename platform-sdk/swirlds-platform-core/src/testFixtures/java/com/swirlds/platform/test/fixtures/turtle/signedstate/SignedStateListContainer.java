@@ -11,10 +11,8 @@ public class SignedStateListContainer implements SignedStateHolder {
     final List<ReservedSignedState> collectedSignedStates = new ArrayList<>();
 
     @Override
-    public void interceptSignedStates(@NonNull final List<ReservedSignedState> signedStates) {
-        if (!signedStates.isEmpty()) {
-            collectedSignedStates.addAll(signedStates);
-        }
+    public void interceptReservedSignedState(@NonNull final ReservedSignedState signedState) {
+        collectedSignedStates.add(signedState);
     }
 
     @Override

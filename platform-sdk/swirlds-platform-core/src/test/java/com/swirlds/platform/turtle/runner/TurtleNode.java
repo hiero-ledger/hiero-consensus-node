@@ -168,17 +168,16 @@ public class TurtleNode {
                 platformWiring.getConsensusEngineOutputWire();
         consensusEngineOutputWire.solderTo(consensusRoundsHolderInputWire);
 
-        final OutputWire<List<ReservedSignedState>> stateSignatureCollectorOutputWire =
-                platformWiring.getStateSignatureCollectorWiring();
+        final OutputWire<ReservedSignedState> reservedStateOutputWire = platformWiring.getReservedSignedStateWiring();
         final ComponentWiring<SignedStateHolder, Void> signedStatesHolderWiring =
                 new ComponentWiring<>(model, SignedStateHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
         signedStateHolder = new SignedStateListContainer();
         signedStatesHolderWiring.bind(signedStateHolder);
 
-        final InputWire<List<ReservedSignedState>> signedStateHolderInputWire =
+        final InputWire<ReservedSignedState> signedStateHolderInputWire =
                 signedStatesHolderWiring.getInputWire(SignedStateHolder::interceptSignedStates);
-        stateSignatureCollectorOutputWire.solderTo(signedStateHolderInputWire);
+        reservedStateOutputWire.solderTo(signedStateHolderInputWire);
 
         final SimulatedGossip gossip = network.getGossipInstance(nodeId);
         gossip.provideIntakeEventCounter(
@@ -203,8 +202,18 @@ public class TurtleNode {
         model.tick();
     }
 
+    public void clear() {
+        consensusRoundsHolder.clear("clear data");
+        signedStateHolder.clear("clear data");
+    }
+
     @NonNull
     public ConsensusRoundsHolder getConsensusRoundsHolder() {
         return consensusRoundsHolder;
+    }
+
+    @NonNull
+    public SignedStateHolder getSignedStateHolder() {
+        return signedStateHolder;
     }
 }
