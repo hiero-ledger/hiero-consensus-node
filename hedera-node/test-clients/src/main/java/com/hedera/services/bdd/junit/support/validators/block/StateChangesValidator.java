@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
@@ -141,7 +126,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .normalize();
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "1bb51baa3df53b5f547fddca4aa655dced1307e3e5a57cca3294dbbecfa1aec9e3a427f4439eadb38a9f0bd3773fbed0"),
+                        "9b7ffa0ebd7385f347bd65c7535282382de6e0c48f0594f61549a1209d5ea6329490b4ce8f41d3d1b87529cb6d45b0af"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("config.txt"),
                 node0Dir.resolve("data/config/application.properties"),
@@ -229,7 +214,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var stateToBeCopied = state;
         state = state.copy();
         // get the state hash before applying the state changes from current block
-        this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied);
+        this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
 
         logger.info("Registered all Service and migrated state definitions to version {}", servicesVersion);
     }
@@ -247,7 +232,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
-                startOfStateHash = CRYPTO.digestTreeSync(stateToBeCopied).getBytes();
+                startOfStateHash =
+                        CRYPTO.digestTreeSync(stateToBeCopied.getRoot()).getBytes();
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();
@@ -313,14 +299,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state.getWritableStates(EntityIdService.NAME).<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
         assertEntityCountsMatch(entityCounts);
 
-        CRYPTO.digestTreeSync(state);
+        CRYPTO.digestTreeSync(state.getRoot());
         final var rootHash = requireNonNull(state.getHash()).getBytes();
         if (!expectedRootHash.equals(rootHash)) {
             final var expectedHashes = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
             if (expectedHashes == null) {
                 throw new AssertionError("No expected hashes found in " + pathToNode0SwirldsLog);
             }
-            final var actualHashes = hashesFor(state);
+            final var actualHashes = hashesFor(state.getRoot());
             final var errorMsg = new StringBuilder("Hashes did not match for the following states,");
             expectedHashes.forEach((stateName, expectedHash) -> {
                 final var actualHash = actualHashes.get(stateName);

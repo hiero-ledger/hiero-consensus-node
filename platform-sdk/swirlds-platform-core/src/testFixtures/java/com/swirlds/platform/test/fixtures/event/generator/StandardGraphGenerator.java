@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.generator;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
@@ -23,10 +8,16 @@ import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.ConsensusImpl;
+import com.swirlds.platform.consensus.ConsensusConfig;
+import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
-import com.swirlds.platform.event.linking.ConsensusLinker;
-import com.swirlds.platform.event.linking.InOrderLinker;
+import com.swirlds.platform.eventhandling.EventConfig;
+import com.swirlds.platform.gui.GuiEventStorage;
+import com.swirlds.platform.gui.SimpleLinker;
+import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
+import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
+import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.roster.RosterRetriever;
@@ -93,15 +84,18 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      */
     private ConsensusImpl consensus;
 
+    /** The latest snapshot to be produced by {@link #consensus} */
+    private ConsensusSnapshot consensusSnapshot;
+
     /**
      * The platform context containing configuration for the internal consensus.
      */
-    private PlatformContext platformContext;
+    private final PlatformContext platformContext;
 
     /**
      * The linker for events to use with the internal consensus.
      */
-    private InOrderLinker inOrderLinker;
+    private SimpleLinker linker;
 
     /**
      * Construct a new StandardEventGenerator.
@@ -125,7 +119,9 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * @param eventSources    One or more event sources.
      */
     public StandardGraphGenerator(
-            @NonNull PlatformContext platformContext, final long seed, @NonNull final List<EventSource> eventSources) {
+            @NonNull final PlatformContext platformContext,
+            final long seed,
+            @NonNull final List<EventSource> eventSources) {
         super(seed);
         this.platformContext = Objects.requireNonNull(platformContext);
         this.sources = Objects.requireNonNull(eventSources);
@@ -194,7 +190,10 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
-        inOrderLinker = new ConsensusLinker(platformContext, NodeId.of(0));
+        linker = new SimpleLinker(platformContext
+                .getConfiguration()
+                .getConfigData(EventConfig.class)
+                .getAncientMode());
     }
 
     /**
@@ -285,40 +284,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     }
 
     /**
-     * Get the average difference in the timestamp between two adjacent events (in seconds).
-     */
-    public double getEventPeriodMean() {
-        return eventPeriodMean;
-    }
-
-    /**
-     * Set the average difference in the timestamp between two adjacent events (in seconds).
-     *
-     * @return this
-     */
-    public StandardGraphGenerator setEventPeriodMean(final double eventPeriodMean) {
-        this.eventPeriodMean = eventPeriodMean;
-        return this;
-    }
-
-    /**
-     * Get the standard deviation of the difference of the timestamp between two adjacent events (in seconds).
-     */
-    public double getEventPeriodStandardDeviation() {
-        return eventPeriodStandardDeviation;
-    }
-
-    /**
-     * Set the standard deviation of the difference of the timestamp between two adjacent events (in seconds).
-     *
-     * @return this
-     */
-    public StandardGraphGenerator setEventPeriodStandardDeviation(final double eventPeriodStandardDeviation) {
-        this.eventPeriodStandardDeviation = eventPeriodStandardDeviation;
-        return this;
-    }
-
-    /**
      * Set the probability, as a fraction of 1.0, that an event has the same timestamp as the proceeding event. If the
      * proceeding event has the same self parent then this is ignored and the events are not made to be simultaneous.
      */
@@ -329,12 +294,9 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     /**
      * Get the probability, as a fraction of 1.0, that an event has the same timestamp as the proceeding event. If the
      * proceeding event has the same self parent then this is ignored and the events are not made to be simultaneous.
-     *
-     * @return this
      */
-    public StandardGraphGenerator setSimultaneousEventFraction(final double simultaneousEventFraction) {
+    public void setSimultaneousEventFraction(final double simultaneousEventFraction) {
         this.simultaneousEventFraction = simultaneousEventFraction;
-        return this;
     }
 
     /**
@@ -357,17 +319,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * {@inheritDoc}
      */
     @Override
-    public EventSource getSource(final NodeId nodeID) {
+    public EventSource getSource(@NonNull final NodeId nodeID) {
         final int nodeIndex = addressBook.getIndexOfNodeId(nodeID);
-        return sources.get(nodeIndex);
-    }
-
-    /**
-     * Get the event source for a particular node index.
-     *
-     * @return the event source
-     */
-    public EventSource getSourceByIndex(final int nodeIndex) {
         return sources.get(nodeIndex);
     }
 
@@ -375,7 +328,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * {@inheritDoc}
      */
     @Override
-    public AddressBook getAddressBook() {
+    public @NonNull AddressBook getAddressBook() {
         return addressBook;
     }
 
@@ -394,14 +347,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         }
 
         return sourceWeights;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public StandardGraphGenerator cleanCopy(final long newSeed) {
-        return new StandardGraphGenerator(this, newSeed);
     }
 
     /**
@@ -490,21 +435,57 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
                 getNextTimestamp(source, otherParentSource.getNodeId()),
                 birthRound);
 
-        // The event given to the internal consensus needs its own EventImpl & PlatformEvent for metadata to be kept
-        // separate from the event that is returned to the caller.  This InOrderLinker wraps the event in an EventImpl
-        // and links it. The event must be hashed and have a descriptor built for its use in the InOrderLinker.
-        // This may leak memory, but is fine in the current testing framework.
-        // When the test ends any memory used will be released.
         new DefaultEventHasher().hashEvent(next.getBaseEvent());
-        final PlatformEvent tmp = next.getBaseEvent().copyGossipedData();
-        tmp.setHash(next.getBaseEvent().getHash());
-        consensus.addEvent(inOrderLinker.linkEvent(tmp));
-
+        updateConsensus(next);
         return next;
     }
 
+    private void updateConsensus(@NonNull final EventImpl e) {
+        // The event given to the internal consensus needs its own EventImpl & PlatformEvent for metadata to be kept
+        // separate from the event that is returned to the caller.  This SimpleLinker wraps the event in an EventImpl
+        // and links it. The event must be hashed and have a descriptor built for its use in the SimpleLinker.
+        final PlatformEvent copy = e.getBaseEvent().copyGossipedData();
+        final EventImpl linkedEvent = linker.linkEvent(copy);
+        if (linkedEvent == null) {
+            return;
+        }
+
+        final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
+        if (consensusRounds.isEmpty()) {
+            return;
+        }
+        // if we reach consensus, save the snapshot for future use
+        consensusSnapshot = consensusRounds.getLast().getSnapshot();
+        linker.setNonAncientThreshold(consensusRounds.getLast().getEventWindow().getAncientThreshold());
+    }
+
     @Override
-    public void setPreviousTimestamp(final Instant previousTimestamp) {
-        this.previousTimestamp = previousTimestamp;
+    public void removeNode(@NonNull final NodeId nodeId) {
+        // currently, we only support removing a node at restart, so this process mimics what happens at restart
+
+        // remove the node from the address book and the sources
+        final int nodeIndex = addressBook.getIndexOfNodeId(nodeId);
+        sources.remove(nodeIndex);
+        addressBook = addressBook.remove(nodeId);
+        buildDefaultOtherParentAffinityMatrix();
+        // save all non-ancient events
+        final List<EventImpl> nonAncientEvents = linker.getSortedNonAncientEvents();
+        // reinitialize the internal consensus with the last snapshot
+        initializeInternalConsensus();
+        consensus.loadSnapshot(consensusSnapshot);
+        linker.setNonAncientThreshold(consensusSnapshot.getAncientThreshold(platformContext
+                .getConfiguration()
+                .getConfigData(ConsensusConfig.class)
+                .roundsNonAncient()));
+        // re-add all non-ancient events
+        for (final EventImpl event : nonAncientEvents) {
+            updateConsensus(event);
+        }
+    }
+
+    @SuppressWarnings("unused") // useful for debugging
+    public HashgraphGuiSource createGuiSource() {
+        return new StandardGuiSource(
+                addressBook, new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
     }
 }

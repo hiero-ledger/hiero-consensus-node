@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.query;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
@@ -170,7 +155,7 @@ class QueryCheckerTest extends AppTestBase {
     @SuppressWarnings("ConstantConditions")
     @Test
     void testValidateCryptoTransferWithIllegalArguments() {
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(null, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> checker.validateCryptoTransfer(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -186,8 +171,7 @@ class QueryCheckerTest extends AppTestBase {
                 transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CRYPTO_TRANSFER, null);
 
         // when
-        assertThatCode(() -> checker.validateCryptoTransfer(transactionInfo, configuration))
-                .doesNotThrowAnyException();
+        assertThatCode(() -> checker.validateCryptoTransfer(transactionInfo)).doesNotThrowAnyException();
     }
 
     @Test
@@ -203,7 +187,7 @@ class QueryCheckerTest extends AppTestBase {
                 transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CONSENSUS_CREATE_TOPIC, null);
 
         // then
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo, configuration))
+        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INSUFFICIENT_TX_FEE));
     }
@@ -224,7 +208,7 @@ class QueryCheckerTest extends AppTestBase {
                 .pureChecks(any());
 
         // then
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo, configuration))
+        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
     }

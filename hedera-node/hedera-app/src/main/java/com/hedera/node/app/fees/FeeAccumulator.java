@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
 import static java.util.Objects.requireNonNull;
@@ -23,6 +8,8 @@ import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.Fees;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.ObjLongConsumer;
 
 /**
  * Accumulates fees for a given transaction. They can either be charged to a payer account, ore refunded to a receiver
@@ -48,11 +35,13 @@ public class FeeAccumulator {
      *
      * @param payer The account to charge the fees to
      * @param networkFee The network fee to charge
+     * @param cb if not null, a callback to receive the fee disbursements
      * @return true if the full fee was charged
      */
-    public boolean chargeNetworkFee(@NonNull final AccountID payer, final long networkFee) {
+    public boolean chargeNetworkFee(
+            @NonNull final AccountID payer, final long networkFee, @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(payer);
-        return tokenApi.chargeNetworkFee(payer, networkFee, recordBuilder);
+        return tokenApi.chargeNetworkFee(payer, networkFee, recordBuilder, cb);
     }
 
     /**
@@ -62,12 +51,17 @@ public class FeeAccumulator {
      * @param payer The account to charge the fees to
      * @param nodeAccount The node account to receive the node fee
      * @param fees The fees to charge
+     * @param cb if not null, a callback to receive the fee disbursements
      */
-    public void chargeFees(@NonNull AccountID payer, @NonNull final AccountID nodeAccount, @NonNull Fees fees) {
+    public void chargeFees(
+            @NonNull AccountID payer,
+            @NonNull final AccountID nodeAccount,
+            @NonNull Fees fees,
+            @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(payer);
         requireNonNull(nodeAccount);
         requireNonNull(fees);
-        tokenApi.chargeFees(payer, nodeAccount, fees, recordBuilder);
+        tokenApi.chargeFees(payer, nodeAccount, fees, recordBuilder, cb);
     }
 
     /**

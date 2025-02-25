@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
@@ -506,7 +491,11 @@ public class HandleWorkflow {
                     }
                 }
                 executionEnd = executableTxn.nbf();
-                doStreamingKVChanges(writableStates, entityIdWritableStates, executionEnd, iter::remove);
+                doStreamingKVChanges(
+                        writableStates,
+                        entityIdWritableStates,
+                        boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                        iter::remove);
                 nextTime = boundaryStateChangeListener
                         .lastConsensusTimeOrThrow()
                         .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
@@ -515,7 +504,11 @@ public class HandleWorkflow {
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
             // that expire after the last schedule returned from next(), until either the next executable
             // schedule or the iterator boundary is reached
-            doStreamingKVChanges(writableStates, entityIdWritableStates, executionEnd, iter::purgeUntilNext);
+            doStreamingKVChanges(
+                    writableStates,
+                    entityIdWritableStates,
+                    boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                    iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
             if (iter.hasNext()) {

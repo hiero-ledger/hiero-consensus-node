@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FREEZE_START_TIME_MUST_BE_FUTURE;
@@ -60,6 +45,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -102,6 +88,9 @@ class FreezeHandlerTest {
     @Mock
     private ReadableStakingInfoStore stakingInfoStore;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private final FileID fileUpgradeFileId = FileID.newBuilder().fileNum(150L).build();
     private final FileID anotherFileUpgradeFileId =
             FileID.newBuilder().fileNum(157).build();
@@ -113,11 +102,18 @@ class FreezeHandlerTest {
             .build();
     private final AccountID nonAdminAccount =
             AccountID.newBuilder().accountNum(9999L).build();
-    private final FreezeHandler subject = new FreezeHandler(new ForkJoinPool(
-            1, ForkJoinPool.defaultForkJoinWorkerThreadFactory, Thread.getDefaultUncaughtExceptionHandler(), true));
+    private FreezeHandler subject;
 
     @BeforeEach
     void setUp() {
+        subject = new FreezeHandler(
+                new ForkJoinPool(
+                        1,
+                        ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+                        Thread.getDefaultUncaughtExceptionHandler(),
+                        true),
+                entityIdFactory);
+
         Configuration config = HederaTestConfigBuilder.createConfig();
         given(preHandleContext.configuration()).willReturn(config);
 

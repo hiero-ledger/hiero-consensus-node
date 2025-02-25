@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
 import com.swirlds.common.merkle.MerkleNode;
@@ -26,11 +11,23 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Represent a state backed up by the Merkle tree. It's a {@link MerkleNode} and provides methods to put service states
- * into the merkle tree.
+ * Represent a state backed up by the Merkle tree. It's a {@link State} implementation that is backed by a Merkle tree.
+ * It provides methods to manage the service states in the merkle tree.
  */
-public interface MerkleNodeState extends State, MerkleNode {
+public interface MerkleNodeState extends State {
 
+    /**
+     * @return an instance representing a root of the Merkle tree. For the most of the implementations
+     * this default implementation will be sufficient. But some implementations of the state may be "logical" - they
+     * are not `MerkleNode` themselves but are backed by the Merkle tree implementation (e.g. a Virtual Map).
+     */
+    default MerkleNode getRoot() {
+        return (MerkleNode) this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     MerkleNodeState copy();

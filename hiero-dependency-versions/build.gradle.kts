@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 plugins {
     id("org.hiero.gradle.base.lifecycle")
     id("org.hiero.gradle.base.jpms-modules")
@@ -42,9 +27,9 @@ val jackson = "2.18.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.15.2"
-val pbj = "0.9.17" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
+val pbj = "0.9.19" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
 val protobuf = "4.29.3"
-val testContainers = "1.20.4"
+val testContainers = "1.20.5"
 val tuweni = "2.4.2"
 val webcompare = "2.1.7"
 
@@ -54,7 +39,7 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
         because("io.helidon.webclient.grpc")
     }
-    api("org.awaitility:awaitility:4.2.2") { because("awaitility") }
+    api("org.awaitility:awaitility:4.3.0") { because("awaitility") }
     api("com.fasterxml.jackson.core:jackson-core:$jackson") {
         because("com.fasterxml.jackson.core")
     }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
 import static com.hedera.node.app.history.impl.HistoryLibraryCodecImpl.HISTORY_LIBRARY_CODEC;
@@ -56,6 +41,7 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.state.StateLifecyclesImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
@@ -100,6 +86,7 @@ import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Optional;
@@ -370,6 +357,12 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 .withSystemTransactionEncoderCallback(hedera::encodeSystemTransaction);
         final var platform = platformBuilder.build();
         hedera.init(platform, selfId);
+
+        // Initialize block node connections before starting the platform
+        final var waitPeriodForActiveConnection =
+                platformConfig.getConfigData(BlockStreamConfig.class).waitPeriodForActiveConnection();
+        hedera.initializeBlockNodeConnections(Duration.ofMinutes(waitPeriodForActiveConnection));
+
         platform.start();
         hedera.run();
     }

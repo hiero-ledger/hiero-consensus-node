@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
@@ -68,6 +53,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -90,6 +76,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
 
     private final int roundsPerBlock;
+    private final Duration blockPeriod;
     private final BlockStreamWriterMode streamWriterType;
     private final int hashCombineBatchSize;
     private final BlockHashSigner blockHashSigner;
@@ -119,6 +106,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long lastNonEmptyRoundNumber;
     private Bytes lastBlockHash;
     private Instant blockTimestamp;
+    private Instant consensusTimeLastRound;
     private BlockItemWriter writer;
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
@@ -187,6 +175,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.hapiVersion = hapiVersionFrom(config);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
+        this.blockPeriod = blockStreamConfig.blockPeriod();
         this.streamWriterType = blockStreamConfig.writerMode();
         this.hashCombineBatchSize = blockStreamConfig.hashCombineBatchSize();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
@@ -226,6 +215,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Track freeze round numbers because they always end a block
             freezeRoundNumber = round.getRoundNum();
         }
+
+        // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
             // This iterator is never empty; c.f. DefaultTransactionHandler#handleConsensusRound()
@@ -260,6 +251,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
             }
         }
+        consensusTimeLastRound = round.getConsensusTimestamp();
     }
 
     @Override
@@ -304,7 +296,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void endRound(@NonNull final State state, final long roundNum) {
+    public boolean endRound(@NonNull final State state, final long roundNum) {
         if (shouldCloseBlock(roundNum, roundsPerBlock)) {
             // If there were no user transactions in the block, this writes all the accumulated
             // items starting from the header, sacrificing the benefits of concurrency; but
@@ -386,7 +378,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 DiskStartupNetworks.writeNetworkInfo(
                         state, exportPath, EnumSet.allOf(InfoType.class), platformStateFacade);
             }
+            return true;
         }
+        return false;
     }
 
     @Override
@@ -460,7 +454,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
-            if (streamWriterType == BlockStreamWriterMode.FILE) {
+            if (streamWriterType == BlockStreamWriterMode.FILE
+                    || streamWriterType == BlockStreamWriterMode.GRPC
+                    || streamWriterType == BlockStreamWriterMode.FILE_AND_GRPC) {
                 block.writer().closeBlock();
             }
             if (block.number() != blockNumber) {
@@ -517,10 +513,24 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final int roundsPerBlock) {
+        // We need the signer to be ready
         if (!blockHashSigner.isReady()) {
             return false;
         }
-        return roundNumber % roundsPerBlock == 0 || roundNumber == freezeRoundNumber;
+
+        // During freeze round, we should close the block regardless of other conditions
+        if (roundNumber == freezeRoundNumber) {
+            return true;
+        }
+
+        // If blockPeriod is 0, use roundsPerBlock
+        if (blockPeriod.isZero()) {
+            return roundNumber % roundsPerBlock == 0;
+        }
+
+        // For time-based blocks, check if enough consensus time has elapsed
+        final var elapsed = Duration.between(blockTimestamp, consensusTimeLastRound);
+        return elapsed.compareTo(blockPeriod) >= 0;
     }
 
     class BlockStreamManagerTask {

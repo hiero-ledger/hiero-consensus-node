@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
@@ -21,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.IntReference;
 import com.swirlds.platform.Utilities;
+import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.system.events.EventConstants;
@@ -52,6 +38,8 @@ public class RoundElections {
     private final List<CandidateWitness> elections = new ArrayList<>();
     /** the minimum generation of all the judges, this is only set once the judges are found */
     private long minGeneration = EventConstants.GENERATION_UNDEFINED;
+    /** the minimum birth round of all the judges, this is only set once the judges are found */
+    private long minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
 
     /**
      * @return the round number of witnesses we are voting on
@@ -122,10 +110,21 @@ public class RoundElections {
     }
 
     /**
+     * @return the minimum birth round of all the judges(unique famous witnesses) in this round
+     */
+    private long getMinBirthRound() {
+        if (minBirthRound == EventConstants.BIRTH_ROUND_UNDEFINED) {
+            throw new IllegalStateException("Cannot provide the minimum birth round until all judges are found");
+        }
+        return minBirthRound;
+    }
+
+    /**
      * @return create a {@link MinimumJudgeInfo} instance for this round
      */
-    public @NonNull MinimumJudgeInfo createMinimumJudgeInfo() {
-        return new MinimumJudgeInfo(round, getMinGeneration());
+    public @NonNull MinimumJudgeInfo createMinimumJudgeInfo(final AncientMode ancientMode) {
+        return new MinimumJudgeInfo(
+                round, ancientMode == AncientMode.GENERATION_THRESHOLD ? getMinGeneration() : getMinBirthRound());
     }
 
     /**
@@ -148,12 +147,17 @@ public class RoundElections {
                     election.getWitness().getCreatorId(), election.getWitness(), RoundElections::uniqueFamous);
         }
         final List<EventImpl> allJudges = new ArrayList<>(uniqueFamous.values());
+        if (allJudges.isEmpty()) {
+            throw new IllegalStateException("No judges found in round " + round);
+        }
         allJudges.sort(Comparator.comparingLong(e -> e.getCreatorId().id()));
-        minGeneration = allJudges.stream()
-                .mapToLong(EventImpl::getGeneration)
-                .min()
-                .orElse(EventConstants.GENERATION_UNDEFINED);
-        allJudges.forEach(EventImpl::setJudgeTrue);
+        minGeneration = Long.MAX_VALUE;
+        minBirthRound = Long.MAX_VALUE;
+        for (final EventImpl judge : allJudges) {
+            minGeneration = Math.min(minGeneration, judge.getGeneration());
+            minBirthRound = Math.min(minBirthRound, judge.getBirthRound());
+            judge.setJudgeTrue();
+        }
 
         return allJudges;
     }
@@ -185,6 +189,7 @@ public class RoundElections {
         numUnknownFame.set(0);
         elections.clear();
         minGeneration = EventConstants.GENERATION_UNDEFINED;
+        minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
     }
 
     /** Reset this instance to its initial state */
