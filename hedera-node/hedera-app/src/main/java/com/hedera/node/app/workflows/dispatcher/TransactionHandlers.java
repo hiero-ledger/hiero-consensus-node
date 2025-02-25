@@ -57,6 +57,7 @@ import com.hedera.node.app.service.token.impl.handlers.TokenUnfreezeAccountHandl
 import com.hedera.node.app.service.token.impl.handlers.TokenUnpauseHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenUpdateHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenUpdateNftsHandler;
+import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -121,4 +122,5 @@ public record TransactionHandlers(
         @NonNull HintsKeyPublicationHandler keyPublicationHandler,
         @NonNull HintsPreprocessingVoteHandler aggregationVoteHandler,
         @NonNull HintsPartialSignatureHandler partialSignatureHandler,
-        @NonNull UtilPrngHandler utilPrngHandler) {}
+        @NonNull UtilPrngHandler utilPrngHandler,
+        @NonNull AtomicBatchHandler atomicBatchHandler) {}

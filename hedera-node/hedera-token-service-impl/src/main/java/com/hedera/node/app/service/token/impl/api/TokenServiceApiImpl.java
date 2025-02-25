@@ -41,6 +41,7 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,7 +65,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      * @param config         the configuration
      * @param writableStates the writable states
      * @param customFeeTest  a predicate for determining if a transfer has custom fees
-     * @param entityCounters
+     * @param entityCounters the entity counters
      */
     public TokenServiceApiImpl(
             @NonNull final Configuration config,
@@ -163,7 +164,10 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var accountAsContract = hollowAccount
                 .copyBuilder()
                 .key(Key.newBuilder()
-                        .contractID(ContractID.newBuilder().contractNum(hollowAccountId.accountNumOrThrow()))
+                        .contractID(ContractID.newBuilder()
+                                .shardNum(hollowAccountId.shardNum())
+                                .realmNum(hollowAccountId.realmNum())
+                                .contractNum(hollowAccountId.accountNumOrThrow()))
                         .build())
                 .smartContract(true)
                 .maxAutoAssociations(hollowAccount.numberAssociations())
@@ -313,25 +317,29 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
     @Override
     public boolean chargeNetworkFee(
-            @NonNull final AccountID payerId, final long amount, @NonNull final FeeStreamBuilder rb) {
+            @NonNull final AccountID payerId,
+            final long amount,
+            @NonNull final FeeStreamBuilder rb,
+            @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(rb);
         requireNonNull(payerId);
 
         final var payerAccount = lookupAccount("Payer", payerId);
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
-        chargePayer(payerAccount, amountToCharge);
+        chargePayer(payerAccount, amountToCharge, cb);
         // We may be charging for preceding child record fees, which are additive to the base fee
         rb.transactionFee(rb.transactionFee() + amountToCharge);
-        distributeToNetworkFundingAccounts(amountToCharge, rb);
+        distributeToNetworkFundingAccounts(amountToCharge, cb);
         return amountToCharge == amount;
     }
 
     @Override
     public void chargeFees(
             @NonNull AccountID payerId,
-            AccountID nodeAccountId,
+            @NonNull final AccountID nodeAccountId,
             @NonNull Fees fees,
-            @NonNull final FeeStreamBuilder rb) {
+            @NonNull final FeeStreamBuilder rb,
+            @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(rb);
         requireNonNull(fees);
         requireNonNull(payerId);
@@ -356,10 +364,10 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final long amountToCharge = fees.totalWithoutNodeFee() + chargeableNodeFee;
         final long amountToDistributeToFundingAccounts = amountToCharge - chargeableNodeFee;
 
-        chargePayer(payerAccount, amountToCharge);
+        chargePayer(payerAccount, amountToCharge, cb);
         // Record the amount charged into the record builder
         rb.transactionFee(amountToCharge);
-        distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, rb);
+        distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, cb);
 
         if (chargeableNodeFee > 0) {
             final var nodeAccount = lookupAccount("Node account", nodeAccountId);
@@ -367,6 +375,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                     .copyBuilder()
                     .tinybarBalance(nodeAccount.tinybarBalance() + chargeableNodeFee)
                     .build());
+            if (cb != null) {
+                cb.accept(nodeAccountId, chargeableNodeFee);
+            }
         }
     }
 
@@ -395,7 +406,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      * @param amount the maximum amount to charge
      * @throws IllegalStateException if the payer account doesn't exist
      */
-    private void chargePayer(@NonNull final Account payerAccount, final long amount) {
+    private void chargePayer(
+            @NonNull final Account payerAccount, final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         if (amount > payerAccount.tinybarBalance()) {
             throw new IllegalArgumentException("Payer %s (balance=%d) cannot afford fee of %d"
                     .formatted(payerAccount, payerAccount.tinybarBalance(), amount));
@@ -405,6 +417,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .copyBuilder()
                 .tinybarBalance(currentBalance - amount)
                 .build());
+        if (cb != null) {
+            cb.accept(payerAccount.accountId(), -amount);
+        }
     }
 
     /**
@@ -562,7 +577,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         return account.smartContract() ? EntityType.CONTRACT_BYTECODE : EntityType.ACCOUNT;
     }
 
-    private void distributeToNetworkFundingAccounts(final long amount, @NonNull final FeeStreamBuilder rb) {
+    private void distributeToNetworkFundingAccounts(final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         // We may have a rounding error, so we will first remove the node and staking rewards from the total, and then
         // whatever is left over goes to the funding account.
         long balance = amount;
@@ -572,10 +587,16 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
             balance -= nodeReward;
             payNodeRewardAccount(nodeReward);
+            if (cb != null) {
+                cb.accept(nodeRewardAccountID, nodeReward);
+            }
 
             final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
             balance -= stakingReward;
             payStakingRewardAccount(stakingReward);
+            if (cb != null) {
+                cb.accept(stakingRewardAccountID, stakingReward);
+            }
         }
 
         // Whatever is left over goes to the funding account
@@ -584,5 +605,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .copyBuilder()
                 .tinybarBalance(fundingAccount.tinybarBalance() + balance)
                 .build());
+        if (cb != null) {
+            cb.accept(fundingAccountID, balance);
+        }
     }
 }

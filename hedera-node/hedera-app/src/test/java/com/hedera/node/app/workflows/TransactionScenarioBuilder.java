@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
@@ -15,9 +16,11 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 
 /**
  * A very useful class for generating TransactionInfo's that can be used for testing.
@@ -93,6 +96,11 @@ public class TransactionScenarioBuilder implements Scenarios {
         return this;
     }
 
+    public TransactionScenarioBuilder withBatchKey(@Nullable final Key key) {
+        body = body.copyBuilder().batchKey(key).build();
+        return this;
+    }
+
     @NonNull
     public TransactionInfo txInfo() {
         final var signedbytes = asBytes(TransactionBody.PROTOBUF, body);
@@ -103,6 +111,41 @@ public class TransactionScenarioBuilder implements Scenarios {
                 .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
                 .build();
         return new TransactionInfo(tx, body, SignatureMap.DEFAULT, signedbytes, function, null);
+    }
+
+    @NonNull
+    public TransactionInfo txInfoForBatch() {
+        final var innerBody =
+                goodDefaultBody().copyBuilder().batchKey(Key.DEFAULT).build();
+        final var innerTxns = List.of(Transaction.newBuilder()
+                .body(innerBody)
+                .signedTransactionBytes(asBytes(
+                        SignedTransaction.PROTOBUF,
+                        SignedTransaction.newBuilder()
+                                .bodyBytes(asBytes(TransactionBody.PROTOBUF, innerBody))
+                                .build()))
+                .build());
+        final var atomicBody = TransactionBody.newBuilder()
+                .nodeAccountID(NODE_1.nodeAccountID())
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(ALICE.accountID())
+                        .transactionValidStart(Timestamp.newBuilder()
+                                .seconds((System.currentTimeMillis() / 1000) - 1)
+                                .build())
+                        .build())
+                .atomicBatch(AtomicBatchTransactionBody.newBuilder().transactions(innerTxns))
+                .transactionFee(1L)
+                .transactionValidDuration(Duration.newBuilder().seconds(60).build())
+                .build();
+        final var signedbytes = asBytes(TransactionBody.PROTOBUF, atomicBody);
+        final var signedTx =
+                SignedTransaction.newBuilder().bodyBytes(signedbytes).build();
+        final var tx = Transaction.newBuilder()
+                .body(atomicBody)
+                .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
+                .build();
+        return new TransactionInfo(
+                tx, atomicBody, SignatureMap.DEFAULT, signedbytes, HederaFunctionality.ATOMIC_BATCH, null);
     }
 
     public static TransactionBody goodDefaultBody() {

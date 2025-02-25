@@ -11,6 +11,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.ObjLongConsumer;
 
 /**
  * A strategy for validating and charging fees for a transaction.
@@ -67,19 +68,27 @@ public interface FeeCharging {
         /**
          * Charges the given amount to the given account, not disbursing any portion of the
          * collected fees to a node account.
+         *
          * @param payerId the account to be charged
          * @param fees the fees to be charged
+         * @param cb if not null, a callback to accept fee disbursements
          */
-        void charge(@NonNull AccountID payerId, @NonNull Fees fees);
+        void charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable ObjLongConsumer<AccountID> cb);
 
         /**
          * Charges the given amount to the given account, disbursing the currently configured
          * fraction of collected fees to the given node account.
+         *
          * @param payerId the account to be charged
          * @param fees the fees to be charged
          * @param nodeAccountId the account to which a portion of the fees will be disbursed
+         * @param cb if not null, a callback to accept fee disbursements
          */
-        void charge(@NonNull AccountID payerId, @NonNull Fees fees, @NonNull AccountID nodeAccountId);
+        void charge(
+                @NonNull AccountID payerId,
+                @NonNull Fees fees,
+                @NonNull AccountID nodeAccountId,
+                @Nullable ObjLongConsumer<AccountID> cb);
 
         /**
          * The category of the transaction in the charging scenario.
