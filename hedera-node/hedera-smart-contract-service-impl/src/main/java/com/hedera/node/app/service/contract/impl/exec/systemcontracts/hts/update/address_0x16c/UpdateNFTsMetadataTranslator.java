@@ -18,7 +18,6 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Variant;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import javax.inject.Inject;
@@ -51,8 +50,6 @@ public class UpdateNFTsMetadataTranslator extends AbstractCallTranslator<HtsCall
 
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
-        if (!attempt.configuration().getConfigData(ContractsConfig.class).systemContractUpdateNFTsMetadataEnabled())
-            return Optional.empty();
         return attempt.isMethod(UPDATE_NFTs_METADATA);
     }
 
