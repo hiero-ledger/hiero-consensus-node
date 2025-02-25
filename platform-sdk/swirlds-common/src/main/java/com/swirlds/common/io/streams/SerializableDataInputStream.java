@@ -576,7 +576,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
      * @return the parsed record
      * @throws IOException if an IO error occurs
      */
-    public @NonNull <T extends Record> T readPbjRecord(@NonNull final Codec<T> codec) throws IOException {
+    public @NonNull <T> T readPbjRecord(@NonNull final Codec<T> codec) throws IOException {
         final int size = readInt();
         readableSequentialData.limit(readableSequentialData.position() + size);
         try {

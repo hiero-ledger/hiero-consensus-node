@@ -41,6 +41,11 @@ public interface HashgraphPictureOptions {
     boolean writeGeneration();
 
     /**
+     * @return should the birth round be written for every event
+     */
+    boolean writeBirthRound();
+
+    /**
      * @return should simple colors be used in the picture
      */
     boolean simpleColors();

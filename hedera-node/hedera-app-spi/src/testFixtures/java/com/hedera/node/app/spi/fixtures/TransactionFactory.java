@@ -57,7 +57,7 @@ public interface TransactionFactory {
         return asByteArray(Transaction.PROTOBUF, tx);
     }
 
-    default <R extends Record> byte[] asByteArray(@NonNull final Codec<R> codec, @NonNull final R r) {
+    default <R> byte[] asByteArray(@NonNull final Codec<R> codec, @NonNull final R r) {
         try {
             final var byteStream = new ByteArrayOutputStream();
             codec.write(r, new WritableStreamingData(byteStream));
@@ -67,7 +67,7 @@ public interface TransactionFactory {
         }
     }
 
-    default <R extends Record> Bytes asBytes(@NonNull final Codec<R> codec, @NonNull final R r) {
+    default <R> Bytes asBytes(@NonNull final Codec<R> codec, @NonNull final R r) {
         return Bytes.wrap(asByteArray(codec, r));
     }
 

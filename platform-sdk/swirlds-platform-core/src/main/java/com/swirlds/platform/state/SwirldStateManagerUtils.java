@@ -41,7 +41,7 @@ public final class SwirldStateManagerUtils {
         platformStateFacade.setCreationSoftwareVersionTo(copy, softwareVersion);
 
         // Increment the reference count because this reference becomes the new value
-        copy.reserve();
+        copy.getRoot().reserve();
 
         final long copyEnd = System.nanoTime();
 

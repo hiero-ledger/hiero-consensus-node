@@ -204,13 +204,7 @@ class PlatformTestingToolStateTest {
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         round = new ConsensusRound(
-                roster,
-                List.of(platformEvent),
-                platformEvent,
-                eventWindow,
-                new ConsensusSnapshot(),
-                false,
-                Instant.now());
+                roster, List.of(platformEvent), eventWindow, new ConsensusSnapshot(), false, Instant.now());
 
         // When
         main.stateLifecycles.onHandleConsensusRound(round, state, consumer);
@@ -305,13 +299,7 @@ class PlatformTestingToolStateTest {
                         .iterator());
 
         round = new ConsensusRound(
-                roster,
-                List.of(platformEvent),
-                platformEvent,
-                eventWindow,
-                new ConsensusSnapshot(),
-                false,
-                Instant.now());
+                roster, List.of(platformEvent), eventWindow, new ConsensusSnapshot(), false, Instant.now());
     }
 
     private TestTransactionWrapper getTransactionWithRandomType(final int transactionSize) {

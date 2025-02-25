@@ -113,7 +113,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     public void outOfBandSnapshotUpdate(@NonNull final ConsensusSnapshot snapshot) {
-        final long ancientThreshold = snapshot.getMinimumGenerationNonAncient(roundsNonAncient);
+        final long ancientThreshold = snapshot.getAncientThreshold(roundsNonAncient);
         final EventWindow eventWindow =
                 new EventWindow(snapshot.round(), ancientThreshold, ancientThreshold, ancientMode);
 
