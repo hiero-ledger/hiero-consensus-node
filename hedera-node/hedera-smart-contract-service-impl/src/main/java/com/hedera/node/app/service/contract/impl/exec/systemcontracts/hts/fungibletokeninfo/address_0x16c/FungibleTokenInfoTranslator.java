@@ -21,9 +21,9 @@ import javax.inject.Inject;
 
 public class FungibleTokenInfoTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 
-    /** Selector for getFungibleTokenInfoV2(address) method. */
+    /** Selector for getFungibleTokenInfo(address) method. */
     public static final SystemContractMethod FUNGIBLE_TOKEN_INFO_16C = SystemContractMethod.declare(
-                    "getFungibleTokenInfoV2(address)", ReturnTypes.RESPONSE_CODE_FUNGIBLE_TOKEN_INFO_V2)
+                    "getFungibleTokenInfo(address)", ReturnTypes.RESPONSE_CODE_FUNGIBLE_TOKEN_INFO_V2)
             .withVariants(Variant.V2, Variant.FT)
             .withSupportedAddress(HTS_16C_CONTRACT_ID)
             .withCategory(Category.TOKEN_QUERY);

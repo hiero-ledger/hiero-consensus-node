@@ -84,7 +84,7 @@ public class NftTokenInfoCall extends AbstractNonRevertibleTokenViewCall {
         final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
         final var ledgerId = Bytes.wrap(ledgerConfig.id().toByteArray()).toString();
 
-        return function.getName().equals(NON_FUNGIBLE_TOKEN_INFO.methodName())
+        return function.getOutputs().equals(NON_FUNGIBLE_TOKEN_INFO.getOutputs())
                 ? successResult(
                         NON_FUNGIBLE_TOKEN_INFO
                                 .getOutputs()

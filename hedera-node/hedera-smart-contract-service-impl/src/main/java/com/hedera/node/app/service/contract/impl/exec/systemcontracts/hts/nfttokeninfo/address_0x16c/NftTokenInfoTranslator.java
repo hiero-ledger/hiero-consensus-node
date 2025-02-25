@@ -23,7 +23,7 @@ public class NftTokenInfoTranslator extends AbstractCallTranslator<HtsCallAttemp
 
     /** Selector for getNonFungibleTokenInfo(address,int64) method. */
     public static final SystemContractMethod NON_FUNGIBLE_TOKEN_INFO_16C = SystemContractMethod.declare(
-                    "getNonFungibleTokenInfoV2(address,int64)", ReturnTypes.RESPONSE_CODE_NON_FUNGIBLE_TOKEN_INFO_V2)
+                    "getNonFungibleTokenInfo(address,int64)", ReturnTypes.RESPONSE_CODE_NON_FUNGIBLE_TOKEN_INFO_V2)
             .withVariants(Variant.V2, Variant.NFT)
             .withSupportedAddress(HTS_16C_CONTRACT_ID)
             .withCategory(Category.TOKEN_QUERY);
