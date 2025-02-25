@@ -1566,9 +1566,7 @@ public class RepeatableHip423Tests {
                         .payingWith(PAYING_ACCOUNT)
                         .recordingScheduledTxn()
                         .via(CREATE_TX),
-                logIt("WTF"),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).via(SIGN_TX),
-                logIt("SERIOUSLY"),
                 getScheduleInfo(BASIC_XFER)
                         .hasScheduleId(BASIC_XFER)
                         .hasWaitForExpiry()
