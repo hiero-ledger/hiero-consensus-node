@@ -113,7 +113,8 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     @NonNull
     public StateLifecycles<ConsistencyTestingToolState> newStateLifecycles() {
-        return new ConsistencyTestingToolStateLifecycles(new PlatformStateFacade((v) -> getSoftwareVersion()));
+        return new ConsistencyTestingToolStateLifecycles(
+                new PlatformStateFacade((v) -> new BasicSoftwareVersion(v.major())));
     }
 
     /**
