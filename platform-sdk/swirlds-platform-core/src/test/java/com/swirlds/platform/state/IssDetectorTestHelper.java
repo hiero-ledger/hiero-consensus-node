@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.state;
+package com.swirlds.platform.state;
 
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.signed.ReservedSignedState;
