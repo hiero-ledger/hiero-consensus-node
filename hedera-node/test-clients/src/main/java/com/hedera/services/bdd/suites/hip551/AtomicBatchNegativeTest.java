@@ -710,23 +710,17 @@ public class AtomicBatchNegativeTest {
             final var bob = "bob";
             final var batchKey1 = "batchKey1";
             final var batchKey2 = "batchKey2";
-            final var innerTxnId1 = "innerTxnId1";
-            final var innerTxnId2 = "innerTxnId2";
 
             return hapiTest(
                     cryptoCreate(alice),
                     cryptoCreate(bob),
                     newKeyNamed(batchKey1),
                     newKeyNamed(batchKey2),
-                    usableTxnIdNamed(innerTxnId1).payerId(alice),
-                    usableTxnIdNamed(innerTxnId2).payerId(alice),
                     atomicBatch(
                                     cryptoCreate("foo1")
-                                            .txnId(innerTxnId1)
                                             .batchKey(batchKey1)
                                             .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED),
                                     cryptoCreate("foo2")
-                                            .txnId(innerTxnId2)
                                             .batchKey(batchKey2)
                                             .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED))
                             .payingWith(alice) // Alice pays for the batch
