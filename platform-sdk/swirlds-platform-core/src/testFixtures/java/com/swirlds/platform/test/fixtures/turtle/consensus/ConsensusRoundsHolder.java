@@ -13,7 +13,7 @@ public interface ConsensusRoundsHolder {
     /**
      * Intercept the consensus rounds produced by the ConsensusEngine and adds them to a collection.
      *
-     * @param rounds
+     * @param rounds to intercept
      */
     void interceptRounds(final List<ConsensusRound> rounds);
 
@@ -23,4 +23,11 @@ public interface ConsensusRoundsHolder {
      * @param ignored ignored trigger object
      */
     void clear(@NonNull final Object ignored);
+
+    /**
+     * Get the collected consensus rounds.
+     *
+     * @return the collected consensus rounds
+     */
+    List<ConsensusRound> getCollectedRounds();
 }

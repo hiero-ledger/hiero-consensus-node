@@ -53,6 +53,16 @@ public class ConsensusOutput implements Clearable {
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
     }
 
+    public ConsensusOutput(@NonNull List<ConsensusRound> consensusRounds) {
+        ancientMode = AncientMode.GENERATION_THRESHOLD;
+        addedEvents = new LinkedList<>();
+        this.consensusRounds = new LinkedList<>(consensusRounds);
+        staleEvents = new LinkedList<>();
+        nonAncientEvents = new StandardSequenceSet<>(0L, 0, true, x -> 0L);
+        nonAncientConsensusEvents = new StandardSequenceSet<>(0L, 0, true, x -> 0L);
+        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+    }
+
     public void eventAdded(@NonNull final PlatformEvent event) {
         addedEvents.add(event);
         nonAncientEvents.add(event);
