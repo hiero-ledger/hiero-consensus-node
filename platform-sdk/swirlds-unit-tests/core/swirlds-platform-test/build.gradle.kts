@@ -30,4 +30,5 @@ testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.junit.jupiter.api")
+    requires("com.swirlds.state.impl")
 }
