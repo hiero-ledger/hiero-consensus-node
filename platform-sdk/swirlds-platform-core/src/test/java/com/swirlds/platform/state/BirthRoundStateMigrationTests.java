@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
@@ -27,6 +12,7 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -42,9 +28,12 @@ import org.junit.jupiter.api.Test;
 
 class BirthRoundStateMigrationTests {
 
+    private PlatformStateFacade platformStateFacade;
+
     @BeforeEach
     void setUp() {
         MerkleDb.resetDefaultInstancePath();
+        platformStateFacade = new PlatformStateFacade(version -> new BasicSoftwareVersion(version.major()));
     }
 
     @AfterEach
@@ -91,17 +80,17 @@ class BirthRoundStateMigrationTests {
         final Hash originalHash = signedState.getState().getHash();
 
         final SoftwareVersion previousSoftwareVersion =
-                signedState.getState().getWritablePlatformState().getCreationSoftwareVersion();
+                platformStateFacade.creationSoftwareVersionOf(signedState.getState());
 
         final SoftwareVersion newSoftwareVersion = createNextVersion(previousSoftwareVersion);
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.GENERATION_THRESHOLD, newSoftwareVersion);
+                signedState, AncientMode.GENERATION_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState());
+        rehashTree(signedState.getState().getRoot());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
@@ -113,24 +102,25 @@ class BirthRoundStateMigrationTests {
         final SignedState signedState = generateSignedState(random);
 
         final SoftwareVersion previousSoftwareVersion =
-                signedState.getState().getReadablePlatformState().getCreationSoftwareVersion();
+                platformStateFacade.creationSoftwareVersionOf(signedState.getState());
 
         final SoftwareVersion newSoftwareVersion = createNextVersion(previousSoftwareVersion);
 
-        PlatformStateModifier writablePlatformState = signedState.getState().getWritablePlatformState();
-        writablePlatformState.setLastRoundBeforeBirthRoundMode(signedState.getRound() - 100);
-        writablePlatformState.setFirstVersionInBirthRoundMode(previousSoftwareVersion);
-        writablePlatformState.setLowestJudgeGenerationBeforeBirthRoundMode(100);
-        rehashTree(signedState.getState());
+        platformStateFacade.bulkUpdateOf(signedState.getState(), v -> {
+            v.setLastRoundBeforeBirthRoundMode(signedState.getRound() - 100);
+            v.setFirstVersionInBirthRoundMode(previousSoftwareVersion);
+            v.setLowestJudgeGenerationBeforeBirthRoundMode(100);
+        });
+        rehashTree(signedState.getState().getRoot());
         final Hash originalHash = signedState.getState().getHash();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion);
+                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState());
+        rehashTree(signedState.getState().getRoot());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
@@ -147,41 +137,36 @@ class BirthRoundStateMigrationTests {
         final Hash originalHash = signedState.getState().getHash();
 
         final SoftwareVersion previousSoftwareVersion =
-                signedState.getState().getReadablePlatformState().getCreationSoftwareVersion();
+                platformStateFacade.creationSoftwareVersionOf(signedState.getState());
 
         final SoftwareVersion newSoftwareVersion = createNextVersion(previousSoftwareVersion);
 
-        final long lastRoundMinimumJudgeGeneration = signedState
-                .getState()
-                .getReadablePlatformState()
-                .getSnapshot()
+        final long lastRoundMinimumJudgeGeneration = platformStateFacade
+                .consensusSnapshotOf(signedState.getState())
                 .getMinimumJudgeInfoList()
                 .getLast()
                 .minimumJudgeAncientThreshold();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion);
+                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertNotEquals(originalHash, signedState.getState().getHash());
 
         // We expect these fields to be populated at the migration boundary
         assertEquals(
                 newSoftwareVersion.getPbjSemanticVersion(),
-                signedState
-                        .getState()
-                        .getReadablePlatformState()
-                        .getFirstVersionInBirthRoundMode()
+                platformStateFacade
+                        .firstVersionInBirthRoundModeOf(signedState.getState())
                         .getPbjSemanticVersion());
         assertEquals(
                 lastRoundMinimumJudgeGeneration,
-                signedState.getState().getReadablePlatformState().getLowestJudgeGenerationBeforeBirthRoundMode());
+                platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(signedState.getState()));
         assertEquals(
-                signedState.getRound(),
-                signedState.getState().getReadablePlatformState().getLastRoundBeforeBirthRoundMode());
+                signedState.getRound(), platformStateFacade.lastRoundBeforeBirthRoundModeOf(signedState.getState()));
 
         // All of the judge info objects should now be using a birth round equal to the round of the state
         for (final MinimumJudgeInfo minimumJudgeInfo :
-                signedState.getState().getReadablePlatformState().getSnapshot().getMinimumJudgeInfoList()) {
+                platformStateFacade.consensusSnapshotOf(signedState.getState()).getMinimumJudgeInfoList()) {
             assertEquals(signedState.getRound(), minimumJudgeInfo.minimumJudgeAncientThreshold());
         }
     }

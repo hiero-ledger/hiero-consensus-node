@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -77,6 +62,7 @@ import com.swirlds.platform.reconnect.ReconnectLearnerThrottle;
 import com.swirlds.platform.reconnect.ReconnectThrottle;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -158,6 +144,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
      * @param loadReconnectState            a method that should be called when a state from reconnect is obtained
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
+     * @param platformStateFacade           a facade for accessing the platform state
      */
     public SyncGossip(
             @NonNull final PlatformContext platformContext,
@@ -171,7 +158,8 @@ public class SyncGossip implements ConnectionTracker, Gossip {
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final Consumer<SignedState> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         shadowgraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), intakeEventCounter);
 
@@ -202,7 +190,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
         // create an instance that can create new outbound connections
         final OutboundConnectionCreator connectionCreator =
-                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, roster);
+                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, peers);
         connectionManagers = new StaticConnectionManagers(topology, connectionCreator);
         final InboundConnectionHandler inboundConnectionHandler = new InboundConnectionHandler(
                 platformContext,
@@ -247,7 +235,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
         networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId, peers);
         platformContext.getMetrics().addUpdater(networkMetrics::update);
 
-        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), roster);
+        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), peers);
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 
@@ -272,8 +260,14 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                     syncManager.resetFallenBehind();
                 },
                 new ReconnectLearnerFactory(
-                        platformContext, threadManager, roster, reconnectConfig.asyncStreamTimeout(), reconnectMetrics),
-                stateConfig);
+                        platformContext,
+                        threadManager,
+                        roster,
+                        reconnectConfig.asyncStreamTimeout(),
+                        reconnectMetrics,
+                        platformStateFacade),
+                stateConfig,
+                platformStateFacade);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
@@ -316,7 +310,8 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 currentPlatformStatus::get,
                 hangingThreadDuration,
                 protocolConfig,
-                reconnectConfig);
+                reconnectConfig,
+                platformStateFacade);
 
         thingsToStart.add(() -> syncProtocolThreads.forEach(StoppableThread::start));
     }
@@ -331,7 +326,8 @@ public class SyncGossip implements ConnectionTracker, Gossip {
             final Supplier<PlatformStatus> platformStatusSupplier,
             final Duration hangingThreadDuration,
             final ProtocolConfig protocolConfig,
-            final ReconnectConfig reconnectConfig) {
+            final ReconnectConfig reconnectConfig,
+            final PlatformStateFacade platformStateFacade) {
 
         final Protocol syncProtocol = new SyncProtocol(
                 platformContext,
@@ -352,10 +348,11 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 reconnectConfig.asyncStreamTimeout(),
                 reconnectMetrics,
                 reconnectController,
-                new DefaultSignedStateValidator(platformContext),
+                new DefaultSignedStateValidator(platformContext, platformStateFacade),
                 fallenBehindManager,
                 platformStatusSupplier,
-                platformContext.getConfiguration());
+                platformContext.getConfiguration(),
+                platformStateFacade);
 
         final Protocol heartbeatProtocol = new HeartbeatProtocol(
                 Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()), networkMetrics, platformContext.getTime());
@@ -371,7 +368,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                     .setThreadName("SyncProtocolWith" + otherId)
                     .setHangingThreadPeriod(hangingThreadDuration)
                     .setWork(new ProtocolNegotiatorThread(
-                            connectionManagers.getManager(otherId, topology.shouldConnectTo(otherId)),
+                            connectionManagers.getManager(otherId),
                             syncConfig.syncSleepAfterFailedNegotiation(),
                             handshakeProtocols,
                             new NegotiationProtocols(List.of(

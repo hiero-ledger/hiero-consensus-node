@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
@@ -111,6 +96,7 @@ import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
+import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -162,7 +148,8 @@ public class BlockStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
-                TokenAirdropStreamBuilder {
+                TokenAirdropStreamBuilder,
+                ReplayableFeeStreamBuilder {
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenIdOrThrow().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNumOrThrow());
@@ -474,7 +461,7 @@ public class BlockStreamBuilder
          * @param <T> the Java type of the view
          */
         @SuppressWarnings("unchecked")
-        private <T extends Record> T toView(@NonNull final BlockItemsTranslator translator, @NonNull final View view) {
+        private <T> T toView(@NonNull final BlockItemsTranslator translator, @NonNull final View view) {
             int i = 0;
             final var n = blockItems.size();
             TransactionResult result = null;
@@ -556,6 +543,11 @@ public class BlockStreamBuilder
     @Override
     public int getNumAutoAssociations() {
         return automaticTokenAssociations.size();
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return functionality;
     }
 
     @Override
@@ -702,6 +694,16 @@ public class BlockStreamBuilder
     public BlockStreamBuilder transferList(@Nullable final TransferList transferList) {
         this.transferList = transferList;
         return this;
+    }
+
+    @Override
+    public void setReplayedFees(@NonNull final TransferList transferList) {
+        requireNonNull(transferList);
+        if (this.transferList == null || this.transferList == TransferList.DEFAULT) {
+            this.transferList = transferList;
+        } else {
+            throw new IllegalStateException("Transfer list already set");
+        }
     }
 
     @Override

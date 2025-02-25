@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
@@ -36,8 +21,8 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
@@ -84,11 +69,12 @@ public final class StartupStateUtils {
             @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
             @NonNull final SoftwareVersion softwareVersion,
-            @NonNull final Supplier<PlatformMerkleStateRoot> genesisStateBuilder,
+            @NonNull final Supplier<MerkleNodeState> genesisStateBuilder,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
-            @NonNull final AddressBook configAddressBook)
+            @NonNull final AddressBook configAddressBook,
+            @NonNull final PlatformStateFacade platformStateFacade)
             throws SignedStateLoadingException {
 
         requireNonNull(configuration);
@@ -98,7 +84,7 @@ public final class StartupStateUtils {
         requireNonNull(configAddressBook);
 
         final ReservedSignedState loadedState = StartupStateUtils.loadStateFile(
-                configuration, recycleBin, selfId, mainClassName, swirldName, softwareVersion);
+                configuration, recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformStateFacade);
 
         try (loadedState) {
             if (loadedState.isNotNull()) {
@@ -107,15 +93,15 @@ public final class StartupStateUtils {
                         new SavedStateLoadedPayload(
                                 loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
 
-                return copyInitialSignedState(configuration, loadedState.get());
+                return copyInitialSignedState(configuration, loadedState.get(), platformStateFacade);
             }
         }
 
-        final ReservedSignedState genesisState =
-                buildGenesisState(configuration, configAddressBook, softwareVersion, genesisStateBuilder.get());
+        final ReservedSignedState genesisState = buildGenesisState(
+                configuration, configAddressBook, softwareVersion, genesisStateBuilder.get(), platformStateFacade);
 
         try (genesisState) {
-            return copyInitialSignedState(configuration, genesisState.get());
+            return copyInitialSignedState(configuration, genesisState.get(), platformStateFacade);
         }
     }
 
@@ -138,7 +124,8 @@ public final class StartupStateUtils {
             @NonNull final NodeId selfId,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
-            @NonNull final SoftwareVersion currentSoftwareVersion) {
+            @NonNull final SoftwareVersion currentSoftwareVersion,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
@@ -153,8 +140,8 @@ public final class StartupStateUtils {
             return createNullReservation();
         }
 
-        final ReservedSignedState state =
-                loadLatestState(configuration, recycleBin, currentSoftwareVersion, savedStateFiles);
+        final ReservedSignedState state = loadLatestState(
+                configuration, recycleBin, currentSoftwareVersion, savedStateFiles, platformStateFacade);
         return state;
     }
 
@@ -167,11 +154,13 @@ public final class StartupStateUtils {
      * @return a copy of the initial signed state
      */
     public static @NonNull HashedReservedSignedState copyInitialSignedState(
-            @NonNull final Configuration configuration, @NonNull final SignedState initialSignedState) {
+            @NonNull final Configuration configuration,
+            @NonNull final SignedState initialSignedState,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(configuration);
         requireNonNull(initialSignedState);
 
-        final PlatformMerkleStateRoot stateCopy = initialSignedState.getState().copy();
+        final MerkleNodeState stateCopy = initialSignedState.getState().copy();
         final SignedState signedStateCopy = new SignedState(
                 configuration,
                 CryptoStatic::verifySignature,
@@ -179,10 +168,12 @@ public final class StartupStateUtils {
                 "StartupStateUtils: copy initial state",
                 false,
                 false,
-                false);
+                false,
+                platformStateFacade);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
-        final var hash = MerkleCryptoFactory.getInstance().digestTreeSync(initialSignedState.getState());
+        final Hash hash = MerkleCryptoFactory.getInstance()
+                .digestTreeSync(initialSignedState.getState().getRoot());
         return new HashedReservedSignedState(signedStateCopy.reserve("Copied initial state"), hash);
     }
 
@@ -216,14 +207,15 @@ public final class StartupStateUtils {
             @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
             @NonNull final SoftwareVersion currentSoftwareVersion,
-            @NonNull final List<SavedStateInfo> savedStateFiles)
+            @NonNull final List<SavedStateInfo> savedStateFiles,
+            @NonNull final PlatformStateFacade platformStateFacade)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading latest state from disk.");
 
         for (final SavedStateInfo savedStateFile : savedStateFiles) {
-            final ReservedSignedState state =
-                    loadStateFile(configuration, recycleBin, currentSoftwareVersion, savedStateFile);
+            final ReservedSignedState state = loadStateFile(
+                    configuration, recycleBin, currentSoftwareVersion, savedStateFile, platformStateFacade);
             if (state != null) {
                 return state;
             }
@@ -245,14 +237,15 @@ public final class StartupStateUtils {
             @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
             @NonNull final SoftwareVersion currentSoftwareVersion,
-            @NonNull final SavedStateInfo savedStateFile)
+            @NonNull final SavedStateInfo savedStateFile,
+            @NonNull final PlatformStateFacade platformStateFacade)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading signed state from disk: {}", savedStateFile.stateFile());
 
         final DeserializedSignedState deserializedSignedState;
         try {
-            deserializedSignedState = readStateFile(configuration, savedStateFile.stateFile());
+            deserializedSignedState = readStateFile(configuration, savedStateFile.stateFile(), platformStateFacade);
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateFile.stateFile(), e);
 
@@ -265,13 +258,13 @@ public final class StartupStateUtils {
             }
         }
 
-        final PlatformMerkleStateRoot state =
+        final MerkleNodeState state =
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
-        final Hash newHash = rehashTree(state);
+        final Hash newHash = rehashTree(state.getRoot());
 
-        final SoftwareVersion loadedVersion = state.getReadablePlatformState().getCreationSoftwareVersion();
+        final SoftwareVersion loadedVersion = platformStateFacade.creationSoftwareVersionOf(state);
 
         if (oldHash.equals(newHash)) {
             logger.info(STARTUP.getMarker(), "Loaded state's hash is the same as when it was saved.");
@@ -326,11 +319,19 @@ public final class StartupStateUtils {
             @NonNull final Configuration configuration,
             @NonNull final AddressBook addressBook,
             @NonNull final SoftwareVersion appVersion,
-            @NonNull final PlatformMerkleStateRoot stateRoot) {
-        initGenesisState(configuration, stateRoot, stateRoot.getWritablePlatformState(), addressBook, appVersion);
+            @NonNull final MerkleNodeState stateRoot,
+            @NonNull final PlatformStateFacade platformStateFacade) {
+        initGenesisState(configuration, stateRoot, platformStateFacade, addressBook, appVersion);
 
         final SignedState signedState = new SignedState(
-                configuration, CryptoStatic::verifySignature, stateRoot, "genesis state", false, false, false);
+                configuration,
+                CryptoStatic::verifySignature,
+                stateRoot,
+                "genesis state",
+                false,
+                false,
+                false,
+                platformStateFacade);
         return signedState.reserve("initial reservation on genesis state");
     }
 
@@ -338,19 +339,19 @@ public final class StartupStateUtils {
      * Initializes a genesis platform state and RosterService state.
      * @param configuration the configuration for this node
      * @param state the State instance to initialize
-     * @param platformState the platform state to initialize
+     * @param platformStateFacade the facade to access the platform state
      * @param addressBook the current address book
      * @param appVersion the software version of the app
      */
     private static void initGenesisState(
             final Configuration configuration,
             final State state,
-            final PlatformStateModifier platformState,
+            final PlatformStateFacade platformStateFacade,
             final AddressBook addressBook,
             final SoftwareVersion appVersion) {
         final long round = 0L;
 
-        platformState.bulkUpdate(v -> {
+        platformStateFacade.bulkUpdateOf(state, v -> {
             v.setCreationSoftwareVersion(appVersion);
             v.setRound(round);
             v.setLegacyRunningEventHash(null);

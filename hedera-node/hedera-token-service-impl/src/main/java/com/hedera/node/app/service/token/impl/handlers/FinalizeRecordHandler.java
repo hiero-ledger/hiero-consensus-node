@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.TOKEN_TRANSFER_LIST_COMPARATOR;
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.asAccountAmounts;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.requiresExternalization;
 import static java.util.Collections.emptyList;
@@ -42,8 +26,11 @@ import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
@@ -63,20 +50,23 @@ import org.apache.logging.log4j.Logger;
 public class FinalizeRecordHandler extends RecordFinalizerBase {
     private static final Logger logger = LogManager.getLogger(FinalizeRecordHandler.class);
     public static final long LEDGER_TOTAL_TINY_BAR_FLOAT = 5000000000000000000L;
-    private static final List<AccountAmount> GENESIS_TREASURY_CREDIT = List.of(AccountAmount.newBuilder()
-            .amount(LEDGER_TOTAL_TINY_BAR_FLOAT)
-            .accountID(asAccount(2))
-            .build());
 
     private final StakingRewardsHandler stakingRewardsHandler;
+    private final AccountsConfig accountsConfig;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * Constructs a {@link FinalizeRecordHandler} instance.
      * @param stakingRewardsHandler the {@link StakingRewardsHandler} instance
      */
     @Inject
-    public FinalizeRecordHandler(@NonNull final StakingRewardsHandler stakingRewardsHandler) {
+    public FinalizeRecordHandler(
+            @NonNull final StakingRewardsHandler stakingRewardsHandler,
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.stakingRewardsHandler = stakingRewardsHandler;
+        this.accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+        this.entityIdFactory = entityIdFactory;
     }
 
     public void finalizeStakingRecord(
@@ -197,7 +187,12 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
                     ? emptyList()
                     : childRecord.transferList().accountAmounts();
             if (childHbarChangesFromRecord.size() == 1) {
-                if (!childHbarChangesFromRecord.equals(GENESIS_TREASURY_CREDIT)) {
+                var genesisTreasuryCredit = List.of(AccountAmount.newBuilder()
+                        .amount(LEDGER_TOTAL_TINY_BAR_FLOAT)
+                        .accountID(entityIdFactory.newAccountId(accountsConfig.treasury()))
+                        .build());
+
+                if (!childHbarChangesFromRecord.equals(genesisTreasuryCredit)) {
                     throw new IllegalStateException("Invalid hbar changes from child record");
                 }
                 return;

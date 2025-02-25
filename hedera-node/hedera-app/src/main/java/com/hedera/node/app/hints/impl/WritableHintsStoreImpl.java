@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -22,10 +7,13 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONS
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_KEY;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_KEY;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_KEY;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
@@ -35,6 +23,8 @@ import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
@@ -48,6 +38,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -62,6 +53,8 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     private final WritableSingletonState<HintsConstruction> nextConstruction;
     private final WritableSingletonState<HintsConstruction> activeConstruction;
     private final WritableKVState<PreprocessingVoteId, PreprocessingVote> votes;
+    private final WritableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
+    private final WritableSingletonState<CRSState> crsState;
 
     public WritableHintsStoreImpl(@NonNull final WritableStates states) {
         super(states);
@@ -69,6 +62,8 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
         this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
         this.activeConstruction = states.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY);
         this.votes = states.get(PREPROCESSING_VOTES_KEY);
+        this.crsState = states.getSingleton(CRS_STATE_KEY);
+        this.crsPublications = states.get(CRS_PUBLICATIONS_KEY);
     }
 
     @NonNull
@@ -162,11 +157,32 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
         }
     }
 
+    @Override
+    public void setCRSState(@NonNull final CRSState crsState) {
+        this.crsState.put(crsState);
+    }
+
+    @Override
+    public void moveToNextNode(
+            @NonNull final OptionalLong nextNodeIdFromRoster, @NonNull final Instant nextContributionTimeEnd) {
+        final var crsState = requireNonNull(this.crsState.get());
+        final var newCrsState = crsState.copyBuilder()
+                .nextContributingNodeId(nextNodeIdFromRoster.isPresent() ? nextNodeIdFromRoster.getAsLong() : null)
+                .contributionEndTime(asTimestamp(nextContributionTimeEnd))
+                .build();
+        setCRSState(newCrsState);
+    }
+
+    @Override
+    public void addCrsPublication(final long nodeId, @NonNull final CrsPublicationTransactionBody crsPublication) {
+        crsPublications.put(new NodeId(nodeId), crsPublication);
+    }
+
     /**
      * Updates the construction with the given ID using the given spec.
      *
      * @param constructionId the construction ID
-     * @param spec the spec
+     * @param spec           the spec
      * @return the updated construction
      */
     private HintsConstruction updateOrThrow(
@@ -186,11 +202,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
 
     /**
      * Updates the store for a new construction.
+     *
      * @param sourceRosterHash the source roster hash
      * @param targetRosterHash the target roster hash
-     * @param lookup the roster lookup
-     * @param now the current time
-     * @param gracePeriod the grace period
+     * @param lookup           the roster lookup
+     * @param now              the current time
+     * @param gracePeriod      the grace period
      * @return the new construction
      */
     private HintsConstruction updateForNewConstruction(
@@ -237,7 +254,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
      * Purges the votes for the given construction relative to the given roster lookup.
      *
      * @param construction the construction
-     * @param lookup the roster lookup
+     * @param lookup       the roster lookup
      */
     private void purgeVotes(
             @NonNull final HintsConstruction construction, @NonNull final Function<Bytes, Roster> lookup) {
@@ -249,9 +266,10 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
 
     /**
      * Purges any hinTS keys for the given construction if it was not for the given party size.
-     * @param m the party size
+     *
+     * @param m            the party size
      * @param construction the construction
-     * @param lookup the roster lookup
+     * @param lookup       the roster lookup
      */
     private void purgeHintsKeysIfNotForPartySize(
             final int m, @NonNull final HintsConstruction construction, @NonNull final Function<Bytes, Roster> lookup) {
@@ -277,6 +295,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
 
     /**
      * Internal helper to convert a map of node IDs to party IDs to a list of node party IDs.
+     *
      * @param nodePartyIds the map
      * @return the list
      */

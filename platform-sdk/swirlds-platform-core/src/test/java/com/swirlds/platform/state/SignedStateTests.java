@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
@@ -29,15 +14,17 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.exceptions.ReferenceCountException;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,8 +41,11 @@ class SignedStateTests {
     /**
      * Generate a signed state.
      */
-    private SignedState generateSignedState(final Random random, final PlatformMerkleStateRoot state) {
-        return new RandomSignedStateGenerator(random).setState(state).build();
+    private SignedState generateSignedState(final Random random, final MerkleNodeState state) {
+        return new RandomSignedStateGenerator(random)
+                .setState(state)
+                .buildWithFacade()
+                .left();
     }
 
     @BeforeEach
@@ -74,21 +64,18 @@ class SignedStateTests {
      * @param reserveCallback this method is called when the State is reserved
      * @param releaseCallback this method is called when the State is released
      */
-    private PlatformMerkleStateRoot buildMockState(
+    private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
-        final var real = new PlatformMerkleStateRoot(version -> new BasicSoftwareVersion(version.major()));
+        final var real = new TestMerkleStateRoot();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(real);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
-        final PlatformMerkleStateRoot state = spy(real);
-
-        final PlatformStateModifier platformState = new PlatformState();
-        when(state.getWritablePlatformState()).thenReturn(platformState);
+        final MerkleNodeState state = spy(real);
         if (reserveCallback != null) {
             doAnswer(invocation -> {
                         reserveCallback.run();
                         return null;
                     })
-                    .when(state)
+                    .when((MerkleNode) state)
                     .reserve();
         }
 
@@ -112,7 +99,7 @@ class SignedStateTests {
         final AtomicBoolean reserved = new AtomicBoolean(false);
         final AtomicBoolean released = new AtomicBoolean(false);
 
-        final PlatformMerkleStateRoot state = buildMockState(
+        final MerkleNodeState state = buildMockState(
                 random,
                 () -> {
                     assertFalse(reserved.get(), "should only be reserved once");
@@ -174,7 +161,7 @@ class SignedStateTests {
 
         final Thread mainThread = Thread.currentThread();
 
-        final PlatformMerkleStateRoot state = buildMockState(
+        final MerkleNodeState state = buildMockState(
                 random,
                 () -> {
                     assertFalse(reserved.get(), "should only be reserved once");
@@ -224,11 +211,10 @@ class SignedStateTests {
     @Test
     @DisplayName("Alternate Constructor Reservations Test")
     void alternateConstructorReservationsTest() {
-        final PlatformMerkleStateRoot state =
-                spy(new PlatformMerkleStateRoot(version -> new BasicSoftwareVersion(version.major())));
+        final MerkleNodeState state = spy(new TestMerkleStateRoot());
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
+        final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
-        when(state.getReadablePlatformState()).thenReturn(platformState);
         when(platformState.getRound()).thenReturn(0L);
         final SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),
@@ -237,7 +223,8 @@ class SignedStateTests {
                 "test",
                 false,
                 false,
-                false);
+                false,
+                platformStateFacade);
 
         assertFalse(state.isDestroyed(), "state should not yet be destroyed");
 

@@ -1,28 +1,9 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.system.transaction.TransactionWrapper;
@@ -38,12 +19,8 @@ class TransactionUtilsTest {
 
     @ParameterizedTest
     @MethodSource("buildArgumentsAppTransactions")
-    void testSizeComparisonsAppTransactions(
-            final OneOf<TransactionOneOfType> oneOfTransaction,
-            final Bytes transaction,
-            final TransactionWrapper swirldTransaction) {
+    void testSizeComparisonsAppTransactions(final Bytes transaction, final TransactionWrapper swirldTransaction) {
         assertEquals(TransactionUtils.getLegacyTransactionSize(transaction), swirldTransaction.getSize());
-        assertFalse(TransactionUtils.isSystemTransaction(oneOfTransaction));
     }
 
     protected static Stream<Arguments> buildArgumentsAppTransactions() {
@@ -52,10 +29,8 @@ class TransactionUtilsTest {
 
         IntStream.range(0, 100).forEach(i -> {
             final Bytes payload = randotron.nextHashBytes();
-            final OneOf<TransactionOneOfType> oneOfTransaction =
-                    new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, payload);
 
-            arguments.add(Arguments.of(oneOfTransaction, payload, new TransactionWrapper(payload)));
+            arguments.add(Arguments.of(payload, new TransactionWrapper(payload)));
         });
 
         return arguments.stream();
@@ -64,11 +39,8 @@ class TransactionUtilsTest {
     @ParameterizedTest
     @MethodSource("buildArgumentsStateSignatureTransaction")
     void testSizeComparisonsStateSignatureTransaction(
-            final OneOf<TransactionOneOfType> oneOfTransaction,
-            final Bytes payload,
-            final TransactionWrapper stateSignatureTransaction) {
+            final Bytes payload, final TransactionWrapper stateSignatureTransaction) {
         assertEquals(TransactionUtils.getLegacyTransactionSize(payload), stateSignatureTransaction.getSize());
-        assertTrue(TransactionUtils.isSystemTransaction(oneOfTransaction));
     }
 
     protected static Stream<Arguments> buildArgumentsStateSignatureTransaction() {
@@ -81,10 +53,8 @@ class TransactionUtilsTest {
                     .signature(randotron.nextSignatureBytes())
                     .build();
             final Bytes bytes = StateSignatureTransaction.PROTOBUF.toBytes(payload);
-            final OneOf<TransactionOneOfType> oneOfTransaction =
-                    new OneOf<>(TransactionOneOfType.STATE_SIGNATURE_TRANSACTION, payload);
 
-            arguments.add(Arguments.of(oneOfTransaction, bytes, new TransactionWrapper(bytes)));
+            arguments.add(Arguments.of(bytes, new TransactionWrapper(bytes)));
         });
 
         return arguments.stream();

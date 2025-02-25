@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
 import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -104,11 +89,7 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
                                 .build())
                         .fallbackFee(FixedFee.newBuilder().amount(1).build())
                         .build())
-                .feeCollectorAccountId(AccountID.newBuilder()
-                        .shardNum(1)
-                        .realmNum(2)
-                        .accountNum(3)
-                        .build())
+                .feeCollectorAccountId(AccountID.newBuilder().accountNum(3).build())
                 .build());
 
         given(tokens.get(tokenId)).willReturn(copy.build());
@@ -130,11 +111,7 @@ class ReadableTokenStoreImplTest extends TokenHandlerTestBase {
                                 .denominator(2)
                                 .build())
                         .build())
-                .feeCollectorAccountId(AccountID.newBuilder()
-                        .shardNum(1)
-                        .realmNum(2)
-                        .accountNum(5)
-                        .build())
+                .feeCollectorAccountId(AccountID.newBuilder().accountNum(5).build())
                 .build());
 
         given(tokens.get(tokenId)).willReturn(copy.build());

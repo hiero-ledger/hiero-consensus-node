@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.turtle.runner;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
@@ -24,31 +9,46 @@ import static com.swirlds.platform.turtle.runner.TurtleStateLifecycles.TURTLE_ST
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
+import com.swirlds.component.framework.wires.input.InputWire;
+import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
+import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder;
+import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsListContainer;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
+import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
+import java.util.List;
 
 /**
  * Encapsulates a single node running in a TURTLE network.
@@ -69,6 +69,7 @@ public class TurtleNode {
 
     private final DeterministicWiringModel model;
     private final Platform platform;
+    private final ConsensusRoundsHolder consensusRoundsHolder;
 
     /**
      * Create a new TurtleNode. Simulates a single consensus node in a TURTLE network.
@@ -79,6 +80,7 @@ public class TurtleNode {
      * @param addressBook the address book for the network
      * @param privateKeys the private keys for this node
      * @param network     the simulated network
+     * @param outputDirectory the directory where the node output will be stored, like saved state and so on
      */
     TurtleNode(
             @NonNull final Randotron randotron,
@@ -86,11 +88,14 @@ public class TurtleNode {
             @NonNull final NodeId nodeId,
             @NonNull final AddressBook addressBook,
             @NonNull final KeysAndCerts privateKeys,
-            @NonNull final SimulatedNetwork network) {
+            @NonNull final SimulatedNetwork network,
+            @NonNull final Path outputDirectory) {
 
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
                 .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
+                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.toString())
+                .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.toString())
                 .getOrCreateConfig();
 
         setupGlobalMetrics(configuration);
@@ -103,6 +108,8 @@ public class TurtleNode {
         model = WiringModelBuilder.create(platformContext)
                 .withDeterministicModeEnabled(true)
                 .build();
+        final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+        final PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> softwareVersion);
         final var version = new BasicSoftwareVersion(1);
         MerkleDb.resetDefaultInstancePath();
         final var metrics = getMetricsProvider().createPlatformMetrics(nodeId);
@@ -118,17 +125,20 @@ public class TurtleNode {
                 "foo",
                 "bar",
                 nodeId,
-                addressBook);
+                addressBook,
+                platformStateFacade);
         final var initialState = reservedState.state();
+
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         "foo",
                         "bar",
-                        new BasicSoftwareVersion(1),
+                        softwareVersion,
                         initialState,
                         TURTLE_STATE_LIFECYCLES,
                         nodeId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
-                        RosterUtils.buildRosterHistory(initialState.get().getState()))
+                        RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),
+                        platformStateFacade)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))
                 .withKeysAndCerts(privateKeys)
@@ -137,6 +147,22 @@ public class TurtleNode {
                 .withSystemTransactionEncoderCallback(StateSignatureTransaction.PROTOBUF::toBytes);
 
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
+
+        final PlatformBuildingBlocks buildingBlocks = platformComponentBuilder.getBuildingBlocks();
+
+        final ComponentWiring<ConsensusRoundsHolder, Void> consensusRoundsHolderWiring =
+                new ComponentWiring<>(model, ConsensusRoundsHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
+
+        consensusRoundsHolder = new ConsensusRoundsListContainer();
+        consensusRoundsHolderWiring.bind(consensusRoundsHolder);
+
+        final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =
+                consensusRoundsHolderWiring.getInputWire(ConsensusRoundsHolder::interceptRounds);
+
+        final PlatformWiring platformWiring = buildingBlocks.platformWiring();
+        final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
+                platformWiring.getConsensusEngineOutputWire();
+        consensusEngineOutputWire.solderTo(consensusRoundsHolderInputWire);
 
         final SimulatedGossip gossip = network.getGossipInstance(nodeId);
         gossip.provideIntakeEventCounter(
@@ -159,5 +185,10 @@ public class TurtleNode {
      */
     public void tick() {
         model.tick();
+    }
+
+    @NonNull
+    public ConsensusRoundsHolder getConsensusRoundsHolder() {
+        return consensusRoundsHolder;
     }
 }

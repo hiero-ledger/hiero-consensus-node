@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints;
 
 import com.hedera.node.app.hints.impl.HintsLibraryCodec;
@@ -52,10 +37,10 @@ public interface HintsLibrary {
     Bytes newCrs(int n);
 
     /**
-     * Updates the given CRS with the given 128 bits of entropy and returns the concatenation of the
+     * Updates the given CRS with the given 256 bits of entropy and returns the concatenation of the
      * updated CRS and a proof of the contribution.
      * @param crs the CRS
-     * @param entropy the 128-bit entropy
+     * @param entropy the 256-bit entropy
      * @return the updated CRS and proof
      */
     Bytes updateCrs(@NonNull Bytes crs, @NonNull Bytes entropy);

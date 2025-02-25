@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
@@ -492,6 +477,38 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             secondSplit.forEachRemaining(secondConsumer);
             verify(secondConsumer).accept(2);
             verifyNoMoreInteractions(secondConsumer);
+        }
+    }
+
+    @Test
+    void testRestoreUpdateSnapshot() throws IOException {
+        try (final LongList longList = createFullyParameterizedLongListWith(100, MAX_LONGS)) {
+            longList.updateValidRange(0, 50);
+            longList.put(2, 1002);
+            final Path tmpDir = Files.createTempDirectory("testRestoreUpdateSnapshot");
+            final Path tmpFile = tmpDir.resolve("snapshot");
+            longList.writeToFile(tmpFile);
+            try (final LongList restored = createLongListFromFile(tmpFile)) {
+                restored.updateValidRange(0, 50);
+                assertEquals(3, restored.size());
+                assertEquals(1002, restored.get(2));
+                restored.put(3, 1003);
+                final Path tmpDir2 = Files.createTempDirectory("testRestoreUpdateSnapshot");
+                final Path tmpFile2 = tmpDir2.resolve("snapshot");
+                restored.writeToFile(tmpFile2);
+                try (final LongList restored2 = createLongListFromFile(tmpFile2)) {
+                    restored2.updateValidRange(0, 50);
+                    assertEquals(4, restored2.size());
+                    assertEquals(1002, restored2.get(2));
+                    assertEquals(1003, restored2.get(3));
+                } finally {
+                    Files.delete(tmpFile2);
+                    Files.delete(tmpDir2);
+                }
+            } finally {
+                Files.delete(tmpFile);
+                Files.delete(tmpDir);
+            }
         }
     }
 

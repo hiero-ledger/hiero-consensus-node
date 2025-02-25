@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 
@@ -29,8 +15,9 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -77,15 +64,15 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
+        final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readStateFile(configuration, statePath);
+                SignedStateFileReader.readStateFile(configuration, statePath, stateFacade);
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
-            final PlatformStateModifier platformState =
-                    reservedSignedState.get().getState().getWritablePlatformState();
-            platformState.bulkUpdate(v -> {
+            stateFacade.bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");
                 v.setRound(PlatformStateAccessor.GENESIS_ROUND);
-                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
+                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot(
+                        configuration.getConfigData(EventConfig.class).getAncientMode()));
 
                 // FUTURE WORK: remove once the AddressBook setters are deprecated and the fields are nullified.
                 // For now, we have to keep these calls to ensure RosterRetriever won't fall back to using these values.
@@ -103,10 +90,11 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
             }
             System.out.printf("Hashing state %n");
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(reservedSignedState.get().getState())
+                    .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
-            writeSignedStateFilesToDirectory(platformContext, NO_NODE_ID, outputDir, reservedSignedState.get());
+            writeSignedStateFilesToDirectory(
+                    platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateFacade);
         }
 
         return 0;

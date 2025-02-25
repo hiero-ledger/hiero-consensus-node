@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
@@ -155,21 +140,6 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     }
 
     /**
-     * Returns the {@link Account} with the given {@link AccountID}.It uses the getForModify method
-     * to get the account. If no such account exists, returns {@code null}
-     *
-     * @param id - the number of the account to be retrieved.
-     * @return the account with the given account number, or null if no such account exists
-     */
-    @Nullable
-    public Account getForModify(@NonNull final AccountID id) {
-        requireNonNull(id);
-        // Get the account number based on the account identifier. It may be null.
-        final var accountId = id.account().kind() == ACCOUNT_NUM ? id : null;
-        return accountId == null ? null : accountState().getForModify(accountId);
-    }
-
-    /**
      * Gets the original value associated with the given accountId before any modifications were made to
      * it. The returned value will be {@code null} if the accountId does not exist.
      *
@@ -211,6 +181,8 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
                         || !oldAccount.smartContract()
                         || oldAccount.ethereumNonce() != newAccount.ethereumNonce()) {
                     final var contractId = ContractID.newBuilder()
+                            .shardNum(accountId.shardNum())
+                            .realmNum(accountId.realmNum())
                             .contractNum(accountId.accountNumOrThrow())
                             .build();
                     // exclude nonce info if contract was destructed

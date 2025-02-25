@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
@@ -30,6 +15,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -63,8 +49,10 @@ import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
@@ -96,9 +84,8 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
             .tinybarBalance(10000)
             .build();
     private static final TokenID TOKEN_321 = asToken(321);
-    private Token TOKEN_321_FUNGIBLE =
+    private final Token TOKEN_321_FUNGIBLE =
             givenValidFungibleToken().copyBuilder().tokenId(TOKEN_321).build();
-    private static final List<TransactionRecord> EMPTY_TRANSACTION_RECORD_LIST = Collections.emptyList();
 
     @Mock(strictness = LENIENT)
     private FinalizeContext context;
@@ -121,12 +108,19 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock
     private StakingRewardsHelper stakingRewardsHelper;
 
+    @Mock
+    private ConfigProvider configProvider;
+
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private FinalizeRecordHandler subject;
 
     @BeforeEach
     public void setUp() {
         super.setUp();
-        subject = new FinalizeRecordHandler(stakingRewardsHandler);
+        when(configProvider.getConfiguration()).thenReturn(versionedConfig);
+        subject = new FinalizeRecordHandler(stakingRewardsHandler, configProvider, entityIdFactory);
     }
 
     @Test
@@ -602,7 +596,7 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                         .nftTransfers(NftTransfer.newBuilder()
                                 .serialNumber(1)
                                 .senderAccountID(ACCOUNT_1212_ID)
-                                .receiverAccountID(asAccount(0))
+                                .receiverAccountID(asAccount(0L, 0L, 0))
                                 .build())
                         .build()));
     }

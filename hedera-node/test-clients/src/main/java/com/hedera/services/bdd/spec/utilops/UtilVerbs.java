@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
@@ -156,6 +141,7 @@ import com.hedera.services.bdd.spec.utilops.mod.SubmitModificationsOp;
 import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
+import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
@@ -695,6 +681,14 @@ public class UtilVerbs {
      */
     public static HapiSpecWaitUntil waitUntilStartOfNextAdhocPeriod(final long periodMs) {
         return untilStartOfNextAdhocPeriod(periodMs);
+    }
+
+    /**
+     * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next block stream block.
+     * @return the operation that sleeps until the beginning of the next block stream block
+     */
+    public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
+        return new HapiSpecWaitUntilNextBlock();
     }
 
     public static HapiSpecWaitUntil waitUntilJustBeforeNextStakingPeriod(
@@ -1437,7 +1431,10 @@ public class UtilVerbs {
             long tinyBarMaxNetworkFee,
             long tinyBarMaxServiceFee) {
         return withOpContext((spec, opLog) -> {
-            if (!spec.setup().defaultNode().equals(asAccount("0.0.3"))) {
+            var shard = spec.startupProperties().getLong("hedera.shard");
+            var realm = spec.startupProperties().getLong("hedera.realm");
+
+            if (!spec.setup().defaultNode().equals(asAccount(String.format("%d.%d.3", shard, realm)))) {
                 opLog.info("Sleeping to wait for fee reduction...");
                 Thread.sleep(20000);
                 return;
@@ -1604,8 +1601,8 @@ public class UtilVerbs {
                 final var updateSubOp = fileUpdate(fileName)
                         .fee(ONE_HUNDRED_HBARS)
                         .contents(contents.substring(0, position))
-                        .alertingPre(fid -> System.out.println(
-                                ".i. Submitting initial update for file" + " 0.0." + fid.getFileNum()))
+                        .alertingPre(fid -> System.out.println(".i. Submitting initial update for file"
+                                + String.format(" %s.%s.%s, ", fid.getShardNum(), fid.getRealmNum(), fid.getFileNum())))
                         .alertingPost(code -> System.out.println(".i. Finished initial update with " + code))
                         .noLogging()
                         .payingWith(payer)
@@ -1902,6 +1899,20 @@ public class UtilVerbs {
         });
     }
 
+    public static CustomSpecAssert validateInnerTxnChargedUsd(
+            String txn, String parent, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s fee (%s) more than %.2f percent different than expected!",
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
     /**
      * Validates that fee charged for a transaction is within the allowedPercentDiff of expected fee (taken
      * from pricing calculator) without the charge for gas.
@@ -2012,9 +2023,20 @@ public class UtilVerbs {
                         .toArray(n -> new SpecOperation[n]));
     }
 
-    public static HapiSpecOperation validateRecordTransactionFees(String txn) {
+    public static HapiSpecOperation validateRecordTransactionFees(HapiSpec spec, String txn) {
+        var shard = spec.startupProperties().getLong("hedera.shard");
+        var realm = spec.startupProperties().getLong("hedera.realm");
+        var fundingAccount = spec.startupProperties().getLong("ledger.fundingAccount");
+        var stakingRewardAccount = spec.startupProperties().getLong("accounts.stakingRewardAccount");
+        var nodeRewardAccount = spec.startupProperties().getLong("accounts.nodeRewardAccount");
+
         return validateRecordTransactionFees(
-                txn, Set.of(asAccount("0.0.3"), asAccount("0.0.98"), asAccount("0.0.800"), asAccount("0.0.801")));
+                txn,
+                Set.of(
+                        asAccount(String.format("%s.%s.3", shard, realm)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, fundingAccount)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, stakingRewardAccount)),
+                        asAccount(String.format("%s.%s.%s", shard, realm, nodeRewardAccount))));
     }
 
     /**
@@ -2492,6 +2514,22 @@ public class UtilVerbs {
                 / ONE_HBAR
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    private static double getChargedUsedForInnerTxn(
+            @NonNull final HapiSpec spec, @NonNull final String parent, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).assertingNothingAboutHashes().logged();
+        var parentOp = getTxnRecord(parent);
+        allRunFor(spec, parentOp, subOp);
+        final var rcd = subOp.getResponseRecord();
+        final var parentRcd = parentOp.getResponseRecord();
+        return (1.0 * rcd.getTransactionFee())
+                / ONE_HBAR
+                / parentRcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * parentRcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
                 / 100;
     }
 

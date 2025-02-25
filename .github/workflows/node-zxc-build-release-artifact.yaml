@@ -1,19 +1,4 @@
-##
-# Copyright (C) 2024-2025 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "ZXC: [Node] Deploy Release Artifacts"
 on:
   workflow_call:
@@ -59,7 +44,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.4"
+        default: "21.0.6"
       gradle-version:
         description: "Gradle Version:"
         type: string
@@ -117,7 +102,7 @@ permissions:
 jobs:
   validate:
     name: Validate
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
@@ -213,7 +198,7 @@ jobs:
           echo "prerelease=${PRERELEASE}" >>"${GITHUB_OUTPUT}"
 
       - name: Upload Build Version
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: version.txt
           path: version.txt
@@ -221,7 +206,7 @@ jobs:
 
   build-artifact:
     name: Build Artifact
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - validate
     steps:
@@ -370,7 +355,7 @@ jobs:
 
       - name: Upload Artifacts (CDN Bucket)
         uses: google-github-actions/upload-cloud-storage@386ab77f37fdf51c0e38b3d229fad286861cc0d0 # v2.2.1
-        if: ${{ inputs.dry-run-enabled != true && needs.validate.outputs.prerelease != 'true' && !cancelled() && !failure() }}
+        if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
         with:
           path: ${{ steps.artifact-release.outputs.folder }}
           destination: ${{ secrets.cdn-bucket-name }}/node/software/v${{ needs.validate.outputs.version-prefix }}/
@@ -379,7 +364,7 @@ jobs:
 
   local-node-images:
     name: Publish Local Node Images
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - validate
       - build-artifact
@@ -553,7 +538,7 @@ jobs:
 
   validate-production-image:
     name: Validate Production Image
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - gcp-production-image
       - jfr-production-image
@@ -659,7 +644,7 @@ jobs:
           fi
 
       - name: Upload Manifests
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: ${{ (steps.gcp.outcome == 'success' || steps.jfrog.outcome == 'success') && !cancelled() && always() }}
         with:
           name: Production Image Manifests
@@ -667,7 +652,7 @@ jobs:
 
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - validate
     if: ${{ inputs.release-profile != 'none' }}
@@ -832,7 +817,7 @@ jobs:
 
   send-notifications:
     name: Send Release Notifications
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - validate
       - local-node-images

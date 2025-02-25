@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
@@ -24,6 +9,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeHashInfoFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignatureSetFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.merkle.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static java.nio.file.Files.exists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,7 +33,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
@@ -71,6 +58,7 @@ class SignedStateFileReadWriteTest {
     Path testDirectory;
 
     private static SemanticVersion platformVersion;
+    private static PlatformStateFacade stateFacade;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -83,6 +71,7 @@ class SignedStateFileReadWriteTest {
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.merkledb");
         FakeStateLifecycles.registerMerkleStateRootClassIds();
+        stateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(platformVersion.major()));
     }
 
     @BeforeEach
@@ -107,15 +96,15 @@ class SignedStateFileReadWriteTest {
         final SignedState signedState = new RandomSignedStateGenerator()
                 .setSoftwareVersion(new BasicSoftwareVersion(platformVersion.minor()))
                 .build();
-        PlatformMerkleStateRoot state = signedState.getState();
-        writeHashInfoFile(platformContext, testDirectory, state);
+        final MerkleNodeState state = signedState.getState();
+        writeHashInfoFile(platformContext, testDirectory, state, stateFacade);
         final StateConfig stateConfig =
                 new TestConfigBuilder().getOrCreateConfig().getConfigData(StateConfig.class);
 
         final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");
 
-        final String hashInfoString = new MerkleTreeVisualizer(state)
+        final String hashInfoString = new MerkleTreeVisualizer(state.getRoot())
                 .setDepth(stateConfig.debugHashDepth())
                 .render();
 
@@ -138,7 +127,7 @@ class SignedStateFileReadWriteTest {
         assertFalse(exists(stateFile), "signed state file should not yet exist");
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
 
-        State state = (State) signedState.getState();
+        State state = signedState.getState();
         state.copy();
         state.createSnapshot(testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
@@ -147,11 +136,14 @@ class SignedStateFileReadWriteTest {
         assertTrue(exists(signatureSetFile), "signature set file should be present");
 
         MerkleDb.resetDefaultInstancePath();
-        final DeserializedSignedState deserializedSignedState =
-                readStateFile(TestPlatformContextBuilder.create().build().getConfiguration(), stateFile);
+        final DeserializedSignedState deserializedSignedState = readStateFile(
+                TestPlatformContextBuilder.create().build().getConfiguration(), stateFile, TEST_PLATFORM_STATE_FACADE);
         MerkleCryptoFactory.getInstance()
-                .digestTreeSync(
-                        deserializedSignedState.reservedSignedState().get().getState());
+                .digestTreeSync(deserializedSignedState
+                        .reservedSignedState()
+                        .get()
+                        .getState()
+                        .getRoot());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
         assertEquals(signedState.getState().getHash(), deserializedSignedState.originalHash(), "hash should match");
@@ -187,7 +179,12 @@ class SignedStateFileReadWriteTest {
         signedState.getState().copy();
 
         writeSignedStateToDisk(
-                platformContext, NodeId.of(0), directory, signedState, StateToDiskReason.PERIODIC_SNAPSHOT);
+                platformContext,
+                NodeId.of(0),
+                directory,
+                signedState,
+                StateToDiskReason.PERIODIC_SNAPSHOT,
+                stateFacade);
 
         assertTrue(exists(stateFile), "state file should exist");
         assertTrue(exists(hashInfoFile), "hash info file should exist");

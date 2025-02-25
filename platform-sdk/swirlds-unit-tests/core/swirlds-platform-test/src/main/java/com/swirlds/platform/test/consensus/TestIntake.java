@@ -1,26 +1,8 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
-import static com.swirlds.platform.consensus.SyntheticSnapshot.GENESIS_SNAPSHOT;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -36,15 +18,17 @@ import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
+import com.swirlds.platform.consensus.SyntheticSnapshot;
+import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
 import com.swirlds.platform.event.hashing.EventHasher;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
@@ -65,6 +49,7 @@ public class TestIntake {
     private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
     private final WiringModel model;
     private final int roundsNonAncient;
+    private final AncientMode ancientMode;
 
     /**
      * @param platformContext the platform context used to configure this intake.
@@ -76,9 +61,12 @@ public class TestIntake {
                 .getConfiguration()
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
+        ancientMode = platformContext
+                .getConfiguration()
+                .getConfigData(EventConfig.class)
+                .getAncientMode();
 
-        final Time time = Time.getCurrent();
-        output = new ConsensusOutput(time);
+        output = new ConsensusOutput(ancientMode);
 
         model = WiringModelBuilder.create(platformContext).build();
 
@@ -138,15 +126,6 @@ public class TestIntake {
     }
 
     /**
-     * Same as {@link #addEvent(PlatformEvent)} but for a list of events
-     */
-    public void addEvents(@NonNull final List<EventImpl> events) {
-        for (final EventImpl event : events) {
-            addEvent(event.getBaseEvent());
-        }
-    }
-
-    /**
      * @return a queue of all rounds that have reached consensus
      */
     public @NonNull LinkedList<ConsensusRound> getConsensusRounds() {
@@ -158,16 +137,11 @@ public class TestIntake {
     }
 
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
-
-        // FUTURE WORK: remove the fourth variable setting useBirthRound to false when we switch from comparing
-        // minGenNonAncient to comparing birthRound to minRoundNonAncient.  Until then, it is always false in
-        // production.
-
         final EventWindow eventWindow = new EventWindow(
                 snapshot.round(),
-                snapshot.getMinimumGenerationNonAncient(roundsNonAncient),
-                snapshot.getMinimumGenerationNonAncient(roundsNonAncient),
-                GENERATION_THRESHOLD);
+                snapshot.getAncientThreshold(roundsNonAncient),
+                snapshot.getAncientThreshold(roundsNonAncient),
+                ancientMode);
 
         orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);
         consensusEngineWiring
@@ -180,13 +154,16 @@ public class TestIntake {
     }
 
     public void reset() {
-        loadSnapshot(GENESIS_SNAPSHOT);
+        loadSnapshot(SyntheticSnapshot.getGenesisSnapshot(ancientMode));
         output.clear();
     }
 
     public <X> TaskScheduler<X> directScheduler(final String name) {
         return model.<X>schedulerBuilder(name)
                 .withType(TaskSchedulerType.DIRECT)
+                .withUncaughtExceptionHandler((t, e) -> {
+                    throw new RuntimeException("Uncaught exception in task " + t, e);
+                })
                 .build();
     }
 }

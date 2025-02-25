@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
@@ -51,9 +36,12 @@ import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThread
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.State;
@@ -70,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
@@ -106,7 +95,6 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     @BeforeEach
     void setUpEach() throws Exception {
-        PLATFORM_STATE_SERVICE.setAppVersionFn(ServicesSoftwareVersion::from);
         // create in memory temp dir
         fs = Jimfs.newFileSystem(Configuration.unix());
         final var tempDir = fs.getPath("/temp");
@@ -456,6 +444,17 @@ final class BlockRecordManagerTest extends AppTestBase {
             @NonNull
             @Override
             public WritableStates getWritableStates(@NonNull String serviceName) {
+                throw new UnsupportedOperationException("Shouldn't be needed for this test");
+            }
+
+            @Override
+            public void init(
+                    Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+                throw new UnsupportedOperationException("Shouldn't be needed for this test");
+            }
+
+            @Override
+            public void setHash(Hash hash) {
                 throw new UnsupportedOperationException("Shouldn't be needed for this test");
             }
         };

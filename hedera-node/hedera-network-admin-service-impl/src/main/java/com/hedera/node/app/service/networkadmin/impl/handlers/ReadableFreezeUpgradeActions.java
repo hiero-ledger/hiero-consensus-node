@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
@@ -24,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.Spliterator.DISTINCT;
 import static java.util.concurrent.CompletableFuture.runAsync;
 
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -37,8 +23,8 @@ import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -62,14 +48,12 @@ import org.apache.logging.log4j.Logger;
 public class ReadableFreezeUpgradeActions {
     private static final Logger log = LogManager.getLogger(ReadableFreezeUpgradeActions.class);
 
-    private static final com.hedera.hapi.node.base.FileID UPGRADE_FILE_ID =
-            com.hedera.hapi.node.base.FileID.newBuilder().fileNum(150L).build();
-
     private final NodesConfig nodesConfig;
-    private final AddressBookConfig addressBookConfig;
     private final NetworkAdminConfig networkAdminConfig;
     private final ReadableFreezeStore freezeStore;
     private final ReadableUpgradeFileStore upgradeFileStore;
+    private final FileID upgradeFileId;
+    private final EntityIdFactory entityIdFactory;
 
     private final ReadableNodeStore nodeStore;
 
@@ -87,6 +71,8 @@ public class ReadableFreezeUpgradeActions {
     public static final String FREEZE_SCHEDULED_MARKER = "freeze_scheduled.mf";
     public static final String FREEZE_ABORTED_MARKER = "freeze_aborted.mf";
 
+    public static final long UPGRADE_FILE_ID = 150L;
+
     public static final String MARK = "✓";
 
     public ReadableFreezeUpgradeActions(
@@ -95,7 +81,8 @@ public class ReadableFreezeUpgradeActions {
             @NonNull final Executor executor,
             @NonNull final ReadableUpgradeFileStore upgradeFileStore,
             @NonNull final ReadableNodeStore nodeStore,
-            @NonNull final ReadableStakingInfoStore stakingInfoStore) {
+            @NonNull final ReadableStakingInfoStore stakingInfoStore,
+            @NonNull final EntityIdFactory entityIdFactory) {
         requireNonNull(configuration, "configuration is required for freeze upgrade actions");
         requireNonNull(freezeStore, "Freeze store is required for freeze upgrade actions");
         requireNonNull(executor, "Executor is required for freeze upgrade actions");
@@ -105,12 +92,13 @@ public class ReadableFreezeUpgradeActions {
 
         this.networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
         this.nodesConfig = configuration.getConfigData(NodesConfig.class);
-        this.addressBookConfig = configuration.getConfigData(AddressBookConfig.class);
         this.freezeStore = freezeStore;
         this.executor = executor;
         this.upgradeFileStore = upgradeFileStore;
         this.nodeStore = nodeStore;
         this.stakingInfoStore = stakingInfoStore;
+        this.entityIdFactory = entityIdFactory;
+        this.upgradeFileId = entityIdFactory.newFileId(UPGRADE_FILE_ID);
     }
 
     /**
@@ -412,22 +400,29 @@ public class ReadableFreezeUpgradeActions {
             return;
         }
 
+        var shard = upgradeFileId.shardNum();
+        var realm = upgradeFileId.realmNum();
+
         try {
-            final var curSpecialFileContents = upgradeFileStore.getFull(UPGRADE_FILE_ID);
+            final var curSpecialFileContents = upgradeFileStore.getFull(upgradeFileId);
             if (!isPreparedFileHashValidGiven(
                     noThrowSha384HashOf(curSpecialFileContents.toByteArray()),
                     freezeStore.updateFileHash().toByteArray())) {
                 log.error(
-                        "Cannot redo NMT upgrade prep, file 0.0.{} changed since FREEZE_UPGRADE",
-                        UPGRADE_FILE_ID.fileNum());
+                        "Cannot redo NMT upgrade prep, file {}.{}.{} changed since FREEZE_UPGRADE",
+                        shard,
+                        realm,
+                        upgradeFileId.fileNum());
                 log.error(MANUAL_REMEDIATION_ALERT);
                 return;
             }
             extractSoftwareUpgrade(curSpecialFileContents).join();
         } catch (final IOException e) {
             log.error(
-                    "Cannot redo NMT upgrade prep, file 0.0.{} changed since FREEZE_UPGRADE",
-                    UPGRADE_FILE_ID.fileNum(),
+                    "Cannot redo NMT upgrade prep, file {}.{}.{} changed since FREEZE_UPGRADE",
+                    shard,
+                    realm,
+                    upgradeFileId.fileNum(),
                     e);
             log.error(MANUAL_REMEDIATION_ALERT);
         }

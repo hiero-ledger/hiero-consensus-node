@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service.schemas;
 
 import static java.util.Objects.requireNonNull;
@@ -54,8 +39,8 @@ public class V0540PlatformStateSchema extends Schema {
      * A platform state to be used as the non-null platform state under any circumstance a genesis state
      * is encountered before initializing the States API.
      */
-    public static final PlatformState UNINITIALIZED_PLATFORM_STATE = new PlatformState(
-            SemanticVersion.DEFAULT, 0, ConsensusSnapshot.DEFAULT, null, null, Bytes.EMPTY, 0L, 0L, null, null, null);
+    public static final PlatformState UNINITIALIZED_PLATFORM_STATE =
+            new PlatformState(null, 0, ConsensusSnapshot.DEFAULT, null, null, Bytes.EMPTY, 0L, 0L, null, null, null);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
@@ -55,6 +40,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -345,8 +331,9 @@ public class UserTxnFactory {
                 dispatchProcessor,
                 throttleAdvisor,
                 feeAccumulator,
-                HandleContext.DispatchMetadata.EMPTY_METADATA,
-                transactionChecker);
+                DispatchMetadata.EMPTY_METADATA,
+                transactionChecker,
+                preHandleResult.innerResults());
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(
@@ -375,7 +362,8 @@ public class UserTxnFactory {
                 preHandleResult,
                 transactionCategory == SCHEDULED
                         ? HandleContext.ConsensusThrottling.OFF
-                        : HandleContext.ConsensusThrottling.ON);
+                        : HandleContext.ConsensusThrottling.ON,
+                null);
     }
 
     /**
@@ -409,7 +397,7 @@ public class UserTxnFactory {
             @NonNull final Configuration config,
             @NonNull final ReadableStoreFactory readableStoreFactory) {
         try {
-            final var pureChecksContext = new PureChecksContextImpl(body, config, dispatcher, transactionChecker);
+            final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, body, syntheticPayerId, config, dispatcher, transactionChecker);

@@ -1,20 +1,7 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
+
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.commands.StateCommand;
 import com.swirlds.cli.utility.AbstractCommand;
@@ -70,7 +57,7 @@ public class ValidateAddressBookStateCommand extends AbstractCommand {
 
         System.out.printf("Reading state from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readStateFile(configuration, statePath);
+                SignedStateFileReader.readStateFile(configuration, statePath, DEFAULT_PLATFORM_STATE_FACADE);
 
         System.out.printf("Reading address book from %s %n", addressBookPath.toAbsolutePath());
         final String addressBookString = Files.readString(addressBookPath);
@@ -80,7 +67,7 @@ public class ValidateAddressBookStateCommand extends AbstractCommand {
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             System.out.printf("Extracting the state address book for comparison %n");
             stateAddressBook = RosterUtils.buildAddressBook(RosterRetriever.retrieveActiveOrGenesisRoster(
-                    reservedSignedState.get().getState()));
+                    reservedSignedState.get().getState(), DEFAULT_PLATFORM_STATE_FACADE));
         }
 
         System.out.printf("Validating address book %n");

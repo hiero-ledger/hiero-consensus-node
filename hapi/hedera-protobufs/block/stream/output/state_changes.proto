@@ -18,22 +18,7 @@ syntax = "proto3";
 
 package com.hedera.hapi.block.stream.output;
 
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 option java_package = "com.hedera.hapi.block.stream.output.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream.output">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
@@ -72,6 +57,7 @@ import "state/tss/tss_vote_map_key.proto";
 import "state/hints/hints_types.proto";
 import "state/history/history_types.proto";
 import "state/entity/entity_counts.proto";
+import "auxiliary/hints/crs_publication.proto";
 
 /**
  * A set of state changes.
@@ -458,6 +444,16 @@ enum StateIdentifier {
     STATE_ID_PROOF_VOTES = 47;
 
     /**
+     * A state identifier for the CRS state.
+     */
+    STATE_ID_CRS_STATE = 48;
+
+    /**
+     * A state identifier for the CRS publications.
+     */
+    STATE_ID_CRS_PUBLICATIONS = 49;
+
+    /**
      * A state identifier for the round receipts queue.
      */
     STATE_ID_TRANSACTION_RECEIPTS_QUEUE = 126;
@@ -681,6 +677,11 @@ message SingletonUpdateChange {
          * A change to a hinTS construction singleton.
          */
         com.hedera.hapi.node.state.history.HistoryProofConstruction history_proof_construction_value = 16;
+
+        /**
+         * A change to the CRS State singleton.
+         */
+        com.hedera.hapi.node.state.hints.CRSState crs_state_value = 17;
     }
 }
 
@@ -1000,6 +1001,11 @@ message MapChangeValue {
          * A hinTS preprocessing vote.
          */
         com.hedera.hapi.node.state.hints.PreprocessingVote preprocessing_vote_value = 24;
+
+        /**
+         * A CRS publication submission.
+         */
+        com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication_value = 25;
     }
 }
 

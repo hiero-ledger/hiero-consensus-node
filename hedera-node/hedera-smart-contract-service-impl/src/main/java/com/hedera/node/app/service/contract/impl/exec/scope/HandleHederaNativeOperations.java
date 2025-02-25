@@ -1,25 +1,11 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static java.util.Objects.requireNonNull;
 
@@ -39,6 +25,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -108,8 +95,14 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public void setNonce(final long contractNumber, final long nonce) {
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+        final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         tokenServiceApi.setNonce(
-                AccountID.newBuilder().accountNum(contractNumber).build(), nonce);
+                AccountID.newBuilder()
+                        .shardNum(hederaConfig.shard())
+                        .realmNum(hederaConfig.realm())
+                        .accountNum(contractNumber)
+                        .build(),
+                nonce);
     }
 
     /**
@@ -122,7 +115,8 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                 .build();
 
         try {
-            return context.dispatch(setupDispatch(context.payer(), synthTxn, CryptoCreateStreamBuilder.class))
+            return context.dispatch(setupDispatch(
+                            context.payer(), synthTxn, CryptoCreateStreamBuilder.class, NOOP_FEE_CHARGING))
                     .status();
         } catch (HandleException e) {
             // It is critically important we don't let HandleExceptions propagate to the workflow because

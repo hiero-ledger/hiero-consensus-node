@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -21,34 +6,33 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
+import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
-import com.swirlds.state.State;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -76,7 +60,7 @@ public class RandomSignedStateGenerator {
 
     final Random random;
 
-    private PlatformMerkleStateRoot state;
+    private MerkleNodeState state;
     private Long round;
     private Hash legacyRunningEventHash;
     private Roster roster;
@@ -121,6 +105,16 @@ public class RandomSignedStateGenerator {
      * @return a new signed state
      */
     public SignedState build() {
+        return buildWithFacade().left();
+    }
+
+    /**
+     * Build a pair of new signed state and a platform state facade used for that
+     *
+     * @return a new signed state
+     */
+    public Pair<SignedState, TestPlatformStateFacade> buildWithFacade() {
+
         final Roster rosterInstance;
         if (roster == null) {
             rosterInstance = RandomRosterBuilder.create(random)
@@ -137,24 +131,29 @@ public class RandomSignedStateGenerator {
             softwareVersionInstance = softwareVersion;
         }
 
-        final PlatformMerkleStateRoot stateInstance;
+        final MerkleNodeState stateInstance;
         registerMerkleStateRootClassIds();
-        if (state == null) {
-            if (useBlockingState) {
-                stateInstance = new BlockingState();
-            } else {
-                stateInstance = new PlatformMerkleStateRoot(version -> new BasicSoftwareVersion(version.major()));
-            }
-            stateInstance.setTime(Time.getCurrent());
-        } else {
-            stateInstance = state;
-        }
-
         final long roundInstance;
         if (round == null) {
             roundInstance = Math.abs(random.nextLong());
         } else {
             roundInstance = round;
+        }
+
+        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade((v -> softwareVersionInstance));
+        if (state == null) {
+            if (useBlockingState) {
+                stateInstance = new BlockingState(platformStateFacade);
+            } else {
+                stateInstance = new TestMerkleStateRoot();
+            }
+            stateInstance.init(
+                    Time.getCurrent(),
+                    new NoOpMetrics(),
+                    MerkleCryptoFactory.getInstance(),
+                    () -> platformStateFacade.roundOf(stateInstance));
+        } else {
+            stateInstance = state;
         }
 
         final Hash legacyRunningEventHashInstance;
@@ -199,9 +198,8 @@ public class RandomSignedStateGenerator {
             consensusSnapshotInstance = consensusSnapshot;
         }
         FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(stateInstance);
-        final PlatformStateModifier platformState = stateInstance.getWritablePlatformState();
 
-        platformState.bulkUpdate(v -> {
+        platformStateFacade.bulkUpdateOf(stateInstance, v -> {
             v.setSnapshot(consensusSnapshotInstance);
             v.setLegacyRunningEventHash(legacyRunningEventHashInstance);
             v.setCreationSoftwareVersion(softwareVersionInstance);
@@ -210,7 +208,7 @@ public class RandomSignedStateGenerator {
         });
 
         FAKE_MERKLE_STATE_LIFECYCLES.initRosterState(stateInstance);
-        RosterUtils.setActiveRoster((State) stateInstance, rosterInstance, roundInstance);
+        RosterUtils.setActiveRoster(stateInstance, rosterInstance, roundInstance);
 
         if (signatureVerifier == null) {
             signatureVerifier = SignatureVerificationTestUtils::verifySignature;
@@ -220,9 +218,6 @@ public class RandomSignedStateGenerator {
                 .withValue("state.stateHistoryEnabled", true)
                 .withConfigDataType(StateConfig.class)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final SignedState signedState = new SignedState(
                 configuration,
@@ -231,9 +226,10 @@ public class RandomSignedStateGenerator {
                 "RandomSignedStateGenerator.build()",
                 freezeStateInstance,
                 deleteOnBackgroundThread,
-                pcesRound);
+                pcesRound,
+                platformStateFacade);
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance);
+        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
         if (stateHash != null) {
             stateInstance.setHash(stateHash);
         }
@@ -267,7 +263,7 @@ public class RandomSignedStateGenerator {
         }
 
         builtSignedStates.get().add(signedState);
-        return signedState;
+        return Pair.of(signedState, spy(platformStateFacade));
     }
 
     /**
@@ -303,7 +299,7 @@ public class RandomSignedStateGenerator {
      *
      * @return this object
      */
-    public RandomSignedStateGenerator setState(final PlatformMerkleStateRoot state) {
+    public RandomSignedStateGenerator setState(final MerkleNodeState state) {
         this.state = state;
         return this;
     }
@@ -482,7 +478,7 @@ public class RandomSignedStateGenerator {
      */
     public static void releaseAllBuiltSignedStates() {
         builtSignedStates.get().forEach(signedState -> {
-            releaseReservable(signedState.getState());
+            releaseReservable(signedState.getState().getRoot());
         });
         builtSignedStates.get().clear();
     }

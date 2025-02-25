@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
 import static java.util.Objects.requireNonNull;
@@ -33,11 +18,13 @@ import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.util.RandomBuilder;
+import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -51,6 +38,7 @@ import java.util.function.Supplier;
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
  * components.
  *
+ * @param platformWiring                         the wiring for this platform
  * @param platformContext                        the context for this platform
  * @param model                                  the wiring model for this platform
  * @param keysAndCerts                           an object holding all the public/private key pairs and the CSPRNG state
@@ -95,8 +83,10 @@ import java.util.function.Supplier;
  * @param swirldStateManager                     responsible for the mutable state, this is exposed here due to
  *                                               reconnect, can be removed once reconnect is made compatible with the
  *                                               wiring framework
+ * @param platformStateFacade                    the facade to access the platform state
  */
 public record PlatformBuildingBlocks(
+        @NonNull PlatformWiring platformWiring,
         @NonNull PlatformContext platformContext,
         @NonNull WiringModel model,
         @NonNull KeysAndCerts keysAndCerts,
@@ -124,9 +114,11 @@ public record PlatformBuildingBlocks(
         @NonNull AtomicReference<Consumer<SignedState>> loadReconnectStateReference,
         @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
-        @NonNull StateLifecycles stateLifecycles) {
+        @NonNull StateLifecycles stateLifecycles,
+        @NonNull PlatformStateFacade platformStateFacade) {
 
     public PlatformBuildingBlocks {
+        requireNonNull(platformWiring);
         requireNonNull(platformContext);
         requireNonNull(model);
         requireNonNull(keysAndCerts);

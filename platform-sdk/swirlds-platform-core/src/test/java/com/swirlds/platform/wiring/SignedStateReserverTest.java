@@ -1,26 +1,14 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.ValueReference;
 import com.swirlds.component.framework.model.WiringModel;
@@ -30,14 +18,14 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 class SignedStateReserverTest {
 
@@ -48,14 +36,18 @@ class SignedStateReserverTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
+        MerkleNodeState mockState = mock(MerkleNodeState.class);
+        MerkleNode root = mock(MerkleNode.class);
+        when(mockState.getRoot()).thenReturn(root);
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                Mockito.mock(SignatureVerifier.class),
-                Mockito.mock(PlatformMerkleStateRoot.class),
+                mock(SignatureVerifier.class),
+                mockState,
                 "create",
                 false,
                 false,
-                false);
+                false,
+                mock(PlatformStateFacade.class));
 
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
         final TaskScheduler<ReservedSignedState> taskScheduler = model.<ReservedSignedState>schedulerBuilder(

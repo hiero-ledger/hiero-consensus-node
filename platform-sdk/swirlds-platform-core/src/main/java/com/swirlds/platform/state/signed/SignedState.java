@@ -1,25 +1,9 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.CREATION;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
@@ -37,10 +21,13 @@ import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.address.Address;
@@ -95,7 +82,7 @@ public class SignedState implements SignedStateInfo {
     /**
      * Is this the last state saved before the freeze period
      */
-    private boolean freezeState;
+    private final boolean freezeState;
 
     /**
      * True if this state has been deleted. Used to prevent the same state from being deleted more than once.
@@ -105,7 +92,7 @@ public class SignedState implements SignedStateInfo {
     /**
      * The root of the merkle state.
      */
-    private final PlatformMerkleStateRoot state;
+    private final MerkleNodeState state;
 
     /**
      * The timestamp of when this object was created.
@@ -166,6 +153,10 @@ public class SignedState implements SignedStateInfo {
      * True if this round reached consensus during the replaying of the preconsensus event stream.
      */
     private final boolean pcesRound;
+    /**
+     * The facade to access the platform state
+     */
+    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Instantiate a signed state.
@@ -183,19 +174,21 @@ public class SignedState implements SignedStateInfo {
      *                                 states that have been sent to the state garbage collector.
      * @param pcesRound                true if this round reached consensus during the replaying of the preconsensus
      *                                 event stream
+     * @param platformStateFacade      the facade to access the platform state
      */
     public SignedState(
             @NonNull final Configuration configuration,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final PlatformMerkleStateRoot state,
+            @NonNull final MerkleNodeState state,
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
-            final boolean pcesRound) {
-        state.reserve();
-
+            final boolean pcesRound,
+            @NonNull final PlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
         this.signatureVerifier = requireNonNull(signatureVerifier);
         this.state = requireNonNull(state);
+        state.getRoot().reserve();
 
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         if (stateConfig.stateHistoryEnabled()) {
@@ -214,7 +207,14 @@ public class SignedState implements SignedStateInfo {
     }
 
     public void init(@NonNull PlatformContext platformContext) {
-        state.init(platformContext.getTime(), platformContext.getMetrics(), platformContext.getMerkleCryptography());
+        state.init(
+                platformContext.getTime(),
+                platformContext.getMetrics(),
+                platformContext.getMerkleCryptography(),
+                () -> {
+                    final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
+                    return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+                });
     }
 
     /**
@@ -222,7 +222,7 @@ public class SignedState implements SignedStateInfo {
      */
     @Override
     public long getRound() {
-        return state.getReadablePlatformState().getRound();
+        return platformStateFacade.roundOf(state);
     }
 
     /**
@@ -231,7 +231,7 @@ public class SignedState implements SignedStateInfo {
      * @return true if this is the genesis state
      */
     public boolean isGenesisState() {
-        return state.getReadablePlatformState().getRound() == GENESIS_ROUND;
+        return platformStateFacade.isGenesisStateOf(state);
     }
 
     /**
@@ -272,7 +272,7 @@ public class SignedState implements SignedStateInfo {
         Ideally the roster would be captured in the constructor but due to the mutable underlying state, the roster
         can change from underneath us. Therefore, the roster must be regenerated on each access.
          */
-        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state);
+        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
         return requireNonNull(roster, "Roster stored in signed state is null (this should never happen)");
     }
 
@@ -282,7 +282,7 @@ public class SignedState implements SignedStateInfo {
      *
      * @return the state contained in the signed state
      */
-    public @NonNull PlatformMerkleStateRoot getState() {
+    public @NonNull MerkleNodeState getState() {
         return state;
     }
 
@@ -469,7 +469,7 @@ public class SignedState implements SignedStateInfo {
      * @return the consensus timestamp for this signed state.
      */
     public @NonNull Instant getConsensusTimestamp() {
-        return state.getReadablePlatformState().getConsensusTimestamp();
+        return platformStateFacade.consensusTimestampOf(state);
     }
 
     /**

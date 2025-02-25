@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static java.util.Objects.requireNonNull;
@@ -21,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Nft;
-import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
@@ -77,31 +61,6 @@ public class WritableNftStore extends ReadableNftStoreImpl {
     public void putAndIncrementCount(@NonNull final Nft nft) {
         put(nft);
         entityCounters.incrementEntityTypeCount(EntityType.NFT);
-    }
-
-    /**
-     * Returns the {@link Token} with the given number using {@link WritableKVState#getForModify}.
-     * If no such token exists, returns {@code Optional.empty()}
-     * @param id - the number of the unique token id to be retrieved.
-     * @return the Nft with the given NftId, or null if no such token exists
-     */
-    @Nullable
-    public Nft getForModify(final NftID id) {
-        return nftState.getForModify(requireNonNull(id));
-    }
-
-    /**
-     * Returns the {@link Nft} with the given number using {@link WritableKVState#getForModify}.
-     * If no such token exists, returns {@code Optional.empty()}
-     * @param tokenId - the number of the unique token id to be retrieved.
-     * @param serialNumber - the serial number of the NFT to be retrieved.
-     * @return the Nft with the given tokenId and serial, or null if no such token exists
-     */
-    @Nullable
-    public Nft getForModify(final TokenID tokenId, final long serialNumber) {
-        requireNonNull(tokenId);
-        return nftState.getForModify(
-                NftID.newBuilder().tokenId(tokenId).serialNumber(serialNumber).build());
     }
 
     /**

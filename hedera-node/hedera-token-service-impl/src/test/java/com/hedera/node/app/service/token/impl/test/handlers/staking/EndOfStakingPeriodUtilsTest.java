@@ -1,24 +1,11 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.*;
+import static com.hedera.node.app.service.token.impl.test.handlers.staking.StakeInfoHelperTest.DEFAULT_CONFIG;
 
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.config.data.StakingConfig;
 import java.math.BigInteger;
 import java.util.Collections;
 import java.util.List;
@@ -43,6 +30,7 @@ class EndOfStakingPeriodUtilsTest {
             .rewardSumHistory(List.of(2L, 1L, 0L))
             .weight(5)
             .build();
+    private static final StakingConfig STAKING_CONFIG = DEFAULT_CONFIG.getConfigData(StakingConfig.class);
 
     @Test
     void readableNonZeroHistoryFromEmptyRewards() {
@@ -149,7 +137,8 @@ class EndOfStakingPeriodUtilsTest {
     @SuppressWarnings("DataFlowIssue")
     @Test
     void computeStakeNullArg() {
-        Assertions.assertThatThrownBy(() -> computeNewStakes(null)).isInstanceOf(NullPointerException.class);
+        Assertions.assertThatThrownBy(() -> computeNewStakes(null, STAKING_CONFIG))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -157,7 +146,7 @@ class EndOfStakingPeriodUtilsTest {
         final var maxStake = STAKE_TO_REWARD + STAKE_TO_NOT_REWARD - 1;
         final var input = STAKING_INFO.copyBuilder().maxStake(maxStake).build();
 
-        final var result = computeNewStakes(input);
+        final var result = computeNewStakes(input, STAKING_CONFIG);
         Assertions.assertThat(result.stake()).isEqualTo(maxStake);
         Assertions.assertThat(result.stakeRewardStart()).isEqualTo(STAKE_TO_REWARD);
     }
@@ -169,7 +158,7 @@ class EndOfStakingPeriodUtilsTest {
                 .minStake(STAKE_TO_REWARD + STAKE_TO_NOT_REWARD + 1)
                 .build();
 
-        final var result = computeNewStakes(input);
+        final var result = computeNewStakes(input, STAKING_CONFIG);
         Assertions.assertThat(result.stake()).isZero();
         Assertions.assertThat(result.stakeRewardStart()).isEqualTo(STAKE_TO_REWARD);
     }
@@ -182,7 +171,7 @@ class EndOfStakingPeriodUtilsTest {
                 .maxStake(STAKE_TO_REWARD + STAKE_TO_NOT_REWARD + 1)
                 .build();
 
-        final var result = computeNewStakes(input);
+        final var result = computeNewStakes(input, STAKING_CONFIG);
         Assertions.assertThat(result.stake()).isEqualTo(STAKE_TO_REWARD + STAKE_TO_NOT_REWARD);
         Assertions.assertThat(result.stakeRewardStart()).isEqualTo(STAKE_TO_REWARD);
     }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.internal;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -65,11 +50,6 @@ public class ConsensusRound implements Round {
     private final ConsensusSnapshot snapshot;
 
     /**
-     * The event that, when added to the hashgraph, caused this round to reach consensus.
-     */
-    private final PlatformEvent keystoneEvent;
-
-    /**
      * The consensus roster for this round.
      */
     private final Roster consensusRoster;
@@ -86,7 +66,6 @@ public class ConsensusRound implements Round {
      *
      * @param consensusRoster      the consensus roster for this round
      * @param consensusEvents      the events in the round, in consensus order
-     * @param keystoneEvent        the event that, when added to the hashgraph, caused this round to reach consensus
      * @param eventWindow          the event window for this round
      * @param snapshot             snapshot of consensus at this round
      * @param pcesRound            true if this round reached consensus during the replaying of the preconsensus event
@@ -96,7 +75,6 @@ public class ConsensusRound implements Round {
     public ConsensusRound(
             @NonNull final Roster consensusRoster,
             @NonNull final List<PlatformEvent> consensusEvents,
-            @NonNull final PlatformEvent keystoneEvent,
             @NonNull final EventWindow eventWindow,
             @NonNull final ConsensusSnapshot snapshot,
             final boolean pcesRound,
@@ -104,7 +82,6 @@ public class ConsensusRound implements Round {
 
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
         this.consensusEvents = Collections.unmodifiableList(Objects.requireNonNull(consensusEvents));
-        this.keystoneEvent = Objects.requireNonNull(keystoneEvent);
         this.eventWindow = Objects.requireNonNull(eventWindow);
         this.snapshot = Objects.requireNonNull(snapshot);
         this.pcesRound = pcesRound;
@@ -115,9 +92,8 @@ public class ConsensusRound implements Round {
             final PlatformEvent e = iterator.next();
             final Iterator<Transaction> ti = e.transactionIterator();
             while (ti.hasNext()) {
-                if (!ti.next().isSystem()) {
-                    numAppTransactions++;
-                }
+                ti.next();
+                numAppTransactions++;
             }
             streamedEvents.add(new CesEvent(e, snapshot.round(), !iterator.hasNext()));
         }
@@ -239,13 +215,6 @@ public class ConsensusRound implements Round {
         }
         final ConsensusRound that = (ConsensusRound) other;
         return Objects.equals(consensusEvents, that.consensusEvents);
-    }
-
-    /**
-     * @return the event that, when added to the hashgraph, caused this round to reach consensus
-     */
-    public @NonNull PlatformEvent getKeystoneEvent() {
-        return keystoneEvent;
     }
 
     @Override

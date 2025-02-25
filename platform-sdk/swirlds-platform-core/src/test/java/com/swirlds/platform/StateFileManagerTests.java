@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
@@ -23,6 +8,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStat
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.nio.file.Files.exists;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -159,11 +145,14 @@ class StateFileManagerTests {
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
         MerkleDb.resetDefaultInstancePath();
-        final DeserializedSignedState deserializedSignedState =
-                readStateFile(TestPlatformContextBuilder.create().build().getConfiguration(), stateFile);
+        final DeserializedSignedState deserializedSignedState = readStateFile(
+                TestPlatformContextBuilder.create().build().getConfiguration(), stateFile, TEST_PLATFORM_STATE_FACADE);
         MerkleCryptoFactory.getInstance()
-                .digestTreeSync(
-                        deserializedSignedState.reservedSignedState().get().getState());
+                .digestTreeSync(deserializedSignedState
+                        .reservedSignedState()
+                        .get()
+                        .getState()
+                        .getRoot());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
         assertNotSame(
@@ -193,8 +182,8 @@ class StateFileManagerTests {
             Files.createFile(savedDir);
         }
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
 
@@ -213,8 +202,8 @@ class StateFileManagerTests {
                 new RandomSignedStateGenerator().setUseBlockingState(true).build();
         ((BlockingState) signedState.getState()).enableBlockingSerialization();
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
         signedState.markAsStateToSave(FATAL_ERROR);
         makeImmutable(signedState);
 
@@ -240,8 +229,8 @@ class StateFileManagerTests {
     void saveISSignedState() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
         signedState.markAsStateToSave(ISS);
         makeImmutable(signedState);
         manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test")));
@@ -281,8 +270,8 @@ class StateFileManagerTests {
         final int averageTimeBetweenStates = 10;
         final double standardDeviationTimeBetweenStates = 0.5;
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
         final SavedStateController controller = new DefaultSavedStateController(context);
 
         Instant timestamp;
@@ -362,7 +351,8 @@ class StateFileManagerTests {
                                             TestPlatformContextBuilder.create()
                                                     .build()
                                                     .getConfiguration(),
-                                            savedStateInfo.stateFile())
+                                            savedStateInfo.stateFile(),
+                                            TEST_PLATFORM_STATE_FACADE)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");
@@ -405,8 +395,8 @@ class StateFileManagerTests {
 
         final int count = 10;
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
 
         final Path statesDirectory =
                 signedStateFilePath.getSignedStatesDirectoryForSwirld(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);

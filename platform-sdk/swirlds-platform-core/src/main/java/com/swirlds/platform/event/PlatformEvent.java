@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
 import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndLogIfInterrupted;
@@ -21,7 +6,6 @@ import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndLog
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -40,7 +24,6 @@ import com.swirlds.platform.util.iterator.TypedIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -58,17 +41,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final EventMetadata metadata;
     /** The time this event was received via gossip */
     private Instant timeReceived;
-
-    /**
-     * The sequence number of an event before it is added to the write queue.
-     */
-    public static final long NO_STREAM_SEQUENCE_NUMBER = -1;
-
-    /**
-     * Each event is assigned a sequence number as it is written to the preconsensus event stream. This is used to
-     * signal when events have been made durable.
-     */
-    private long streamSequenceNumber = NO_STREAM_SEQUENCE_NUMBER;
 
     /**
      * The id of the node which sent us this event
@@ -118,7 +90,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                         Objects.requireNonNull(unsignedEvent, "The unsignedEvent must not be null")
                                 .getEventCore(),
                         Objects.requireNonNull(signature, "The signature must not be null"),
-                        Collections.emptyList(),
                         unsignedEvent.getTransactionsBytes()),
                 unsignedEvent.getMetadata());
     }
@@ -149,34 +120,10 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return a copy of this event
      */
-    public PlatformEvent copyGossipedData() {
+    public @NonNull PlatformEvent copyGossipedData() {
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         platformEvent.setHash(getHash());
         return platformEvent;
-    }
-
-    /**
-     * Set the sequence number in the preconsensus event stream for this event.
-     *
-     * @param streamSequenceNumber the sequence number
-     */
-    public void setStreamSequenceNumber(final long streamSequenceNumber) {
-        if (this.streamSequenceNumber != NO_STREAM_SEQUENCE_NUMBER) {
-            throw new IllegalStateException("sequence number already set");
-        }
-        this.streamSequenceNumber = streamSequenceNumber;
-    }
-
-    /**
-     * Get the sequence number in the preconsensus event stream for this event.
-     *
-     * @return the sequence number
-     */
-    public long getStreamSequenceNumber() {
-        if (streamSequenceNumber == NO_STREAM_SEQUENCE_NUMBER) {
-            throw new IllegalStateException("sequence number not set");
-        }
-        return streamSequenceNumber;
     }
 
     /**
@@ -338,10 +285,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         Objects.requireNonNull(consensusData.consensusTimestamp(), "consensusData.consensusTimestamp");
         this.consensusData = consensusData;
         this.consensusTimestamp = HapiUtils.asInstant(consensusData.consensusTimestamp());
-    }
-
-    public List<EventTransaction> getEventTransactions() {
-        return gossipEvent.eventTransaction();
     }
 
     /**

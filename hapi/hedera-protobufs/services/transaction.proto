@@ -14,22 +14,7 @@ syntax = "proto3";
 
 package proto;
 
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
@@ -107,6 +92,7 @@ import "event/state_signature_transaction.proto";
 import "auxiliary/hints/hints_key_publication.proto";
 import "auxiliary/hints/hints_preprocessing_vote.proto";
 import "auxiliary/hints/hints_partial_signature.proto";
+import "auxiliary/hints/crs_publication.proto";
 
 import "auxiliary/history/history_proof_signature.proto";
 import "auxiliary/history/history_proof_key_publication.proto";
@@ -250,6 +236,11 @@ message TransactionBody {
      * (default 100) bytes when encoded as UTF-8.
      */
     string memo = 6;
+
+    /**
+     * The <b>public key</b> of the trusted batch assembler.
+     */
+    Key batch_key = 73;
 
     // The fields here are ordered in strictly ascending field ordinal
     // order due to limitations in PBJ.
@@ -647,6 +638,16 @@ message TransactionBody {
          * A transaction body for voting on a metadata proof descending from the ledger id.
          */
         com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody history_proof_vote = 71;
+
+        /**
+         * A transaction body for broadcasting a node's crs publication
+         */
+        com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication = 72;
+
+        /**
+         * A transaction body for handling a set of transactions atomically.
+         */
+        AtomicBatchTransactionBody atomic_batch = 74;
     }
 
     /**
@@ -657,4 +658,12 @@ message TransactionBody {
      * If used with a transaction type that does not support custom fee limits, the transaction will fail.
      */
     repeated CustomFeeLimit max_custom_fees = 1001;
+}
+
+/**
+ * A transaction body for handling a set of transactions atomically.
+ */
+message AtomicBatchTransactionBody {
+  // <<<pbj.java_package = "com.hedera.hapi.node.util">>> This comment is special code for setting PBJ Compiler java package
+  repeated Transaction transactions = 1;
 }

@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
@@ -28,20 +13,23 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURR
 import static com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion.PAST;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateStakingInfos;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateToken;
-import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.simulatePostUpgradeTransaction;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewMappedValue;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
@@ -50,6 +38,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.mutateNode;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
@@ -65,34 +54,45 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileAppendsPerBurst;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.TransactionResult;
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
-import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
+import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
+import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
+import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -104,6 +104,7 @@ import org.junit.jupiter.api.Tag;
 
 @Order(0)
 @Tag(INTEGRATION)
+@HapiTestLifecycle
 @TargetEmbeddedMode(CONCURRENT)
 public class ConcurrentIntegrationTests {
     private static final Logger log = LogManager.getLogger(ConcurrentIntegrationTests.class);
@@ -132,6 +133,87 @@ public class ConcurrentIntegrationTests {
                 getAccountInfo("hollowAccount").isNotHollow());
     }
 
+    @LeakyHapiTest(overrides = {"ledger.nftTransfers.maxLen"})
+    final Stream<DynamicTest> chargedFeesReplayedAfterBatchFailure(
+            @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftOne,
+            @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftTwo) {
+        final List<SortedMap<AccountID, Long>> successfulRecordFees = new ArrayList<>();
+        return hapiTest(
+                cryptoCreate("operator").maxAutomaticTokenAssociations(2),
+                nftOne.doWith(
+                        token -> cryptoTransfer(movingUnique(nftOne.name(), 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L)
+                                .between(nftOne.treasury().name(), "operator"))),
+                nftTwo.doWith(
+                        token -> cryptoTransfer(movingUnique(nftTwo.name(), 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L)
+                                .between(nftTwo.treasury().name(), "operator"))),
+                // First do a batch where everything succeeds
+                atomicBatch(
+                                cryptoTransfer(movingUnique(nftOne.name(), 1L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 2L, 3L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftOne.name(), 4L, 5L, 6L)
+                                                .between(
+                                                        "operator",
+                                                        nftOne.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"))
+                        .signedByPayerAnd("operator"),
+                getAccountRecords("operator").exposingTo(records -> {
+                    assertEquals(3, records.size());
+                    records.forEach(r -> successfulRecordFees.add(asMap(r.getTransferList())));
+                }),
+                // Now change max transfer len and do a batch where the last fails
+                overriding("ledger.nftTransfers.maxLen", "2"),
+                atomicBatch(
+                                cryptoTransfer(movingUnique(nftTwo.name(), 1L)
+                                                .between(
+                                                        "operator",
+                                                        nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftTwo.name(), 2L, 3L)
+                                                .between(
+                                                        "operator",
+                                                        nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"),
+                                cryptoTransfer(movingUnique(nftTwo.name(), 4L, 5L, 6L)
+                                                .between(
+                                                        "operator",
+                                                        nftTwo.treasury().name()))
+                                        .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                                        .batchKey("operator")
+                                        .payingWith("operator"))
+                        .signedByPayerAnd("operator")
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getAccountRecords("operator").exposingTo(records -> {
+                    assertEquals(6, records.size());
+                    final var nextRecords = records.subList(3, 6);
+                    final List<SortedMap<AccountID, Long>> unsuccessfulRecordFees = new ArrayList<>();
+                    nextRecords.forEach(r -> unsuccessfulRecordFees.add(asMap(r.getTransferList())));
+                    for (int i = 0; i < 3; i++) {
+                        assertEquals(
+                                successfulRecordFees.get(i),
+                                unsuccessfulRecordFees.get(i),
+                                "Wrong fees at inner txn index=" + i);
+                    }
+                }));
+    }
+
     @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
     @DisplayName("skips pre-upgrade event and streams result with BUSY status")
     final Stream<DynamicTest> skipsStaleEventWithBusyStatus() {
@@ -139,10 +221,12 @@ public class ConcurrentIntegrationTests {
                 blockStreamMustIncludePassFrom(spec -> blockWithResultOf(BUSY)),
                 cryptoCreate("somebody").balance(0L),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, "somebody", ONE_HBAR))
-                        .setNode("0.0.4")
+                        .setNode(asEntityString(4))
                         .withSubmissionStrategy(usingVersion(PAST))
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY),
-                getAccountBalance("somebody").hasTinyBars(0L));
+                getAccountBalance("somebody").hasTinyBars(0L),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
@@ -150,45 +234,11 @@ public class ConcurrentIntegrationTests {
     final Stream<DynamicTest> completelySkipsTransactionFromUnknownNode() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("0.0.666")
+                        .setNode(asEntityString(666))
                         .via("toBeSkipped")
                         .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
                         .hasAnyStatusAtAll(),
                 getTxnRecord("toBeSkipped").hasAnswerOnlyPrecheck(RECORD_NOT_FOUND));
-    }
-
-    @GenesisHapiTest
-    @DisplayName("node stake update exported at upgrade boundary")
-    final Stream<DynamicTest> nodeStakeUpdateExportedAtUpgradeBoundary() {
-        // Currently both the genesis and the post-upgrade transaction export node stake updates
-        final var expectedNodeStakeUpdates = 2;
-        final var actualNodeStakeUpdates = new AtomicInteger(0);
-        return hapiTest(
-                blockStreamMustIncludePassFrom(spec -> block -> {
-                    final var blockNo =
-                            block.items().getFirst().blockHeaderOrThrow().number();
-                    final var blockNodeStakeUpdates = (int) block.items().stream()
-                            .filter(BlockItem::hasEventTransaction)
-                            .map(item -> TransactionParts.from(
-                                            item.eventTransactionOrThrow().applicationTransactionOrThrow())
-                                    .function())
-                            .filter(NODE_STAKE_UPDATE::equals)
-                            .count();
-                    final var totalNodeStakeUpdates = actualNodeStakeUpdates.addAndGet(blockNodeStakeUpdates);
-                    log.info(
-                            "Block#{} had {} node stake updates, now {}/{} observed",
-                            blockNo,
-                            blockNodeStakeUpdates,
-                            totalNodeStakeUpdates,
-                            expectedNodeStakeUpdates);
-                    return totalNodeStakeUpdates == expectedNodeStakeUpdates;
-                }),
-                // This is the genesis transaction
-                cryptoCreate("firstUser"),
-                // And now simulate an upgrade boundary
-                simulatePostUpgradeTransaction(),
-                cryptoCreate("secondUser"),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -206,7 +256,9 @@ public class ConcurrentIntegrationTests {
                 // Confirm the payer was still charged a non-zero fee
                 getAccountBalance("treasury")
                         .hasTinyBars(spec -> amount ->
-                                Optional.ofNullable(amount == ONE_HUNDRED_HBARS ? "Fee was not recharged" : null)));
+                                Optional.ofNullable(amount == ONE_HUNDRED_HBARS ? "Fee was not recharged" : null)),
+                // Trigger block closure to ensure block is closed
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @GenesisHapiTest
@@ -263,5 +315,18 @@ public class ConcurrentIntegrationTests {
                 .map(BlockItem::transactionResultOrThrow)
                 .map(TransactionResult::status)
                 .anyMatch(status::equals);
+    }
+
+    private static SortedMap<AccountID, Long> asMap(@NonNull final TransferList list) {
+        return list.getAccountAmountsList().stream()
+                .map(aa -> AccountAmount.newBuilder()
+                        .accountID(CommonPbjConverters.toPbj(aa.getAccountID()))
+                        .amount(aa.getAmount())
+                        .build())
+                .collect(Collectors.toMap(
+                        AccountAmount::accountID,
+                        AccountAmount::amount,
+                        Long::sum,
+                        () -> new TreeMap<>(ACCOUNT_ID_COMPARATOR)));
     }
 }

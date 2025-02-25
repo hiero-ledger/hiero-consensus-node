@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
@@ -32,6 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.roy
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_MUST_BE_POSITIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_SCHEDULE_ALREADY_HAS_NO_FEES;
@@ -393,13 +379,13 @@ public class UpdateTokenFeeScheduleTest {
                 overriding("tokens.maxCustomFeesAllowed", "10"),
                 updateTokenFeeSchedules
                         .call("updateFungibleFixedHbarFees", fungibleToken, 11, 10L, feeCollector)
-                        .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, CUSTOM_FEES_LIST_TOO_LONG)),
                 updateTokenFeeSchedules
                         .call("updateFungibleFractionalFees", feeToken, 11, 1L, 10L, false, feeCollector)
-                        .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, CUSTOM_FEES_LIST_TOO_LONG)),
                 updateTokenFeeSchedules
                         .call("updateNonFungibleRoyaltyFees", nonFungibleToken, 11, 1L, 10L, feeCollector)
-                        .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, CUSTOM_FEES_LIST_TOO_LONG)));
     }
 
     @Order(21)

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;
@@ -30,15 +15,11 @@ import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByB
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeTransactionWith;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
-import static com.hedera.node.app.statedumpers.DumpCheckpoint.MOD_POST_EVENT_STREAM_REPLAY;
-import static com.hedera.node.app.statedumpers.DumpCheckpoint.selectedDumpCheckpoints;
-import static com.hedera.node.app.statedumpers.StateDumper.dumpModChildrenFrom;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
-import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
 import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
@@ -81,6 +62,7 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.GenesisNetworkInfo;
@@ -107,8 +89,6 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.StateLifecyclesImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.hedera.node.app.statedumpers.DumpCheckpoint;
-import com.hedera.node.app.statedumpers.MerkleStateChild;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
@@ -147,8 +127,9 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.ReadableRosterStore;
@@ -166,7 +147,6 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -180,7 +160,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -215,8 +195,7 @@ import org.apache.logging.log4j.Logger;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera
-        implements SwirldMain<PlatformMerkleStateRoot>, PlatformStatusChangeListener, AppContext.Gossip {
+public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatusChangeListener, AppContext.Gossip {
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
     // FUTURE: This should come from configuration, not be hardcoded.
@@ -292,6 +271,12 @@ public final class Hedera
     private final BlockStreamService blockStreamService;
 
     /**
+     * The platform state facade singleton, kept as a field here to avoid constructing twice`
+     * (once in constructor to register schemas, again inside Dagger component).
+     */
+    private final PlatformStateFacade platformStateFacade;
+
+    /**
      * The block hash signer factory.
      */
     private final BlockHashSignerFactory blockHashSignerFactory;
@@ -311,7 +296,7 @@ public final class Hedera
      */
     private final StartupNetworksFactory startupNetworksFactory;
 
-    private final StateLifecycles<PlatformMerkleStateRoot> stateLifecycles;
+    private final StateLifecycles<MerkleNodeState> stateLifecycles;
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -346,7 +331,7 @@ public final class Hedera
 
     /**
      * A {@link StateChangeListener} that accumulates state changes that are only reported once per block; in the
-     * current system, these are the singleton and queue updates. Every {@link MerkleStateRoot} will have this
+     * current system, these are the singleton and queue updates. Every {@link MerkleNodeState} will have this
      * listener registered.
      */
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -360,12 +345,12 @@ public final class Hedera
     /**
      * The state root supplier to use for creating a new state root.
      */
-    private final Supplier<PlatformMerkleStateRoot> stateRootSupplier;
+    private final Supplier<MerkleNodeState> stateRootSupplier;
 
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiConsumer<Round, State> onSealConsensusRound;
+    private final BiPredicate<Round, State> onSealConsensusRound;
     /**
      * Once set, a future that resolves to the hash of the state used to initialize the application. This is known
      * immediately at genesis or on restart from a saved state; during reconnect, it is known when reconnect
@@ -423,7 +408,7 @@ public final class Hedera
      * with the given {@link ConstructableRegistry}.
      *
      * <p>This registration is a critical side effect that must happen called before any Platform initialization
-     * steps that try to create or deserialize a {@link MerkleStateRoot}.
+     * steps that try to create or deserialize a {@link MerkleNodeState}.
      *
      * @param constructableRegistry  the registry to register {@link RuntimeConstructable} factories with
      * @param registryFactory        the factory to use for creating the services registry
@@ -433,6 +418,7 @@ public final class Hedera
      * @param historyServiceFactory  the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
      * @param metrics                the metrics object to use for reporting
+     * @param platformStateFacade    the facade object to access platform state
      */
     public Hedera(
             @NonNull final ConstructableRegistry constructableRegistry,
@@ -443,7 +429,8 @@ public final class Hedera
             @NonNull final HintsServiceFactory hintsServiceFactory,
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
@@ -453,6 +440,7 @@ public final class Hedera
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
+        this.platformStateFacade = requireNonNull(platformStateFacade);
         logger.info(
                 """
 
@@ -491,13 +479,16 @@ public final class Hedera
                         () -> daggerApp.workingStateAccessor().getState(),
                         () -> daggerApp.throttleServiceManager().activeThrottleDefinitionsOrThrow(),
                         ThrottleAccumulator::new,
-                        ignore -> version));
+                        ignore -> version),
+                () -> daggerApp.appFeeCharging(),
+                new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
-        scheduleServiceImpl = new ScheduleServiceImpl();
+        scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
+
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
                         new EntityIdService(),
@@ -518,21 +509,24 @@ public final class Hedera
                         new CongestionThrottleService(),
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl(),
-                        new RosterService(this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
+                        new RosterService(
+                                this::canAdoptRoster,
+                                this::onAdoptRoster,
+                                () -> requireNonNull(initState),
+                                platformStateFacade),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
         try {
             stateLifecycles = new StateLifecyclesImpl(this);
-            final Supplier<PlatformMerkleStateRoot> baseSupplier =
-                    () -> new PlatformMerkleStateRoot(ServicesSoftwareVersion::new);
+            final Supplier<MerkleNodeState> baseSupplier = HederaStateRoot::new;
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
-            onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> {};
+            onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
             // And the factory for the MerkleStateRoot class id must be our constructor
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(PlatformMerkleStateRoot.class, stateRootSupplier));
+            constructableRegistry.registerConstructable(new ClassConstructorPair(
+                    HederaStateRoot.class, () -> stateRootSupplier.get().getRoot()));
         } catch (final ConstructableRegistryException e) {
-            logger.error("Failed to register " + MerkleStateRoot.class + " factory with ConstructableRegistry", e);
+            logger.error("Failed to register " + HederaStateRoot.class + " factory with ConstructableRegistry", e);
             throw new IllegalStateException(e);
         }
     }
@@ -566,7 +560,7 @@ public final class Hedera
      */
     @Override
     @NonNull
-    public PlatformMerkleStateRoot newMerkleStateRoot() {
+    public MerkleNodeState newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -574,7 +568,7 @@ public final class Hedera
      * {@inheritDoc}
      */
     @Override
-    public StateLifecycles<PlatformMerkleStateRoot> newStateLifecycles() {
+    public StateLifecycles<MerkleNodeState> newStateLifecycles() {
         return stateLifecycles;
     }
 
@@ -582,12 +576,30 @@ public final class Hedera
     public void notify(@NonNull final PlatformStatusChangeNotification notification) {
         this.platformStatus = notification.getNewStatus();
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
+        final var streamToBlockNodes = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> startGrpcServer();
-            case CATASTROPHIC_FAILURE -> shutdownGrpcServer();
+            case ACTIVE -> {
+                startGrpcServer();
+            }
             case FREEZE_COMPLETE -> {
-                closeRecordStreams();
+                logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
+                closeRecordStreams();
+                if (streamToBlockNodes && isNotEmbedded()) {
+                    logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
+                    daggerApp.blockNodeConnectionManager().shutdown();
+                }
+            }
+            case CATASTROPHIC_FAILURE -> {
+                logger.error("Platform status is now CATASTROPHIC_FAILURE");
+                shutdownGrpcServer();
+                if (streamToBlockNodes && isNotEmbedded()) {
+                    logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
+                    daggerApp.blockNodeConnectionManager().shutdown();
+                }
             }
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
                 // Nothing to do here, just enumerate for completeness
@@ -618,7 +630,7 @@ public final class Hedera
         requireNonNull(state);
         requireNonNull(platformConfig);
         this.configProvider = new ConfigProviderImpl(trigger == GENESIS, metrics);
-        final var deserializedVersion = serviceMigrator.creationVersionOf(state);
+        final var deserializedVersion = platformStateFacade.creationSemanticVersionOf(state);
         logger.info(
                 "Initializing Hedera state version {} in {} mode with trigger {} and previous version {}",
                 version,
@@ -650,13 +662,13 @@ public final class Hedera
         final var readableStore = new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
         logger.info(
                 "Platform state includes freeze time={} and last frozen={}",
-                readableStore.getFreezeTime(),
-                readableStore.getLastFrozenTime());
+                platformStateFacade.freezeTimeOf(state),
+                platformStateFacade.lastFrozenTimeOf(state));
     }
 
     /**
      * Invoked by the platform when the state should be initialized. This happens <b>BEFORE</b>
-     * {@link SwirldMain#init(Platform, NodeId)} and after {@link #newMerkleStateRoot()}.
+     * {@link SwirldMain#init(Platform, NodeId)} and after {@link #newStateRoot()}.
      */
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
     public void onStateInitialized(
@@ -740,7 +752,8 @@ public final class Hedera
                 metrics,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                platformStateFacade);
         this.initState = null;
         migrationStateChanges = new ArrayList<>(migrationChanges);
         kvStateChangeListener.reset();
@@ -766,7 +779,7 @@ public final class Hedera
      * {@inheritDoc}
      *
      * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state created from
-     * {@link #newMerkleStateRoot()} or an instance of {@link MerkleStateRoot} created by the platform and
+     * {@link #newStateRoot()} or an instance of {@link MerkleNodeState} created by the platform and
      * loaded from the saved state).
      *
      * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(State, Platform, InitTrigger)}
@@ -878,9 +891,12 @@ public final class Hedera
         shutdownGrpcServer();
 
         if (daggerApp != null) {
+            logger.debug("Shutting down the Block Node Connection Manager");
+            daggerApp.blockNodeConnectionManager().shutdown();
+
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
-            if (state instanceof MerkleStateRoot msr) {
+            if (state instanceof HederaStateRoot msr) {
                 msr.close();
             }
 
@@ -930,20 +946,9 @@ public final class Hedera
                         simplifiedStateSignatureTxnCallback);
     }
 
-    public void onNewRecoveredState(@NonNull final State recoveredState) {
-        try {
-            if (shouldDump(daggerApp.initTrigger(), MOD_POST_EVENT_STREAM_REPLAY)) {
-                dumpModChildrenFrom(recoveredState, MOD_POST_EVENT_STREAM_REPLAY, MerkleStateChild.childrenToDump());
-            }
-        } catch (Exception e) {
-            logger.error("Error dumping state after migration at MOD_POST_EVENT_STREAM_REPLAY", e);
-        }
+    public void onNewRecoveredState() {
         // Always close the block manager so replay will end with a complete record file
         daggerApp.blockRecordManager().close();
-    }
-
-    public static boolean shouldDump(@NonNull final InitTrigger trigger, @NonNull final DumpCheckpoint checkpoint) {
-        return trigger == EVENT_STREAM_RECOVERY && selectedDumpCheckpoints().contains(checkpoint);
     }
 
     /**
@@ -969,9 +974,7 @@ public final class Hedera
     public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         requireNonNull(state);
         requireNonNull(round);
-        onSealConsensusRound.accept(round, state);
-        // This logic to be completed in https://github.com/hashgraph/hedera-services/issues/17469
-        return true;
+        return onSealConsensusRound.test(round, state);
     }
 
     /*==================================================================================================================
@@ -1152,6 +1155,8 @@ public final class Hedera
                 .hintsService(hintsService)
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
+                .appContext(appContext)
+                .platformStateFacade(platformStateFacade)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().accept(state);
@@ -1279,14 +1284,14 @@ public final class Hedera
         }
     }
 
-    private PlatformMerkleStateRoot withListeners(@NonNull final PlatformMerkleStateRoot root) {
+    private MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
         root.registerCommitListener(boundaryStateChangeListener);
         root.registerCommitListener(kvStateChangeListener);
         return root;
     }
 
-    private void manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
-        daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
+        return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }
 
     /**
@@ -1332,6 +1337,28 @@ public final class Hedera
         if (tssConfig.hintsEnabled()) {
             hintsService.initSigningForNextScheme(
                     new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME)));
+        }
+    }
+
+    /**
+     * Initializes block node connections and waits for at least one connection to be established.
+     * This should be called before platform.start() to ensure we don't miss any blocks.
+     *
+     * @param timeout maximum time to wait for a connection
+     */
+    public void initializeBlockNodeConnections(java.time.Duration timeout) {
+        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+        if (!blockStreamConfig.streamToBlockNodes()) {
+            logger.info("Block stream to Block Nodes is disabled, skipping block node connection initialization");
+            return;
+        }
+
+        logger.info("Initializing block node connections with timeout {}", timeout);
+        boolean connected = daggerApp.blockNodeConnectionManager().waitForConnection(timeout);
+        if (blockStreamConfig.shutdownNodeOnNoBlockNodes() && !connected) {
+            logger.error("No block node connections established within timeout, shutting down");
+            this.shutdown();
+            System.exit(1);
         }
     }
 }

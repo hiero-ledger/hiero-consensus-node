@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.meta;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
@@ -60,6 +45,7 @@ import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.QueryHeader;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ResponseType;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenAssociation;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
@@ -123,6 +109,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     private Optional<TransactionID> explicitTxnId = Optional.empty();
     private Optional<TransactionRecordAsserts> priorityExpectations = Optional.empty();
     private Optional<TransactionID> expectedParentId = Optional.empty();
+    private Optional<Timestamp> expectedParentConsensusTime = Optional.empty();
     private Optional<List<TransactionRecordAsserts>> childRecordsExpectations = Optional.empty();
     private Optional<BiConsumer<TransactionRecord, Logger>> format = Optional.empty();
     private Optional<String> creationName = Optional.empty();
@@ -399,6 +386,11 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
         return this;
     }
 
+    public HapiGetTxnRecord hasParentConsensusTime(final Timestamp parentConsensusTime) {
+        expectedParentConsensusTime = Optional.of(parentConsensusTime);
+        return this;
+    }
+
     public HapiGetTxnRecord hasDuplicates(final ErroringAssertsProvider<List<TransactionRecord>> provider) {
         duplicateExpectations = Optional.of(provider);
         return this;
@@ -489,6 +481,8 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
             final List<Throwable> errors = asserts.errorsIn(actualRecord);
             rethrowSummaryError(LOG, "Bad priority record!", errors);
         }
+        expectedParentConsensusTime.ifPresent(
+                timestamp -> assertEquals(timestamp, actualRecord.getParentConsensusTimestamp()));
         expectedDebits.ifPresent(debits -> assertEquals(debits, asDebits(actualRecord.getTransferList())));
     }
 

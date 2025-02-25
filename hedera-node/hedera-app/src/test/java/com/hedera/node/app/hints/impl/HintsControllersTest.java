@@ -1,30 +1,17 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.node.app.hints.HintsLibrary;
-import com.hedera.node.app.hints.ReadableHintsStore;
+import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterTransitionWeights;
 import com.hedera.node.app.tss.TssKeyPair;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.util.concurrent.Executor;
@@ -70,7 +57,7 @@ class HintsControllersTest {
     private RosterTransitionWeights weights;
 
     @Mock
-    private ReadableHintsStore hintsStore;
+    private WritableHintsStore hintsStore;
 
     @Mock
     private HintsContext context;
@@ -79,8 +66,15 @@ class HintsControllersTest {
 
     @BeforeEach
     void setUp() {
-        subject =
-                new HintsControllers(executor, keyAccessor, library, codec, submissions, context, selfNodeInfoSupplier);
+        subject = new HintsControllers(
+                executor,
+                keyAccessor,
+                library,
+                codec,
+                submissions,
+                context,
+                selfNodeInfoSupplier,
+                HederaTestConfigBuilder::createConfig);
     }
 
     @Test
@@ -106,6 +100,7 @@ class HintsControllersTest {
         given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
         given(keyAccessor.getOrCreateBlsKeyPair(1L)).willReturn(BLS_KEY_PAIR);
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
 
         final var controller = subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore);
 

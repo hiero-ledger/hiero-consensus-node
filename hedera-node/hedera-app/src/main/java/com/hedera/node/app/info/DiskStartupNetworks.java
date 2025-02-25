@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
 import static com.hedera.hapi.util.HapiUtils.parseAccount;
@@ -40,6 +25,7 @@ import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.roster.RosterRetriever;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -186,12 +172,15 @@ public class DiskStartupNetworks implements StartupNetworks {
      * @param path the path to write the JSON network information to.
      */
     public static void writeNetworkInfo(
-            @NonNull final State state, @NonNull final Path path, @NonNull final Set<InfoType> infoTypes) {
+            @NonNull final State state,
+            @NonNull final Path path,
+            @NonNull final Set<InfoType> infoTypes,
+            @NonNull PlatformStateFacade platformStateFacade) {
         requireNonNull(state);
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
         final var nodeStore =
                 new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityIdStore);
-        Optional.ofNullable(RosterRetriever.retrieveActiveOrGenesisRoster(state))
+        Optional.ofNullable(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
                 .ifPresent(activeRoster -> {
                     final var network = Network.newBuilder();
                     final List<NodeMetadata> nodeMetadata = new ArrayList<>();

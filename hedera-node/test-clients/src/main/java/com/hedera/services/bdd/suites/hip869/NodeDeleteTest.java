@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip869;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -90,7 +76,7 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 // Submit to a different node so ingest check is skipped
                 nodeDelete("node100")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .payingWith("payer")
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("failedDeletion"),
@@ -100,7 +86,7 @@ public class NodeDeleteTest {
 
                 // Submit with several signatures and the price should increase
                 nodeDelete("node100")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .payingWith("payer")
                         .signedBy("payer", "randomAccount", "testKey")
                         .hasKnownStatus(INVALID_SIGNATURE)
@@ -125,7 +111,7 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 // Submit to a different node so ingest check is skipped
                 nodeDelete("node100")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .fee(1)
                         .payingWith("payer")
                         .hasKnownStatus(INSUFFICIENT_TX_FEE)
@@ -133,7 +119,7 @@ public class NodeDeleteTest {
                 getTxnRecord("failedDeletion").logged(),
                 // Submit with several signatures and the price should increase
                 nodeDelete("node100")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .fee(ONE_HBAR)
                         .payingWith("payer")
                         .signedBy("payer", "randomAccount", "testKey")

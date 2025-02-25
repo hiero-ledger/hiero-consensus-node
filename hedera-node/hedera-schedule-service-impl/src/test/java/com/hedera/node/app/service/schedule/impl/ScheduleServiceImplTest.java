@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
+import com.hedera.node.app.spi.AppContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -40,9 +26,12 @@ class ScheduleServiceImplTest {
     @Mock
     private SchemaRegistry registry;
 
+    @Mock
+    private AppContext appContext;
+
     @Test
     void testsSpi() {
-        final ScheduleService service = new ScheduleServiceImpl();
+        final ScheduleService service = new ScheduleServiceImpl(appContext);
         BDDAssertions.assertThat(service).isNotNull();
         BDDAssertions.assertThat(service.getClass()).isEqualTo(ScheduleServiceImpl.class);
         BDDAssertions.assertThat(service.getServiceName()).isEqualTo("ScheduleService");
@@ -51,7 +40,7 @@ class ScheduleServiceImplTest {
     @Test
     @SuppressWarnings("rawtypes")
     void registersExpectedSchema() {
-        final ScheduleServiceImpl subject = new ScheduleServiceImpl();
+        final ScheduleServiceImpl subject = new ScheduleServiceImpl(appContext);
         ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
         subject.registerSchemas(registry);
         verify(registry, times(2)).register(schemaCaptor.capture());

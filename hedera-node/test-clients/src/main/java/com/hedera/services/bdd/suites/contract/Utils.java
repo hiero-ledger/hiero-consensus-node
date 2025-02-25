@@ -1,25 +1,11 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_NONE;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
@@ -30,6 +16,7 @@ import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.common.utility.CommonUtils.unhex;
 import static java.lang.System.arraycopy;
+import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -81,7 +68,8 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 public class Utils {
-    public static final String RESOURCE_PATH = "src/main/resources/contract/contracts/%1$s/%1$s%2$s";
+    public static final String RESOURCE_PATH = "src/main/resources/contract/%1$s/%2$s/%2$s%3$s";
+    public static final String DEFAULT_CONTRACTS_ROOT = "contracts";
 
     public static final String UNIQUE_CLASSPATH_RESOURCE_TPL = "contract/contracts/%s/%s";
     private static final Logger log = LogManager.getLogger(Utils.class);
@@ -91,9 +79,10 @@ public class Utils {
         return ByteString.copyFrom(Hash.keccak256(Bytes.wrap(event.getBytes())).toArray());
     }
 
-    public static ByteString parsedToByteString(long n) {
-        return ByteString.copyFrom(
-                Bytes32.fromHexStringLenient(Long.toHexString(n)).toArray());
+    public static ByteString parsedToByteString(long shard, long realm, long n) {
+        final var hexString =
+                Bytes.wrap(asSolidityAddress((int) shard, realm, n)).toHexString();
+        return ByteString.copyFrom(Bytes32.fromHexStringLenient(hexString).toArray());
     }
 
     public static String asHexedAddress(final TokenID id) {
@@ -137,12 +126,13 @@ public class Utils {
      * Returns the bytecode of the contract by the name of the contract from the classpath resource.
      *
      * @param contractName the name of the contract
+     * @param variant the variant system contract if any
      * @return the bytecode of the contract
      * @throws IllegalArgumentException if the contract is not found
      * @throws UncheckedIOException if an I/O error occurs
      */
-    public static ByteString getInitcodeOf(@NonNull final String contractName) {
-        final var path = getResourcePath(contractName, ".bin");
+    public static ByteString getInitcodeOf(@NonNull final String contractName, @NonNull final String variant) {
+        final var path = getResourcePath(defaultContractsRoot(variant), contractName, ".bin");
         try {
             final var bytes = Files.readAllBytes(relocatedIfNotPresentInWorkingDir(Path.of(path)));
             return ByteString.copyFrom(bytes);
@@ -182,8 +172,26 @@ public class Utils {
      * @param contractName the name of the contract
      */
     public static String getABIFor(final FunctionType type, final String functionName, final String contractName) {
+        return getABIFor(VARIANT_NONE, type, functionName, contractName);
+    }
+
+    /**
+     * This method extracts the function ABI by the name of the desired function and the name of the
+     * respective contract. Depending on the desired function type, it can deliver either a
+     * constructor ABI, or function ABI from the contract ABI
+     *
+     * This overloaded method allows for a variant contract root folder
+     *
+     * @param variant variant contract root folder
+     * @param type accepts {@link FunctionType} - enum, either CONSTRUCTOR, or FUNCTION
+     * @param functionName the name of the function. If the desired function is constructor, the
+     *     function name must be EMPTY ("")
+     * @param contractName the name of the contract
+     */
+    public static String getABIFor(
+            final String variant, final FunctionType type, final String functionName, final String contractName) {
         try {
-            final var path = getResourcePath(contractName, JSON_EXTENSION);
+            final var path = getResourcePath(defaultContractsRoot(variant), contractName, JSON_EXTENSION);
             try (final var input = new FileInputStream(path)) {
                 return getFunctionAbiFrom(input, functionName, type);
             }
@@ -239,8 +247,18 @@ public class Utils {
      * @param extension the type of the desired contract resource (.bin or .json)
      */
     public static String getResourcePath(String resourceName, final String extension) {
+        return getResourcePath(DEFAULT_CONTRACTS_ROOT, resourceName, extension);
+    }
+
+    /**
+     * Generates a path to a desired contract resource
+     *
+     * @param resourceName the name of the contract
+     * @param extension the type of the desired contract resource (.bin or .json)
+     */
+    public static String getResourcePath(String rootDirectory, String resourceName, final String extension) {
         resourceName = resourceName.replaceAll("\\d*$", "");
-        final var path = String.format(RESOURCE_PATH, resourceName, extension);
+        final var path = String.format(RESOURCE_PATH, rootDirectory, resourceName, extension);
         final var file = relocatedIfNotPresentInWorkingDir(new File(path));
         if (!file.exists()) {
             throw new IllegalArgumentException("Invalid argument: " + path.substring(path.lastIndexOf('/') + 1));
@@ -300,20 +318,28 @@ public class Utils {
     }
 
     public static AccountID accountId(final ByteString evmAddress) {
-        return AccountID.newBuilder().setAlias(evmAddress).build();
+        return AccountID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setAlias(evmAddress)
+                .build();
     }
 
     public static Key aliasContractIdKey(final String hexedEvmAddress) {
         return Key.newBuilder()
-                .setContractID(
-                        ContractID.newBuilder().setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
+                .setContractID(ContractID.newBuilder()
+                        .setShardNum(shard)
+                        .setRealmNum(realm)
+                        .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
                 .build();
     }
 
     public static Key aliasDelegateContractKey(final String hexedEvmAddress) {
         return Key.newBuilder()
-                .setDelegatableContractId(
-                        ContractID.newBuilder().setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
+                .setDelegatableContractId(ContractID.newBuilder()
+                        .setShardNum(shard)
+                        .setRealmNum(realm)
+                        .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
                 .build();
     }
 
@@ -442,5 +468,10 @@ public class Utils {
             assertEquals(0L, contractCallResult.getAmount(), "Result not expected to externalize amount");
             assertEquals(ByteString.EMPTY, contractCallResult.getFunctionParameters());
         });
+    }
+
+    @NonNull
+    public static String defaultContractsRoot(@NonNull final String variant) {
+        return variant.isEmpty() ? DEFAULT_CONTRACTS_ROOT : DEFAULT_CONTRACTS_ROOT + "_" + requireNonNull(variant);
     }
 }

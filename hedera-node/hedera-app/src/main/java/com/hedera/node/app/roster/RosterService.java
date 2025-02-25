@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.roster;
 
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
@@ -21,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.roster.schemas.V0540RosterSchema;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -55,13 +41,17 @@ public class RosterService implements Service {
     @Deprecated
     private final Supplier<State> stateSupplier;
 
+    private final PlatformStateFacade platformStateFacade;
+
     public RosterService(
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final Runnable onAdopt,
-            @NonNull final Supplier<State> stateSupplier) {
+            @NonNull final Supplier<State> stateSupplier,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.onAdopt = requireNonNull(onAdopt);
         this.canAdopt = requireNonNull(canAdopt);
         this.stateSupplier = requireNonNull(stateSupplier);
+        this.platformStateFacade = platformStateFacade;
     }
 
     @NonNull
@@ -78,6 +68,7 @@ public class RosterService implements Service {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(new V0540RosterSchema(onAdopt, canAdopt, WritableRosterStore::new, stateSupplier));
+        registry.register(
+                new V0540RosterSchema(onAdopt, canAdopt, WritableRosterStore::new, stateSupplier, platformStateFacade));
     }
 }

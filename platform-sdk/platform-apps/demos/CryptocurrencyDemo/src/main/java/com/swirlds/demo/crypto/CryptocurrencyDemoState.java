@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.crypto;
 /*
  * This file is public domain.
@@ -26,14 +11,13 @@ package com.swirlds.demo.crypto;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
 /**
  * This holds the current state of a swirld representing both a cryptocurrency and a stock market.
@@ -53,7 +36,7 @@ import java.util.function.Function;
  * these cryptocurrencies won't have any actual value.
  */
 @ConstructableIgnored
-public class CryptocurrencyDemoState extends PlatformMerkleStateRoot {
+public class CryptocurrencyDemoState extends MerkleStateRoot<CryptocurrencyDemoState> implements MerkleNodeState {
 
     /**
      * The version history of this class.
@@ -123,8 +106,8 @@ public class CryptocurrencyDemoState extends PlatformMerkleStateRoot {
 
     ////////////////////////////////////////////////////
 
-    public CryptocurrencyDemoState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public CryptocurrencyDemoState() {
+        // no-op
     }
 
     private CryptocurrencyDemoState(final CryptocurrencyDemoState sourceState) {
@@ -183,6 +166,7 @@ public class CryptocurrencyDemoState extends PlatformMerkleStateRoot {
         return numTrades;
     }
 
+    @NonNull
     @Override
     public synchronized CryptocurrencyDemoState copy() {
         throwIfImmutable();
@@ -325,5 +309,10 @@ public class CryptocurrencyDemoState extends PlatformMerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.MIGRATE_TO_SERIALIZABLE;
+    }
+
+    @Override
+    protected CryptocurrencyDemoState copyingConstructor() {
+        return new CryptocurrencyDemoState(this);
     }
 }

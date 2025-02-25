@@ -1,23 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -72,6 +60,7 @@ import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
@@ -207,18 +196,20 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
-        return hapiTest(
-                cryptoCreate("acct3").setNode("0.0.3").via("txnId1"),
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
+                cryptoCreate("acct3").setNode(asEntityString(3)).via("txnId1"),
                 sleepFor(2000),
                 cryptoCreate("acctWithDuplicateTxnId")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .txnId("txnId1")
                         .hasPrecheck(DUPLICATE_TRANSACTION),
                 uncheckedSubmit(cryptoCreate("acctWithDuplicateTxnId")
-                                .setNode("0.0.5")
+                                .setNode(asEntityString(5))
                                 .txnId("txnId1"))
-                        .setNode("0.0.5"),
+                        .setNode(asEntityString(5)),
                 sleepFor(2000),
                 getTxnRecord("txnId1")
                         .andAnyDuplicates()
@@ -230,9 +221,9 @@ public class IssueRegressionTests {
     @HapiTest
     final Stream<DynamicTest> duplicatedTxnsDifferentTypesDifferentNodesDetected() {
         return hapiTest(
-                cryptoCreate("acct4").via("txnId4").setNode("0.0.3"),
+                cryptoCreate("acct4").via("txnId4").setNode(asEntityString(3)),
                 newKeyNamed("key2"),
-                createTopic("topic2").setNode("0.0.5").submitKeyName("key2"),
+                createTopic("topic2").setNode(asEntityString(5)).submitKeyName("key2"),
                 submitMessageTo("topic2")
                         .message("Hello world")
                         .payingWith("acct4")
@@ -284,7 +275,8 @@ public class IssueRegressionTests {
 
     @HapiTest
     final Stream<DynamicTest> transferAccountCannotBeDeleted() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(PAYER),
                 cryptoCreate(TRANSFER),
                 cryptoCreate("tbd"),

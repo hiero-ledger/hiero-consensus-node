@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -84,4 +70,20 @@ public interface HintsController {
      * Cancels any pending work that this controller has scheduled.
      */
     void cancelPendingWork();
+
+    /**
+     * Adds a CRS publication to the controller's state, if the network is still gathering contributions.
+     * @param publication the CRS publication
+     */
+    void addCrsPublication(
+            @NonNull CrsPublicationTransactionBody publication,
+            @NonNull Instant consensusTime,
+            @NonNull WritableHintsStore hintsStore);
+
+    /**
+     * Verifies the given CRS update.
+     * @param publication the publication
+     * @param hintsStore the hints store
+     */
+    void verifyCrsUpdate(@NonNull CrsPublicationTransactionBody publication, @NonNull WritableHintsStore hintsStore);
 }

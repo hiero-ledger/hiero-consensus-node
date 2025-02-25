@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -21,13 +6,17 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
@@ -37,6 +26,7 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
@@ -62,12 +52,16 @@ import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -112,6 +106,9 @@ class WritableHintsStoreImplTest {
 
     @Mock
     private StoreMetricsServiceImpl storeMetricsService;
+
+    @Mock
+    private WritableStates writableStates;
 
     private State state;
 
@@ -341,6 +338,55 @@ class WritableHintsStoreImplTest {
         assertEquals(0L, keySetsNow().size());
     }
 
+    @Test
+    void setCrsState() {
+        final var crsState = setInitialCrsState();
+
+        assertEquals(crsState, subject.getCrsState());
+    }
+
+    @Test
+    void movesToNextNode() {
+        setInitialCrsState();
+
+        subject.moveToNextNode(OptionalLong.of(1L), Instant.ofEpochSecond(1_234_567L));
+        assertEquals(1L, subject.getCrsState().nextContributingNodeId());
+        assertEquals(
+                asTimestamp(Instant.ofEpochSecond(1_234_567L)),
+                subject.getCrsState().contributionEndTime());
+    }
+
+    @Test
+    void addsCrsPublications() {
+        subject.addCrsPublication(0L, CrsPublicationTransactionBody.DEFAULT);
+        assertEquals(1, subject.getCrsPublications().size());
+        assertEquals(
+                CrsPublicationTransactionBody.DEFAULT,
+                subject.getCrsPublications().get(0));
+    }
+
+    private CRSState setInitialCrsState() {
+        final var crsState = CRSState.newBuilder()
+                .crs(Bytes.wrap("test"))
+                .nextContributingNodeId(0L)
+                .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                .contributionEndTime(asTimestamp(Instant.ofEpochSecond(1_234_567L)))
+                .build();
+        final AtomicReference<CRSState> crsStateRef = new AtomicReference<>();
+        given(writableStates.<CRSState>getSingleton(CRS_STATE_KEY))
+                .willReturn(new WritableSingletonStateBase<>(CRS_STATE_KEY, crsStateRef::get, crsStateRef::set));
+        given(writableStates.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY))
+                .willReturn(new WritableSingletonStateBase<>(
+                        NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+        given(writableStates.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY))
+                .willReturn(new WritableSingletonStateBase<>(
+                        ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+
+        subject = new WritableHintsStoreImpl(writableStates);
+        subject.setCRSState(crsState);
+        return crsState;
+    }
+
     private ReadableKVState<PreprocessingVoteId, PreprocessingVote> votesNow() {
         return state.getWritableStates(HintsService.NAME).get(V059HintsSchema.PREPROCESSING_VOTES_KEY);
     }
@@ -419,7 +465,8 @@ class WritableHintsStoreImplTest {
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                TEST_PLATFORM_STATE_FACADE);
         return state;
     }
 }

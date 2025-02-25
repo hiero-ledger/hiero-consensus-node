@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.crypto;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
@@ -39,11 +24,13 @@ import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -56,6 +43,9 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
     private Optional<String> expectationsDirPath = Optional.empty();
     private Optional<ErroringAssertsProvider<List<TransactionRecord>>> expectation = Optional.empty();
     private Optional<BiConsumer<Logger, List<TransactionRecord>>> customLog = Optional.empty();
+
+    @Nullable
+    private Consumer<List<TransactionRecord>> observer = null;
 
     public HapiGetAccountRecords has(ErroringAssertsProvider<List<TransactionRecord>> provider) {
         expectation = Optional.of(provider);
@@ -75,6 +65,11 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
 
     public HapiGetAccountRecords checkingAgainst(String dirPath) {
         expectationsDirPath = Optional.of(dirPath);
+        return this;
+    }
+
+    public HapiGetAccountRecords exposingTo(@NonNull final Consumer<List<TransactionRecord>> observer) {
+        this.observer = observer;
         return this;
     }
 
@@ -106,6 +101,9 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
     @Override
     protected void processAnswerOnlyResponse(@NonNull final HapiSpec spec) {
         List<TransactionRecord> records = response.getCryptoGetAccountRecords().getRecordsList();
+        if (observer != null) {
+            observer.accept(records);
+        }
         if (verboseLoggingOn) {
             if (customLog.isPresent()) {
                 customLog.get().accept(log, records);
