@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.state;
+package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
-import static com.swirlds.platform.test.state.RoundHashValidatorTests.generateCatastrophicNodeHashes;
-import static com.swirlds.platform.test.state.RoundHashValidatorTests.generateRegularNodeHashes;
+import static com.swirlds.platform.state.RoundHashValidatorTests.generateCatastrophicNodeHashes;
+import static com.swirlds.platform.state.RoundHashValidatorTests.generateRegularNodeHashes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -27,7 +27,6 @@ import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
