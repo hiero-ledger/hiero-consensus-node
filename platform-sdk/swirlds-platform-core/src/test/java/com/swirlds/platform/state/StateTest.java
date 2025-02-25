@@ -14,7 +14,6 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
