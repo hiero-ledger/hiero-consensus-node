@@ -37,6 +37,7 @@ import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -143,6 +144,9 @@ class UserTxnTest {
 
     @Mock
     private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
+
+    @Mock
+    private DeduplicationCache deduplicationCache;
 
     private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = ServicesSoftwareVersion::new;
 
