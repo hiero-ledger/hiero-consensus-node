@@ -172,7 +172,7 @@ public class SyncGossipModular implements Gossip {
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
         var networkThreads = network.initialize(threadManager, handshakeProtocols, protocols);
-        final List<DedicatedStoppableThread> threads = network.buildProtocolThreadsFromCurrentNeighbors();
+        final List<DedicatedStoppableThread<NodeId>> threads = network.buildProtocolThreadsFromCurrentNeighbors();
 
         networkThreads.forEach(controller::registerThingToStartButNotStop);
         controller.registerThingToStartButNotStop(sharedState.shadowgraphExecutor());

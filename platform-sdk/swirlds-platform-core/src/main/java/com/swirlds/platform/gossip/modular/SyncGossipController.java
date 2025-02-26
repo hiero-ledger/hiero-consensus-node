@@ -2,6 +2,7 @@
 package com.swirlds.platform.gossip.modular;
 
 import com.swirlds.base.state.Startable;
+import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.*;
@@ -22,8 +23,8 @@ public class SyncGossipController implements GossipController {
     private boolean started = false;
     private final List<Startable> startableButNotStoppable = new ArrayList<>();
 
-    private final Map<Object, DedicatedStoppableThread> dedicatedThreads = new HashMap<>();
-    private final List<DedicatedStoppableThread> dedicatedThreadsToModify = new ArrayList<>();
+    private final Map<Object, DedicatedStoppableThread<NodeId>> dedicatedThreads = new HashMap<>();
+    private final List<DedicatedStoppableThread<NodeId>> dedicatedThreadsToModify = new ArrayList<>();
 
     /**
      * Creates new gossip controller
@@ -48,7 +49,7 @@ public class SyncGossipController implements GossipController {
      * Registers threads which should be started when {@link #start()} method is called and stopped on {@link #stop()}
      * @param things thread to start
      */
-    public void registerDedicatedThreads(Collection<DedicatedStoppableThread> things) {
+    public void registerDedicatedThreads(Collection<DedicatedStoppableThread<NodeId>> things) {
         dedicatedThreadsToModify.addAll(things);
     }
 
@@ -64,7 +65,7 @@ public class SyncGossipController implements GossipController {
             logger.warn("Cannot apply dedicated threads status when gossip is not started");
             return;
         }
-        for (DedicatedStoppableThread dst : dedicatedThreadsToModify) {
+        for (DedicatedStoppableThread<NodeId> dst : dedicatedThreadsToModify) {
             var newThread = dst.thread();
             var oldThread = dedicatedThreads.remove(dst.key());
             if (newThread == null) {

@@ -10,7 +10,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * @param key opaque context for which this thread is created
  * @param thread thread itself, to be started/stopped/forgotten depending on the key context
  */
-public record DedicatedStoppableThread(@NonNull Object key, @Nullable StoppableThread thread) {
+public record DedicatedStoppableThread<E>(@NonNull E key, @Nullable StoppableThread thread) {
     /**
      * Utility method to start contained thread; simple shortcut to {@code thread().start()}
      */

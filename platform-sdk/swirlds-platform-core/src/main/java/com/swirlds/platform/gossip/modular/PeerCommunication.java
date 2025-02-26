@@ -108,12 +108,12 @@ public class PeerCommunication implements ConnectionTracker {
      * @param removed peers to be removed
      * @return set of per-peer thread information based on applied diff; it will contain nodeId->null for peers which got removed, nodeId->threadForFreshData for ones which got updated
      */
-    public Collection<DedicatedStoppableThread> addRemovePeers(
+    public Collection<DedicatedStoppableThread<NodeId>> addRemovePeers(
             @NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         Objects.requireNonNull(added);
         Objects.requireNonNull(removed);
 
-        List<DedicatedStoppableThread> threads = new ArrayList<>();
+        List<DedicatedStoppableThread<NodeId>> threads = new ArrayList<>();
 
         if (!peerLock.tryLock()) {
             logger.error(
@@ -132,7 +132,7 @@ public class PeerCommunication implements ConnectionTracker {
                     logger.warn("Peer info for nodeId: {} not found for removal", peerInfo.nodeId());
                 } else {
 
-                    threads.add(new DedicatedStoppableThread(peerInfo.nodeId(), null));
+                    threads.add(new DedicatedStoppableThread<NodeId>(peerInfo.nodeId(), null));
                 }
             }
 
@@ -169,18 +169,18 @@ public class PeerCommunication implements ConnectionTracker {
      * Internal method similar to {@link #addRemovePeers(List, List)}, to be used during initialization for core set of peers
      * @return see {@link #addRemovePeers(List, List)}
      */
-    List<DedicatedStoppableThread> buildProtocolThreadsFromCurrentNeighbors() {
+    List<DedicatedStoppableThread<NodeId>> buildProtocolThreadsFromCurrentNeighbors() {
         return buildProtocolThreads(topology.getNeighbors());
     }
 
-    private List<DedicatedStoppableThread> buildProtocolThreads(Collection<NodeId> peers) {
+    private List<DedicatedStoppableThread<NodeId>> buildProtocolThreads(Collection<NodeId> peers) {
 
         var syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         final BasicConfig basicConfig = platformContext.getConfiguration().getConfigData(BasicConfig.class);
         final Duration hangingThreadDuration = basicConfig.hangingThreadDuration();
-        var syncProtocolThreads = new ArrayList<DedicatedStoppableThread>();
+        var syncProtocolThreads = new ArrayList<DedicatedStoppableThread<NodeId>>();
         for (final NodeId otherId : peers) {
-            syncProtocolThreads.add(new DedicatedStoppableThread(
+            syncProtocolThreads.add(new DedicatedStoppableThread<NodeId>(
                     otherId,
                     new StoppableThreadConfiguration<>(threadManager)
                             .setPriority(Thread.NORM_PRIORITY)
