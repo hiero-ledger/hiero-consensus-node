@@ -40,7 +40,7 @@ public interface MerkleNodeState extends State {
      * MUST have a correct label applied. If the node is already present, then this method does nothing
      * else.
      *
-     * @param md           The metadata associated with the state
+     * @param md The metadata associated with the state
      * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
      *                                  it doesn't have a label, or if the label isn't right.
@@ -56,8 +56,8 @@ public interface MerkleNodeState extends State {
      * MUST have a correct label applied. No matter if the resulting node is newly created or already
      * present, calls the provided initialization consumer with the node.
      *
-     * @param md              The metadata associated with the state
-     * @param nodeSupplier    Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
+     * @param md The metadata associated with the state
+     * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
      * @param nodeInitializer The node's initialization logic.
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
      *                                  it doesn't have a label, or if the label isn't right.
@@ -85,7 +85,7 @@ public interface MerkleNodeState extends State {
      * To prevent this and to allow the system to initialize all the services,
      * we unregister the PlatformStateService and RosterService after the validation is performed.
      * <p>
-     * Note that unlike the MerkleNodeState.removeServiceState() method above in this class,
+     * Note that unlike the {@link #removeServiceState(String, String)} method in this class,
      * the unregisterService() method will NOT remove the merkle nodes that store the states of
      * the services being unregistered. This is by design because these nodes will be used
      * by the actual service states once the app initializes the States API in full.
