@@ -52,49 +52,16 @@ them with a custom one. In this way, we can build the platform and tailor it, th
 It consists of all the components that are going to be later wired and the `PlatformBuildingBlocks` described in the
 previous section.
 
-The current components needed to build the platform are:
-
-- EventHasher
-- InternalEventValidator
-- EventDeduplicator
-- EventSignatureValidator
-- SelfEventSigner
-- StateGarbageCollector
-- OrphanBuffer
-- EventCreationManager
-- ConsensusEngine
-- ConsensusEventStream
-- SignedStateSentinel
-- PcesSequencer
-- RoundDurabilityBuffer
-- StatusStateMachine
-- TransactionPrehandler
-- PcesWriter
-- InlinePcesWriter
-- IssDetector
-- IssHandler
-- Gossip
-- StaleEventDetector
-- TransactionResubmitter
-- TransactionPool
-- StateHasher
-- StateSnapshotManager
-- HashLogger
-- BranchDetector
-- BranchReporter
-- StateSigner
-- TransactionHandler
-- LatestCompleteStateNotifier
-
 An example for building a component using the `PlatformBuildingBlocks` is the following:
 
 ```java
 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                        blocks.platformContext(),
-                        blocks.initialPcesFiles(),
-                        blocks.selfId(),
-                        blocks.initialState().get().getRound());
-pcesWriter = new DefaultPcesWriter(blocks.platformContext(), preconsensusEventFileManager);
+        blocks.platformContext(),
+        blocks.initialPcesFiles(),
+        blocks.selfId(),
+        blocks.initialState().get().getRound());
+        inlinePcesWriter = new DefaultInlinePcesWriter(blocks.platformContext(),
+        preconsensusEventFileManager, blocks.selfId());
 ```
 
 The `PlatformComponentBuilder` sometimes also creates additional components used to initialize the main components. In this
