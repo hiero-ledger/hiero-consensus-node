@@ -3,6 +3,7 @@ package com.swirlds.platform.test.fixtures.event.source;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.internal.EventImpl;
@@ -43,6 +44,8 @@ public interface EventSource {
      * @return this
      */
     EventSource setNodeId(@NonNull NodeId nodeId);
+
+    void setEventVersion(@NonNull SemanticVersion eventVersion);
 
     /**
      * Get the probabilistic weight that this node will create the next new event. A node with a weight of 1 will

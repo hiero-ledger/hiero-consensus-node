@@ -417,7 +417,7 @@ public class TipsetEventCreator implements EventCreator {
         }
 
         final UnsignedEvent event = new UnsignedEvent(
-                softwareVersion,
+                softwareVersion.getPbjSemanticVersion(),
                 selfId,
                 lastSelfEvent,
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),

@@ -4,29 +4,43 @@ package com.swirlds.platform.test.fixtures.event.source;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.event.EventDescriptor;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
+import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.system.events.EventDescriptorWrapper;
+import com.swirlds.platform.system.events.UnsignedEvent;
+import com.swirlds.platform.system.transaction.TransactionWrapper;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
-import com.swirlds.platform.test.fixtures.event.RandomEventUtils;
 import com.swirlds.platform.test.fixtures.event.TransactionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.util.stream.Stream;
 
 /**
  * A source of events.
  */
 public abstract class AbstractEventSource implements EventSource {
-
     /**
      * The unique ID of this source/node. Is set by the StandardEventGenerator.
      */
     private NodeId nodeId;
+
+    private SemanticVersion eventVersion = SemanticVersion.newBuilder().build();
 
     /**
      * Influences the probability that this node create a new event.
@@ -158,6 +172,11 @@ public abstract class AbstractEventSource implements EventSource {
         return this;
     }
 
+    @Override
+    public void setEventVersion(@NonNull final SemanticVersion eventVersion) {
+        this.eventVersion = eventVersion;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -199,15 +218,14 @@ public abstract class AbstractEventSource implements EventSource {
                 otherParent == null ? null : otherParent.getRecentEvent(random, otherParentIndex);
         final EventImpl latestSelfEvent = getLatestEvent(random);
 
-        event = RandomEventUtils.randomEventWithTimestamp(
+        event = randomEventWithTimestamp(
                 random,
-                nodeId,
                 timestamp,
                 birthRound,
                 transactionGenerator.generate(random),
                 latestSelfEvent,
-                otherParentEvent,
-                useFakeHashes);
+                otherParentEvent
+        );
 
         eventCount++;
 
@@ -278,4 +296,58 @@ public abstract class AbstractEventSource implements EventSource {
         this.recentEventRetentionSize = recentEventRetentionSize;
         return this;
     }
+
+    /**
+     * Outdated, should be replaced by {@link com.swirlds.platform.test.fixtures.event.TestingEventBuilder}
+     */
+    private EventImpl randomEventWithTimestamp(
+            final Random random,
+            final Instant timestamp,
+            final long birthRound,
+            final TransactionWrapper[] transactions,
+            final EventImpl selfParent,
+            final EventImpl otherParent) {
+
+        final EventDescriptorWrapper selfDescriptor = (selfParent == null || selfParent.getBaseHash() == null)
+                ? null
+                : new EventDescriptorWrapper(new EventDescriptor(
+                        selfParent.getBaseHash().getBytes(),
+                        selfParent.getCreatorId().id(),
+                        selfParent.getBaseEvent().getBirthRound(),
+                        selfParent.getGeneration()));
+        final EventDescriptorWrapper otherDescriptor = (otherParent == null || otherParent.getBaseHash() == null)
+                ? null
+                : new EventDescriptorWrapper(new EventDescriptor(
+                        otherParent.getBaseHash().getBytes(),
+                        otherParent.getCreatorId().id(),
+                        otherParent.getBaseEvent().getBirthRound(),
+                        otherParent.getGeneration()));
+
+        final List<Bytes> convertedTransactions = new ArrayList<>();
+        if (transactions != null) {
+            Stream.of(transactions)
+                    .map(TransactionWrapper::getApplicationTransaction)
+                    .forEach(convertedTransactions::add);
+        }
+        final UnsignedEvent unsignedEvent = new UnsignedEvent(
+                eventVersion,
+                this.nodeId,
+                selfDescriptor,
+                otherDescriptor == null ? Collections.emptyList() : Collections.singletonList(otherDescriptor),
+                birthRound,
+                timestamp,
+                convertedTransactions);
+
+        if (this.useFakeHashes) {
+            unsignedEvent.setHash(RandomUtils.randomHash(random));
+        } else {
+            new PbjStreamHasher().hashUnsignedEvent(unsignedEvent);
+        }
+
+        final byte[] sig = new byte[SignatureType.RSA.signatureLength()];
+        random.nextBytes(sig);
+
+        return new EventImpl(new PlatformEvent(unsignedEvent, sig), selfParent, otherParent);
+    }
+
 }

@@ -122,7 +122,7 @@ public class TestIntake {
      * @param event the event to add
      */
     public void addEvent(@NonNull final PlatformEvent event) {
-        hasherWiring.getInputWire(EventHasher::hashEvent).put(event);
+        hasherWiring.getInputWire(EventHasher::hashEvent).put(event.copyGossipedData());
         output.eventAdded(event);
     }
 

@@ -51,15 +51,29 @@ class ConsensusTests extends PlatformTest {
      * @return a list of platform contexts
      */
     private List<PlatformContext> contexts() {
-        return List.of(
-                createPlatformContext(
-                        null,
-                        configBuilder ->
-                                configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)),
-                createPlatformContext(
-                        null,
-                        configBuilder ->
-                                configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)));
+        return List.of(generationAncientContext(), birthRoundAncientContext());
+    }
+
+    private PlatformContext generationAncientContext() {
+        return createPlatformContext(
+                null,
+                configBuilder ->{
+                    configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false);
+                    configBuilder.withConfigDataType(ConsensusTestConfig.class);
+                    configBuilder.withValue("consensusTest.firstVersionInBirthRoundMode", "1.0.0");
+                    return configBuilder;
+                });
+    }
+
+    private PlatformContext birthRoundAncientContext() {
+        return createPlatformContext(
+                null,
+                configBuilder ->{
+                    configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true);
+                    configBuilder.withConfigDataType(ConsensusTestConfig.class);
+                    configBuilder.withValue("consensusTest.firstVersionInBirthRoundMode", "2.0.0");
+                    return configBuilder;
+                });
     }
 
     @ParameterizedTest

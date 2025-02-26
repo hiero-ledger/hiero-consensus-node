@@ -77,7 +77,7 @@ public class ConsensusTestNode {
         final LinkedList<PlatformEvent> added = new LinkedList<>(getOutput().getAddedEvents());
         getOutput().getAddedEvents().clear();
         for (final PlatformEvent e : added) {
-            intake.addEvent(e.copyGossipedData());
+            intake.addEvent(e);
         }
     }
 
