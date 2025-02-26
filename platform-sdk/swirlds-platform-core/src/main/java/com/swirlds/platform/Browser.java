@@ -29,7 +29,6 @@ import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
@@ -77,8 +76,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the
- * Platforms.
+ * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the Platforms.
  * This class will be removed once the demo apps moved to Inversion of Control pattern to build and start platform
  * directly.
  */
@@ -232,7 +230,6 @@ public class Browser {
                     FileSystemManager.create(configuration),
                     nodeId);
             final var cryptography = CryptographyFactory.create();
-            CryptographyHolder.set(cryptography);
             final KeysAndCerts keysAndCerts = initNodeSecurity(
                             appDefinition.getConfigAddressBook(), configuration, Set.copyOf(nodesToRun))
                     .get(nodeId);
@@ -241,7 +238,7 @@ public class Browser {
             cryptography.digestSync(appDefinition.getConfigAddressBook());
 
             // Set the MerkleCryptography instance for this node
-            final var merkleCryptography = MerkleCryptographyFactory.create(configuration, CryptographyHolder.get());
+            final var merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
             MerkleCryptoFactory.set(merkleCryptography);
 
             // Register with the ConstructableRegistry classes which need configuration.
@@ -252,10 +249,9 @@ public class Browser {
                     configuration,
                     Time.getCurrent(),
                     guiMetrics,
-                    cryptography,
                     FileSystemManager.create(configuration),
                     recycleBin,
-                    MerkleCryptographyFactory.create(configuration, CryptographyHolder.get()));
+                    MerkleCryptographyFactory.create(configuration, cryptography));
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
             PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));

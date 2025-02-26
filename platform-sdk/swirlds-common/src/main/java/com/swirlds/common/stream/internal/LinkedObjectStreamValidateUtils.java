@@ -7,7 +7,8 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
@@ -35,22 +36,21 @@ public final class LinkedObjectStreamValidateUtils {
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
     private static final Logger logger = LogManager.getLogger(LinkedObjectStreamValidateUtils.class);
 
+    /** used for hashing */
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+
     private LinkedObjectStreamValidateUtils() {}
 
     /**
-     * 1. validates if the stream file is valid, i.e., saved endRunningHash matches calculated endRunningHash;
-     * 2. if the stream file is valid, then validates if the entireHash saved in the signature file matches the hash
-     * calculated from the stream file;
-     * 3. if yes, then validates if the signature file contains valid signatures of the entireHash and metaHash
+     * 1. validates if the stream file is valid, i.e., saved endRunningHash matches calculated endRunningHash; 2. if the
+     * stream file is valid, then validates if the entireHash saved in the signature file matches the hash calculated
+     * from the stream file; 3. if yes, then validates if the signature file contains valid signatures of the entireHash
+     * and metaHash
      *
-     * @param streamFile
-     * 		a stream file
-     * @param sigFile
-     * 		a stream signature file
-     * @param publicKey
-     * 		the public key required to validate the signature
-     * @param streamType
-     * 		type of the stream file
+     * @param streamFile a stream file
+     * @param sigFile    a stream signature file
+     * @param publicKey  the public key required to validate the signature
+     * @param streamType type of the stream file
      * @return validation result
      */
     public static StreamValidationResult validateFileAndSignature(
@@ -85,14 +85,10 @@ public final class LinkedObjectStreamValidateUtils {
     /**
      * validates if the sigFile contains given entireHash, and contains valid signatures of the entireHash and metaHash
      *
-     * @param entireHash
-     * 		entireHash calculated from a stream file
-     * @param sigFile
-     * 		a stream signature file
-     * @param publicKey
-     * 		the public key required to validate the signature
-     * @param streamType
-     * 		type of the stream file
+     * @param entireHash entireHash calculated from a stream file
+     * @param sigFile    a stream signature file
+     * @param publicKey  the public key required to validate the signature
+     * @param streamType type of the stream file
      * @return validation result
      */
     public static StreamValidationResult validateSignature(
@@ -130,16 +126,12 @@ public final class LinkedObjectStreamValidateUtils {
 
     /**
      * for a single object stream file, validates if it is valid, i.e., saved endRunningHash matches calculated
-     * endRunningHash;
-     * for a directory of object stream files, validates if all files in it are valid and chained
+     * endRunningHash; for a directory of object stream files, validates if all files in it are valid and chained
      *
-     * @param objectDirOrFile
-     * 		a directory or a single object stream file
-     * @param streamType
-     * 		type of stream file(s) to be validated
+     * @param objectDirOrFile a directory or a single object stream file
+     * @param streamType      type of stream file(s) to be validated
      * @return a pair of StreamValidationResult and endRunningHash
-     * @throws InvalidStreamFileException
-     * 		when the file doesn't match given streamType
+     * @throws InvalidStreamFileException when the file doesn't match given streamType
      */
     public static Pair<StreamValidationResult, Hash> validateDirOrFile(
             final File objectDirOrFile, final StreamType streamType) throws InvalidStreamFileException {
@@ -149,10 +141,8 @@ public final class LinkedObjectStreamValidateUtils {
     /**
      * validate a list of stream object files
      *
-     * @param fileList
-     * 		a list of stream object files
-     * @param streamType
-     * 		type of stream file(s) to be validated
+     * @param fileList   a list of stream object files
+     * @param streamType type of stream file(s) to be validated
      * @return a Pair of StreamValidationResult and last RunningHash
      */
     public static Pair<StreamValidationResult, Hash> validateFileList(
@@ -161,13 +151,11 @@ public final class LinkedObjectStreamValidateUtils {
     }
 
     /**
-     * Calculates a runningHash for given startRunningHash and objects in the iterator
-     * Verifies if the endRunningHash in the Iterator matches the calculated RunningHash
+     * Calculates a runningHash for given startRunningHash and objects in the iterator Verifies if the endRunningHash in
+     * the Iterator matches the calculated RunningHash
      *
-     * @param iterator
-     * 		an iterator parsed from stream file
-     * @param <T>
-     * 		extends SelfSerializable
+     * @param iterator an iterator parsed from stream file
+     * @param <T>      extends SelfSerializable
      * @return a pair of validation result and last running hash
      */
     public static <T extends SelfSerializable> Pair<StreamValidationResult, Hash> validateIterator(
@@ -193,8 +181,8 @@ public final class LinkedObjectStreamValidateUtils {
                 break;
             }
             objectsCount++;
-            Hash objectHash = CryptographyHolder.get().digestSync(selfSerializable);
-            runningHash = CryptographyHolder.get().calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
+            Hash objectHash = CRYPTOGRAPHY.digestSync(selfSerializable);
+            runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
             logger.info(
                     OBJECT_STREAM.getMarker(),
                     "validateIterator :: after consuming object {}," + "hash: {}, updated runningHash: {}",

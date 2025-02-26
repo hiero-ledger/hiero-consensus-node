@@ -6,7 +6,7 @@ import static com.swirlds.common.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.SerializableHashable;
@@ -28,20 +28,21 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * A threadsafe fast-copyable queue, each of whose elements is fast-copyable. Elements must always be inserted at the
  * tail and removed from the head. It is not allowed to insert nulls. This is fast copyable. A fast copy of a queue is
- * mutable and the original queue becomes immutable. A mutable fast copy can only be created from a mutable queue,
- * which would then become immutable after creating this mutable fast copy, or by using the "new" operator.
- *
+ * mutable and the original queue becomes immutable. A mutable fast copy can only be created from a mutable queue, which
+ * would then become immutable after creating this mutable fast copy, or by using the "new" operator.
+ * <p>
  * Element insertion/deletion and fast copy creation/deletion all take constant time.
- *
+ * <p>
  * The FCQueue objects can be thought of as being organized into "queue groups". A fast copy of a queue creates another
  * queue in the same queue group. But instantiating a queue with "new" and the constructor creates a new queue group.
- *
+ * <p>
  * All write operations are synchronized with the current instance. It is ok for multiple iterators to be running in
- * multiple threads at the same time. An iterator for a mutable queue provides a snapshot view of the queue at the
- * time of iterator creation. A reverse iterator materializes the view (should not be used for huge queues).
+ * multiple threads at the same time. An iterator for a mutable queue provides a snapshot view of the queue at the time
+ * of iterator creation. A reverse iterator materializes the view (should not be used for huge queues).
  */
 public class FCQueue<E extends FastCopyable & SerializableHashable> extends PartialMerkleLeaf
         implements Queue<E>, MerkleLeaf {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private static class ClassVersion {
         /**
@@ -147,8 +148,8 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * This is a rolling hash that takes the order into account.
-     * If the queue contains {a,b,c,d}, where "a" is the head and "d" is the tail, then define:
+     * This is a rolling hash that takes the order into account. If the queue contains {a,b,c,d}, where "a" is the head
+     * and "d" is the tail, then define:
      *
      * <p> hash64({a,b,c,d}) = a * 3^^3 + b * 3^^2 + c * 3^^1 + d * 3^^0 mod 2^^64 </p>
      * <p> hash64({a,b,c})   = a * 3^^2 + b * 3^^1 + c * 3^^0            mod 2^^64 </p>
@@ -159,15 +160,15 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      * <p> hash64({a,b,c,d}) = hash64({a,b,c}) * 3 + d                   mod 2^^64     // add(d) </p>
      * <p> hash64({b,c,d})   = hash64({a,b,c,d}) - a * 3^^3              mod 2^^64     // remove() </p>
      * <p> hash64({c,d})     = hash64({a,b,c,d}) - a * 3^^3 - b * 3^^2   mod 2^^64
-     *                       = hash64({a,b,c,d}) - hash64({a,b}) * 3^^size mod 2^^64 </p>
+     * = hash64({a,b,c,d}) - hash64({a,b}) * 3^^size mod 2^^64 </p>
      * <p>
-     * It would be much slower to use modulo 2^^384, but we don't have to do that. We can treat the
-     * 48-byte hash as a sequence of 6 numbers, each of which is an unsigned 64-bit integer.  We do this
-     * rolling hash on each of the 6 numbers independently. Then it ends up being simple and fast. </p>
+     * It would be much slower to use modulo 2^^384, but we don't have to do that. We can treat the 48-byte hash as a
+     * sequence of 6 numbers, each of which is an unsigned 64-bit integer.  We do this rolling hash on each of the 6
+     * numbers independently. Then it ends up being simple and fast. </p>
      * <p>
-     * To compute hashes of queue copies concurrently and efficiently we maintain a running hash for each node.
-     * Node's running hash is a weighted sum as above that covers all nodes from the origin up to, but excluding,
-     * the current node. It's invariant between all copies in a queue group. Example:</p>
+     * To compute hashes of queue copies concurrently and efficiently we maintain a running hash for each node. Node's
+     * running hash is a weighted sum as above that covers all nodes from the origin up to, but excluding, the current
+     * node. It's invariant between all copies in a queue group. Example:</p>
      * <p> Queue:        {a} -> {b} -> {c}      -> {} </p>
      * <p> RunningHash:  [0]    [a]    [a * 3 + b] [a * 3^2 + b * 3 + c] </p>
      * <p>
@@ -210,8 +211,8 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
 
     /**
      * Computes a long value of <code>HASH_RADIX<sup>exponent</sup></code> ignoring multiplication overflow.
-     * @param y
-     * 		exponent
+     *
+     * @param y exponent
      * @return (HASH_RADIX ^ y) mod 2^64
      */
     private static long power(int y) {
@@ -245,27 +246,20 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
     /**
-     * Inserts the specified element into this queue if it is possible to do so
-     * immediately without violating capacity restrictions, returning
-     * {@code true} upon success and throwing an {@code IllegalStateException}
-     * if no space is currently available.
+     * Inserts the specified element into this queue if it is possible to do so immediately without violating capacity
+     * restrictions, returning {@code true} upon success and throwing an {@code IllegalStateException} if no space is
+     * currently available.
      *
-     * @param element
-     * 		the element to add
+     * @param element the element to add
      * @return {@code true} (as specified by {@link Collection#add})
-     * @throws IllegalStateException
-     * 		if the element cannot be added at this
-     * 		time due to capacity restrictions (this cannot happen)
-     * @throws ClassCastException
-     * 		if the class of the specified element
-     * 		prevents it from being added to this queue
-     * @throws NullPointerException
-     * 		if the specified element is null and
-     * 		this queue does not permit null elements
-     * @throws IllegalArgumentException
-     * 		if some property of this element prevents it from being added to this queue.
-     * 		This will happen if the fast-copyable object o
-     * 		has an IOException while serializing to create its hash.
+     * @throws IllegalStateException    if the element cannot be added at this time due to capacity restrictions (this
+     *                                  cannot happen)
+     * @throws ClassCastException       if the class of the specified element prevents it from being added to this
+     *                                  queue
+     * @throws NullPointerException     if the specified element is null and this queue does not permit null elements
+     * @throws IllegalArgumentException if some property of this element prevents it from being added to this queue.
+     *                                  This will happen if the fast-copyable object o has an IOException while
+     *                                  serializing to create its hash.
      */
     @Override
     public synchronized boolean add(final E element) {
@@ -292,13 +286,11 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Retrieves and removes the head of this queue.  This method differs
-     * from {@link #poll() poll()} only in that it throws an exception if
-     * this queue is empty.
+     * Retrieves and removes the head of this queue.  This method differs from {@link #poll() poll()} only in that it
+     * throws an exception if this queue is empty.
      *
      * @return the head of this queue
-     * @throws NoSuchElementException
-     * 		if this queue is empty
+     * @throws NoSuchElementException if this queue is empty
      */
     @Override
     public synchronized E remove() {
@@ -321,19 +313,12 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     /**
      * Inserts the specified element into this queue. This is equivalent to {@code add(o)}.
      *
-     * @param o
-     * 		the element to add
-     * @return {@code true} if the element was added to this queue, else
-     *        {@code false}
-     * @throws ClassCastException
-     * 		if the class of the specified element
-     * 		prevents it from being added to this queue
-     * @throws NullPointerException
-     * 		if the specified element is null and
-     * 		this queue does not permit null elements
-     * @throws IllegalArgumentException
-     * 		if some property of this element
-     * 		prevents it from being added to this queue
+     * @param o the element to add
+     * @return {@code true} if the element was added to this queue, else {@code false}
+     * @throws ClassCastException       if the class of the specified element prevents it from being added to this
+     *                                  queue
+     * @throws NullPointerException     if the specified element is null and this queue does not permit null elements
+     * @throws IllegalArgumentException if some property of this element prevents it from being added to this queue
      */
     @Override
     public synchronized boolean offer(final E o) {
@@ -341,8 +326,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Retrieves and removes the head of this queue,
-     * or returns {@code null} if this queue is empty.
+     * Retrieves and removes the head of this queue, or returns {@code null} if this queue is empty.
      *
      * @return the head of this queue, or {@code null} if this queue is empty
      */
@@ -356,13 +340,11 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Retrieves, but does not remove, the head of this queue.  This method
-     * differs from {@link #peek peek} only in that it throws an exception
-     * if this queue is empty.
+     * Retrieves, but does not remove, the head of this queue.  This method differs from {@link #peek peek} only in that
+     * it throws an exception if this queue is empty.
      *
      * @return the head of this queue
-     * @throws NoSuchElementException
-     * 		if this queue is empty
+     * @throws NoSuchElementException if this queue is empty
      */
     @Override
     public synchronized E element() {
@@ -374,8 +356,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Retrieves, but does not remove, the head of this queue,
-     * or returns {@code null} if this queue is empty.
+     * Retrieves, but does not remove, the head of this queue, or returns {@code null} if this queue is empty.
      *
      * @return the head of this queue, or {@code null} if this queue is empty
      */
@@ -409,7 +390,8 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
     // the following implement AbstractMerkleNode
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// ///////////////////////////////////////////////////////////////////////////////////////////////
 
     @Override
     protected synchronized void destroyNode() {
@@ -444,23 +426,15 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Returns {@code true} if this collection contains the specified element.
-     * More formally, returns {@code true} if and only if this collection
-     * contains at least one element {@code e} such that
-     * {@code Objects.equals(o, e)}.
+     * Returns {@code true} if this collection contains the specified element. More formally, returns {@code true} if
+     * and only if this collection contains at least one element {@code e} such that {@code Objects.equals(o, e)}.
      *
-     * @param o
-     * 		element whose presence in this collection is to be tested
-     * @return {@code true} if this collection contains the specified
-     * 		element
-     * @throws ClassCastException
-     * 		if the type of the specified element
-     * 		is incompatible with this collection
-     * 		(<a href="{@docRoot}/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException
-     * 		if the specified element is null and this
-     * 		collection does not permit null elements
-     * 		(<a href="{@docRoot}/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @param o element whose presence in this collection is to be tested
+     * @return {@code true} if this collection contains the specified element
+     * @throws ClassCastException   if the type of the specified element is incompatible with this collection (<a
+     *                              href="{@docRoot}/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if the specified element is null and this collection does not permit null elements
+     *                              (<a href="{@docRoot}/java/util/Collection.html#optional-restrictions">optional</a>)
      */
     @Override
     public synchronized boolean contains(final Object o) {
@@ -513,22 +487,19 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Returns an array containing all of the elements in this collection.
-     * If this collection makes any guarantees as to what order its elements
-     * are returned by its iterator, this method must return the elements in
-     * the same order. The returned array's {@linkplain Class#getComponentType
-     * runtime component type} is {@code Object}.
+     * Returns an array containing all of the elements in this collection. If this collection makes any guarantees as to
+     * what order its elements are returned by its iterator, this method must return the elements in the same order. The
+     * returned array's {@linkplain Class#getComponentType runtime component type} is {@code Object}.
      *
      * <p>The returned array will be "safe" in that no references to it are
-     * maintained by this collection.  (In other words, this method must
-     * allocate a new array even if this collection is backed by an array).
-     * The caller is thus free to modify the returned array.
+     * maintained by this collection.  (In other words, this method must allocate a new array even if this collection is
+     * backed by an array). The caller is thus free to modify the returned array.
      *
      * <p>This method acts as bridge between array-based and collection-based
      * APIs.
      *
-     * @return an array, whose {@linkplain Class#getComponentType runtime component
-     * 		type} is {@code Object}, containing all of the elements in this collection
+     * @return an array, whose {@linkplain Class#getComponentType runtime component type} is {@code Object}, containing
+     * all of the elements in this collection
      */
     @Override
     public synchronized Object[] toArray() {
@@ -543,49 +514,36 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Returns an array containing all of the elements in this collection;
-     * the runtime type of the returned array is that of the specified array.
-     * If the collection fits in the specified array, it is returned therein.
-     * Otherwise, a new array is allocated with the runtime type of the
-     * specified array and the size of this collection.
+     * Returns an array containing all of the elements in this collection; the runtime type of the returned array is
+     * that of the specified array. If the collection fits in the specified array, it is returned therein. Otherwise, a
+     * new array is allocated with the runtime type of the specified array and the size of this collection.
      *
      * <p>If this collection fits in the specified array with room to spare
-     * (i.e., the array has more elements than this collection), the element
-     * in the array immediately following the end of the collection is set to
-     * {@code null}.  (This is useful in determining the length of this
-     * collection <i>only</i> if the caller knows that this collection does
-     * not contain any {@code null} elements.)
+     * (i.e., the array has more elements than this collection), the element in the array immediately following the end
+     * of the collection is set to {@code null}.  (This is useful in determining the length of this collection
+     * <i>only</i> if the caller knows that this collection does not contain any {@code null} elements.)
      *
      * <p>If this collection makes any guarantees as to what order its elements
-     * are returned by its iterator, this method must return the elements in
-     * the same order.
+     * are returned by its iterator, this method must return the elements in the same order.
      *
      * <p>Like the {@link #toArray()} method, this method acts as bridge between
-     * array-based and collection-based APIs.  Further, this method allows
-     * precise control over the runtime type of the output array, and may,
-     * under certain circumstances, be used to save allocation costs.
+     * array-based and collection-based APIs.  Further, this method allows precise control over the runtime type of the
+     * output array, and may, under certain circumstances, be used to save allocation costs.
      *
      * <p>Suppose {@code x} is a collection known to contain only strings.
-     * The following code can be used to dump the collection into a newly
-     * allocated array of {@code String}:
+     * The following code can be used to dump the collection into a newly allocated array of {@code String}:
      *
      * <pre>
      *     String[] y = x.toArray(new String[0]);</pre>
+     * <p>
+     * Note that {@code toArray(new Object[0])} is identical in function to {@code toArray()}.
      *
-     * Note that {@code toArray(new Object[0])} is identical in function to
-     * {@code toArray()}.
-     *
-     * @param a
-     * 		the array into which the elements of this collection are to be
-     * 		stored, if it is big enough; otherwise, a new array of the same
-     * 		runtime type is allocated for this purpose.
+     * @param a the array into which the elements of this collection are to be stored, if it is big enough; otherwise, a
+     *          new array of the same runtime type is allocated for this purpose.
      * @return an array containing all of the elements in this collection
-     * @throws ArrayStoreException
-     * 		if the runtime type of any element in this
-     * 		collection is not assignable to the {@linkplain Class#getComponentType
-     * 		runtime component type} of the specified array
-     * @throws NullPointerException
-     * 		if the specified array is null
+     * @throws ArrayStoreException  if the runtime type of any element in this collection is not assignable to the
+     *                              {@linkplain Class#getComponentType runtime component type} of the specified array
+     * @throws NullPointerException if the specified array is null
      */
     @Override
     @SuppressWarnings("unchecked")
@@ -616,9 +574,8 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      * This operation is not supported, and will throw an exception. The FCQueue is fast to copy because it ensures that
      * no element will ever be removed from the middle of the queue.
      *
-     * @throws UnsupportedOperationException
-     * 		always thrown because the {@code remove} operation
-     * 		is not supported by this collection
+     * @throws UnsupportedOperationException always thrown because the {@code remove} operation is not supported by this
+     *                                       collection
      */
     @Override
     public boolean remove(final Object o) {
@@ -626,24 +583,17 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Returns {@code true} if this collection contains all of the elements
-     * in the specified collection.
+     * Returns {@code true} if this collection contains all of the elements in the specified collection.
      *
-     * @param c
-     * 		collection to be checked for containment in this collection
-     * @return {@code true} if this collection contains all of the elements
-     * 		in the specified collection
-     * @throws ClassCastException
-     * 		if the types of one or more elements
-     * 		in the specified collection are incompatible with this
-     * 		collection
-     * 		(<a href="{@docRoot}/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException
-     * 		if the specified collection contains one
-     * 		or more null elements and this collection does not permit null
-     * 		elements
-     * 		(<a href="{@docRoot}/java/util/Collection.html#optional-restrictions">optional</a>),
-     * 		or if the specified collection is null.
+     * @param c collection to be checked for containment in this collection
+     * @return {@code true} if this collection contains all of the elements in the specified collection
+     * @throws ClassCastException   if the types of one or more elements in the specified collection are incompatible
+     *                              with this collection (<a
+     *                              href="{@docRoot}/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if the specified collection contains one or more null elements and this collection
+     *                              does not permit null elements (<a
+     *                              href="{@docRoot}/java/util/Collection.html#optional-restrictions">optional</a>), or
+     *                              if the specified collection is null.
      * @see #contains(Object)
      */
     @Override
@@ -673,11 +623,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      * This operation is not supported, and will throw an exception. The FCQueue is fast to copy because it ensures that
      * no element will ever be removed from the middle of the queue.
      *
-     * @param c
-     * 		collection containing elements to be removed from this collection
-     * @throws UnsupportedOperationException
-     * 		always thrown because the {@code removeAll} operation
-     * 		is not supported by this collection
+     * @param c collection containing elements to be removed from this collection
+     * @throws UnsupportedOperationException always thrown because the {@code removeAll} operation is not supported by
+     *                                       this collection
      */
     @Override
     public boolean removeAll(final Collection<?> c) {
@@ -688,11 +636,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      * This operation is not supported, and will throw an exception. The FCQueue is fast to copy because it ensures that
      * no element will ever be removed from the middle of the queue.
      *
-     * @param c
-     * 		collection containing elements to be retained in this collection
-     * @throws UnsupportedOperationException
-     * 		always thrown because the {@code retainAll} operation
-     * 		is not supported by this collection
+     * @param c collection containing elements to be retained in this collection
+     * @throws UnsupportedOperationException always thrown because the {@code retainAll} operation is not supported by
+     *                                       this collection
      */
     @Override
     public boolean retainAll(final Collection<?> c) {
@@ -700,9 +646,8 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Removes all of the elements from this queue.
-     * The queue will be empty and the hash reset to the null value after this method returns.
-     * This does not delete the FCQueue object. It just empties the queue.
+     * Removes all of the elements from this queue. The queue will be empty and the hash reset to the null value after
+     * this method returns. This does not delete the FCQueue object. It just empties the queue.
      */
     @Override
     public synchronized void clear() {
@@ -715,7 +660,8 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
     // the following FastCopyable methods have default implementations, but are overridden here
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// ///////////////////////////////////////////////////////////////////////////////////////////////
 
     @Override
     public boolean equals(final Object o) {
@@ -742,10 +688,8 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     /**
      * Serializes the current object to an array of bytes in a deterministic manner.
      *
-     * @param dos
-     * 		the {@link java.io.DataOutputStream} to which the object's binary form should be written
-     * @throws IOException
-     * 		if there are problems during serialization
+     * @param dos the {@link java.io.DataOutputStream} to which the object's binary form should be written
+     * @throws IOException if there are problems during serialization
      */
     @Override
     public synchronized void serialize(final SerializableDataOutputStream dos) throws IOException {
@@ -780,8 +724,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     /**
      * Find the hash of a FastCopyable object.
      *
-     * @param element
-     * 		an element contained by this collection that is being added, deleted, or replaced
+     * @param element an element contained by this collection that is being added, deleted, or replaced
      * @return the 48-byte hash of the element (zero byte array if element is null)
      */
     byte[] getHash(final E element) {
@@ -789,10 +732,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         if (element == null) {
             return NULL_HASH_BYTES;
         }
-        final Cryptography crypto = CryptographyHolder.get();
         // return a hash of a hash, in order to make state proofs smaller in the future
-        crypto.digestSync(element);
-        return crypto.digestBytesSync(element.getHash(), DigestType.SHA_384);
+        CRYPTOGRAPHY.digestSync(element);
+        return CRYPTOGRAPHY.digestBytesSync(element.getHash(), DigestType.SHA_384);
     }
 
     @Override

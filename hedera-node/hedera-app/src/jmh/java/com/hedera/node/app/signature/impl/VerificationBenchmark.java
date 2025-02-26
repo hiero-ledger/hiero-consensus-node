@@ -40,7 +40,7 @@ public class VerificationBenchmark extends AppTestBase implements Scenarios {
         sigPairs = createSigPairs(numSigPairs);
         final var fakeCryptoEngine = new DoNothingCryptoEngine();
         fakeSignedBytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
-        subject = new SignatureVerifierImpl(fakeCryptoEngine);
+        subject = new SignatureVerifierImpl();
     }
 
     @Benchmark

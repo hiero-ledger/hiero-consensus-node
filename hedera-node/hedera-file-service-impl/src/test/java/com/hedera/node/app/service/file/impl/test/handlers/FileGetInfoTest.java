@@ -36,7 +36,8 @@ import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FileGetInfoTest extends FileTestBase {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     @Mock(strictness = LENIENT)
     private QueryContext context;
@@ -212,7 +214,7 @@ class FileGetInfoTest extends FileTestBase {
     }
 
     private FileInfo getExpectedUpgradeInfo() {
-        final var upgradeHash = hex(CryptographyHolder.get().digestBytesSync(contents));
+        final var upgradeHash = hex(CRYPTOGRAPHY.digestBytesSync(contents));
         return FileInfo.newBuilder()
                 .memo(upgradeHash)
                 .fileID(fileUpgradeFileId)

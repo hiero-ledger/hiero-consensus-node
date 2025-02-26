@@ -4,7 +4,8 @@ package com.swirlds.common.merkle.synchronization.views;
 import static com.swirlds.common.constructable.ClassIdFormatter.classIdString;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Implementation for a view of a standard in memory merkle tree.
  */
 public class LearnerPushMerkleTreeView implements LearnerTreeView<MerkleNode> {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private final ReconnectConfig reconnectConfig;
 
@@ -49,10 +51,8 @@ public class LearnerPushMerkleTreeView implements LearnerTreeView<MerkleNode> {
     /**
      * Create a new standard tree view out of an in-memory merkle tree (or subtree).
      *
-     * @param root
-     * 		the root of the tree (or subtree)
-     * @param mapStats
-     *      a ReconnectMapStats object to collect reconnect metrics
+     * @param root     the root of the tree (or subtree)
+     * @param mapStats a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPushMerkleTreeView(
             final ReconnectConfig reconnectConfig, final MerkleNode root, @NonNull final ReconnectMapStats mapStats) {
@@ -130,7 +130,7 @@ public class LearnerPushMerkleTreeView implements LearnerTreeView<MerkleNode> {
     @Override
     public Hash getNodeHash(final MerkleNode node) {
         if (node == null) {
-            return CryptographyHolder.get().getNullHash();
+            return CRYPTOGRAPHY.getNullHash();
         } else {
             return node.getHash();
         }
@@ -282,7 +282,9 @@ public class LearnerPushMerkleTreeView implements LearnerTreeView<MerkleNode> {
         final MerkleNode child = parent.asInternal().getChild(childIndex);
         // The child may be missing per the getChild() specification,
         // and this method cannot reason about a `null`, so just bail.
-        if (child == null) return;
+        if (child == null) {
+            return;
+        }
 
         if (child.isLeaf()) {
             mapStats.incrementLeafHashes(1, nodeAlreadyPresent ? 1 : 0);

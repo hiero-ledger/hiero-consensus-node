@@ -58,14 +58,14 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
     @BeforeEach
     void setUp() {
         signedBytes = randomBytes(32);
-        verifier = new SignatureVerifierImpl(cryptoEngine);
+        verifier = new SignatureVerifierImpl();
     }
 
     @Test
     @DisplayName("Null Args are not permitted")
     void failIfConstructorArgsAreNull() {
         //noinspection DataFlowIssue
-        assertThatThrownBy(() -> new SignatureVerifierImpl(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new SignatureVerifierImpl()).isInstanceOf(NullPointerException.class);
     }
 
     @Test

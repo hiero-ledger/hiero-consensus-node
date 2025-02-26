@@ -2,7 +2,8 @@
 package com.swirlds.common.merkle.synchronization.views;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * A teaching tree view for a standard in memory merkle tree.
  */
 public class TeacherPushMerkleTreeView implements TeacherTreeView<NodeToSend> {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private final ReconnectConfig reconnectConfig;
 
@@ -244,7 +246,7 @@ public class TeacherPushMerkleTreeView implements TeacherTreeView<NodeToSend> {
             final MerkleNode child = internal.getChild(childIndex);
 
             if (child == null) {
-                hashes.add(CryptographyHolder.get().getNullHash());
+                hashes.add(CRYPTOGRAPHY.getNullHash());
             } else {
                 final Hash hash = child.getHash();
                 if (hash == null) {

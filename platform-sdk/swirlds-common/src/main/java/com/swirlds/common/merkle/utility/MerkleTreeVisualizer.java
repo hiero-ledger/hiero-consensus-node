@@ -7,7 +7,8 @@ import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
 import static com.swirlds.common.formatting.TextEffect.GRAY;
 import static com.swirlds.common.formatting.TextEffect.WHITE;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -23,6 +24,7 @@ import java.util.function.Predicate;
  * A utility for drawing merkle trees in a human viewable format.
  */
 public class MerkleTreeVisualizer {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private static final String INDENT = "   ";
 
@@ -205,7 +207,7 @@ public class MerkleTreeVisualizer {
             }
 
             if (useHashes || useMnemonics) {
-                final Hash hash = node == null ? CryptographyHolder.get().getNullHash() : node.getHash();
+                final Hash hash = node == null ? CRYPTOGRAPHY.getNullHash() : node.getHash();
                 final String hashString;
                 if (hash == null) {
                     hashString = "null";

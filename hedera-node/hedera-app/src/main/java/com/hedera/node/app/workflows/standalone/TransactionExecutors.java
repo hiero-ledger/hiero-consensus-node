@@ -24,7 +24,6 @@ import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -63,10 +62,11 @@ public enum TransactionExecutors {
 
     /**
      * The properties to use when creating a new {@link TransactionExecutor}.
-     * @param state the {@link State} to use
-     * @param appProperties the properties to use
+     *
+     * @param state               the {@link State} to use
+     * @param appProperties       the properties to use
      * @param customTracerBinding the custom tracer binding to use
-     * @param customOps the custom operations to use
+     * @param customOps           the custom operations to use
      */
     public record Properties(
             @NonNull State state,
@@ -76,6 +76,7 @@ public enum TransactionExecutors {
             @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         /**
          * Create a new {@link Builder} instance.
+         *
          * @return a new {@link Builder} instance
          */
         public static Builder newBuilder() {
@@ -173,6 +174,7 @@ public enum TransactionExecutors {
 
     /**
      * Creates a new {@link TransactionExecutor} based on the given {@link State} and properties.
+     *
      * @param properties the properties to use for the executor
      * @return a new {@link TransactionExecutor}
      */
@@ -190,10 +192,11 @@ public enum TransactionExecutors {
 
     /**
      * Creates a new {@link TransactionExecutor}.
-     * @param state the {@link State} to use
-     * @param properties the properties to use
+     *
+     * @param state               the {@link State} to use
+     * @param properties          the properties to use
      * @param customTracerBinding the custom tracer binding to use
-     * @param customOps the custom operations to use
+     * @param customOps           the custom operations to use
      * @return a new {@link TransactionExecutor}
      */
     private TransactionExecutor newExecutor(
@@ -240,7 +243,7 @@ public enum TransactionExecutors {
                 new AppSignatureVerifier(
                         bootstrapConfig.getConfigData(HederaConfig.class),
                         new SignatureExpanderImpl(),
-                        new SignatureVerifierImpl(CryptographyHolder.get())),
+                        new SignatureVerifierImpl()),
                 UNAVAILABLE_GOSSIP,
                 bootstrapConfigProvider::getConfiguration,
                 () -> defaultNodeInfo,

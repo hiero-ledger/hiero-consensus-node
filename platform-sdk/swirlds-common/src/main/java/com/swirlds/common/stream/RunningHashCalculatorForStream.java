@@ -4,7 +4,7 @@ package com.swirlds.common.stream;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.RunningHashable;
@@ -15,37 +15,24 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Accepts a SerializableRunningHashable object each time, calculates and sets its runningHash
- * when nextStream is not null, pass this object to the next stream
+ * Accepts a SerializableRunningHashable object each time, calculates and sets its runningHash when nextStream is not
+ * null, pass this object to the next stream
  *
- * @param <T>
- * 		type of the objects
+ * @param <T> type of the objects
  */
 public class RunningHashCalculatorForStream<T extends RunningHashable & SerializableHashable>
         extends AbstractLinkedObjectStream<T> {
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
     private static final Logger logger = LogManager.getLogger(RunningHashCalculatorForStream.class);
     /** Used for hashing */
-    private final Cryptography cryptography;
+    private static final Cryptography cryptography = CryptographyFactory.create();
     /** current running Hash */
     private Hash runningHash;
 
-    public RunningHashCalculatorForStream() {
-        this.cryptography = CryptographyHolder.get();
-    }
+    public RunningHashCalculatorForStream() {}
 
-    public RunningHashCalculatorForStream(LinkedObjectStream<T> nextStream) {
+    public RunningHashCalculatorForStream(final LinkedObjectStream<T> nextStream) {
         super(nextStream);
-        this.cryptography = CryptographyHolder.get();
-    }
-
-    public RunningHashCalculatorForStream(Cryptography cryptography) {
-        this.cryptography = cryptography;
-    }
-
-    public RunningHashCalculatorForStream(LinkedObjectStream<T> nextStream, Cryptography cryptography) {
-        super(nextStream);
-        this.cryptography = cryptography;
     }
 
     /**

@@ -9,7 +9,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -45,6 +46,7 @@ import java.util.stream.Stream;
  * Validator to read a data source and all its data and check the complete data set is valid.
  */
 public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValue> {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(MerkleDbConfig.class)
@@ -59,8 +61,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
     /**
      * Open the virtual map and validate all its data
      *
-     * @param virtualMap
-     * 		The virtual map to validate
+     * @param virtualMap The virtual map to validate
      */
     public VirtualMerkleLeafHasher(final VirtualMap<K, V> virtualMap) {
         this.virtualMap = virtualMap;
@@ -90,13 +91,11 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
     }
 
     /**
-     * computes the rolling hash resulting from the concatenation of the previous hash with the leaf's serialized
-     * key and value. Data to be hashed looks like this: [prevHash,leaf.key.serialize,leaf.value.serialize]
+     * computes the rolling hash resulting from the concatenation of the previous hash with the leaf's serialized key
+     * and value. Data to be hashed looks like this: [prevHash,leaf.key.serialize,leaf.value.serialize]
      *
-     * @param prevHash
-     * 		hash result of previous call to this function
-     * @param leaf
-     * 		value to be serialized and hashed with the previous hash
+     * @param prevHash hash result of previous call to this function
+     * @param leaf     value to be serialized and hashed with the previous hash
      * @return rolling hash of [prevHash,leaf.key.serialize,leaf.value.serialize]
      * @throws IOException if an I/O error occurs
      */
@@ -119,15 +118,14 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
     }
 
     /**
-     * Generates the hash of the provided byte array. Uses the default hash algorithm as specified by {@link
-     * com.swirlds.common.crypto.Cryptography#digestSync(byte[])}.
+     * Generates the hash of the provided byte array. Uses the default hash algorithm as specified by
+     * {@link com.swirlds.common.crypto.Cryptography#digestSync(byte[])}.
      *
-     * @param content
-     * 		the content for which the hash is to be computed
+     * @param content the content for which the hash is to be computed
      * @return the hash of the content
      */
     public static Hash hashOf(final byte[] content) {
-        return new Hash(CryptographyHolder.get().digestSync(content));
+        return new Hash(CRYPTOGRAPHY.digestSync(content));
     }
 
     public static void main(final String[] args) throws IOException {
