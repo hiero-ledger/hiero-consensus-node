@@ -62,11 +62,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * This latch counts down when prehandle has been called on all application transactions contained in this event.
      */
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
-    /**
-     * The actual birth round to return. May not be the original birth round if this event was created in the software
-     * version right before the birth round migration.
-     */
-    private long birthRound;
 
     /**
      * Construct a new instance from an unsigned event and a signature.
@@ -111,7 +106,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         this.senderId = null;
         this.consensusData = NO_CONSENSUS;
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
-        this.birthRound = gossipEvent.eventCore().birthRound();
     }
 
     /**
@@ -146,7 +140,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return the descriptor for the event
      */
     public @NonNull EventDescriptorWrapper getDescriptor() {
-        return metadata.getDescriptor(getBirthRound());
+        return metadata.getDescriptor();
     }
 
     @Override
@@ -195,7 +189,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return the birth round of the event
      */
     public long getBirthRound() {
-        return birthRound;
+        return metadata.getBirthRound();
     }
 
     /**
@@ -319,7 +313,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @param birthRound the birth round that has been assigned to this event
      */
     public void overrideBirthRound(final long birthRound) {
-        this.birthRound = birthRound;
+        metadata.setBirthRoundOverride(birthRound);
     }
 
     /**

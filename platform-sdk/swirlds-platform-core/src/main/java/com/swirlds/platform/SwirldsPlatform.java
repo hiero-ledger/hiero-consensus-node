@@ -160,6 +160,17 @@ public class SwirldsPlatform implements Platform {
     private final PlatformWiring platformWiring;
 
     /**
+     * Flag to indicate whether PCES events were migrated to use birth rounds instead of generation-based ancient
+     * age. True indicates events were migrated.
+     */
+    private final boolean wereEventsMigratedToBirthRound;
+
+    /**
+     * Indicates how ancient events are determined, e.g. based on the event's birth round or generation.
+     */
+    private final AncientMode ancientMode;
+
+    /**
      * Constructor.
      *
      * @param builder this object is responsible for building platform components and other things needed by the
@@ -170,7 +181,7 @@ public class SwirldsPlatform implements Platform {
         platformContext = blocks.platformContext();
         final ConsensusStateEventHandler consensusStateEventHandler = blocks.consensusStateEventHandler();
 
-        final AncientMode ancientMode = platformContext
+        ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
@@ -188,7 +199,7 @@ public class SwirldsPlatform implements Platform {
         if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
             try {
                 // This method is a no-op if we have already completed birth round migration or if we are at genesis.
-                migratePcesToBirthRoundMode(
+                wereEventsMigratedToBirthRound = migratePcesToBirthRoundMode(
                         platformContext,
                         selfId,
                         initialState.getRound(),
@@ -203,6 +214,7 @@ public class SwirldsPlatform implements Platform {
                 throw new UncheckedIOException("Birth round migration failed during PCES migration.", e);
             }
         } else {
+            wereEventsMigratedToBirthRound = false;
             initialPcesFiles = blocks.initialPcesFiles();
         }
 
@@ -443,13 +455,17 @@ public class SwirldsPlatform implements Platform {
     private void replayPreconsensusEvents() {
         platformWiring.getStatusActionSubmitter().submitStatusAction(new StartedReplayingEventsAction());
 
-        final IOIterator<PlatformEvent> iterator =
-                initialPcesFiles.getEventIterator(initialAncientThreshold, startingRound);
+        final long lowerBound = wereEventsMigratedToBirthRound
+                ? 0L // events were migrated so set the lower bound to 0 such that all PCES events will be read
+                : initialAncientThreshold;
+
+        final IOIterator<PlatformEvent> iterator = initialPcesFiles.getEventIterator(lowerBound, startingRound);
 
         logger.info(
                 STARTUP.getMarker(),
-                "replaying preconsensus event stream starting at generation {}",
-                initialAncientThreshold);
+                "replaying preconsensus event stream starting at {} ({})",
+                lowerBound,
+                ancientMode);
 
         platformWiring.getPcesReplayerIteratorInput().inject(iterator);
 
