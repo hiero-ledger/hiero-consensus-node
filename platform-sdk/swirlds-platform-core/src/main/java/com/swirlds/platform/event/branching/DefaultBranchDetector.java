@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.branching;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.consensus.EventWindow;
@@ -13,12 +15,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A standard implementation of {@link BranchDetector}.
  */
 public class DefaultBranchDetector implements BranchDetector {
-
+    private static final Logger logger = LogManager.getLogger(DefaultBranchDetector.class);
     /**
      * The current event window.
      */
@@ -65,7 +70,20 @@ public class DefaultBranchDetector implements BranchDetector {
         final EventDescriptorWrapper previousEvent = mostRecentEvents.get(creator);
         final EventDescriptorWrapper selfParent = event.getSelfParent();
 
-        final boolean branching = !(previousEvent == null || previousEvent.equals(selfParent));
+        // Events may have been migrated to use birth rounds and so the birth round on the event may have changed.
+        // Therefore, we will compare the hashes only (the hashes shouldn't be re-calculated to include the updated
+        // birth round)
+        final boolean branching = !(previousEvent == null
+                || (selfParent != null && Objects.equals(selfParent.hash(), previousEvent.hash())));
+
+        if (branching) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Branch detected: incomingEvent={}, previousEvent={}, selfParent={}",
+                    event.getDescriptor(),
+                    previousEvent,
+                    selfParent);
+        }
 
         mostRecentEvents.put(creator, event.getDescriptor());
 
