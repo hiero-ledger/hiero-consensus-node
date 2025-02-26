@@ -6,19 +6,14 @@ javaModules {
     module("platform-sdk") { artifact = "swirlds-platform" }
 
     // The Hedera API module
-    directory("hapi") {
-        group = "com.hedera.hashgraph"
-        module("hedera-protobuf-java-api") // raw proto files to be published separately
-    }
+    directory("hapi") { group = "com.hedera.hashgraph" }
 
     // The Hedera platform modules
     directory("platform-sdk") {
         group = "com.swirlds"
         module("swirlds") // not actually a Module as it has no module-info.java
         module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
-        module(
-            "swirlds-unit-tests/core/swirlds-platform-test"
-        ) // nested module is not found automatically
+        module("swirlds-unit-tests/core/swirlds-platform-test") // nested not found automatically
     }
 
     // The Hedera services modules
