@@ -3,6 +3,7 @@ package com.swirlds.platform.test.consensus;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -16,8 +17,8 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
+import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -139,8 +140,8 @@ public class TestIntake {
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         final EventWindow eventWindow = new EventWindow(
                 snapshot.round(),
-                snapshot.getAncientThreshold(roundsNonAncient),
-                snapshot.getAncientThreshold(roundsNonAncient),
+                RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot),
+                RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot),
                 ancientMode);
 
         orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);

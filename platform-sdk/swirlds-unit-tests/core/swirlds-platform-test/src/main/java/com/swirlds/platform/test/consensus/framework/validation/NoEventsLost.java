@@ -5,6 +5,7 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Hashable;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.consensus.ConsensusConfig;
+import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,8 +35,8 @@ public final class NoEventsLost {
             // no consensus reached, nothing to check
             return;
         }
-        final long nonAncientGen =
-                output.getConsensusRounds().getLast().getSnapshot().getAncientThreshold(CONFIG.roundsNonAncient());
+        final long nonAncientGen = RoundCalculationUtils.getAncientThreshold(
+                CONFIG.roundsNonAncient(), output.getConsensusRounds().getLast().getSnapshot());
 
         for (final PlatformEvent event : output.getAddedEvents()) {
             if (event.getGeneration() >= nonAncientGen) {

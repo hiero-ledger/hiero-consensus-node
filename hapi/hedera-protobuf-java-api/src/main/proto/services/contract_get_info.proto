@@ -1,0 +1,166 @@
+/**
+ * # Contract Get Info
+ * A standard query to obtain detailed information about a smart contract.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.contract">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "services/duration.proto";
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+
+/**
+ * Request detailed information about a smart contract.
+ */
+message ContractGetInfoQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * A smart contract ID.
+     * <p>
+     * The network SHALL return information for this smart contract,
+     * if successful.
+     */
+    ContractID contractID = 2;
+}
+
+/**
+ * Information returned in response to a "get info" query for a smart contract.
+ */
+message ContractGetInfoResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * The information, as requested, for a smart contract.
+     * A state proof MAY be generated for this value.
+     */
+    ContractInfo contractInfo = 2;
+
+    message ContractInfo {
+        /**
+         * The ID of the smart contract requested in the query.
+         */
+        ContractID contractID = 1;
+
+        /**
+         * The Account ID for the account entry associated with this
+         * smart contract.
+         */
+        AccountID accountID = 2;
+
+        /**
+         * The "Solidity" form contract ID.<br/>
+         * This is a hexadecimal string form of the 20-byte EVM address
+         * of the contract.
+         */
+        string contractAccountID = 3;
+
+        /**
+         * The key that MUST sign any transaction to update or modify this
+         * smart contract.
+         * <p>
+         * If this value is null, or is an empty `KeyList` then the contract
+         * CANNOT be deleted, modified, or updated, but MAY still expire.
+         */
+        Key adminKey = 4;
+
+        /**
+         * The point in time at which this contract will expire.
+         */
+        Timestamp expirationTime = 5;
+
+        /**
+         * The duration, in seconds, for which the contract lifetime will be
+         * automatically extended upon expiration, provide sufficient HBAR is
+         * available at that time to pay the renewal fee.<br/>
+         * See `auto_renew_account_id` for additional conditions.
+         */
+        Duration autoRenewPeriod = 6;
+
+        /**
+         * The amount of storage used by this smart contract.
+         */
+        int64 storage = 7;
+
+        /**
+         * A short description of this smart contract.
+         * <p>
+         * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+         * (default 100) bytes when encoded as UTF-8.
+         */
+        string memo = 8;
+
+        /**
+         * The current HBAR balance, in tinybar, of the smart contract account.
+         */
+        uint64 balance = 9;
+
+        /**
+         * A flag indicating that this contract is deleted.
+         */
+        bool deleted = 10;
+
+        /**
+         * Because <a href="https://hips.hedera.com/hip/hip-367">HIP-367</a>,
+         * which allows an account to be associated to an unlimited number of
+         * tokens, it became necessary to only provide this information from
+         * a Mirror Node.<br/>
+         * The list of tokens associated to this contract.
+         */
+        repeated TokenRelationship tokenRelationships = 11 [deprecated = true];
+
+        /**
+         * The ledger ID of the network that generated this response.
+         * <p>
+         * This value SHALL identify the distributed ledger that responded to
+         * this query.
+         */
+        bytes ledger_id = 12;
+
+        /**
+         * An account designated to pay the renewal fee upon automatic renewal
+         * of this contract.
+         * <p>
+         * If this is not set, or is set to an account with zero HBAR
+         * available, the HBAR balance of the contract, if available,
+         * SHALL be used to pay the renewal fee.
+         */
+        AccountID auto_renew_account_id = 13;
+
+        /**
+         * The maximum number of tokens that the contract can be
+         * associated to automatically.
+         */
+        int32 max_automatic_token_associations = 14;
+
+        /**
+         * Staking information for this contract.
+         */
+        StakingInfo staking_info = 15;
+    }
+}
