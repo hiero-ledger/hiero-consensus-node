@@ -4,10 +4,16 @@ package com.swirlds.platform.state.hasher;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ExecutionException;
@@ -42,7 +48,11 @@ public class DefaultStateHasher implements StateHasher {
     public StateAndRound hashState(@NonNull final StateAndRound stateAndRound) {
         final Instant start = Instant.now();
         try {
-            MerkleCryptoFactory.getInstance()
+            final Configuration configuration =
+                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
+            final MerkleCryptography merkleCryptography =
+                    MerkleCryptographyFactory.create(configuration, CryptographyFactory.create());
+            merkleCryptography
                     .digestTreeAsync(
                             stateAndRound.reservedSignedState().get().getState().getRoot())
                     .get();
@@ -55,6 +65,8 @@ public class DefaultStateHasher implements StateHasher {
         } catch (final InterruptedException e) {
             logger.error(EXCEPTION.getMarker(), "Interrupted while hashing state. Expect buggy behavior.");
             Thread.currentThread().interrupt();
+        } catch (final IOException e) {
+            logger.fatal(EXCEPTION.getMarker(), "Fatal error occurred during building configuration", e);
         }
         return null;
     }

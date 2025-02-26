@@ -4,6 +4,7 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.utility.Clearable;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectLoadFailurePayload;
@@ -53,6 +54,9 @@ public class ReconnectHelper {
     /** provides access to the platform state */
     private final PlatformStateFacade platformStateFacade;
 
+    /** Merkle cryptography */
+    private final MerkleCryptography merkleCryptography;
+
     public ReconnectHelper(
             @NonNull final Runnable pauseGossip,
             @NonNull final Clearable clearAll,
@@ -62,7 +66,8 @@ public class ReconnectHelper {
             @NonNull final Consumer<SignedState> loadSignedState,
             @NonNull final ReconnectLearnerFactory reconnectLearnerFactory,
             @NonNull final StateConfig stateConfig,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final MerkleCryptography merkleCryptography) {
         this.pauseGossip = pauseGossip;
         this.clearAll = clearAll;
         this.workingStateSupplier = workingStateSupplier;
@@ -72,6 +77,7 @@ public class ReconnectHelper {
         this.reconnectLearnerFactory = reconnectLearnerFactory;
         this.stateConfig = stateConfig;
         this.platformStateFacade = platformStateFacade;
+        this.merkleCryptography = merkleCryptography;
     }
 
     /**
@@ -85,7 +91,7 @@ public class ReconnectHelper {
         clearAll.clear();
         logger.info(RECONNECT.getMarker(), "Queues have been cleared");
         // Hash the state if it has not yet been hashed
-        ReconnectUtils.hashStateForReconnect(workingStateSupplier.get());
+        ReconnectUtils.hashStateForReconnect(merkleCryptography, workingStateSupplier.get());
     }
 
     /**

@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.BlockingState;
@@ -41,7 +41,7 @@ class StateTests {
         merkleStateRoot = new BlockingState();
 
         merkleStateRoot.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(merkleStateRoot);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(merkleStateRoot);
     }
 
     @Test
@@ -56,7 +56,7 @@ class StateTests {
         io.startReading();
 
         final MerkleNodeState decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
-        MerkleCryptoFactory.getInstance().digestTreeSync(decodedState.getRoot());
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(decodedState.getRoot());
 
         assertEquals(merkleStateRoot.getHash(), decodedState.getHash(), "expected trees to be equal");
         assertTrue(areTreesEqual(merkleStateRoot, decodedState.getRoot()), "expected trees to be equal");
@@ -67,7 +67,7 @@ class StateTests {
     @DisplayName("State Copy Test")
     void stateCopyTest() {
         final MerkleStateRoot copiedState = merkleStateRoot.copy();
-        MerkleCryptoFactory.getInstance().digestTreeSync(copiedState);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(copiedState);
 
         assertEquals(merkleStateRoot.getHash(), copiedState.getHash(), "expected trees to be equal");
         assertTrue(areTreesEqual(merkleStateRoot, copiedState), "expected trees to be equal");

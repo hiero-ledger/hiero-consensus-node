@@ -31,7 +31,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
@@ -240,7 +239,6 @@ public class Browser {
 
             // Set the MerkleCryptography instance for this node
             final var merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
-            MerkleCryptoFactory.set(merkleCryptography);
 
             // Register with the ConstructableRegistry classes which need configuration.
             BootstrapUtils.setupConstructableRegistryWithConfiguration(configuration);
@@ -267,7 +265,8 @@ public class Browser {
                     appDefinition.getSwirldName(),
                     nodeId,
                     appDefinition.getConfigAddressBook(),
-                    platformStateFacade);
+                    platformStateFacade,
+                    merkleCryptography);
             final var initialState = reservedState.state();
 
             // Initialize the address book

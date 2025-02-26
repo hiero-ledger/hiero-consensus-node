@@ -126,7 +126,8 @@ public class TurtleNode {
                 "bar",
                 nodeId,
                 addressBook,
-                platformStateFacade);
+                platformStateFacade,
+                platformContext.getMerkleCryptography());
         final var initialState = reservedState.state();
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(

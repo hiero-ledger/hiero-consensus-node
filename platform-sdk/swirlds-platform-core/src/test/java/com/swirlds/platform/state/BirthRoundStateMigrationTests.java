@@ -12,6 +12,8 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PbjConverter;
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class BirthRoundStateMigrationTests {
+    private static final MerkleCryptography MERKLE_CRYPTOGRAPHY = TestMerkleCryptoFactory.getInstance();
 
     private PlatformStateFacade platformStateFacade;
 
@@ -92,12 +95,16 @@ class BirthRoundStateMigrationTests {
         final SoftwareVersion newSoftwareVersion = createNextVersion(previousSoftwareVersion);
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.GENERATION_THRESHOLD, newSoftwareVersion, platformStateFacade);
+                signedState,
+                AncientMode.GENERATION_THRESHOLD,
+                newSoftwareVersion,
+                platformStateFacade,
+                MERKLE_CRYPTOGRAPHY);
 
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState().getRoot());
+        rehashTree(MERKLE_CRYPTOGRAPHY, signedState.getState().getRoot());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
@@ -118,16 +125,20 @@ class BirthRoundStateMigrationTests {
             v.setFirstVersionInBirthRoundMode(previousSoftwareVersion);
             v.setLowestJudgeGenerationBeforeBirthRoundMode(100);
         });
-        rehashTree(signedState.getState().getRoot());
+        rehashTree(MERKLE_CRYPTOGRAPHY, signedState.getState().getRoot());
         final Hash originalHash = signedState.getState().getHash();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
+                signedState,
+                AncientMode.BIRTH_ROUND_THRESHOLD,
+                newSoftwareVersion,
+                platformStateFacade,
+                MERKLE_CRYPTOGRAPHY);
 
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState().getRoot());
+        rehashTree(MERKLE_CRYPTOGRAPHY, signedState.getState().getRoot());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
@@ -155,7 +166,11 @@ class BirthRoundStateMigrationTests {
                 .minimumJudgeAncientThreshold();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
+                signedState,
+                AncientMode.BIRTH_ROUND_THRESHOLD,
+                newSoftwareVersion,
+                platformStateFacade,
+                MERKLE_CRYPTOGRAPHY);
 
         assertNotEquals(originalHash, signedState.getState().getHash());
 

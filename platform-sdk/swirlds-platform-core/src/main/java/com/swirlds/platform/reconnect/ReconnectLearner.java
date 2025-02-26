@@ -192,6 +192,7 @@ public class ReconnectLearner {
                 out,
                 currentState.getRoot(),
                 connection::disconnect,
+                platformContext.getMerkleCryptography(),
                 reconnectConfig,
                 platformContext.getMetrics());
         synchronizer.synchronize();

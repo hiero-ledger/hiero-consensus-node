@@ -8,7 +8,6 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static com.swirlds.platform.system.SoftwareVersion.NO_VERSION;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
@@ -73,7 +72,8 @@ public final class StateInitializer {
         abortAndThrowIfInterrupted(
                 () -> {
                     try {
-                        MerkleCryptoFactory.getInstance()
+                        platformContext
+                                .getMerkleCryptography()
                                 .digestTreeAsync(initialState.getRoot())
                                 .get();
                     } catch (final ExecutionException e) {
