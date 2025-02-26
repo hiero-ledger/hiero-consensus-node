@@ -1,0 +1,83 @@
+/**
+ * # Token Mint
+ * Mint new tokens and deliver them to the token treasury. This is akin
+ * to how a fiat treasury will mint new coinage for circulation.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Mint tokens and deliver the new tokens to the token treasury account.
+ *
+ * The token MUST have a `supply_key` set and that key MUST NOT
+ * be an empty `KeyList`.<br/>
+ * The token `supply_key` MUST sign this transaction.<br/>
+ * This operation SHALL increase the total supply for the token type by
+ * the number of tokens "minted".<br/>
+ * The total supply for the token type MUST NOT be increased above the
+ * maximum supply limit (2^63-1) by this transaction.<br/>
+ * The tokens minted SHALL be credited to the token treasury account.<br/>
+ * If the token is a fungible/common type, the amount MUST be specified.<br/>
+ * If the token is a non-fungible/unique type, the metadata bytes for each
+ * unique token MUST be specified in the `metadata` list.<br/>
+ * Each unique metadata MUST not exceed the global metadata size limit defined
+ * by the network configuration value `tokens.maxMetadataBytes`.<br/>
+ * The global batch size limit (`tokens.nfts.maxBatchSizeMint`) SHALL set
+ * the maximum number of individual NFT metadata permitted in a single
+ * `tokenMint` transaction.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message TokenMintTransactionBody {
+    /**
+     * A token identifier.
+     * <p>
+     * This SHALL identify the token type to "mint".<br/>
+     * The identified token MUST exist, and MUST NOT be deleted.
+     */
+    TokenID token = 1;
+
+    /**
+     * An amount to mint to the Treasury Account.
+     * <p>
+     * This is interpreted as an amount in the smallest possible denomination
+     * for the token (10<sup>-decimals</sup> whole tokens).<br/>
+     * The balance for the token treasury account SHALL receive the newly
+     * minted tokens.<br/>
+     * If this value is equal to zero (`0`), the token SHOULD be a
+     * non-fungible/unique type.<br/>
+     * If this value is non-zero, the token MUST be a fungible/common type.
+     */
+    uint64 amount = 2;
+
+    /**
+     * A list of metadata bytes.<br/>
+     * <p>
+     * One non-fungible/unique token SHALL be minted for each entry
+     * in this list.<br/>
+     * Each entry in this list MUST NOT be larger than the limit set by the
+     * current network configuration value `tokens.maxMetadataBytes`.<br/>
+     * This list MUST NOT contain more entries than the current limit set by
+     * the network configuration value `tokens.nfts.maxBatchSizeMint`.<br/>
+     * If this list is not empty, the token MUST be a
+     * non-fungible/unique type.<br/>
+     * If this list is empty, the token MUST be a fungible/common type.
+     */
+    repeated bytes metadata = 3;
+}

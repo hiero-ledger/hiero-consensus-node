@@ -8,7 +8,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.consensus.ConsensusConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.events.EventConstants;
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundValidation;
+import com.swirlds.platform.test.consensus.framework.validation.RoundContentValidation;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
@@ -131,7 +131,7 @@ class IntakeAndConsensusTests {
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
-        ConsensusRoundValidation.validateIterableRounds(
+        RoundContentValidation.validateIterableRounds(
                 node1.getConsensusRounds().iterator(),
                 node2.getConsensusRounds().iterator());
         node1.getConsensusRounds().clear();

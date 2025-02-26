@@ -7,9 +7,9 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusOutputValidation;
+import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundValidation;
 import com.swirlds.platform.test.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
@@ -131,20 +131,20 @@ public class Turtle {
 
     public void validate() {
         try {
-            final Validations validations =
-                    Validations.newInstance().consensusEvents().consensusTimestamps();
+            final Validations validations = Validations.newInstance().consensusRoundValidations();
 
             final TurtleNode node1 = nodes.getFirst();
-            final ConsensusOutput consensusOutputForNode1 =
-                    new ConsensusOutput(node1.getConsensusRoundsHolder().getCollectedRounds());
+            final List<ConsensusRound> consensusRoundsForNode1 =
+                    node1.getConsensusRoundsHolder().getCollectedRounds();
 
             for (int i = 1; i < nodes.size(); i++) {
                 final TurtleNode node2 = nodes.get(i);
-                final ConsensusOutput consensusOutputForNode2 =
-                        new ConsensusOutput(node2.getConsensusRoundsHolder().getCollectedRounds());
+                final List<ConsensusRound> consensusRoundsForNode2 =
+                        node2.getConsensusRoundsHolder().getCollectedRounds();
 
-                for (final ConsensusOutputValidation validator : validations.getList()) {
-                    validator.validate(consensusOutputForNode1, consensusOutputForNode2);
+                for (final ConsensusRoundValidation validator :
+                        validations.getConsensusValidator().getConsensusRoundList()) {
+                    validator.validate(consensusRoundsForNode1, consensusRoundsForNode2);
                 }
             }
         } catch (final AssertionFailedError | IndexOutOfBoundsException e) {
