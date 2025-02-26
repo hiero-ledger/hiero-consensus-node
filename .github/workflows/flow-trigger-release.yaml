@@ -122,22 +122,22 @@ jobs:
       - name: Apply Tag with Calculated Next Version
         run: |
           echo "Applying computed version tag"
-          git tag --annotate "v${{ steps.next_version.outputs.next_release }}" --message "v${{ steps.next_version.outputs.next_release }}"
-          echo "Applied tag v${{ steps.next_version.outputs.next_release }}"
+          git tag --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
+          echo "Applied tag v${{ steps.next-release.outputs.version }}"
           current_version="$(git-semver latest)"
-          echo "Version Tag Applied: v${{ steps.next_version.outputs.next_release }}" >> ${GITHUB_STEP_SUMMARY}
+          echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
           echo "Current version is: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Push Release Tag to Remote
         run: |
           echo "Pushing release tag to remote"
-          git push origin tag "v${{ steps.next_version.outputs.next_release }}"
+          git push origin tag "v${{ steps.next-release.outputs.version }}"
           echo "Pushed new release tag to remote"
 
       - name: Create Release Notes with Markdown
         run: |
-          echo git-semver log --markdown "${{ steps.next_version.outputs.next_release }}"
-          git-semver log --markdown "${{ steps.next_version.outputs.next_release }}"
+          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}"
+          git-semver log --markdown "${{ steps.next-release.outputs.version }}"
 
       - name: Clean Up git-semver
         run: |
@@ -155,13 +155,13 @@ jobs:
           git checkout main
 
           # Check if the branch is associated with a worktree and remove the worktree if it exists
-          worktree_path="$(git worktree list | grep "${{ steps.branch_name.outputs.BRANCH_NAME }}" || true)"
+          worktree_path="$(git worktree list | grep "${{ steps.branch.outputs.name }}" || true)"
 
           if [ -n "${worktree_path}" ]; then
             echo "Removing worktree at ${worktree_path}"
             git worktree remove "${worktree_path}"
           else
-            echo "No worktree found for branch ${{ steps.branch_name.outputs.BRANCH_NAME }}"
+            echo "No worktree found for branch ${{ steps.branch.outputs.name }}"
           fi
 
       - name: Delete the Temporary Semantic Release Branch
@@ -169,9 +169,9 @@ jobs:
         run: |
           echo "Deleting the temporary semantic release branch"
           echo "Deleting local branch now:"
-          git branch -d "${{ steps.branch_name.outputs.BRANCH_NAME }}"
+          git branch -d "${{ steps.branch.outputs.name }}"
           echo "Deleted Temporary Branch from Local Runner" >> ${GITHUB_STEP_SUMMARY}
 
           echo "Deleting remote branch now:"
-          git push -d origin "${{ steps.branch_name.outputs.BRANCH_NAME }}"
+          git push -d origin "${{ steps.branch.outputs.name }}"
           echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
