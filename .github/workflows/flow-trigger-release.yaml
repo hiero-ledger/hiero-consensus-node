@@ -126,7 +126,7 @@ jobs:
           echo "Applied tag v${{ steps.next-release.outputs.version }}"
           current_version="$(git-semver latest)"
           echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
-          echo "Current version is: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
+          echo "Current Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Push Release Tag to Remote
         run: |
