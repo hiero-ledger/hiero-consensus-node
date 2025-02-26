@@ -87,6 +87,11 @@ public class SwirldsPlatform implements Platform {
     private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
 
     /**
+     * The null hash.
+     */
+    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
+
+    /**
      * The unique ID of this node.
      */
     private final NodeId selfId;
@@ -262,7 +267,7 @@ public class SwirldsPlatform implements Platform {
 
         final Hash legacyRunningEventHash =
                 platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
-                        ? CryptographyFactory.create().getNullHash()
+                        ? NULL_HASH
                         : platformStateFacade.legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
