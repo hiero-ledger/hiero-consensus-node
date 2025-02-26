@@ -59,7 +59,11 @@ public class EventMetadata extends AbstractHashable {
      */
     private Long birthRoundOverride = null;
 
-    private Long birthRound;
+    /**
+     * The birth round that was initialized to the event. This may be overridden at a later time via
+     * {@link #setBirthRoundOverride(long)}.
+     */
+    private final long birthRound;
 
     /**
      * Create a EventMetadata object
