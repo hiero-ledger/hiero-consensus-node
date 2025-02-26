@@ -11,8 +11,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
