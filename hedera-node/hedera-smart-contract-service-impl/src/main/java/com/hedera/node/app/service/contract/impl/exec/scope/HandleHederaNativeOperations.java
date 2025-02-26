@@ -192,13 +192,11 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
         return context.body().transactionIDOrThrow();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public long shard() {
-        return entityIdFactory.getShard();
-    }
-
-    @Override
-    public long realm() {
-        return entityIdFactory.getRealm();
+    public EntityIdFactory entityIdFactory() {
+        return entityIdFactory;
     }
 }

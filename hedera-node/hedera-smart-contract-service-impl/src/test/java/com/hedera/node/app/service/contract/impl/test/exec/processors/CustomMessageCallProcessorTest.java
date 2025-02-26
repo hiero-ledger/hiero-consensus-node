@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Prn
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REMAINING_GAS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.isSameResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -123,6 +124,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(result.getOutput()).willReturn(OUTPUT_DATA);
         given(result.getState()).willReturn(MessageFrame.State.CODE_SUCCESS);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.start(frame, operationTracer);
 
@@ -140,6 +142,7 @@ class CustomMessageCallProcessorTest {
         givenPrngCall(GAS_REQUIREMENT);
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.start(frame, operationTracer);
 

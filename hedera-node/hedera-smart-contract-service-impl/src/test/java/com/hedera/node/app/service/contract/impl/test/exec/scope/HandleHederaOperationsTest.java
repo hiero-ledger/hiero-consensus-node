@@ -19,6 +19,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_DURATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
@@ -66,7 +67,6 @@ import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.Objects;
@@ -116,9 +116,6 @@ class HandleHederaOperationsTest {
 
     @Mock
     private HandleContext.SavepointStack stack;
-
-    @Mock
-    private EntityIdFactory entityIdFactory;
 
     private HandleHederaOperations subject;
 
@@ -336,10 +333,7 @@ class HandleHederaOperationsTest {
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(parent);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
-        subject.createContract(
-                ContractID.newBuilder().contractNum(666L).build(),
-                NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(),
-                CANONICAL_ALIAS);
+        subject.createContract(666L, NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), CANONICAL_ALIAS);
 
         final var dispatchOptions = captor.getValue();
         assertEquals(synthTxn, dispatchOptions.body());
@@ -369,9 +363,7 @@ class HandleHederaOperationsTest {
 
         final long accountNum = NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow();
         final var e = Assertions.assertThrows(
-                ResourceExhaustedException.class,
-                () -> subject.createContract(
-                        ContractID.newBuilder().contractNum(666L).build(), accountNum, CANONICAL_ALIAS));
+                ResourceExhaustedException.class, () -> subject.createContract(666L, accountNum, CANONICAL_ALIAS));
         assertEquals(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED, e.getStatus());
     }
 
@@ -413,10 +405,7 @@ class HandleHederaOperationsTest {
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(parent);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
-        subject.createContract(
-                ContractID.newBuilder().contractNum(666L).build(),
-                NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(),
-                CANONICAL_ALIAS);
+        subject.createContract(666L, NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), CANONICAL_ALIAS);
 
         final var dispatchOptions = captor.getValue();
         assertInternalFinisherAsExpected(dispatchOptions.transactionCustomizer(), synthContractCreation);
@@ -487,7 +476,7 @@ class HandleHederaOperationsTest {
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.savepointStack()).willReturn(stack);
 
-        subject.createContract(ContractID.newBuilder().contractNum(666L).build(), someBody, CANONICAL_ALIAS);
+        subject.createContract(666L, someBody, CANONICAL_ALIAS);
 
         verify(context).dispatch(assertArg(options -> {
             assertEquals(A_NEW_ACCOUNT_ID, options.payerId());
@@ -527,7 +516,7 @@ class HandleHederaOperationsTest {
         given(contractCreateRecordBuilder.status()).willReturn(SUCCESS);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
-        subject.createContract(ContractID.newBuilder().contractNum(666L).build(), someBody, CANONICAL_ALIAS);
+        subject.createContract(666L, someBody, CANONICAL_ALIAS);
 
         final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
         verify(context).dispatch(captor.capture());
@@ -547,10 +536,7 @@ class HandleHederaOperationsTest {
         given(context.dispatch(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
-        assertThrows(
-                IllegalStateException.class,
-                () -> subject.createContract(
-                        ContractID.newBuilder().contractNum(666L).build(), someBody, CANONICAL_ALIAS));
+        assertThrows(IllegalStateException.class, () -> subject.createContract(666L, someBody, CANONICAL_ALIAS));
     }
 
     @Test

@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -303,10 +304,10 @@ public class FrameUtils {
         requireNonNull(featureFlags);
 
         Long maybeGrandfatheredNumber = null;
-        if (isLongZero(shardOf(frame), realmOf(frame), address)) {
+        if (isLongZero(entityIdFactory(frame), address)) {
             try {
-                maybeGrandfatheredNumber = asNumberedContractId(shardOf(frame), realmOf(frame), address)
-                        .contractNum();
+                maybeGrandfatheredNumber =
+                        asNumberedContractId(entityIdFactory(frame), address).contractNum();
             } catch (final ArithmeticException ignore) {
                 // Not a valid numbered contract id
             }
@@ -353,7 +354,7 @@ public class FrameUtils {
     }
 
     private static boolean isQualifiedDelegate(@NonNull final Address recipient, @NonNull final MessageFrame frame) {
-        return isLongZero(shardOf(frame), realmOf(frame), recipient)
+        return isLongZero(entityIdFactory(frame), recipient)
                 && contractsConfigOf(frame).permittedDelegateCallers().contains(numberOfLongZero(recipient));
     }
 
@@ -367,22 +368,12 @@ public class FrameUtils {
     }
 
     /**
-     * Returns the shard number of the Hedera network
+     * Returns the {@link com.swirlds.state.lifecycle.EntityIdFactory}
      *
-     * @param frame the frame whose sender's shard number is desired
-     * @return the shard number of the Hedera network
+     * @param frame the current frame
+     * @return the entity id factory
      */
-    public static long shardOf(@NonNull final MessageFrame frame) {
-        return proxyUpdaterFor(frame).shard();
-    }
-
-    /**
-     * Returns the realm number of the Hedera network
-     *
-     * @param frame the frame whose sender's realm number is desired
-     * @return the realm number of the Hedera network
-     */
-    public static long realmOf(@NonNull final MessageFrame frame) {
-        return proxyUpdaterFor(frame).realm();
+    public static EntityIdFactory entityIdFactory(@NonNull final MessageFrame frame) {
+        return proxyUpdaterFor(frame).entityIdFactory();
     }
 }

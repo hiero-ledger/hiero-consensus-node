@@ -114,7 +114,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
             // For convenience also translate a long-zero address to a token ID
             if (contractID.hasEvmAddress()) {
                 final var evmAddress = contractID.evmAddressOrThrow().toByteArray();
-                if (isLongZeroAddress(entityIdFactory.getShard(), entityIdFactory.getRealm(), evmAddress)) {
+                if (isLongZeroAddress(entityIdFactory, evmAddress)) {
                     tokenNum = numberOfLongZero(evmAddress);
                 }
             }

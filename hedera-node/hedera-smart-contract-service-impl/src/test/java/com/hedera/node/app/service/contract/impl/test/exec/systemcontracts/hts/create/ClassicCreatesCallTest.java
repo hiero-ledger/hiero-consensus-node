@@ -17,9 +17,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -423,8 +422,7 @@ public class ClassicCreatesCallTest extends CallTestBase {
         given(frame.getBlockValues()).willReturn(blockValues);
         if (shouldHaveRealmAndShard) {
             given(frame.getWorldUpdater()).willReturn(updater);
-            given(updater.shard()).willReturn(shard);
-            given(updater.realm()).willReturn(realm);
+            given(updater.entityIdFactory()).willReturn(entityIdFactory);
         }
         given(blockValues.getTimestamp()).willReturn(Timestamp.DEFAULT.seconds());
         subject = new ClassicCreatesCall(

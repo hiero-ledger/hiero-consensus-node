@@ -12,12 +12,11 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TREASURY_OWNED_NFT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ordinalRevertOutputFor;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -95,7 +94,7 @@ class OwnerOfCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(OwnerOfTranslator.OWNER_OF
                         .getOutputs()
-                        .encode(Tuple.singleton(asHeadlongAddress(asLongZeroAddress(shard, realm, ownerNum))))
+                        .encode(Tuple.singleton(asHeadlongAddress(asLongZeroAddress(entityIdFactory, ownerNum))))
                         .array()),
                 result.getOutput());
     }

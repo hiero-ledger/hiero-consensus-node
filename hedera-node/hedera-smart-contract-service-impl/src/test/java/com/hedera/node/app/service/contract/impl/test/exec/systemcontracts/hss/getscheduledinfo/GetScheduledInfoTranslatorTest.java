@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_SCHEDULE_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHssAttemptWithSelectorAndCustomConfig;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
@@ -127,6 +128,7 @@ class GetScheduledInfoTranslatorTest {
         given(attempt.enhancement()).willReturn(enhancement);
         given(attempt.nativeOperations()).willReturn(nativeOperation);
         given(attempt.configuration()).willReturn(DEFAULT_CONFIG);
+        given(nativeOperation.entityIdFactory()).willReturn(entityIdFactory);
 
         var result = subject.callFrom(attempt);
 
@@ -145,6 +147,7 @@ class GetScheduledInfoTranslatorTest {
         given(attempt.enhancement()).willReturn(enhancement);
         given(attempt.nativeOperations()).willReturn(nativeOperation);
         given(attempt.configuration()).willReturn(DEFAULT_CONFIG);
+        given(nativeOperation.entityIdFactory()).willReturn(entityIdFactory);
 
         var result = subject.callFrom(attempt);
 

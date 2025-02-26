@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.contract;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.NUM_LONG_ZEROS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
@@ -487,11 +487,21 @@ public class Utils {
      */
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
             final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        if (!isLongZero(shard, realm, address)) {
-            throw new IllegalArgumentException("Cannot extract id number from address " + address);
-        }
         return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
                 .setScheduleNum(address.value().longValueExact())
                 .build();
+    }
+
+    public static boolean isLongZeroAddress(final long shard, final long realm, final byte[] explicit) {
+        // check if first bytes are matching the shard and the realm
+        final byte[] shardAndRealm = new byte[12];
+        arraycopy(Ints.toByteArray((int) shard), 0, shardAndRealm, 0, 4);
+        arraycopy(Longs.toByteArray(realm), 0, shardAndRealm, 4, 8);
+        for (int i = 0; i < NUM_LONG_ZEROS; i++) {
+            if (explicit[i] != shardAndRealm[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 }

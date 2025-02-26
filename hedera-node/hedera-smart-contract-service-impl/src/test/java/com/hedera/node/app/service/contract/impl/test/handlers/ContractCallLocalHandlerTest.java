@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -254,6 +255,8 @@ class ContractCallLocalHandlerTest {
         given(factory.create(any(), any(), eq(HederaFunctionality.CONTRACT_CALL_LOCAL)))
                 .willReturn(component);
         given(component.contextQueryProcessor()).willReturn(processor);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+
         final var expectedResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
                 expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null);

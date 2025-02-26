@@ -7,9 +7,8 @@ import static com.hedera.hapi.streams.ContractActionType.CALL;
 import static com.hedera.hapi.streams.ContractActionType.CREATE;
 import static com.hedera.hapi.streams.codec.ContractActionProtoCodec.RECIPIENT_UNSET;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfContractIn;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfOriginatorIn;
@@ -142,7 +141,7 @@ public class ActionStack {
             @NonNull final ContractActionType type,
             @NonNull final Validation validation) {
         internalFinalize(validation, frame, action -> action.copyBuilder()
-                .recipientContract(asNumberedContractId(shardOf(frame), realmOf(frame), frame.getContractAddress()))
+                .recipientContract(asNumberedContractId(entityIdFactory(frame), frame.getContractAddress()))
                 .callType(type)
                 .build());
     }
@@ -331,19 +330,11 @@ public class ActionStack {
     }
 
     private AccountID accountIdWith(@NonNull final MessageFrame frame, final long num) {
-        return AccountID.newBuilder()
-                .shardNum(shardOf(frame))
-                .realmNum(realmOf(frame))
-                .accountNum(num)
-                .build();
+        return entityIdFactory(frame).newAccountId(num);
     }
 
     private ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
-        return ContractID.newBuilder()
-                .shardNum(shardOf(frame))
-                .realmNum(realmOf(frame))
-                .contractNum(num)
-                .build();
+        return entityIdFactory(frame).newContractId(num);
     }
 
     private ContractAction withUnsetRecipientIfNeeded(

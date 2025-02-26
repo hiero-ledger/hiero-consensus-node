@@ -137,10 +137,7 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
      */
     public @Nullable Account linkedAccount(@NonNull final Address accountAddress) {
         requireNonNull(accountAddress);
-        if (isLongZero(
-                enhancement().nativeOperations().shard(),
-                enhancement().nativeOperations().realm(),
-                accountAddress)) {
+        if (isLongZero(enhancement().nativeOperations().entityIdFactory(), accountAddress)) {
             return enhancement.nativeOperations().getAccount(numberOfLongZero(accountAddress.toArray()));
         } else {
             final var addressNum = enhancement

@@ -15,7 +15,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -220,7 +219,7 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateFT", autoRenew2, treasury2)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = ConversionUtils.asScheduleId(
+            final var scheduleID = asScheduleId(
                     spec.setup().defaultShard().getShardNum(),
                     spec.setup().defaultRealm().getRealmNum(),
                     scheduleAddress.get());

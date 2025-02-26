@@ -337,7 +337,7 @@ public record HederaEvmTransactionResult(
                 .contractCallResult(output)
                 .contractID(recipientId)
                 .createdContractIDs(createdIds)
-                .logInfo(pbjLogsFrom(updater.shard(), updater.realm(), logs))
+                .logInfo(pbjLogsFrom(updater.entityIdFactory(), logs))
                 .evmAddress(recipientEvmAddressIfCreatedIn(createdIds))
                 .contractNonces(updater.getUpdatedContractNonces())
                 .errorMessage("")
@@ -350,7 +350,7 @@ public record HederaEvmTransactionResult(
                 .bloom(bloomForAll(logs))
                 .contractCallResult(output)
                 .contractID(recipientId)
-                .logInfo(pbjLogsFrom(updater.shard(), updater.realm(), logs))
+                .logInfo(pbjLogsFrom(updater.entityIdFactory(), logs))
                 .errorMessage("")
                 .signerNonce(signerNonce)
                 .build();

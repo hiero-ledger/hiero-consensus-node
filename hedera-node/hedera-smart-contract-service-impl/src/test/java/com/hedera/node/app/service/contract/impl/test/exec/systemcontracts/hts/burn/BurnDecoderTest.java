@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALUE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
@@ -19,7 +20,7 @@ import org.mockito.Mock;
 /**
  * Unit tests for burn decoder
  */
-public class BurnDecoderTest extends CallTestBase {
+class BurnDecoderTest extends CallTestBase {
 
     @Mock
     private HtsCallAttempt attempt;
@@ -27,7 +28,7 @@ public class BurnDecoderTest extends CallTestBase {
     @Mock
     private HederaNativeOperations hederaNativeOperations;
 
-    private BurnDecoder subject = new BurnDecoder();
+    private final BurnDecoder subject = new BurnDecoder();
 
     @Test
     void burnTokenHappyPathV1() {
@@ -36,6 +37,7 @@ public class BurnDecoderTest extends CallTestBase {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var burn = subject.decodeBurn(attempt).tokenBurnOrThrow();
         assertEquals(FUNGIBLE_TOKEN_ID, burn.token());
@@ -49,6 +51,7 @@ public class BurnDecoderTest extends CallTestBase {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var burn = subject.decodeBurnV2(attempt).tokenBurnOrThrow();
         assertEquals(FUNGIBLE_TOKEN_ID, burn.token());
         assertEquals(VALUE, burn.amount());

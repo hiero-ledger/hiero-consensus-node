@@ -20,8 +20,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.standardized;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.stackIncludesActiveAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
@@ -30,7 +29,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -209,11 +207,7 @@ public class ClassicCreatesCall extends AbstractCall {
                 ? new EitherOrVerificationStrategy(
                         baseVerificationStrategy,
                         new ActiveContractVerificationStrategy(
-                                ContractID.newBuilder()
-                                        .shardNum(shardOf(frame))
-                                        .realmNum(realmOf(frame))
-                                        .contractNum(legacyActivation.contractNum())
-                                        .build(),
+                                entityIdFactory(frame).newContractId(legacyActivation.contractNum()),
                                 legacyActivation.pbjAddress(),
                                 false,
                                 UseTopLevelSigs.NO))
@@ -229,7 +223,7 @@ public class ClassicCreatesCall extends AbstractCall {
         final var literal = configOf(frame).getConfigData(ContractsConfig.class).keysLegacyActivations();
         final var contractNum = Long.parseLong(literal.substring(literal.indexOf("[") + 1, literal.indexOf("]")));
         final var pbjAddress =
-                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(asEvmAddress(shardOf(frame), realmOf(frame), contractNum));
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(asEvmAddress(entityIdFactory(frame), contractNum));
         return new LegacyActivation(contractNum, pbjAddress, pbjToBesuAddress(pbjAddress));
     }
 }

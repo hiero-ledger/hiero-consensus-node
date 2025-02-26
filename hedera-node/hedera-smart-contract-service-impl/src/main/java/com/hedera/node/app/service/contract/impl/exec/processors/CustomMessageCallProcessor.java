@@ -9,13 +9,12 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.acquiredSenderAuthorizationViaDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.alreadyHalted;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isPrecompileEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isTopLevelTransaction;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.recordBuilderFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.transfersValue;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.RESULT_CANNOT_BE_EXTERNALIZED;
@@ -244,9 +243,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             @NonNull final MessageFrame frame,
             @NonNull final OperationTracer tracer) {
         final var fullResult = systemContract.computeFully(
-                asNumberedContractId(shardOf(frame), realmOf(frame), systemContractAddress),
-                frame.getInputData(),
-                frame);
+                asNumberedContractId(entityIdFactory(frame), systemContractAddress), frame.getInputData(), frame);
         final var gasRequirement = fullResult.gasRequirement();
         final PrecompileContractResult result;
         if (frame.getRemainingGas() < gasRequirement) {

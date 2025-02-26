@@ -114,8 +114,7 @@ public class ContractDeleteHandler implements TransactionHandler {
                         context.expiryValidator(),
                         recordBuilder,
                         FreeAliasOnDeletion.YES);
-        recordBuilder.contractID(
-                asNumericContractId(entityIdFactory.getShard(), entityIdFactory.getRealm(), deletedId));
+        recordBuilder.contractID(asNumericContractId(entityIdFactory, deletedId));
     }
 
     private @Nullable Account getObtainer(

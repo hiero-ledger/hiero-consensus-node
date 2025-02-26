@@ -7,9 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getAndClearPropagatedCallFailure;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.maybeNext;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.failureFrom;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.successFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmContractId;
@@ -100,7 +98,7 @@ public class FrameRunner {
                     gasUsed,
                     senderId,
                     recipientMetadata.hederaId(),
-                    asEvmContractId(shardOf(frame), realmOf(frame), recipientAddress),
+                    asEvmContractId(entityIdFactory, recipientAddress),
                     frame,
                     tracer);
         } else {
@@ -120,9 +118,8 @@ public class FrameRunner {
 
     private RecipientMetadata computeRecipientMetadata(
             @NonNull final MessageFrame frame, @NonNull final Address address) {
-        if (isLongZero(entityIdFactory.getShard(), entityIdFactory.getRealm(), address)) {
-            return new RecipientMetadata(
-                    false, asNumberedContractId(entityIdFactory.getShard(), entityIdFactory.getRealm(), address));
+        if (isLongZero(entityIdFactory, address)) {
+            return new RecipientMetadata(false, asNumberedContractId(entityIdFactory, address));
         } else {
             final var updater = proxyUpdaterFor(frame);
             return new RecipientMetadata(updater.getPendingCreation() != null, updater.getHederaContractId(address));

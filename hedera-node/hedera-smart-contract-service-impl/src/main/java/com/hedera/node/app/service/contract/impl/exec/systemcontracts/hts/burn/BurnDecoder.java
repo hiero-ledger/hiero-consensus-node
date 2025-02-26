@@ -69,16 +69,14 @@ public class BurnDecoder {
             final long maybeAmount,
             @NonNull final List<Long> maybeSerialNos,
             @NonNull final HtsCallAttempt attempt) {
-        final var shard = attempt.nativeOperations().shard();
-        final var realm = attempt.nativeOperations().realm();
-
         Token maybeToken = null;
         long tokenNum = 0;
         // try to look up the token by address, if it is a long zero
-        if (isLongZero(shard, realm, tokenAddress)) {
+        if (isLongZero(attempt.nativeOperations().entityIdFactory(), tokenAddress)) {
             final var explicit = explicitFromHeadlong(tokenAddress);
 
-            maybeToken = attempt.linkedToken(asEvmAddress(shard, realm, numberOfLongZero(explicit)));
+            maybeToken = attempt.linkedToken(
+                    asEvmAddress(attempt.nativeOperations().entityIdFactory(), numberOfLongZero(explicit)));
             tokenNum = numberOfLongZero(explicit);
         }
 

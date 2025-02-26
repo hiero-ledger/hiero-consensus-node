@@ -170,11 +170,11 @@ public interface HederaOperations {
      *
      * <p>The record of this creation should only be externalized if the top-level HAPI transaction succeeds.
      *
-     * @param contractID   the contractID to create
+     * @param number       the number of the contract to create
      * @param parentNumber the number of the contract whose properties the new contract should inherit
      * @param evmAddress   if not null, the EVM address to use as an alias of the created contract
      */
-    void createContract(@NonNull final ContractID contractID, long parentNumber, @Nullable final Bytes evmAddress);
+    void createContract(long number, long parentNumber, @Nullable final Bytes evmAddress);
 
     /**
      * Creates a new contract with the given entity number and EVM address; and also "links" the alias
@@ -185,14 +185,11 @@ public interface HederaOperations {
      *
      * <p>The record of this creation should only be externalized if the top-level HAPI transaction succeeds.
      *
-     * @param contractID the contractID to create
+     * @param number     the number of the contract to create
      * @param op         the top-level operation creating this contract
      * @param evmAddress if not null, the EVM address to use as an alias of the created contract
      */
-    void createContract(
-            @NonNull final ContractID contractID,
-            @NonNull ContractCreateTransactionBody op,
-            @Nullable final Bytes evmAddress);
+    void createContract(long number, @NonNull ContractCreateTransactionBody op, @Nullable final Bytes evmAddress);
 
     /**
      * Deletes the contract whose alias is the given {@code evmAddress}, and also "unlinks" the alias.

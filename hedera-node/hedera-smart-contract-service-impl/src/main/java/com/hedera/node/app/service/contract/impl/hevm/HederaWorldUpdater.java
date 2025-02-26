@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -277,20 +278,11 @@ public interface HederaWorldUpdater extends WorldUpdater {
     void setContractNotRequired();
 
     /**
-     * Returns the shard number of the Hedera network
+     * Returns the {@link EntityIdFactory}
      *
-     * @return the shard number
+     * @return the {@link EntityIdFactory}
      */
-    default long shard() {
-        return enhancement().nativeOperations().shard();
-    }
-
-    /**
-     * Returns the realm number of the Hedera network
-     *
-     * @return the realm number
-     */
-    default long realm() {
-        return enhancement().nativeOperations().realm();
+    default EntityIdFactory entityIdFactory() {
+        return enhancement().nativeOperations().entityIdFactory();
     }
 }

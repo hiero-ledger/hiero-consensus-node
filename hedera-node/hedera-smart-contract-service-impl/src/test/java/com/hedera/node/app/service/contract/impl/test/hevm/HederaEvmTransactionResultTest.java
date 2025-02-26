@@ -23,10 +23,9 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_RE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_STORAGE_ACCESSES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TWO_STORAGE_ACCESSES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.WEI_NETWORK_GAS_PRICE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.givenConfigInFrame;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.givenDefaultConfigInFrame;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
@@ -158,6 +157,7 @@ class HederaEvmTransactionResultTest {
         final var createdIds = List.of(CALLED_CONTRACT_ID, CHILD_CONTRACT_ID);
         given(rootProxyWorldUpdater.getCreatedContractIds()).willReturn(createdIds);
         given(rootProxyWorldUpdater.getUpdatedContractNonces()).willReturn(NONCES);
+        given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = HederaEvmTransactionResult.successFrom(
                 GAS_LIMIT / 2, SENDER_ID, CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, frame, tracer);
@@ -168,7 +168,7 @@ class HederaEvmTransactionResultTest {
         assertEquals("", protoResult.errorMessage());
         assertNull(protoResult.senderId());
         assertEquals(CALLED_CONTRACT_ID, protoResult.contractID());
-        assertEquals(pbjLogsFrom(shard, realm, BESU_LOGS), protoResult.logInfo());
+        assertEquals(pbjLogsFrom(entityIdFactory, BESU_LOGS), protoResult.logInfo());
         assertEquals(createdIds, protoResult.createdContractIDs());
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS.evmAddressOrThrow(), protoResult.evmAddress());
         assertEquals(NONCES, protoResult.contractNonces());
@@ -191,6 +191,7 @@ class HederaEvmTransactionResultTest {
         final var createdIds = List.of(CALLED_CONTRACT_ID, CHILD_CONTRACT_ID);
         given(rootProxyWorldUpdater.getCreatedContractIds()).willReturn(createdIds);
         given(rootProxyWorldUpdater.getUpdatedContractNonces()).willReturn(NONCES);
+        given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = HederaEvmTransactionResult.successFrom(
                 GAS_LIMIT / 2, SENDER_ID, CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, frame, tracer);
@@ -206,7 +207,7 @@ class HederaEvmTransactionResultTest {
         assertEquals(OUTPUT_DATA, protoResult.contractCallResult());
         assertEquals("", protoResult.errorMessage());
         assertEquals(CALLED_CONTRACT_ID, protoResult.contractID());
-        assertEquals(pbjLogsFrom(shard, realm, BESU_LOGS), protoResult.logInfo());
+        assertEquals(pbjLogsFrom(entityIdFactory, BESU_LOGS), protoResult.logInfo());
         assertEquals(createdIds, protoResult.createdContractIDs());
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS.evmAddressOrThrow(), protoResult.evmAddress());
         assertEquals(NONCES, protoResult.contractNonces());
@@ -247,6 +248,7 @@ class HederaEvmTransactionResultTest {
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getLogs()).willReturn(BESU_LOGS);
         given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = HederaEvmTransactionResult.successFrom(
                 GAS_LIMIT / 2, SENDER_ID, CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, frame, tracer);
@@ -257,7 +259,7 @@ class HederaEvmTransactionResultTest {
         assertEquals("", queryResult.errorMessage());
         assertNull(queryResult.senderId());
         assertEquals(CALLED_CONTRACT_ID, queryResult.contractID());
-        assertEquals(pbjLogsFrom(shard, realm, BESU_LOGS), queryResult.logInfo());
+        assertEquals(pbjLogsFrom(entityIdFactory, BESU_LOGS), queryResult.logInfo());
     }
 
     @Test

@@ -121,14 +121,10 @@ class QueryHederaOperationsTest {
     void creatingAndDeletingContractsNotSupported() {
         assertThrows(UnsupportedOperationException.class, subject::contractCreationLimit);
         assertThrows(UnsupportedOperationException.class, subject::accountCreationLimit);
+        assertThrows(UnsupportedOperationException.class, () -> subject.createContract(1L, 2L, null));
         assertThrows(
                 UnsupportedOperationException.class,
-                () -> subject.createContract(
-                        ContractID.newBuilder().contractNum(1L).build(), 2L, null));
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> subject.createContract(
-                        ContractID.newBuilder().contractNum(1L).build(), ContractCreateTransactionBody.DEFAULT, null));
+                () -> subject.createContract(1L, ContractCreateTransactionBody.DEFAULT, null));
         assertThrows(UnsupportedOperationException.class, () -> subject.deleteAliasedContract(Bytes.EMPTY));
         assertThrows(UnsupportedOperationException.class, () -> subject.deleteUnaliasedContract(1234L));
     }

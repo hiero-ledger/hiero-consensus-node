@@ -5,9 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.swirlds.common.utility.CommonUtils.unhex;
@@ -36,6 +35,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperatio
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -89,18 +89,13 @@ public class ConversionUtils {
     /**
      * Given a numeric {@link AccountID}, returns its equivalent contract id.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
+     * @param entityIdFactory the entity id factory
      * @param accountId the numeric {@link AccountID}
      * @return the equivalent account id
      */
     public static ContractID asNumericContractId(
-            final long shard, final long realm, @NonNull final AccountID accountId) {
-        return ContractID.newBuilder()
-                .shardNum(shard)
-                .realmNum(realm)
-                .contractNum(accountId.accountNumOrThrow())
-                .build();
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final AccountID accountId) {
+        return entityIdFactory.newContractId(accountId.accountNumOrThrow());
     }
 
     /**
@@ -266,13 +261,15 @@ public class ConversionUtils {
     /**
      * Given a list of Besu {@link Log}s, converts them to a list of PBJ {@link ContractLoginfo}.
      *
+     * @param entityIdFactory the entity id factory
      * @param logs the Besu {@link Log}s
      * @return the PBJ {@link ContractLoginfo}s
      */
-    public static List<ContractLoginfo> pbjLogsFrom(final long shard, final long realm, @NonNull final List<Log> logs) {
+    public static List<ContractLoginfo> pbjLogsFrom(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final List<Log> logs) {
         final List<ContractLoginfo> pbjLogs = new ArrayList<>();
         for (final var log : logs) {
-            pbjLogs.add(pbjLogFrom(shard, realm, log));
+            pbjLogs.add(pbjLogFrom(entityIdFactory, log));
         }
         return pbjLogs;
     }
@@ -318,18 +315,18 @@ public class ConversionUtils {
     /**
      * Given a Besu {@link Log}, converts it a PBJ {@link ContractLoginfo}.
      *
+     * @param entityIdFactory the entity id factory
      * @param log the Besu {@link Log}
      * @return the PBJ {@link ContractLoginfo}
      */
-    public static ContractLoginfo pbjLogFrom(final long shard, final long realm, @NonNull final Log log) {
+    public static ContractLoginfo pbjLogFrom(@NonNull final EntityIdFactory entityIdFactory, @NonNull final Log log) {
         final var loggerNumber = numberOfLongZero(log.getLogger());
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> loggedTopics = new ArrayList<>();
         for (final var topic : log.getTopics()) {
             loggedTopics.add(tuweniToPbjBytes(topic));
         }
         return ContractLoginfo.newBuilder()
-                .contractID(
-                        ContractID.newBuilder().shardNum(shard).realmNum(realm).contractNum(loggerNumber))
+                .contractID(entityIdFactory.newContractId(loggerNumber))
                 .data(tuweniToPbjBytes(log.getData()))
                 .topic(loggedTopics)
                 .bloom(bloomFor(log))
@@ -366,7 +363,7 @@ public class ConversionUtils {
      * @return the id number of the given address's Hedera id
      */
     private static long hederaIdNumberIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
-        return isLongZero(shardOf(frame), realmOf(frame), address)
+        return isLongZero(entityIdFactory(frame), address)
                 ? numberOfLongZero(address)
                 : proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow();
     }
@@ -439,44 +436,41 @@ public class ConversionUtils {
     /**
      * Given an Besu EVM address, returns whether it is long-zero.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
+     * @param entityIdFactory the entity id factory
      * @param address the EVM address (as a BESU {@link org.hyperledger.besu.datatypes.Address})
      * @return whether it is long-zero
      */
-    public static boolean isLongZero(final long shard, final long realm, @NonNull final Address address) {
-        return isLongZeroAddress(shard, realm, address.toArrayUnsafe());
+    public static boolean isLongZero(@NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
+        return isLongZeroAddress(entityIdFactory, address.toArrayUnsafe());
     }
 
     /**
      * Given an headlong EVM address, returns whether it is long-zero.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
+     * @param entityIdFactory the entity id factory
      * @param address the EVM address (as a headlong {@link com.esaulpaugh.headlong.abi.Address})
      * @return whether it is long-zero
      */
     public static boolean isLongZero(
-            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        return isLongZeroAddress(shard, realm, explicitFromHeadlong(address));
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        return isLongZeroAddress(entityIdFactory, explicitFromHeadlong(address));
     }
 
     /**
      * Given an explicit 20-byte array, returns whether it is a long-zero address.
      * True if the first 4 bytes matches the shard and if the next 8 bytes match the realm.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
+     * @param entityIdFactory the entity id factory
      * @param explicit the explicit 20-byte array
      * @return whether it is a long-zero address
      */
-    public static boolean isLongZeroAddress(final long shard, final long realm, final byte[] explicit) {
+    public static boolean isLongZeroAddress(@NonNull final EntityIdFactory entityIdFactory, final byte[] explicit) {
         // check if first bytes are matching the shard and the realm
-        final byte[] shardAndRealm = new byte[12];
-        arraycopy(Ints.toByteArray((int) shard), 0, shardAndRealm, 0, 4);
-        arraycopy(Longs.toByteArray(realm), 0, shardAndRealm, 4, 8);
+        final var zeroAddress = unhex(entityIdFactory.hexLongZero(0));
+
         for (int i = 0; i < NUM_LONG_ZEROS; i++) {
-            if (explicit[i] != shardAndRealm[i]) {
+            if (explicit[i] != zeroAddress[i]) {
                 return false;
             }
         }
@@ -496,13 +490,12 @@ public class ConversionUtils {
     /**
      * Converts a shard, realm, number to a long zero address.
      *
-     * @param shard the shard
-     * @param realm the realm
+     * @param entityIdFactory the entity id factory
      * @param number the number to convert
      * @return the long zero address
      */
-    public static Address asLongZeroAddress(final long shard, final long realm, final long number) {
-        return Address.wrap(Bytes.wrap(asEvmAddress(shard, realm, number)));
+    public static Address asLongZeroAddress(@NonNull final EntityIdFactory entityIdFactory, final long number) {
+        return Address.wrap(Bytes.wrap(asEvmAddress(entityIdFactory, number)));
     }
 
     /**
@@ -529,92 +522,59 @@ public class ConversionUtils {
     /**
      * Converts an EVM address to a PBJ {@link ContractID} with alias instead of id number.
      *
+     * @param entityIdFactory the entity id factory
      * @param address the EVM address
      * @return the PBJ {@link ContractID}
      */
-    public static ContractID asEvmContractId(final long shard, final long realm, @NonNull final Address address) {
-        return ContractID.newBuilder()
-                .shardNum(shard)
-                .realmNum(realm)
-                .evmAddress(tuweniToPbjBytes(address))
-                .build();
+    public static ContractID asEvmContractId(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
+        return entityIdFactory.newContractIdWithEvmAddress(tuweniToPbjBytes(address));
     }
 
     /**
      * Converts a long-zero address to a PBJ {@link AccountID} with id number instead of alias.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
+     * @param entityIdFactory the entity id factory
      * @param address the EVM address
      * @return the PBJ {@link AccountID}
      */
-    public static AccountID asNumberedAccountId(final long shard, final long realm, @NonNull final Address address) {
-        if (!isLongZero(shard, realm, address)) {
+    public static AccountID asNumberedAccountId(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
+        if (!isLongZero(entityIdFactory, address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
-        return AccountID.newBuilder()
-                .shardNum(shard)
-                .realmNum(realm)
-                .accountNum(numberOfLongZero(address))
-                .build();
+        return entityIdFactory.newAccountId(numberOfLongZero(address));
     }
 
     /**
      * Converts a long-zero address to a PBJ {@link ContractID} with id number instead of alias.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
+     * @param entityIdFactory the entity id factory
      * @param address the EVM address
      * @return the PBJ {@link ContractID}
      */
-    public static ContractID asNumberedContractId(final long shard, final long realm, @NonNull final Address address) {
-        if (!isLongZero(shard, realm, address)) {
+    public static ContractID asNumberedContractId(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
+        if (!isLongZero(entityIdFactory, address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
-        return ContractID.newBuilder()
-                .shardNum(shard)
-                .realmNum(realm)
-                .contractNum(numberOfLongZero(address))
-                .build();
-    }
-
-    /**
-     * Converts a long-zero address to a PBJ {@link ScheduleID} using the address as the entity number
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
-     * @param address
-     * @return the PBJ {@link ScheduleID}
-     */
-    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
-            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        if (!isLongZero(shard, realm, address)) {
-            throw new IllegalArgumentException("Cannot extract id number from address " + address);
-        }
-        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
-                .setScheduleNum(address.value().longValueExact())
-                .build();
+        return entityIdFactory.newContractId(numberOfLongZero(address));
     }
 
     /**
      * Converts a headlong address to a PBJ {@link ScheduleID}.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
+     * @param entityIdFactory the entity id factory
      * @param address the schedule address
      * @return the PBJ {@link ScheduleID}
      */
     public static ScheduleID addressToScheduleID(
-            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        if (!isLongZero(shard, realm, address)) {
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        if (!isLongZero(entityIdFactory, address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
-        return ScheduleID.newBuilder()
-                .shardNum(shard)
-                .realmNum(realm)
-                .scheduleNum(address.value().longValueExact())
-                .build();
+        return entityIdFactory.newScheduleId(address.value().longValueExact());
     }
 
     /**
@@ -708,6 +668,18 @@ public class ConversionUtils {
         final byte[] data = new byte[length];
         bytes.getBytes(0, data);
         return data;
+    }
+
+    /**
+     * Given a long entity number, returns its 20-byte EVM address.
+     * The shard is downcast to an int so it must not exceed the range of an int.
+     *
+     * @param entityIdFactory the entity id factory
+     * @param num the entity number
+     * @return its 20-byte EVM address
+     */
+    public static byte[] asEvmAddress(@NonNull final EntityIdFactory entityIdFactory, final long num) {
+        return unhex(entityIdFactory.hexLongZero(num));
     }
 
     /**
@@ -831,17 +803,16 @@ public class ConversionUtils {
     }
 
     private static Address longZeroAddressIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
-        return isLongZero(shardOf(frame), realmOf(frame), address)
+        return isLongZero(entityIdFactory(frame), address)
                 ? address
                 : asLongZeroAddress(
-                        shardOf(frame),
-                        realmOf(frame),
+                        entityIdFactory(frame),
                         proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
     }
 
     private static long maybeMissingNumberOf(
             @NonNull final byte[] explicit, @NonNull final HederaNativeOperations nativeOperations) {
-        if (isLongZeroAddress(nativeOperations.shard(), nativeOperations.realm(), explicit)) {
+        if (isLongZeroAddress(nativeOperations.entityIdFactory(), explicit)) {
             return longFrom(
                     explicit[12],
                     explicit[13],
@@ -936,7 +907,9 @@ public class ConversionUtils {
             return pbjToBesuAddress(contractId.evmAddressOrThrow());
         } else {
             // OrElse(0) is needed, as an UNSET contract OneOf has null number
-            return asLongZeroAddress(contractId.shardNum(), contractId.realmNum(), contractId.contractNumOrElse(0L));
+            return asLongZeroAddress(AccountID.newBuilder()
+                    .accountNum(contractId.contractNumOrElse(0L))
+                    .build());
         }
     }
 

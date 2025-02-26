@@ -17,9 +17,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OUTPUT_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_REVERT_REASON;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmContractId;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -104,6 +103,10 @@ class FrameRunnerTest {
         givenBaseSuccessWith(EIP_1014_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.getHederaContractId(EIP_1014_ADDRESS)).willReturn(CALLED_CONTRACT_ID);
+        final var contractId = ContractID.newBuilder()
+                .evmAddress(Bytes.wrap(EIP_1014_ADDRESS.toArray()))
+                .build();
+        given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
 
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
@@ -128,9 +131,11 @@ class FrameRunnerTest {
 
         givenBaseSuccessWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.shard()).willReturn(shard);
-        given(worldUpdater.realm()).willReturn(realm);
-
+        final var contractId = ContractID.newBuilder()
+                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .build();
+        given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
+        given(worldUpdater.getHederaContractId(NON_SYSTEM_LONG_ZERO_ADDRESS)).willReturn(contractId);
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
 
@@ -140,7 +145,7 @@ class FrameRunnerTest {
         inOrder.verify(tracer).sanitizeTracedActions(frame);
 
         assertSuccessExpectationsWith(
-                NON_SYSTEM_CONTRACT_ID, asEvmContractId(shard, realm, NON_SYSTEM_LONG_ZERO_ADDRESS), frame, result);
+                NON_SYSTEM_CONTRACT_ID, asEvmContractId(entityIdFactory, NON_SYSTEM_LONG_ZERO_ADDRESS), frame, result);
     }
 
     @Test
@@ -302,7 +307,13 @@ class FrameRunnerTest {
         }
         given(frame.getRecipientAddress()).willReturn(receiver);
         given(frame.getMessageFrameStack()).willReturn(messageFrameStack);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        final var contractId = ContractID.newBuilder()
+                .evmAddress(Bytes.wrap(receiver.toArray()))
+                .build();
+        given(worldUpdater.getHederaContractId(receiver)).willReturn(contractId);
         given(childFrame.getMessageFrameStack()).willReturn(messageFrameStack);
+        given(entityIdFactory.hexLongZero(0)).willReturn("1234");
     }
 
     private long expectedGasUsed(@NonNull final MessageFrame frame) {

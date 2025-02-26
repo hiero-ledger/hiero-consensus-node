@@ -37,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerifi
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -203,14 +204,12 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return new RentFactors(account.contractKvPairsNumber(), account.expirationSecond());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public long shard() {
-        return nativeOperations.shard();
-    }
-
-    @Override
-    public long realm() {
-        return nativeOperations.realm();
+    public @NonNull EntityIdFactory entityIdFactory() {
+        return nativeOperations.entityIdFactory();
     }
 
     /**
@@ -381,7 +380,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
 
             final var evmAddress = extractEvmAddress(account.alias());
             return evmAddress == null
-                    ? asLongZeroAddress(nativeOperations.shard(), nativeOperations.realm(), number)
+                    ? asLongZeroAddress(nativeOperations.entityIdFactory(), number)
                     : pbjToBesuAddress(evmAddress);
         }
         final var token = nativeOperations.getToken(number);
@@ -389,7 +388,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         if (token != null || schedule != null) {
             // If the token or schedule  is deleted or expired, the system contract executed by the redirect
             // bytecode will fail with a more meaningful error message, so don't check that here
-            return asLongZeroAddress(nativeOperations.shard(), nativeOperations.realm(), number);
+            return asLongZeroAddress(nativeOperations.entityIdFactory(), number);
         }
         throw new IllegalArgumentException("No account, token or schedule has number " + number);
     }
@@ -486,7 +485,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull final Address address) {
-        if (isLongZero(nativeOperations.shard(), nativeOperations.realm(), address)) {
+        if (isLongZero(nativeOperations.entityIdFactory(), address)) {
             return Optional.of(INVALID_ALIAS_KEY);
         }
         final var number = maybeMissingNumberOf(address, nativeOperations);

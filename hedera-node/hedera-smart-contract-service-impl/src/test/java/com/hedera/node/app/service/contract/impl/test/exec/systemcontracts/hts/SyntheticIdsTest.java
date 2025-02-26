@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
@@ -31,6 +32,7 @@ class SyntheticIdsTest {
 
     @Test
     void returnsNumericIdIfAddressIsCanonicalReference() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.resolveAlias(ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(TestHelpers.A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
@@ -41,6 +43,7 @@ class SyntheticIdsTest {
 
     @Test
     void returnsNumericIdIfMissingLongZeroDebit() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var missingLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
         final var synthId = subject.convert(missingLongZeroAddress);
@@ -49,6 +52,7 @@ class SyntheticIdsTest {
 
     @Test
     void returnsAliasIdIfMissingLongZeroCredit() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedId = AccountID.newBuilder()
                 .alias(Bytes.wrap(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow())))
                 .build();
@@ -60,6 +64,8 @@ class SyntheticIdsTest {
 
     @Test
     void returnsGuaranteedFailLazyCreateIfMissingLongZeroCredit() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedId = AccountID.newBuilder()
                 .alias(Bytes.wrap(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow())))
                 .build();
@@ -75,6 +81,7 @@ class SyntheticIdsTest {
                 .alias(Bytes.wrap(asEvmAddress(shard, realm, 0L)))
                 .build();
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var nonCanonicalLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
         final var synthId = subject.convertCredit(nonCanonicalLongZeroAddress);

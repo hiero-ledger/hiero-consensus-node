@@ -33,7 +33,6 @@ import static org.apache.tuweni.bytes.Bytes.EMPTY;
 
 import com.esaulpaugh.headlong.util.Integers;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -203,13 +202,7 @@ public class HevmTransactionFactory {
         return new HederaEvmTransaction(
                 senderId,
                 relayerId,
-                asPriorityId(
-                        ContractID.newBuilder()
-                                .shardNum(entityIdFactory.getShard())
-                                .realmNum(entityIdFactory.getRealm())
-                                .evmAddress(Bytes.wrap(ethTxData.to()))
-                                .build(),
-                        accountStore),
+                asPriorityId(entityIdFactory.newContractIdWithEvmAddress(Bytes.wrap(ethTxData.to())), accountStore),
                 ethTxData.nonce(),
                 ethTxData.hasCallData() ? Bytes.wrap(ethTxData.callData()) : Bytes.EMPTY,
                 Bytes.wrap(ethTxData.chainId()),

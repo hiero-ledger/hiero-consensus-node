@@ -53,8 +53,7 @@ public class HederaAccountNumAliasCall extends AbstractCall {
             return gasOnly(fullResultsFor(INVALID_SOLIDITY_ADDRESS, ZERO_ADDRESS), INVALID_SOLIDITY_ADDRESS, true);
         }
         final var accountAsAddress = asHeadlongAddress(asEvmAddress(
-                account.accountIdOrElse(AccountID.DEFAULT).shardNum(),
-                account.accountIdOrElse(AccountID.DEFAULT).realmNum(),
+                enhancement.nativeOperations().entityIdFactory(),
                 account.accountIdOrElse(AccountID.DEFAULT).accountNumOrElse(0L)));
         return gasOnly(fullResultsFor(SUCCESS, accountAsAddress), SUCCESS, true);
     }

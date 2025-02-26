@@ -155,13 +155,11 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
         throw new UnsupportedOperationException("Cannot get top level transaction ID in query context");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public long shard() {
-        return entityIdFactory.getShard();
-    }
-
-    @Override
-    public long realm() {
-        return entityIdFactory.getRealm();
+    public EntityIdFactory entityIdFactory() {
+        return entityIdFactory;
     }
 }

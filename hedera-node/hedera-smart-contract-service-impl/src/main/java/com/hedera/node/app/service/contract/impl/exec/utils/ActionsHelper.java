@@ -3,8 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.streams.CallOperationType.OP_UNKNOWN;
 import static com.hedera.hapi.streams.ContractActionType.NO_ACTION;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.realmOf;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.shardOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfContractIn;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.OpcodeUtils.asCallOperationType;
@@ -99,11 +98,7 @@ public class ActionsHelper {
     }
 
     private ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
-        return ContractID.newBuilder()
-                .shardNum(shardOf(frame))
-                .realmNum(realmOf(frame))
-                .contractNum(num)
-                .build();
+        return entityIdFactory(frame).newContractId(num);
     }
 
     private static int countNonNulls(@NonNull final Object... objs) {

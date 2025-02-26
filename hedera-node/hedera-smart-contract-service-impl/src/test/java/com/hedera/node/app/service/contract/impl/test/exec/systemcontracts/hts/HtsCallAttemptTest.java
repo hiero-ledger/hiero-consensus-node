@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -118,6 +119,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void nonLongZeroAddressesArentTokens() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input =
                 TestHelpers.bytesForRedirect(Erc20TransfersTranslator.ERC_20_TRANSFER.selector(), EIP_1014_ADDRESS);
         final var subject = new HtsCallAttempt(
@@ -135,14 +137,14 @@ class HtsCallAttemptTest extends CallTestBase {
                 systemContractMethodRegistry,
                 false);
         assertNull(subject.redirectToken());
-        verify(nativeOperations).shard();
-        verify(nativeOperations).realm();
+        verify(nativeOperations).entityIdFactory();
     }
 
     @Test
     void invalidSelectorLeadsToMissingCall() {
         given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
                 HTS_167_CONTRACT_ID,
@@ -163,6 +165,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsDecimals() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 DecimalsTranslator.DECIMALS.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
@@ -184,6 +187,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsTokenUri() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 TokenUriTranslator.TOKEN_URI.encodeCallWithArgs(BigInteger.ONE).array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
@@ -205,6 +209,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsOwnerOf() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 OwnerOfTranslator.OWNER_OF.encodeCallWithArgs(BigInteger.ONE).array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
@@ -226,6 +231,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsBalanceOf() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 BALANCE_OF
                         .encodeCallWithArgs(asHeadlongAddress(EIP_1014_ADDRESS))
@@ -250,6 +256,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsIsApprovedForAllErc() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(EIP_1014_ADDRESS);
         final var input = TestHelpers.bytesForRedirect(
                 IsApprovedForAllTranslator.ERC_IS_APPROVED_FOR_ALL
@@ -275,6 +282,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsIsApprovedForAllClassic() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(EIP_1014_ADDRESS);
         final var input = Bytes.wrap(IsApprovedForAllTranslator.CLASSIC_IS_APPROVED_FOR_ALL
                 .encodeCallWithArgs(address, address, address)
@@ -298,6 +306,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsTotalSupply() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 TotalSupplyTranslator.TOTAL_SUPPLY.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
@@ -319,6 +328,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsName() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 NameTranslator.NAME.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
@@ -340,6 +350,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsSymbol() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 SymbolTranslator.SYMBOL.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
@@ -363,6 +374,7 @@ class HtsCallAttemptTest extends CallTestBase {
     void constructsErc721TransferFromRedirectToNonfungible() {
         given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(NON_FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
                 Erc721TransferFromTranslator.ERC_721_TRANSFER_FROM
@@ -395,6 +407,7 @@ class HtsCallAttemptTest extends CallTestBase {
     void constructsErc20TransferFromRedirectToFungible() {
         given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
                 Erc20TransfersTranslator.ERC_20_TRANSFER_FROM
@@ -427,6 +440,7 @@ class HtsCallAttemptTest extends CallTestBase {
     void constructsErc20TransferRedirectToFungible() {
         given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
                 Erc20TransfersTranslator.ERC_20_TRANSFER
@@ -487,7 +501,9 @@ class HtsCallAttemptTest extends CallTestBase {
         if (isRedirect) {
             given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                     .willReturn(FUNGIBLE_TOKEN);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         }
+
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
 
         final var subject = new HtsCallAttempt(

@@ -340,12 +340,10 @@ public class UpdateDecoder {
             final byte[] ed25519 = keyValueTuple.get(ED25519);
             final byte[] ecdsaSecp256K1 = keyValueTuple.get(ECDSA_SECP_256K1);
             final var contractId = asNumericContractId(
-                    attempt.nativeOperations().shard(),
-                    attempt.nativeOperations().realm(),
+                    attempt.nativeOperations().entityIdFactory(),
                     attempt.addressIdConverter().convert(keyValueTuple.get(CONTRACT_ID)));
             final var delegatableContractId = asNumericContractId(
-                    attempt.nativeOperations().shard(),
-                    attempt.nativeOperations().realm(),
+                    attempt.nativeOperations().entityIdFactory(),
                     attempt.addressIdConverter().convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
 
             tokenKeys.add(new TokenKeyWrapper(
