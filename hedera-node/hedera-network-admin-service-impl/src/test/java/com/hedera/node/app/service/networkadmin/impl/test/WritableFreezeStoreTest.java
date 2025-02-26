@@ -13,11 +13,12 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.app.service.networkadmin.FreezeService;
 import com.hedera.node.app.service.networkadmin.impl.ReadableFreezeStoreImpl;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,8 +46,8 @@ class WritableFreezeStoreTest {
     void testFreezeTime() {
         final AtomicReference<ProtoBytes> freezeTimeBackingStore = new AtomicReference<>(null);
         when(writableStates.getSingleton(FREEZE_TIME_KEY))
-                .then(invocation -> new WritableSingletonStateBase<>(
-                        FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        FreezeService.NAME, FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
         final AtomicReference<ProtoBytes> lastFrozenBackingStore = new AtomicReference<>(null);
         final WritableFreezeStore store = new WritableFreezeStore(writableStates);
 
@@ -64,8 +65,8 @@ class WritableFreezeStoreTest {
     void testUpdateFileHash() {
         final AtomicReference<ProtoBytes> backingStore = new AtomicReference<>(null);
         when(writableStates.getSingleton(UPGRADE_FILE_HASH_KEY))
-                .then(invocation ->
-                        new WritableSingletonStateBase<>(UPGRADE_FILE_HASH_KEY, backingStore::get, backingStore::set));
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        FreezeService.NAME, UPGRADE_FILE_HASH_KEY, backingStore::get, backingStore::set));
         final WritableFreezeStore store = new WritableFreezeStore(writableStates);
 
         // test with no file hash set

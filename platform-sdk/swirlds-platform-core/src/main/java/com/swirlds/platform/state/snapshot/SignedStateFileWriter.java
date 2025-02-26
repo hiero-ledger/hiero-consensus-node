@@ -146,9 +146,6 @@ public final class SignedStateFileWriter {
         Objects.requireNonNull(signedState);
 
         final State state = signedState.getState();
-        if (state instanceof MerkleStateRoot<?> merkleStateRoot) {
-            merkleStateRoot.setTime(platformContext.getTime());
-        }
 
         state.createSnapshot(directory);
         writeSignatureSetFile(directory, signedState);

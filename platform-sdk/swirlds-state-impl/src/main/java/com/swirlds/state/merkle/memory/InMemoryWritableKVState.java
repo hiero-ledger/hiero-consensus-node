@@ -44,11 +44,12 @@ public final class InMemoryWritableKVState<K, V> extends WritableKVStateBase<K, 
      */
     public InMemoryWritableKVState(
             @NonNull final String stateKey,
+            @NonNull final String serviceName,
             final long inMemoryValueClassId,
             @Nullable Codec<K> keyCodec,
             @NonNull Codec<V> valueCodec,
             @NonNull MerkleMap<InMemoryKey<K>, InMemoryValue<K, V>> merkleMap) {
-        super(stateKey);
+        super(stateKey, serviceName);
         this.keyCodec = keyCodec;
         this.valueCodec = valueCodec;
         this.inMemoryValueClassId = inMemoryValueClassId;

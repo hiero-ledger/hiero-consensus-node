@@ -32,8 +32,10 @@ public final class InMemoryReadableKVState<K, V> extends ReadableKVStateBase<K, 
      * @param merkleMap The backing merkle map
      */
     public InMemoryReadableKVState(
-            @NonNull final String stateKey, @NonNull MerkleMap<InMemoryKey<K>, InMemoryValue<K, V>> merkleMap) {
-        super(stateKey);
+            @NonNull final String stateKey,
+            @NonNull final String serviceName,
+            @NonNull MerkleMap<InMemoryKey<K>, InMemoryValue<K, V>> merkleMap) {
+        super(stateKey, serviceName);
         this.merkle = Objects.requireNonNull(merkleMap);
     }
 

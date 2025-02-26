@@ -50,7 +50,8 @@ public class V0560BlockStreamSchema extends Schema {
     private static final String SHARED_BLOCK_RECORD_INFO = "SHARED_BLOCK_RECORD_INFO";
     private static final String SHARED_RUNNING_HASHES = "SHARED_RUNNING_HASHES";
 
-    public static final String BLOCK_STREAM_INFO_KEY = "BLOCK_STREAM_INFO";
+    public static final String BLOCK_STREAM_INFO_SERVICE = "BLOCK_STREAM_INFO-S";
+    public static final String BLOCK_STREAM_INFO_KEY = "BLOCK_STREAM_INFO-K";
 
     /**
      * The version of the schema.

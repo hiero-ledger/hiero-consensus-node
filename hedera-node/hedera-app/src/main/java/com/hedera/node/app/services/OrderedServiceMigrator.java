@@ -18,7 +18,7 @@ import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.merkle.MerkleStateRoot.MerkleWritableStates;
+import com.swirlds.state.merkle.NewStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
@@ -147,7 +147,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
                             platformStateFacade);
                     // Now commit any changes that were made to the entity ID state (since other service entities could
                     // depend on newly-generated entity IDs)
-                    if (entityIdWritableStates instanceof MerkleWritableStates mws) {
+                    if (entityIdWritableStates instanceof NewStateRoot.MerkleWritableStates mws) {
                         mws.commit();
                         migrationStateChanges.trackCommit();
                     }

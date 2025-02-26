@@ -21,10 +21,18 @@ class InMemoryReadableStateTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("You must specify the metadata")
-        void nullMetadataThrows() {
+        @DisplayName("You must specify the serviceName")
+        void nullServiceNameThrows() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new InMemoryReadableKVState<>(null, fruitMerkleMap))
+            assertThatThrownBy(() -> new InMemoryReadableKVState<>(null, FRUIT_STATE_KEY, fruitMerkleMap))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("You must specify the stateKey")
+        void nullStateKeyThrows() {
+            //noinspection DataFlowIssue
+            assertThatThrownBy(() -> new InMemoryReadableKVState<>(FRUIT_SERVICE_NAME, null, fruitMerkleMap))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -32,14 +40,21 @@ class InMemoryReadableStateTest extends MerkleTestBase {
         @DisplayName("You must specify the merkle map")
         void nullMerkleMapThrows() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new InMemoryReadableKVState<>(FRUIT_STATE_KEY, null))
+            assertThatThrownBy(() -> new InMemoryReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, null))
                     .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("The serviceName matches that supplied by the metadata")
+        void serviceName() {
+            final var state = new InMemoryReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, fruitMerkleMap);
+            assertThat(state.getServiceName()).isEqualTo(FRUIT_SERVICE_NAME);
         }
 
         @Test
         @DisplayName("The stateKey matches that supplied by the metadata")
         void stateKey() {
-            final var state = new InMemoryReadableKVState<>(FRUIT_STATE_KEY, fruitMerkleMap);
+            final var state = new InMemoryReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, fruitMerkleMap);
             assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
         }
     }
@@ -56,7 +71,7 @@ class InMemoryReadableStateTest extends MerkleTestBase {
         @BeforeEach
         void setUp() {
             setupFruitMerkleMap();
-            state = new InMemoryReadableKVState<>(FRUIT_STATE_KEY, fruitMerkleMap);
+            state = new InMemoryReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, fruitMerkleMap);
             add(A_KEY, APPLE);
             add(B_KEY, BANANA);
             add(C_KEY, CHERRY);

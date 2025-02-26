@@ -33,6 +33,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.merkle.test.fixtures")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
+    requires("com.swirlds.config.api")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

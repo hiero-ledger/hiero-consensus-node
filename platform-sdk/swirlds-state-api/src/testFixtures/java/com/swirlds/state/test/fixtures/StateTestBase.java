@@ -2,9 +2,7 @@
 package com.swirlds.state.test.fixtures;
 
 import com.swirlds.state.spi.ReadableSingletonState;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -16,10 +14,15 @@ public class StateTestBase extends TestBase {
     protected static final int ANIMAL_STATE_ID = 234;
     protected static final int COUNTRY_STATE_ID = 345;
     protected static final int STEAM_STATE_ID = 456;
+    protected static final String FRUIT_SERVICE_NAME = "Plants";
     protected static final String FRUIT_STATE_KEY = "FRUIT";
+    protected static final String ANIMAL_SERVICE_NAME = "Organisms";
     protected static final String ANIMAL_STATE_KEY = "ANIMAL";
+    protected static final String SPACE_SERVICE_NAME = "Universe";
     protected static final String SPACE_STATE_KEY = "SPACE";
+    protected static final String STEAM_SERVICE_NAME = "Learning";
     protected static final String STEAM_STATE_KEY = "STEAM";
+    public static final String COUNTRY_SERVICE_NAME = "Planets";
     public static final String COUNTRY_STATE_KEY = "COUNTRY";
 
     protected static final String A_KEY = "A";
@@ -79,7 +82,7 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected MapReadableKVState<String, String> readableFruitState() {
-        return MapReadableKVState.<String, String>builder(FRUIT_STATE_KEY)
+        return MapReadableKVState.<String, String>builder(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY)
                 .value(A_KEY, APPLE)
                 .value(B_KEY, BANANA)
                 .value(C_KEY, CHERRY)
@@ -92,7 +95,7 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected MapWritableKVState<String, String> writableFruitState() {
-        return MapWritableKVState.<String, String>builder(FRUIT_STATE_KEY)
+        return MapWritableKVState.<String, String>builder(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY)
                 .value(A_KEY, APPLE)
                 .value(B_KEY, BANANA)
                 .value(C_KEY, CHERRY)
@@ -105,7 +108,7 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected MapReadableKVState<String, String> readableAnimalState() {
-        return MapReadableKVState.<String, String>builder(ANIMAL_STATE_KEY)
+        return MapReadableKVState.<String, String>builder(ANIMAL_SERVICE_NAME, ANIMAL_STATE_KEY)
                 .value(A_KEY, AARDVARK)
                 .value(B_KEY, BEAR)
                 .value(C_KEY, CUTTLEFISH)
@@ -118,7 +121,7 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected MapWritableKVState<String, String> writableAnimalState() {
-        return MapWritableKVState.<String, String>builder(ANIMAL_STATE_KEY)
+        return MapWritableKVState.<String, String>builder(ANIMAL_SERVICE_NAME, ANIMAL_STATE_KEY)
                 .value(A_KEY, AARDVARK)
                 .value(B_KEY, BEAR)
                 .value(C_KEY, CUTTLEFISH)
@@ -131,18 +134,19 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected ReadableSingletonState<String> readableSpaceState() {
-        return new ReadableSingletonStateBase<>(SPACE_STATE_KEY, () -> ASTRONAUT);
+        return new FunctionReadableSingletonState<>(SPACE_SERVICE_NAME, SPACE_STATE_KEY, () -> ASTRONAUT);
     }
 
     @NonNull
     protected WritableSingletonState<String> writableSpaceState() {
         final AtomicReference<String> backingValue = new AtomicReference<>(ASTRONAUT);
-        return new WritableSingletonStateBase<>(SPACE_STATE_KEY, backingValue::get, backingValue::set);
+        return new FunctionWritableSingletonState<>(
+                SPACE_SERVICE_NAME, SPACE_STATE_KEY, backingValue::get, backingValue::set);
     }
 
     @NonNull
     protected ListReadableQueueState<String> readableSTEAMState() {
-        return ListReadableQueueState.<String>builder(STEAM_STATE_KEY)
+        return ListReadableQueueState.<String>builder(STEAM_STATE_KEY, STEAM_SERVICE_NAME)
                 .value(ART)
                 .value(BIOLOGY)
                 .value(CHEMISTRY)
@@ -155,7 +159,7 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected ListWritableQueueState<String> writableSTEAMState() {
-        return ListWritableQueueState.<String>builder(STEAM_STATE_KEY)
+        return ListWritableQueueState.<String>builder(STEAM_SERVICE_NAME, STEAM_STATE_KEY)
                 .value(ART)
                 .value(BIOLOGY)
                 .value(CHEMISTRY)
@@ -168,12 +172,13 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected ReadableSingletonState<String> readableCountryState() {
-        return new ReadableSingletonStateBase<>(COUNTRY_STATE_KEY, () -> AUSTRALIA);
+        return new FunctionReadableSingletonState<>(COUNTRY_SERVICE_NAME, COUNTRY_STATE_KEY, () -> AUSTRALIA);
     }
 
     @NonNull
     protected WritableSingletonState<String> writableCountryState() {
         final AtomicReference<String> backingValue = new AtomicReference<>(AUSTRALIA);
-        return new WritableSingletonStateBase<>(COUNTRY_STATE_KEY, backingValue::get, backingValue::set);
+        return new FunctionWritableSingletonState<>(
+                COUNTRY_SERVICE_NAME, COUNTRY_STATE_KEY, backingValue::get, backingValue::set);
     }
 }

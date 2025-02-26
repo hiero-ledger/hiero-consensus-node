@@ -36,7 +36,7 @@ class TokenServiceApiProviderTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void instantiatesApiImpl() {
-        given(writableStates.get("ACCOUNTS")).willReturn(new MapWritableKVState<>("ACCOUNTS"));
+        given(writableStates.get("ACCOUNTS")).willReturn(new MapWritableKVState<>(TokenService.NAME, "ACCOUNTS"));
         assertInstanceOf(
                 TokenServiceApiImpl.class,
                 TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters));
@@ -44,7 +44,7 @@ class TokenServiceApiProviderTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void testsCustomFeesByCreatingStep() {
-        given(writableStates.get("ACCOUNTS")).willReturn(new MapWritableKVState<>("ACCOUNTS"));
+        given(writableStates.get("ACCOUNTS")).willReturn(new MapWritableKVState<>(TokenService.NAME, "ACCOUNTS"));
         final var api = TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
         assertFalse(api.checkForCustomFees(CryptoTransferTransactionBody.DEFAULT));
     }
@@ -52,7 +52,7 @@ class TokenServiceApiProviderTest extends CryptoTokenHandlerTestBase {
     @Test
     void returnsFalseOnAnyStepCreationFailure() {
         given(writableStates.get(any())).willReturn(null);
-        given(writableStates.get("ACCOUNTS")).willReturn(new MapWritableKVState<>("ACCOUNTS"));
+        given(writableStates.get("ACCOUNTS")).willReturn(new MapWritableKVState<>(TokenService.NAME, "ACCOUNTS"));
         given(writableStates.get(V0490TokenSchema.TOKEN_RELS_KEY)).willThrow(IllegalStateException.class);
         final var api = TOKEN_SERVICE_API_PROVIDER.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
         assertFalse(api.checkForCustomFees(CryptoTransferTransactionBody.DEFAULT));

@@ -549,15 +549,16 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
         @BeforeEach
         void setup() {
-            final var baseKVState = new MapWritableKVState<>(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
+            final var baseKVState =
+                    new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
             final var writableStates =
                     MapWritableStates.builder().state(baseKVState).build();
             final var readableStates = MapReadableStates.builder()
-                    .state(new MapReadableKVState(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA)))
+                    .state(new MapReadableKVState(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA)))
                     .build();
             when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(readableStates);
             when(baseState.getWritableStates(FOOD_SERVICE)).thenReturn(writableStates);
-            final var accountsState = new MapWritableKVState<AccountID, Account>("ACCOUNTS");
+            final var accountsState = new MapWritableKVState<AccountID, Account>(TokenService.NAME, "ACCOUNTS");
             accountsState.put(ALICE.accountID(), ALICE.account());
             when(baseState.getWritableStates(TokenService.NAME))
                     .thenReturn(MapWritableStates.builder().state(accountsState).build());
@@ -804,8 +805,10 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         lenient()
                 .when(stack.getWritableStates(TokenService.NAME))
                 .thenReturn(MapWritableStates.builder()
-                        .state(MapWritableKVState.builder("ACCOUNTS").build())
-                        .state(MapWritableKVState.builder("ALIASES").build())
+                        .state(MapWritableKVState.builder(TokenService.NAME, "ACCOUNTS")
+                                .build())
+                        .state(MapWritableKVState.builder(TokenService.NAME, "ALIASES")
+                                .build())
                         .build());
         lenient().when(writableStates.<EntityNumber>getSingleton(anyString())).thenReturn(entityNumberState);
         lenient().when(writableStates.<EntityCounts>getSingleton(anyString())).thenReturn(entityCountsState);

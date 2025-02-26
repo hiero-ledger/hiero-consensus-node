@@ -16,16 +16,16 @@ import java.util.function.Predicate;
  * @param <E> The type of element in the queue.
  */
 public abstract class WritableQueueStateBase<E> implements WritableQueueState<E> {
-    /** The state key */
-    private final String stateKey;
+
     /** Each element that has been read. At the moment these are not exposed, but could be. */
     private final List<E> readElements = new ArrayList<>();
-    /** Each element that has been added to the queue, but not yet committed */
+
+    /** Each element that has been added to the queue, but not yet committed. */
     private final List<E> addedElements = new ArrayList<>();
-    /**
-     * Listeners to be notified when the queue changes.
-     */
+
+    /** Listeners to be notified when the queue changes. */
     private final List<QueueChangeListener<E>> listeners = new ArrayList<>();
+
     /**
      * The current index into {@link #addedElements} that we have read from.
      *
@@ -34,13 +34,22 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
      * {@link #addedElements} list. This index keeps track of where we have read from it.
      */
     private int currentAddedElementIndex = 0;
+
     /** An iterator from the backing datasource for reading data */
     private Iterator<E> dsIterator = null;
+
     /** The cached most recent peeked element */
     private E peekedElement = null;
 
+    /** The service name. */
+    protected final String serviceName;
+
+    /** The state key. */
+    protected final String stateKey;
+
     /** Create a new instance */
-    protected WritableQueueStateBase(@NonNull final String stateKey) {
+    protected WritableQueueStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
+        this.serviceName = requireNonNull(serviceName);
         this.stateKey = requireNonNull(stateKey);
     }
 
@@ -106,6 +115,12 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     @Override
     public String getStateKey() {
         return stateKey;
+    }
+
+    @Override
+    @NonNull
+    public final String getServiceName() {
+        return serviceName;
     }
 
     @Nullable

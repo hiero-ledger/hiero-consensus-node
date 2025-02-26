@@ -24,8 +24,8 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import java.time.Instant;
 import java.util.List;
@@ -73,13 +73,13 @@ class ReadableHintsStoreTest {
                 .contributionEndTime(asTimestamp(Instant.ofEpochSecond(1_234_567L)))
                 .build();
         given(readableStates.getSingleton(CRS_STATE_KEY))
-                .willReturn(new ReadableSingletonStateBase<>(CRS_STATE_KEY, () -> crsState));
+                .willReturn(new FunctionReadableSingletonState<>(HintsService.NAME, CRS_STATE_KEY, () -> crsState));
         given(readableStates.getSingleton(NEXT_HINT_CONSTRUCTION_KEY))
-                .willReturn(
-                        new ReadableSingletonStateBase<>(NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT));
+                .willReturn(new FunctionReadableSingletonState<>(
+                        HintsService.NAME, NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT));
         given(readableStates.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY))
-                .willReturn(new ReadableSingletonStateBase<>(
-                        ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT));
+                .willReturn(new FunctionReadableSingletonState<>(
+                        HintsService.NAME, ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT));
         subject = new ReadableHintsStoreImpl(readableStates);
 
         assertEquals(crsState, subject.getCrsState());
@@ -91,17 +91,19 @@ class ReadableHintsStoreTest {
                 .newCrs(Bytes.wrap("pub1"))
                 .proof(Bytes.wrap("proof"))
                 .build();
-        final var state = MapReadableKVState.<NodeId, CrsPublicationTransactionBody>builder(CRS_PUBLICATIONS_KEY)
+        final var state = MapReadableKVState.<NodeId, CrsPublicationTransactionBody>builder(
+                        HintsService.NAME, CRS_PUBLICATIONS_KEY)
                 .value(NodeId.DEFAULT, publication)
                 .value(NodeId.DEFAULT, publication)
                 .build();
         given(readableStates.<NodeId, CrsPublicationTransactionBody>get(CRS_PUBLICATIONS_KEY))
                 .willReturn(state);
         given(readableStates.<HintsPartyId, HintsKeySet>get(HINTS_KEY_SETS_KEY))
-                .willReturn(MapReadableKVState.<HintsPartyId, HintsKeySet>builder(HINTS_KEY_SETS_KEY)
+                .willReturn(MapReadableKVState.<HintsPartyId, HintsKeySet>builder(HintsService.NAME, HINTS_KEY_SETS_KEY)
                         .build());
         given(readableStates.<PreprocessingVoteId, PreprocessingVote>get(PREPROCESSING_VOTES_KEY))
-                .willReturn(MapReadableKVState.<PreprocessingVoteId, PreprocessingVote>builder(PREPROCESSING_VOTES_KEY)
+                .willReturn(MapReadableKVState.<PreprocessingVoteId, PreprocessingVote>builder(
+                                HintsService.NAME, PREPROCESSING_VOTES_KEY)
                         .build());
 
         subject = new ReadableHintsStoreImpl(readableStates);

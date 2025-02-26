@@ -127,4 +127,13 @@ public class ValueLeaf<T> extends PartialMerkleLeaf implements MerkleLeaf {
         throwIfImmutable();
         this.val = value;
     }
+
+    /**
+     * Gets the codec used for serialization and deserialization.
+     *
+     * @return The codec
+     */
+    public Codec<T> getCodec() {
+        return codec;
+    }
 }

@@ -25,6 +25,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableNftStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.TokenGetNftInfoHandler;
@@ -86,7 +87,8 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validatesQueryIfInvalidNft() {
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS).build();
+        final var state =
+                MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS).build();
         given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
         final var store = new ReadableNftStoreImpl(readableStates, readableEntityCounters);
 
@@ -123,7 +125,8 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validatesQueryIfInvalidNftInTrans() {
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS).build();
+        final var state =
+                MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS).build();
         given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
         final var store = new ReadableNftStoreImpl(readableStates, readableEntityCounters);
         ;
@@ -157,7 +160,8 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void getsResponseIfInvalidNft() {
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS).build();
+        final var state =
+                MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS).build();
         given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
         final var store = new ReadableNftStoreImpl(readableStates, readableEntityCounters);
         ;
@@ -195,7 +199,7 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
                 .mintTime(consensusTimestamp)
                 .metadata(Bytes.wrap(evmAddress))
                 .build();
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS)
+        final var state = MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS)
                 .value(nftIdSl1, nftSl1)
                 .build();
         given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);
@@ -218,7 +222,7 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
                 .mintTime(consensusTimestamp)
                 .metadata(Bytes.wrap(evmAddress))
                 .build();
-        final var state = MapReadableKVState.<NftID, Nft>builder(NFTS)
+        final var state = MapReadableKVState.<NftID, Nft>builder(TokenService.NAME, NFTS)
                 .value(nftIdSl1, nftSl1)
                 .build();
         given(readableStates.<NftID, Nft>get(NFTS)).willReturn(state);

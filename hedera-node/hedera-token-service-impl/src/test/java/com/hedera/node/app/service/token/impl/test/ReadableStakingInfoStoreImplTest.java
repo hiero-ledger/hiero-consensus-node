@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -34,7 +35,8 @@ class ReadableStakingInfoStoreImplTest {
 
     @BeforeEach
     void setUp() {
-        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(STAKING_INFO_KEY)
+        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(
+                        TokenService.NAME, STAKING_INFO_KEY)
                 .value(NODE_ID_10, stakingNodeInfo)
                 .build();
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
@@ -62,7 +64,8 @@ class ReadableStakingInfoStoreImplTest {
 
     @Test
     void getAllReturnsAllKeys() {
-        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(STAKING_INFO_KEY)
+        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(
+                        TokenService.NAME, STAKING_INFO_KEY)
                 .value(NODE_ID_10, stakingNodeInfo)
                 .value(NODE_ID_20, mock(StakingNodeInfo.class))
                 .build();
@@ -75,7 +78,8 @@ class ReadableStakingInfoStoreImplTest {
 
     @Test
     void getAllReturnsEmptyKeys() {
-        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(STAKING_INFO_KEY)
+        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(
+                        TokenService.NAME, STAKING_INFO_KEY)
                 .build(); // Intentionally empty
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
         subject = new ReadableStakingInfoStoreImpl(states);
