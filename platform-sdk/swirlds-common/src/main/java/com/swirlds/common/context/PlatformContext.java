@@ -44,13 +44,7 @@ public interface PlatformContext {
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
         final Time time = Time.getCurrent();
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
-        return create(
-                configuration,
-                time,
-                metrics,
-                fileSystemManager,
-                new NoOpRecycleBin(),
-                merkleCryptography);
+        return create(configuration, time, metrics, fileSystemManager, new NoOpRecycleBin(), merkleCryptography);
     }
 
     /**
@@ -77,13 +71,7 @@ public interface PlatformContext {
         final UncaughtExceptionHandler handler = new PlatformUncaughtExceptionHandler();
         final ExecutorFactory executorFactory = ExecutorFactory.create("platform", null, handler);
         return new DefaultPlatformContext(
-                configuration,
-                metrics,
-                time,
-                executorFactory,
-                fileSystemManager,
-                recycleBin,
-                merkleCryptography);
+                configuration, metrics, time, executorFactory, fileSystemManager, recycleBin, merkleCryptography);
     }
 
     /**
