@@ -25,7 +25,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
@@ -60,7 +60,7 @@ class SavepointStackImplTest extends StateTestBase {
             G_KEY, GRAPE);
 
     @Mock(strictness = LENIENT)
-    private MerkleNodeState baseState;
+    private State baseState;
 
     @Mock
     private SavepointStackImpl parent;

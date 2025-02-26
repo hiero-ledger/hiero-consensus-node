@@ -55,7 +55,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.TransactionWrapper;
@@ -133,7 +132,7 @@ public class StandaloneDispatchFactory {
      * @return a new dispatch
      */
     public Dispatch newDispatch(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final TransactionBody transactionBody,
             @NonNull final Instant consensusNow) {
         final var config = configProvider.getConfiguration();

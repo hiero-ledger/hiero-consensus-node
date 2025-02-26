@@ -169,7 +169,7 @@ public class TransactionExecutorsTest {
     private GasCalculator gasCalculator;
 
     @Mock
-    private MerkleNodeState state;
+    private State state;
 
     @Mock
     private ConfigProviderImpl configProvider;
