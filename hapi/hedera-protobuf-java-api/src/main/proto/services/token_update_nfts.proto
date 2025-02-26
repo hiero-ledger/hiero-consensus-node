@@ -1,0 +1,67 @@
+/**
+ * # Token Update NFTs
+ * Given a token identifier and a metadata block, change the metadata for
+ * one or more non-fungible/unique token instances.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "google/protobuf/wrappers.proto";
+
+/**
+ * Modify the metadata field for an individual non-fungible/unique token (NFT).
+ *
+ * Updating the metadata of an NFT SHALL NOT affect ownership or
+ * the ability to transfer that NFT.<br/>
+ * This transaction SHALL affect only the specific serial numbered tokens
+ * identified.
+ * This transaction SHALL modify individual token metadata.<br/>
+ * This transaction MUST be signed by the token `metadata_key`.<br/>
+ * The token `metadata_key` MUST be a valid `Key`.<br/>
+ * The token `metadata_key` MUST NOT be an empty `KeyList`.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message TokenUpdateNftsTransactionBody {
+    /**
+     * A token identifier.<br/>
+     * This is the token type (i.e. collection) for which to update NFTs.
+     * <p>
+     * This field is REQUIRED.<br/>
+     * The identified token MUST exist, MUST NOT be paused, MUST have the type
+     * non-fungible/unique, and MUST have a valid `metadata_key`.
+     */
+    TokenID token = 1;
+
+    /**
+     * A list of serial numbers to be updated.
+     * <p>
+     * This field is REQUIRED.<br/>
+     * This list MUST have at least one(1) entry.<br/>
+     * This list MUST NOT have more than ten(10) entries.
+     */
+    repeated int64 serial_numbers = 2;
+
+    /**
+     * A new value for the metadata.
+     * <p>
+     * If this field is not set, the metadata SHALL NOT change.<br/>
+     * This value, if set, MUST NOT exceed 100 bytes.
+     */
+    google.protobuf.BytesValue metadata = 3;
+}
