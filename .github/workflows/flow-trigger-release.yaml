@@ -46,7 +46,7 @@ jobs:
           echo "Prefixed number is: ${build_tag}"
 
           # Export to Github output and Github summary
-          echo "BUILD_TAG=${build_tag}" >> ${GITHUB_OUTPUT}
+          echo "build-tag=${build_tag}" >> ${GITHUB_OUTPUT}
           echo "Build Tag to Release: ${build_tag}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Checkout Code
@@ -79,13 +79,13 @@ jobs:
 
       - name: Print Temporary Branch Name
         run: |
-          echo "The temporary branch name is: ${{ steps.branch_name.outputs.BRANCH_NAME }}"
-          echo "Temporary Branch Name: ${{ steps.branch_name.outputs.BRANCH_NAME }}" >> ${GITHUB_STEP_SUMMARY}
+          echo "The temporary branch name is: ${{ steps.branch.outputs.name }}"
+          echo "Temporary Branch Name: ${{ steps.branch.outputs.name }}" >> ${GITHUB_STEP_SUMMARY}
 
       # Need to create a temporary branch so we can use the git-semver tool to create a release.
       # Semantic versioning only works off branches, not tags.
       - name: Create a Temporary Semantic Release Branch
-        run: git checkout -b ${{ steps.branch_name.outputs.BRANCH_NAME }}
+        run: git checkout -b ${{ steps.branch.outputs.name }}
 
       - name: Echo Current Branch Name
         run: |
@@ -93,7 +93,7 @@ jobs:
           echo "Currently on branch: ${current_branch}"
 
       - name: Push Temporary Branch to Origin
-        run: git push --set-upstream origin "${{ steps.branch_name.outputs.BRANCH_NAME }}"
+        run: git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
       - name: Git-Semver Setup Action
         uses: DJ-BBot/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
@@ -107,17 +107,17 @@ jobs:
       # IF HIERO/HEDERA TRANSITIONS TO A MAJOR RELEASE NUMBER (1.0.0+)
       # stable = false WILL NO LONGER BE VALID
       - name: Compute Next Version Number
-        id: next_version
+        id: next-release
         run: |
           echo "Compute next version number using git-semver"
-          OUTPUT="$(git-semver next --stable=false 2>&1)" || STATUS=$?
-          echo "$OUTPUT"
-          if [[ -n "$STATUS" ]]; then
-            echo "git-semver failed with status $STATUS"
-            exit $STATUS
+          OUTPUT="$(git-semver next --stable=false 2>&1)" || STATUS="${?}"
+          echo "${OUTPUT}"
+          if [[ -n "${STATUS}" ]]; then
+            echo "git-semver failed with status ${STATUS}"
+            exit "${STATUS}"
           fi
-          echo "next_release=$OUTPUT" >> ${GITHUB_OUTPUT}
-          echo "Next release version is: $OUTPUT"
+          echo "version=${OUTPUT}" >> ${GITHUB_OUTPUT}
+          echo "Next release version is: ${OUTPUT}"
 
       - name: Apply Tag with Calculated Next Version
         run: |
