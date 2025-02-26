@@ -1,0 +1,102 @@
+/**
+ * # Get NFT Info Query
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/timestamp.proto";
+
+/**
+ * Applicable only to tokens of type NON_FUNGIBLE_UNIQUE. Gets info on a NFT for a given TokenID (of
+ * type NON_FUNGIBLE_UNIQUE) and serial number
+ */
+message TokenGetNftInfoQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * A non-fungible/unique token (NFT) identifier.
+     * <p>
+     * This SHALL identify the NFT to query.<br/>
+     * The identified NFT MUST exist, and MUST NOT be deleted.
+     */
+    NftID nftID = 2;
+}
+
+/**
+ * Information for one non-fungible/unique token (NFT).
+ *
+ */
+message TokenNftInfo {
+    /**
+     * A non-fungible/unique token (NFT) identifier.
+     * <p>
+     * This SHALL match the NFT requested.<br/>
+     */
+    NftID nftID = 1;
+
+    /**
+     * The current owner of the NFT
+     */
+    AccountID accountID = 2;
+
+    /**
+     * The effective consensus timestamp at which the NFT was minted
+     */
+    Timestamp creationTime = 3;
+
+    /**
+     * Represents the unique metadata of the NFT
+     */
+    bytes metadata = 4;
+
+    /**
+     * The ledger ID of the network that generated this response.
+     * <p>
+     * This value SHALL identify the distributed ledger that responded to
+     * this query.
+     */
+    bytes ledger_id = 5;
+
+    /**
+     * If an allowance is granted for the NFT, its corresponding spender account
+     */
+    AccountID spender_id = 6;
+}
+
+/**
+ * UNDOCUMENTED
+ */
+message TokenGetNftInfoResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * The information about this NFT
+     */
+    TokenNftInfo nft = 2;
+}
