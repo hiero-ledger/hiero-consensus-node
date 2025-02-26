@@ -19,14 +19,4 @@ public record TestInput(
         @NonNull WeightGenerator weightGenerator,
         long seed,
         int eventsToGenerate) {
-
-    /**
-     * Create a copy of the test input with updated number of nodes.
-     *
-     * @param numberOfNodes the new number of nodes
-     * @return a new {@link TestInput} with the updated number of nodes
-     */
-    public @NonNull TestInput setNumberOfNodes(int numberOfNodes) {
-        return new TestInput(platformContext, numberOfNodes, weightGenerator, seed, eventsToGenerate);
-    }
 }

@@ -8,7 +8,9 @@ import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.eventhandling.EventConfig;
@@ -592,5 +594,13 @@ public final class ConsensusTestDefinitions {
                 .validateAndClear(Validations.standard()
                         .ratios(EventRatioValidation.standard()
                                 .setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
+    }
+
+    public static void birthRoundMigrationTest(
+            @NonNull final PlatformContext preMigrationContext,
+            @NonNull final PlatformContext postMigrationContext,
+            @NonNull final WeightGenerator weightGenerator,
+            final long seed) {
+
     }
 }
