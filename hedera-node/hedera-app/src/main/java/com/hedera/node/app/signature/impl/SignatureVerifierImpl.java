@@ -34,10 +34,15 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
     /** The {@link Cryptography} engine to use for signature verification. */
     private final Cryptography cryptoEngine;
 
-    /** Create a new instance with the given {@link Cryptography} engine. */
+    /** Create a new instance with new {@link Cryptography} engine. */
     @Inject
     public SignatureVerifierImpl() {
-        this.cryptoEngine = CryptographyFactory.create();
+        this(CryptographyFactory.create());
+    }
+
+    /** Create a new instance with the given {@link Cryptography} engine. */
+    SignatureVerifierImpl(final Cryptography cryptoEngine) {
+        this.cryptoEngine = cryptoEngine;
     }
 
     @NonNull
