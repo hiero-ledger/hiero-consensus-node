@@ -332,7 +332,8 @@ public class UserTxnFactory {
                 throttleAdvisor,
                 feeAccumulator,
                 DispatchMetadata.EMPTY_METADATA,
-                transactionChecker);
+                transactionChecker,
+                preHandleResult.innerResults());
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(
@@ -396,7 +397,7 @@ public class UserTxnFactory {
             @NonNull final Configuration config,
             @NonNull final ReadableStoreFactory readableStoreFactory) {
         try {
-            final var pureChecksContext = new PureChecksContextImpl(body, config, dispatcher, transactionChecker);
+            final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, body, syntheticPayerId, config, dispatcher, transactionChecker);

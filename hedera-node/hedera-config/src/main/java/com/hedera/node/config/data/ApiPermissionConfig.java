@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config.data;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
@@ -111,6 +112,7 @@ import java.util.function.Function;
  * @param deleteAllowances           the permission for {@link HederaFunctionality#CRYPTO_DELETE_ALLOWANCE}
  *                                   functionality
  * @param utilPrng                   the permission for {@link HederaFunctionality#UTIL_PRNG} functionality
+ * @param atomicBatch                the permission for {@link HederaFunctionality#ATOMIC_BATCH} functionality
  * @param createFile                 the permission for {@link HederaFunctionality#FILE_CREATE} functionality
  * @param updateFile                 the permission for {@link HederaFunctionality#FILE_UPDATE} functionality
  * @param deleteFile                 the permission for {@link HederaFunctionality#FILE_DELETE} functionality
@@ -196,6 +198,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange approveAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange utilPrng,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange atomicBatch,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange createFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange updateFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteFile,
@@ -339,6 +342,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(TOKEN_GET_ACCOUNT_NFT_INFOS, c -> c.tokenGetAccountNftInfos);
         permissionKeys.put(TOKEN_FEE_SCHEDULE_UPDATE, c -> c.tokenFeeScheduleUpdate);
         permissionKeys.put(UTIL_PRNG, c -> c.utilPrng);
+        permissionKeys.put(ATOMIC_BATCH, c -> c.atomicBatch);
         permissionKeys.put(NODE_CREATE, c -> c.createNode);
         permissionKeys.put(NODE_UPDATE, c -> c.updateNode);
         permissionKeys.put(NODE_DELETE, c -> c.deleteNode);

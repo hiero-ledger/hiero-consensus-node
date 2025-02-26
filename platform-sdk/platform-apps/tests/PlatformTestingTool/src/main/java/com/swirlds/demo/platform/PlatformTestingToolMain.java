@@ -309,7 +309,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        stateLifecycles = new PlatformTestingToolStateLifecycles(new PlatformStateFacade(v -> softwareVersion));
+        stateLifecycles = new PlatformTestingToolStateLifecycles(
+                new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
     }
 
     /**
