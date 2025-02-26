@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.platform.test {
+    requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.platform.core.test.fixtures;
     requires transitive com.swirlds.platform.core;
