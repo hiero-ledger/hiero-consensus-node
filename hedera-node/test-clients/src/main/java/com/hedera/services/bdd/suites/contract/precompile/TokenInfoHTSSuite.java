@@ -159,8 +159,6 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
                 contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
-                uploadInitCode("TokenInfo"),
-                contractCreate("TokenInfo").gas(1_000_000L),
                 tokenCreate(PRIMARY_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -203,14 +201,7 @@ public class TokenInfoHTSSuite {
                                 TOKEN_INFO_CONTRACT,
                                 GET_INFORMATION_FOR_TOKEN,
                                 HapiParserUtil.asHeadlongAddress(
-                                        asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME)))),
-                        contractCall(
-                                        "TokenInfo",
-                                        "getInformationForTokenV2",
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME))))
-                                .via("TOKEN_INFO_TXN_V2")
-                                .gas(1_000_000L))),
+                                        asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME)))))),
                 exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(PRIMARY_TOKEN_NAME);
@@ -268,8 +259,6 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
                 contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
-                uploadInitCode("TokenInfo"),
-                contractCreate("TokenInfo").gas(1_000_000L),
                 tokenCreate(FUNGIBLE_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -313,14 +302,7 @@ public class TokenInfoHTSSuite {
                                 TOKEN_INFO_CONTRACT,
                                 GET_INFORMATION_FOR_FUNGIBLE_TOKEN,
                                 HapiParserUtil.asHeadlongAddress(
-                                        asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN_NAME)))),
-                        contractCall(
-                                        "TokenInfo",
-                                        "getInformationForFungibleTokenV2",
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN_NAME))))
-                                .via("FUNGIBLE_TOKEN_INFO_TXN_V2")
-                                .gas(1_000_000L))),
+                                        asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN_NAME)))))),
                 exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN_NAME);
@@ -381,8 +363,6 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
                 contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
-                uploadInitCode("TokenInfo"),
-                contractCreate("TokenInfo").gas(1_000_000L),
                 tokenCreate(FEE_DENOM).treasury(HTS_COLLECTOR),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
