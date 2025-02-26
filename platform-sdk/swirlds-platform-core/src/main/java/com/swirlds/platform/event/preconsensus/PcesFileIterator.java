@@ -71,7 +71,6 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
                         switch (fileVersion) {
                             case PROTOBUF_EVENTS -> new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF));
                         };
-
                 if (candidate.getAncientIndicator(fileType) >= lowerBound) {
                     next = candidate;
                 }
