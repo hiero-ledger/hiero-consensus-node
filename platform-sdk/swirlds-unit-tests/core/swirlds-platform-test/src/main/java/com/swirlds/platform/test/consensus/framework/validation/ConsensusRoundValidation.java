@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,7 +36,7 @@ public class ConsensusRoundValidation {
         long lastAncientThreshold = EventConstants.ANCIENT_THRESHOLD_UNDEFINED;
         for (final ConsensusRound round : rounds) {
             final MinimumJudgeInfo thresholdInfo =
-                    round.getSnapshot().getMinimumJudgeInfoList().getLast();
+                    round.getSnapshot().minimumJudgeInfoList().getLast();
             assertEquals(
                     round.getRoundNum(), thresholdInfo.round(), "the last threshold should be for the current round");
             assertTrue(

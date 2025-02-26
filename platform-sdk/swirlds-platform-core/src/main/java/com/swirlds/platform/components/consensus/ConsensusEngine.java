@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.consensus;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.Consensus;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.events.CesEvent;
