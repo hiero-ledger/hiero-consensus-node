@@ -1,0 +1,48 @@
+/**
+ * # Token Pause
+ * A transaction to "pause" all activity for a token. While a token is paused
+ * it cannot be transferred between accounts by any transaction other than
+ * `rejectToken`.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Pause transaction activity for a token.
+ *
+ * This transaction MUST be signed by the Token `pause_key`.<br/>
+ * The `token` identified MUST exist, and MUST NOT be deleted.<br/>
+ * The `token` identified MAY be paused; if the token is already paused,
+ * this transaction SHALL have no effect.
+ * The `token` identified MUST have a `pause_key` set, the `pause_key` MUST be
+ * a valid `Key`, and the `pause_key` MUST NOT be an empty `KeyList`.<br/>
+ * A `paused` token SHALL NOT be transferred or otherwise modified except to
+ * "up-pause" the token with `unpauseToken` or in a `rejectToken` transaction.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message TokenPauseTransactionBody {
+  /**
+   * A token identifier.
+   * <p>
+   * The identified token SHALL be paused. Subsequent transactions
+   * involving that token SHALL fail until the token is "unpaused".
+   */
+  TokenID token = 1;
+}

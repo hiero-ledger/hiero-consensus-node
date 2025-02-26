@@ -14,7 +14,10 @@ javaModules {
     module("platform-sdk") { artifact = "swirlds-platform" }
 
     // The Hedera API module
-    module("hapi") { group = "com.hedera.hashgraph" }
+    directory("hapi") {
+        group = "com.hedera.hashgraph"
+        module("hedera-protobuf-java-api") // raw proto files to be published separately
+    }
 
     // The Hedera platform modules
     directory("platform-sdk") {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
