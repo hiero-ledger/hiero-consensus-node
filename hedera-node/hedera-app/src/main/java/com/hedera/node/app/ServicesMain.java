@@ -106,8 +106,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     private static final Logger logger = LogManager.getLogger(ServicesMain.class);
 
     /**
-     * A supplier that refuses to satisfy fallback requests for a set of node ids to run simultaneously; this is only
-     * useful for certain platform testing applications
+     * A supplier that refuses to satisfy fallback requests for a set of node ids to run
+     * simultaneously; this is only useful for certain platform testing applications
      */
     private static final Supplier<Set<NodeId>> ILLEGAL_FALLBACK_NODE_IDS = () -> {
         throw new IllegalStateException("The node id must be configured explicitly");
@@ -179,8 +179,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     /**
-     * Launches Services directly, without use of the "app browser" from {@link Browser}. The approximate startup
-     * sequence is:
+     * Launches Services directly, without use of the "app browser" from {@link Browser}. The
+     * approximate startup sequence is:
      * <ol>
      *     <li>Scan the classpath for {@link RuntimeConstructable} classes,
      *     registering their no-op constructors as the default factories for their
@@ -230,7 +230,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *  {@link StateLifecycles}---and the implementation of that
      *  injected by {@link Hedera#newStateRoot()} delegates these calls back to the Hedera
      *  instance itself.
-     * <p>
+     *  <p>
      *  Thus, the Hedera instance centralizes nearly all the setup and runtime logic for the
      *  application. It implements this logic by instantiating a {@link javax.inject.Singleton}
      *  component whose object graph roots include the Ingest, PreHandle, Handle, and Query
@@ -368,7 +368,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * Returns the event stream name for the given node id.
      *
      * @param nodeId the node id
-     * @param root   the platform merkle state root
+     * @param root the platform merkle state root
      * @return the event stream name
      */
     private static String canonicalEventStreamLoc(final long nodeId, @NonNull final State root) {
@@ -382,7 +382,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     /**
      * Creates a canonical {@link Hedera} instance for the given node id and metrics.
      *
-     * @param metrics             the metrics
+     * @param metrics  the metrics
      * @param platformStateFacade an object to access the platform state
      * @return the {@link Hedera} instance
      */
@@ -432,7 +432,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     /**
      * Ensures there is exactly 1 node to run.
      *
-     * @param nodesToRun the list of nodes configured to run.
+     * @param nodesToRun        the list of nodes configured to run.
      * @return the node which should be run locally.
      * @throws ConfigurationException if more than one node would be started or the requested node is not configured.
      */
@@ -461,9 +461,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     /**
-     * Loads the legacy address book if it is present. Can be removed once no environment relies on using legacy
-     * <i>config.txt</i> as a startup asset.
-     *
+     * Loads the legacy address book if it is present. Can be removed once no environment relies on using
+     * legacy <i>config.txt</i> as a startup asset.
      * @return the address book from a legacy config file, if present
      */
     @Deprecated
@@ -482,9 +481,9 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * Get the initial state to be used by this node. May return a state loaded from disk, or may return a genesis state
      * if no valid state is found on disk.
      *
-     * @param configuration       the configuration for this node
+     * @param configuration      the configuration for this node
      * @param softwareVersion     the software version of the app
-     * @param stateRootSupplier   a supplier that can build a genesis state
+     * @param stateRootSupplier a supplier that can build a genesis state
      * @param mainClassName       the name of the app's SwirldMain class
      * @param swirldName          the name of this swirld
      * @param selfId              the node id of this node

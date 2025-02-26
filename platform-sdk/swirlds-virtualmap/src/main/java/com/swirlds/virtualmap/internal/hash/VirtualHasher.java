@@ -32,14 +32,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Responsible for hashing virtual merkle trees. This class is designed to work both for normal hashing use cases, and
- * also for hashing during reconnect.
+ * Responsible for hashing virtual merkle trees. This class is designed to work both for normal
+ * hashing use cases, and also for hashing during reconnect.
  *
  * <p>There should be one {@link VirtualHasher} shared across all copies of a {@link VirtualMap}
  * "family".
  *
- * @param <K> The {@link VirtualKey} type
- * @param <V> The {@link VirtualValue} type
+ * @param <K>
+ * 		The {@link VirtualKey} type
+ * @param <V>
+ * 		The {@link VirtualValue} type
  */
 public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
     /**
@@ -54,54 +56,59 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
             ThreadLocal.withInitial(() -> new HashBuilder(Cryptography.DEFAULT_DIGEST_TYPE));
 
     /**
-     * A function to look up clean hashes by path during hashing. This function is stored in a class field to avoid
-     * passing it as an arg to every hashing task.
+     * A function to look up clean hashes by path during hashing. This function is stored in
+     * a class field to avoid passing it as an arg to every hashing task.
      */
     private LongFunction<Hash> hashReader;
 
     /**
-     * A listener to notify about hashing events. This listener is stored in a class field to avoid passing it as an arg
-     * to every hashing task.
+     * A listener to notify about hashing events. This listener is stored in a class field to
+     * avoid passing it as an arg to every hashing task.
      */
     private VirtualHashListener<K, V> listener;
 
     /**
-     * An instance of {@link Cryptography} used to hash leaves. This should be a static final field, but it doesn't work
-     * very well as platform configs aren't loaded at the time when this class is initialized. It would result in a
-     * cryptography instance with default (and possibly wrong) configs be used by the hasher. Instead, this field is
-     * initialized in the {@link #hash(LongFunction, Iterator, long, long, VirtualMapConfig)} method and used by all
-     * hashing tasks.
+     * An instance of {@link Cryptography} used to hash leaves. This should be a static final
+     * field, but it doesn't work very well as platform configs aren't loaded at the time when
+     * this class is initialized. It would result in a cryptography instance with default (and
+     * possibly wrong) configs be used by the hasher. Instead, this field is initialized in
+     * the {@link #hash(LongFunction, Iterator, long, long, VirtualMapConfig)} method and used by all hashing
+     * tasks.
      */
     private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     /**
-     * Tracks if this virtual hasher has been shut down. If true (indicating that the hasher has been intentionally shut
-     * down), then don't log/throw if the rug is pulled from underneath the hashing threads.
+     * Tracks if this virtual hasher has been shut down. If true (indicating that the hasher
+     * has been intentionally shut down), then don't log/throw if the rug is pulled from
+     * underneath the hashing threads.
      */
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
     /**
-     * Indicate to the virtual hasher that it has been shut down. This method does not interrupt threads, but it
-     * indicates to threads that an interrupt may happen, and that the interrupt should not be treated as an error.
+     * Indicate to the virtual hasher that it has been shut down. This method does not interrupt threads, but
+     * it indicates to threads that an interrupt may happen, and that the interrupt should not be treated as
+     * an error.
      */
     public void shutdown() {
         shutdown.set(true);
     }
 
     /**
-     * Hash the given dirty leaves and the minimal subset of the tree necessary to produce a single root hash. The root
-     * hash is returned.
+     * Hash the given dirty leaves and the minimal subset of the tree necessary to produce a single root hash.
+     * The root hash is returned.
      *
-     * @param hashReader        Return a {@link Hash} by path. Used when this method needs to look up clean nodes.
-     * @param sortedDirtyLeaves A stream of dirty leaves sorted in <strong>ASCENDING PATH ORDER</strong>, such that path
-     *                          1234 comes before 1235. If null or empty, a null hash result is returned.
-     * @param firstLeafPath     The firstLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result
-     *                          is returned. No leaf in {@code sortedDirtyLeaves} may have a path less than
-     *                          {@code firstLeafPath}.
-     * @param lastLeafPath      The lastLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is
-     *                          returned. No leaf in {@code sortedDirtyLeaves} may have a path greater than
-     *                          {@code lastLeafPath}.
-     * @param virtualMapConfig  platform configuration for VirtualMap
+     * @param hashReader
+     * 		Return a {@link Hash} by path. Used when this method needs to look up clean nodes.
+     * @param sortedDirtyLeaves
+     * 		A stream of dirty leaves sorted in <strong>ASCENDING PATH ORDER</strong>, such that path
+     * 		1234 comes before 1235. If null or empty, a null hash result is returned.
+     * @param firstLeafPath
+     * 		The firstLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
+     * 		No leaf in {@code sortedDirtyLeaves} may have a path less than {@code firstLeafPath}.
+     * @param lastLeafPath
+     * 		The lastLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
+     * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
+     * @param virtualMapConfig platform configuration for VirtualMap
      * @return The hash of the root of the tree
      */
     public Hash hash(
@@ -237,16 +244,16 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
     }
 
     /**
-     * If a dirty leaves stream is empty, returns {@code null}. If leaf path is empty, that is when
-     * {@code firstLeafPath} and/or {@code lastLeafPath} are zero or less, and dirty leaves stream is not empty, throws
-     * an {@link IllegalArgumentException}.
+     * If a dirty leaves stream is empty, returns {@code null}. If leaf path is empty, that
+     * is when {@code firstLeafPath} and/or {@code lastLeafPath} are zero or less, and
+     * dirty leaves stream is not empty, throws an {@link IllegalArgumentException}.
      *
-     * @param hashReader        A function to read hashes for clean paths
+     * @param hashReader A function to read hashes for clean paths
      * @param sortedDirtyLeaves A stream of leaf records, sorted by path
-     * @param firstLeafPath     First leaf path
-     * @param lastLeafPath      Last leaf path
-     * @param listener          Hash listener. May be null
-     * @param virtualMapConfig  VirtualMap config
+     * @param firstLeafPath First leaf path
+     * @param lastLeafPath Last leaf path
+     * @param listener Hash listener. May be null
+     * @param virtualMapConfig VirtualMap config
      */
     public Hash hash(
             final LongFunction<Hash> hashReader,

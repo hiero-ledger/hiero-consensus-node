@@ -59,8 +59,7 @@ public final class FakePlatform implements Platform {
 
     /**
      * Constructor for an app test that uses multiple nodes in the network
-     *
-     * @param nodeId    the node id
+     * @param nodeId the node id
      * @param addresses the address book
      */
     public FakePlatform(final long nodeId, final AddressBook addresses) {
@@ -73,7 +72,6 @@ public final class FakePlatform implements Platform {
 
     /**
      * Create a platform context
-     *
      * @return the platform context
      */
     private PlatformContext createPlatformContext() {

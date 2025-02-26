@@ -108,7 +108,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param swirldStateManager    the swirld state manager to send events to
      * @param statusActionSubmitter enables submitting of platform status actions
      * @param softwareVersion       the current version of the software
-     * @param platformStateFacade   enables access to the platform state
+     * @param platformStateFacade    enables access to the platform state
      */
     public DefaultTransactionHandler(
             @NonNull final PlatformContext platformContext,

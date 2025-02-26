@@ -219,8 +219,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      */
     private final ServiceMigrator serviceMigrator;
     /**
-     * The current version of the software; it is not possible for a node's version to change without restarting the
-     * process, so final.
+     * The current version of the software; it is not possible for a node's version to change
+     * without restarting the process, so final.
      */
     private final ServicesSoftwareVersion version;
     /**
@@ -234,44 +234,44 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     private final AppContext appContext;
 
     /**
-     * The contract service singleton, kept as a field here to avoid constructing twice (once in constructor to register
-     * schemas, again inside Dagger component).
+     * The contract service singleton, kept as a field here to avoid constructing twice
+     * (once in constructor to register schemas, again inside Dagger component).
      */
     private final ContractServiceImpl contractServiceImpl;
 
     /**
-     * The schedule service singleton, kept as a field here to avoid constructing twice (once in constructor to register
-     * schemas, again inside Dagger component).
+     * The schedule service singleton, kept as a field here to avoid constructing twice
+     * (once in constructor to register schemas, again inside Dagger component).
      */
     private final ScheduleServiceImpl scheduleServiceImpl;
 
     /**
-     * The hinTS service singleton, kept as a field here to avoid constructing twice (once in constructor to register
-     * schemas, again inside Dagger component).
+     * The hinTS service singleton, kept as a field here to avoid constructing twice
+     * (once in constructor to register schemas, again inside Dagger component).
      */
     private final HintsService hintsService;
 
     /**
-     * The history service singleton, kept as a field here to avoid constructing twice (once in constructor to register
-     * schemas, again inside Dagger component).
+     * The history service singleton, kept as a field here to avoid constructing twice
+     * (once in constructor to register schemas, again inside Dagger component).
      */
     private final HistoryService historyService;
 
     /**
-     * The file service singleton, kept as a field here to avoid constructing twice (once in constructor to register
-     * schemas, again inside Dagger component).
+     * The file service singleton, kept as a field here to avoid constructing twice
+     * (once in constructor to register schemas, again inside Dagger component).
      */
     private final FileServiceImpl fileServiceImpl;
 
     /**
-     * The block stream service singleton, kept as a field here to reuse information learned during the state migration
-     * phase in the later initialization phase.
+     * The block stream service singleton, kept as a field here to reuse information learned
+     * during the state migration phase in the later initialization phase.
      */
     private final BlockStreamService blockStreamService;
 
     /**
-     * The platform state facade singleton, kept as a field here to avoid constructing twice` (once in constructor to
-     * register schemas, again inside Dagger component).
+     * The platform state facade singleton, kept as a field here to avoid constructing twice`
+     * (once in constructor to register schemas, again inside Dagger component).
      */
     private final PlatformStateFacade platformStateFacade;
 
@@ -306,13 +306,14 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      */
     private PlatformStatus platformStatus = STARTING_UP;
     /**
-     * The configuration for this node; non-final because its sources depend on whether we are initializing the first
-     * consensus state from genesis or a saved state.
+     * The configuration for this node; non-final because its sources depend on whether
+     * we are initializing the first consensus state from genesis or a saved state.
      */
     private ConfigProviderImpl configProvider;
     /**
-     * DI for all objects needed to implement Hedera node lifecycles; non-final because it is completely recreated every
-     * time the platform initializes a new state as the basis for applying consensus transactions.
+     * DI for all objects needed to implement Hedera node lifecycles; non-final because
+     * it is completely recreated every time the platform initializes a new state as the
+     * basis for applying consensus transactions.
      */
     private HederaInjectionComponent daggerApp;
 
@@ -329,8 +330,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
     /**
      * A {@link StateChangeListener} that accumulates state changes that are only reported once per block; in the
-     * current system, these are the singleton and queue updates. Every {@link MerkleNodeState} will have this listener
-     * registered.
+     * current system, these are the singleton and queue updates. Every {@link MerkleNodeState} will have this
+     * listener registered.
      */
     private final BoundaryStateChangeListener boundaryStateChangeListener;
 
@@ -351,8 +352,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     private final BiPredicate<Round, State> onSealConsensusRound;
     /**
      * Once set, a future that resolves to the hash of the state used to initialize the application. This is known
-     * immediately at genesis or on restart from a saved state; during reconnect, it is known when reconnect completes.
-     * Used to inject the start-of-state hash to the {@link BlockStreamManagerImpl}.
+     * immediately at genesis or on restart from a saved state; during reconnect, it is known when reconnect
+     * completes. Used to inject the start-of-state hash to the {@link BlockStreamManagerImpl}.
      */
     @Nullable
     private CompletableFuture<Bytes> initialStateHashFuture;
@@ -402,8 +403,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     =================================================================================================================*/
 
     /**
-     * Creates a Hedera node and registers its own and its services' {@link RuntimeConstructable} factories with the
-     * given {@link ConstructableRegistry}.
+     * Creates a Hedera node and registers its own and its services' {@link RuntimeConstructable} factories
+     * with the given {@link ConstructableRegistry}.
      *
      * <p>This registration is a critical side effect that must happen called before any Platform initialization
      * steps that try to create or deserialize a {@link MerkleNodeState}.
@@ -615,8 +616,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     /**
      * Initializes the States API in the given state based on the given startup conditions.
      *
-     * @param state          the state to initialize
-     * @param trigger        the trigger that is calling migration
+     * @param state the state to initialize
+     * @param trigger the trigger that is calling migration
      * @param genesisNetwork the genesis network, if applicable
      * @param platformConfig the platform configuration
      */
@@ -702,11 +703,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * <p>If the {@code deserializedVersion} is {@code null}, then this is the first time the node has been started,
      * and thus all schemas will be executed.
      *
-     * @param state               current state
+     * @param state current state
      * @param deserializedVersion version deserialized
-     * @param trigger             trigger that is calling migration
-     * @param genesisNetwork      the genesis address book, if applicable
-     * @param platformConfig      platform configuration
+     * @param trigger trigger that is calling migration
+     * @param genesisNetwork the genesis address book, if applicable
+     * @param platformConfig platform configuration
      */
     private void migrateSchemas(
             @NonNull final State state,
@@ -777,8 +778,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * {@inheritDoc}
      *
      * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state created from
-     * {@link #newStateRoot()} or an instance of {@link MerkleNodeState} created by the platform and loaded from the
-     * saved state).
+     * {@link #newStateRoot()} or an instance of {@link MerkleNodeState} created by the platform and
+     * loaded from the saved state).
      *
      * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(State, Platform, InitTrigger)}
      * instead, as there is no special significance to having it here instead.
@@ -966,8 +967,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      *
      * @param round the round whose platform state changes are completed
      * @param state the state after the platform has made all its changes
-     * @return true if a block has closed, signaling a safe time to sign the state without risking loss of transactions
-     * in the event of an incident
+     * @return true if a block has closed, signaling a safe time to sign the state without risking loss
+     * of transactions in the event of an incident
      */
     public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         requireNonNull(state);
@@ -1177,8 +1178,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     }
 
     /**
-     * Given the {@link BlockStreamInfo} context from a {@link State}, infers the block hash of the last block that was
-     * incorporated in this state.
+     * Given the {@link BlockStreamInfo} context from a {@link State}, infers the block hash of the
+     * last block that was incorporated in this state.
      *
      * @param state the state to use
      * @return the inferred block hash
@@ -1205,9 +1206,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     }
 
     /**
-     * Given a {@link BlockStreamInfo} context, computes the output tree root hash that must have been computed at the
-     * end of the block that the context describes, assuming the final output block item was the state change that put
-     * the context into the state.
+     * Given a {@link BlockStreamInfo} context, computes the output tree root hash that must have been
+     * computed at the end of the block that the context describes, assuming the final output block item
+     * was the state change that put the context into the state.
      *
      * @param blockStreamInfo the context to use
      * @return the inferred output tree root hash
@@ -1338,8 +1339,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     }
 
     /**
-     * Initializes block node connections and waits for at least one connection to be established. This should be called
-     * before platform.start() to ensure we don't miss any blocks.
+     * Initializes block node connections and waits for at least one connection to be established.
+     * This should be called before platform.start() to ensure we don't miss any blocks.
      *
      * @param timeout maximum time to wait for a connection
      */

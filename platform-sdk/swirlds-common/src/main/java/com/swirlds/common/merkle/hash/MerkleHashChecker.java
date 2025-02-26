@@ -26,11 +26,13 @@ public final class MerkleHashChecker {
     private MerkleHashChecker() {}
 
     /**
-     * Traverses the merkle tree and checks if there are any hashes that are not valid. Recalculates all hashes that
-     * have been calculated externally and check them against the getHash value.
+     * Traverses the merkle tree and checks if there are any hashes that are not valid. Recalculates all hashes
+     * that have been calculated externally and check them against the getHash value.
      *
-     * @param root             the root of the merkle tree
-     * @param mismatchCallback the method to call if a mismatch is found. May be called many times.
+     * @param root
+     * 		the root of the merkle tree
+     * @param mismatchCallback
+     * 		the method to call if a mismatch is found. May be called many times.
      */
     public static void findInvalidHashes(final MerkleNode root, final Consumer<MerkleNode> mismatchCallback) {
         if (root == null) {
@@ -77,10 +79,11 @@ public final class MerkleHashChecker {
     }
 
     /**
-     * Get a list of all nodes in a tree that have an invalid hash. Returns an empty list if the entire tree has valid
-     * hashes.
+     * Get a list of all nodes in a tree that have an invalid hash.
+     * Returns an empty list if the entire tree has valid hashes.
      *
-     * @param root the root of the tree in question
+     * @param root
+     * 		the root of the tree in question
      * @return a list of nodes with invalid hashes (if there are any)
      */
     public static List<MerkleNode> getNodesWithInvalidHashes(final MerkleNode root) {
@@ -90,13 +93,16 @@ public final class MerkleHashChecker {
     }
 
     /**
-     * Check if all of the hashes within a tree are valid. Write a detailed message to the log if invalid hashes are
-     * detected in the tree.
+     * Check if all of the hashes within a tree are valid.
+     * Write a detailed message to the log if invalid hashes are detected in the tree.
      *
-     * @param root    the root of the tree to check
-     * @param context the context that the check is being done in. This is written to the log if a problem is detected.
-     * @param limit   the maximum number of invalid nodes to log. If the entire tree is invalid then the log could be
-     *                massively spammed. A sane limit reduces the amount logged in that situation.
+     * @param root
+     * 		the root of the tree to check
+     * @param context
+     * 		the context that the check is being done in. This is written to the log if a problem is detected.
+     * @param limit
+     * 		the maximum number of invalid nodes to log. If the entire tree is invalid then the log could be massively
+     * 		spammed. A sane limit reduces the amount logged in that situation.
      * @return true if the tree is valid, false if it is not valid
      */
     public static boolean checkHashAndLog(final MerkleNode root, final String context, final int limit) {

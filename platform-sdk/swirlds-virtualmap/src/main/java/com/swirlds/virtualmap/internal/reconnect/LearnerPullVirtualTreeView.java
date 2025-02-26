@@ -36,22 +36,25 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect needs access both
- * to the original state and records, and the current reconnect state and records. This implementation uses {@link Long}
- * as the representation of a node and corresponds directly to the path of the node.
+ * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect
+ * needs access both to the original state and records, and the current reconnect state and records.
+ * This implementation uses {@link Long} as the representation of a node and corresponds directly
+ * to the path of the node.
  *
  * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
  * teacher side.
  *
- * @param <K> The key
- * @param <V> The value
+ * @param <K>
+ * 		The key
+ * @param <V>
+ * 		The value
  */
 public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
         extends VirtualTreeViewBase<K, V> implements LearnerTreeView<Long> {
 
     /**
-     * A stashed null hash, which is used for any leaves which are null that we need to send (specifically, leaf 2 for a
-     * tree with only a single leaf).
+     * A stashed null hash, which is used for any leaves which are null that we need to send
+     * (specifically, leaf 2 for a tree with only a single leaf).
      */
     private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
@@ -83,23 +86,28 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
     private final ReconnectMapStats mapStats;
 
     /**
-     * Indicates if no responses from the teacher have been received yet. The very first response must be for path 0
-     * (root virtual node)
+     * Indicates if no responses from the teacher have been received yet. The very first response
+     * must be for path 0 (root virtual node)
      */
     private boolean firstNodeResponse = true;
 
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
-     * @param root            The root node of the <strong>reconnect</strong> tree. Cannot be null.
-     * @param originalRecords A {@link RecordAccessor} for accessing records from the unmodified
-     *                        <strong>original</strong> tree. Cannot be null.
-     * @param originalState   A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
-     *                        unmodified <strong>original</strong> tree. Cannot be null.
-     * @param reconnectState  A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
-     *                        modified <strong>reconnect</strong> tree. We only use first and last leaf path from this
-     *                        state. Cannot be null.
-     * @param mapStats        A ReconnectMapStats object to collect reconnect metrics
+     * @param root
+     * 		The root node of the <strong>reconnect</strong> tree. Cannot be null.
+     * @param originalRecords
+     * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
+     * 		Cannot be null.
+     * @param originalState
+     * 		A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
+     * 		unmodified <strong>original</strong> tree. Cannot be null.
+     * @param reconnectState
+     * 		A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
+     * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
+     * 		Cannot be null.
+     * @param mapStats
+     *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPullVirtualTreeView(
             final ReconnectConfig reconnectConfig,
@@ -155,7 +163,6 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
 
     /**
      * Determines if a given path refers to a leaf of the tree.
-     *
      * @param path a path
      * @return true if leaf, false if internal
      */
@@ -165,17 +172,17 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
     }
 
     /**
-     * Reads a virtual node identified by a given path from the output stream. The node was previously written by
-     * reconnect teacher. This method should match
-     * {@link TeacherPullVirtualTreeView#writeNode(SerializableDataOutputStream, long, boolean)}.
+     * Reads a virtual node identified by a given path from the output stream. The node was previously
+     * written by reconnect teacher. This method should match {@link
+     * TeacherPullVirtualTreeView#writeNode(SerializableDataOutputStream, long, boolean)}.
      *
      * <p>For a root node, reconnect state information is read: the first and the last leaf paths. Nothing
      * is read for other internal nodes.
      *
      * <p>For dirty leaf nodes, leaf records are read. Nothing is read for clean leaf nodes.
      *
-     * @param in      the input stream to read from
-     * @param path    the virtual path
+     * @param in the input stream to read from
+     * @param path the virtual path
      * @param isClean indicates that the node with the given path is the same on the learner and teacher
      * @throws IOException if an I/O error occurs
      */
@@ -213,7 +220,6 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
 
     /**
      * Returns the ReconnectMapStats object.
-     *
      * @return the ReconnectMapStats object.
      */
     @NonNull

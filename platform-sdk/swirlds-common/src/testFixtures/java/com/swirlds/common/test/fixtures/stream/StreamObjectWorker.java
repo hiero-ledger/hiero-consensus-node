@@ -21,8 +21,9 @@ import java.util.Iterator;
 import java.util.LinkedList;
 
 /**
- * For testing object stream; takes objects from {@link ObjectForTestStreamGenerator}, sends objects to
- * LinkedObjectStream objects for calculating RunningHash and serializing to disk
+ * For testing object stream;
+ * takes objects from {@link ObjectForTestStreamGenerator},
+ * sends objects to LinkedObjectStream objects for calculating RunningHash and serializing to disk
  */
 public class StreamObjectWorker {
     /** receives objects from runningHashCalculator, then passes to writeConsumer */

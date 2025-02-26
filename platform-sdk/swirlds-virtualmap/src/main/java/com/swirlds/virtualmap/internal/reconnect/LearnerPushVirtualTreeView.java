@@ -41,12 +41,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect needs access both
- * to the original state and records, and the current reconnect state and records. This implementation uses {@link Long}
- * as the representation of a node and corresponds directly to the path of the node.
+ * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect
+ * needs access both to the original state and records, and the current reconnect state and records.
+ * This implementation uses {@link Long} as the representation of a node and corresponds directly
+ * to the path of the node.
  *
- * @param <K> The key
- * @param <V> The value
+ * @param <K>
+ * 		The key
+ * @param <V>
+ * 		The value
  */
 public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
         extends VirtualTreeViewBase<K, V> implements LearnerTreeView<Long> {
@@ -54,15 +57,15 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     private static final Logger logger = LogManager.getLogger(LearnerPushVirtualTreeView.class);
 
     /**
-     * Some reasonable default initial capacity for the {@link BooleanBitSetQueue}s used for storing
-     * {@link ExpectedLesson} data. If the value is too large, we use some more memory than needed, if it is too small,
-     * we put pressure on the GC.
+     * Some reasonable default initial capacity for the {@link BooleanBitSetQueue}s used for
+     * storing {@link ExpectedLesson} data. If the value is too large, we use some more memory
+     * than needed, if it is too small, we put pressure on the GC.
      */
     private static final int EXPECTED_BIT_SET_INITIAL_CAPACITY = 1024 * 1024;
 
     /**
-     * A stashed null hash, which is used for any leaves which are null that we need to send (specifically, leaf 2 for a
-     * tree with only a single leaf).
+     * A stashed null hash, which is used for any leaves which are null that we need to send
+     * (specifically, leaf 2 for a tree with only a single leaf).
      */
     private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
@@ -82,8 +85,8 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
             new BooleanBitSetQueue(EXPECTED_BIT_SET_INITIAL_CAPACITY);
 
     /**
-     * As part of tracking {@link ExpectedLesson}s, this keeps track of the combination of the parent and index of the
-     * lesson.
+     * As part of tracking {@link ExpectedLesson}s, this keeps track of the combination of the
+     * parent and index of the lesson.
      */
     private final ConcurrentBitSetQueue expectedChildren = new ConcurrentBitSetQueue();
 
@@ -102,15 +105,20 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * Create a new {@link LearnerPushVirtualTreeView}.
      *
-     * @param root            The root node of the <strong>reconnect</strong> tree. Cannot be null.
-     * @param originalRecords A {@link RecordAccessor} for accessing records from the unmodified
-     *                        <strong>original</strong> tree. Cannot be null.
-     * @param originalState   A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
-     *                        unmodified <strong>original</strong> tree. Cannot be null.
-     * @param reconnectState  A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
-     *                        modified <strong>reconnect</strong> tree. We only use first and last leaf path from this
-     *                        state. Cannot be null.
-     * @param mapStats        A ReconnectMapStats object to collect reconnect metrics
+     * @param root
+     * 		The root node of the <strong>reconnect</strong> tree. Cannot be null.
+     * @param originalRecords
+     * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
+     * 		Cannot be null.
+     * @param originalState
+     * 		A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
+     * 		unmodified <strong>original</strong> tree. Cannot be null.
+     * @param reconnectState
+     * 		A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
+     * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
+     * 		Cannot be null.
+     * @param mapStats
+     *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPushVirtualTreeView(
             final ReconnectConfig reconnectConfig,

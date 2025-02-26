@@ -15,10 +15,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Accepts a SerializableRunningHashable object each time, calculates and sets its runningHash when nextStream is not
- * null, pass this object to the next stream
+ * Accepts a SerializableRunningHashable object each time, calculates and sets its runningHash
+ * when nextStream is not null, pass this object to the next stream
  *
- * @param <T> type of the objects
+ * @param <T>
+ * 		type of the objects
  */
 public class RunningHashCalculatorForStream<T extends RunningHashable & SerializableHashable>
         extends AbstractLinkedObjectStream<T> {

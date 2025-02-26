@@ -142,9 +142,9 @@ class StateProofTests {
 
         assertEquals(1, stateProof.getPayloads().size());
         assertSame(nodeD, stateProof.getPayloads().get(0));
-        assertTrue(stateProof.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertTrue(stateProof.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         final StateProof deserialized = serializeAndDeserialize(stateProof);
 
@@ -152,7 +152,7 @@ class StateProofTests {
         assertNotSame(nodeD, deserialized.getPayloads().get(0));
         assertEquals(nodeD, deserialized.getPayloads().get(0));
         // Checking a second time shouldn't cause problems
-        assertTrue(deserialized.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(deserialized.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     @Test
@@ -175,9 +175,9 @@ class StateProofTests {
 
         assertEquals(1, stateProof.getPayloads().size());
         assertSame(root, stateProof.getPayloads().get(0));
-        assertTrue(stateProof.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertTrue(stateProof.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         final StateProof deserialized = serializeAndDeserialize(stateProof);
 
@@ -185,7 +185,7 @@ class StateProofTests {
         assertNotSame(root, deserialized.getPayloads().get(0));
         assertEquals(root, deserialized.getPayloads().get(0));
         // Checking a second time shouldn't cause problems
-        assertTrue(deserialized.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(deserialized.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     private void testWithNPayloads(
@@ -222,9 +222,9 @@ class StateProofTests {
             assertTrue(payloadFound);
         }
 
-        assertTrue(stateProof.isValid(cryptography, addressBook, threshold, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, threshold, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertTrue(stateProof.isValid(cryptography, addressBook, threshold, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, threshold, signatureBuilder));
 
         final StateProof deserialized = serializeAndDeserialize(stateProof);
 
@@ -242,9 +242,9 @@ class StateProofTests {
             assertTrue(payloadFound);
         }
 
-        assertTrue(deserialized.isValid(cryptography, addressBook, threshold, signatureBuilder));
+        assertTrue(deserialized.isValid(addressBook, threshold, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertTrue(deserialized.isValid(cryptography, addressBook, threshold, signatureBuilder));
+        assertTrue(deserialized.isValid(addressBook, threshold, signatureBuilder));
     }
 
     @ParameterizedTest
@@ -318,9 +318,9 @@ class StateProofTests {
         // serialize and deserialize to make sure the validator is not using the incorrect hashes
         final StateProof deserialized = serializeAndDeserialize(stateProof);
 
-        assertFalse(deserialized.isValid(cryptography, addressBook, STRONG_MINORITY, signatureBuilder));
+        assertFalse(deserialized.isValid(addressBook, STRONG_MINORITY, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertFalse(deserialized.isValid(cryptography, addressBook, STRONG_MINORITY, signatureBuilder));
+        assertFalse(deserialized.isValid(addressBook, STRONG_MINORITY, signatureBuilder));
     }
 
     /**
@@ -466,7 +466,7 @@ class StateProofTests {
         final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
         // We don't quite have the right threshold
-        assertFalse(stateProofA.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofA.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding the zero weight signature should not change the result.
         final NodeId nodeId = addressBook.getNodeId(9);
@@ -476,7 +476,7 @@ class StateProofTests {
         signatures.put(nodeId, signature);
 
         final StateProof stateProofB = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
-        assertFalse(stateProofB.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofB.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding another non-zero weight signature should do the trick.
 
@@ -487,7 +487,7 @@ class StateProofTests {
         signatures.put(nodeId2, signature2);
 
         final StateProof stateProofC = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
-        assertTrue(stateProofC.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProofC.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     @Test
@@ -524,7 +524,7 @@ class StateProofTests {
         final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
         // We don't quite have the right threshold
-        assertFalse(stateProofA.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofA.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding a signature for a node not in the address book should not change the result.
         final NodeId nodeId = NodeId.of(10000000);
@@ -533,7 +533,7 @@ class StateProofTests {
         signatures.put(nodeId, signature);
 
         final StateProof stateProofB = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
-        assertFalse(stateProofB.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofB.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding another real signature should do the trick.
 
@@ -544,7 +544,7 @@ class StateProofTests {
         signatures.put(nodeId2, signature2);
 
         final StateProof stateProofC = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
-        assertTrue(stateProofC.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProofC.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     private final class DummyNodeId extends NodeId {
@@ -592,7 +592,7 @@ class StateProofTests {
         final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
         // We don't quite have the right threshold
-        assertFalse(stateProofA.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofA.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding duplicate signatures should not change the result.
         // We can force the logic to accept duplicate signatures by playing games with hash codes,
@@ -606,11 +606,11 @@ class StateProofTests {
         assertEquals(12, signatures.size());
 
         final StateProof stateProofB = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
-        assertFalse(stateProofB.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofB.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Serialize and deserialize. This will get rid of any hash code games. Should still not be valid.
         final StateProof deserialized = serializeAndDeserialize(stateProofB);
-        assertFalse(deserialized.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(deserialized.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding another non-duplicate signature should do the trick.
 
@@ -621,7 +621,7 @@ class StateProofTests {
         signatures.put(nodeId2, signature2);
 
         final StateProof stateProofC = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
-        assertTrue(stateProofC.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProofC.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     @Test
@@ -656,7 +656,7 @@ class StateProofTests {
         }
 
         final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
-        assertTrue(stateProofA.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProofA.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Using the same signatures with the wrong node IDs should not work.
         final Map<NodeId, Signature> wrongSignatures = new HashMap<>();
@@ -674,11 +674,11 @@ class StateProofTests {
         }
 
         final StateProof stateProofB = new StateProof(CRYPTOGRAPHY, root, wrongSignatures, List.of(nodeD));
-        assertFalse(stateProofB.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofB.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // serialization shouldn't change anything
         final StateProof deserialized = serializeAndDeserialize(stateProofB);
-        assertFalse(deserialized.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(deserialized.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     @Test
@@ -717,21 +717,21 @@ class StateProofTests {
             final StateProof stateProof = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
             if (weight >= 4) { // >= 1/3
-                assertTrue(stateProof.isValid(CRYPTOGRAPHY, addressBook, STRONG_MINORITY, signatureBuilder));
+                assertTrue(stateProof.isValid(addressBook, STRONG_MINORITY, signatureBuilder));
             } else {
-                assertFalse(stateProof.isValid(CRYPTOGRAPHY, addressBook, STRONG_MINORITY, signatureBuilder));
+                assertFalse(stateProof.isValid(addressBook, STRONG_MINORITY, signatureBuilder));
             }
 
             if (weight > 6) { // > 1/2
-                assertTrue(stateProof.isValid(CRYPTOGRAPHY, addressBook, MAJORITY, signatureBuilder));
+                assertTrue(stateProof.isValid(addressBook, MAJORITY, signatureBuilder));
             } else {
-                assertFalse(stateProof.isValid(CRYPTOGRAPHY, addressBook, MAJORITY, signatureBuilder));
+                assertFalse(stateProof.isValid(addressBook, MAJORITY, signatureBuilder));
             }
 
             if (weight > 8) { // > 2/3
-                assertTrue(stateProof.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+                assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
             } else {
-                assertFalse(stateProof.isValid(CRYPTOGRAPHY, addressBook, SUPER_MAJORITY, signatureBuilder));
+                assertFalse(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
             }
         }
     }

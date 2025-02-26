@@ -2095,11 +2095,12 @@ public final class Mnemonics {
     }
 
     /**
-     * Maps all long values to a BIP-39 word. Get the BIP-39 world at the given index. If the index is negative then
-     * take its absolute value. If the index exceeds the number of words then get the word at the index modulo the
-     * number of words.
+     * Maps all long values to a BIP-39 word. Get the BIP-39 world at the given index. If the index is negative
+     * then take its absolute value. If the index exceeds the number of words then get the word at the index
+     * modulo the number of words.
      *
-     * @param index the index of the word to get
+     * @param index
+     * 		the index of the word to get
      * @return a BIP-39 word
      */
     public static String getWord(final long index) {
@@ -2109,7 +2110,8 @@ public final class Mnemonics {
     /**
      * Get the index of a BIP-39 word.
      *
-     * @param word the word in question, must be lowercase or this method will throw
+     * @param word
+     * 		the word in question, must be lowercase or this method will throw
      * @return the index of the BIP-39 word
      */
     public static int getWordIndex(final String word) {
@@ -2126,13 +2128,15 @@ public final class Mnemonics {
      * </p>
      *
      * <p>
-     * Mnemonic words are generated from data near the beginning of the data array, so arrays with similar data near the
-     * beginning will have similar word choices. In scenarios like that, it is better to generate mnemonic words from
-     * the hash of the data.
+     * Mnemonic words are generated from data near the beginning of the data array, so arrays with similar
+     * data near the beginning will have similar word choices. In scenarios like that, it is better to
+     * generate mnemonic words from the hash of the data.
      * </p>
      *
-     * @param data      the data to convert to a mnemonic
-     * @param wordCount the number of mnemonic words to generate
+     * @param data
+     * 		the data to convert to a mnemonic
+     * @param wordCount
+     * 		the number of mnemonic words to generate
      * @return a mnemonic
      */
     public static List<String> generateMnemonicWords(@NonNull final byte[] data, final int wordCount) {
@@ -2162,9 +2166,12 @@ public final class Mnemonics {
     /**
      * Generate a mnemonic string from data.
      *
-     * @param data      the data to convert to a mnemonic
-     * @param wordCount the number of mnemonic words
-     * @param separator the character between each word
+     * @param data
+     * 		the data to convert to a mnemonic
+     * @param wordCount
+     * 		the number of mnemonic words
+     * @param separator
+     * 		the character between each word
      * @return a mnemonic string containing BIP-39 words
      */
     public static String generateMnemonic(final byte[] data, final int wordCount, final String separator) {
@@ -2174,8 +2181,10 @@ public final class Mnemonics {
     /**
      * Generate a mnemonic string from data with '-' between each word.
      *
-     * @param data      the data to convert to a mnemonic
-     * @param wordCount the number of mnemonic words
+     * @param data
+     * 		the data to convert to a mnemonic
+     * @param wordCount
+     * 		the number of mnemonic words
      * @return a mnemonic string containing BIP-39 words
      */
     public static String generateMnemonic(final byte[] data, final int wordCount) {

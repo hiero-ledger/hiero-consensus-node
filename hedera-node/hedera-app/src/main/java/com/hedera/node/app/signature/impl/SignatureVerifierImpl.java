@@ -41,8 +41,8 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
     }
 
     /** Create a new instance with the given {@link Cryptography} engine. */
-    SignatureVerifierImpl(final Cryptography cryptoEngine) {
-        this.cryptoEngine = cryptoEngine;
+    SignatureVerifierImpl(@NonNull final Cryptography cryptoEngine) {
+        this.cryptoEngine = requireNonNull(cryptoEngine);
     }
 
     @NonNull

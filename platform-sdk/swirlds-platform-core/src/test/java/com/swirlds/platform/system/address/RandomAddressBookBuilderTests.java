@@ -41,8 +41,8 @@ class RandomAddressBookBuilderTests {
     }
 
     /**
-     * Normally this would be broken up into several tests, but because it's not cheap to generate keys, better to do it
-     * all in one test with the same set of keys.
+     * Normally this would be broken up into several tests, but because it's not cheap to generate keys, better
+     * to do it all in one test with the same set of keys.
      */
     @Test
     void validDeterministicKeysTest() {

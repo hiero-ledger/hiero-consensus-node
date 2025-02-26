@@ -103,50 +103,37 @@ public class IsAuthorizedRawCall extends AbstractCall {
         final Function<ResponseCodeEnum, PricedResult> bail = rce -> reversionWith(rce, frame.getRemainingGas());
 
         // Must have a valid signature type to continue
-        if (signatureType == SignatureType.INVALID) {
+        if (signatureType == SignatureType.INVALID)
             return bail.apply(INVALID_TRANSACTION_BODY /* should be: "invalid argument to precompile" */);
-        }
 
         // Fail immediately if user didn't supply sufficient gas
         final long availableGas = frame.getRemainingGas();
-        if (availableGas < gasRequirement) {
-            return bail.apply(INSUFFICIENT_GAS);
-        }
+        if (availableGas < gasRequirement) return bail.apply(INSUFFICIENT_GAS);
 
         // Validate parameters according to signature type
         if (!switch (signatureType) {
             case EC -> messageHash.length == 32;
             case ED -> true;
             case INVALID -> throw new IllegalStateException("Unexpected value: " + signatureType);
-        }) {
-            return bail.apply(INVALID_TRANSACTION_BODY /* should be: "invalid argument to precompile */);
-        }
+        }) return bail.apply(INVALID_TRANSACTION_BODY /* should be: "invalid argument to precompile */);
 
         // Gotta have an account that the given address is an alias for
         final long accountNum = accountNumberForEvmReference(address, nativeOperations());
-        if (!isValidAccount(accountNum, signatureType)) {
-            return bail.apply(INVALID_ACCOUNT_ID);
-        }
+        if (!isValidAccount(accountNum, signatureType)) return bail.apply(INVALID_ACCOUNT_ID);
         final var account = requireNonNull(enhancement.nativeOperations().getAccount(accountNum));
 
         // If ED, then require a key on the account
         final Optional<Key> key;
         if (signatureType == SignatureType.ED) {
             key = Optional.ofNullable(account.key());
-            if (key.isEmpty()) {
-                return bail.apply(INVALID_TRANSACTION_BODY /* should be: "account must have key" */);
-            }
-        } else {
-            key = Optional.empty();
-        }
+            if (key.isEmpty()) return bail.apply(INVALID_TRANSACTION_BODY /* should be: "account must have key" */);
+        } else key = Optional.empty();
 
         // Key must be simple (for isAuthorizedRaw)
         if (key.isPresent()) {
             final Key ky = key.get();
             final boolean keyIsSimple = !ky.hasKeyList() && !ky.hasThresholdKey();
-            if (!keyIsSimple) {
-                return bail.apply(INVALID_TRANSACTION_BODY /* should be: "account key must be simple" */);
-            }
+            if (!keyIsSimple) return bail.apply(INVALID_TRANSACTION_BODY /* should be: "account key must be simple" */);
         }
 
         // Key must match signature type
@@ -155,9 +142,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
                 case EC -> key.get().hasEcdsa384();
                 case ED -> key.get().hasEd25519();
                 case INVALID -> false;
-            }) {
-                return bail.apply(INVALID_SIGNATURE_TYPE_MISMATCHING_KEY);
-            }
+            }) return bail.apply(INVALID_SIGNATURE_TYPE_MISMATCHING_KEY);
         }
 
         // Finally: Do the signature validation we came here for!
@@ -182,15 +167,11 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // using the class provided by Besu).
 
         final var input = formatEcrecoverInput(messageHash, signature);
-        if (input.isEmpty()) {
-            return false;
-        }
+        if (input.isEmpty()) return false;
         final var ecrecoverResult = ecPrecompile.computePrecompile(Bytes.wrap(input.get()), frame);
 
         // ECRECOVER's output always has status SUCCESS but the result Bytes are either empty or the recovered address.
-        if (ecrecoverResult.getOutput().isEmpty()) {
-            return false;
-        }
+        if (ecrecoverResult.getOutput().isEmpty()) return false;
         final var recoveredAddress =
                 ecrecoverResult.getOutput().slice(12).toArray(); // LAST 20 bytes are where the EVM address is
 
@@ -236,13 +217,9 @@ public class IsAuthorizedRawCall extends AbstractCall {
         //   [64;  95]  r == x-value ∈ (0, secp256k1n);
         //   [96; 127]  s ∈ (0; sep256k1n ÷ 2 + 1)
 
-        if (messageHash.length != 32 || signature.length <= 64) {
-            return Optional.empty();
-        }
+        if (messageHash.length != 32 || signature.length <= 64) return Optional.empty();
         final var ov = reverseV(signature);
-        if (ov.isEmpty()) {
-            return Optional.empty();
-        }
+        if (ov.isEmpty()) return Optional.empty();
 
         final byte[] result = new byte[128];
         System.arraycopy(messageHash, 0, result, 0, 32); // hash
@@ -269,18 +246,12 @@ public class IsAuthorizedRawCall extends AbstractCall {
     @NonNull
     public Optional<Byte> reverseV(final byte[] signature) {
         requireNonNull(signature);
-        if (signature.length <= 64) {
-            throw new IllegalArgumentException("Signature is too short");
-        }
+        if (signature.length <= 64) throw new IllegalArgumentException("Signature is too short");
 
         final var v = new BigInteger(1, signature, 64, signature.length - 64);
 
-        if (knownVs.containsKey(v)) {
-            return Optional.of(knownVs.get(v));
-        }
-        if (BIG_35.compareTo(v) > 0) {
-            return Optional.empty(); // invalid
-        }
+        if (knownVs.containsKey(v)) return Optional.of(knownVs.get(v));
+        if (BIG_35.compareTo(v) > 0) return Optional.empty(); // invalid
 
         // v = {0,1} + (chainid * 2) + 35 thus parity is the opposite of the low order bit
         var parity = !v.testBit(0);
@@ -308,11 +279,8 @@ public class IsAuthorizedRawCall extends AbstractCall {
     private SignatureType signatureTypeFromItsLength(@NonNull final byte[] signature) {
         final var len = signature.length;
 
-        if (EC_SIGNATURE_MIN_LENGTH <= len && len <= EC_SIGNATURE_MAX_LENGTH) {
-            return SignatureType.EC;
-        } else if (ED_SIGNATURE_LENGTH == len) {
-            return SignatureType.ED;
-        }
+        if (EC_SIGNATURE_MIN_LENGTH <= len && len <= EC_SIGNATURE_MAX_LENGTH) return SignatureType.EC;
+        else if (ED_SIGNATURE_LENGTH == len) return SignatureType.ED;
 
         return SignatureType.INVALID;
     }

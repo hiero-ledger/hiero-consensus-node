@@ -63,6 +63,13 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
 
     @Test
     @DisplayName("Null Args are not permitted")
+    void failIfConstructorArgsAreNull() {
+        //noinspection DataFlowIssue
+        assertThatThrownBy(() -> new SignatureVerifierImpl(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("Null Args are not permitted")
     void failIfArgsAreNull() {
         final Set<ExpandedSignaturePair> signatures = emptySet();
         //noinspection DataFlowIssue
@@ -105,11 +112,11 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
 
         //noinspection unchecked
         doAnswer((Answer<Void>) invocation -> {
-            final TransactionSignature signature = invocation.getArgument(0);
-            signature.setSignatureStatus(VerificationStatus.VALID);
-            signature.setFuture(completedFuture(null));
-            return null;
-        })
+                    final TransactionSignature signature = invocation.getArgument(0);
+                    signature.setSignatureStatus(VerificationStatus.VALID);
+                    signature.setFuture(completedFuture(null));
+                    return null;
+                })
                 .when(cryptoEngine)
                 .verifySync(any(TransactionSignature.class));
 
@@ -156,21 +163,21 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
             final var contents = Bytes.wrap(txSig.getContents());
             if (messageType == RAW) {
                 assertThat(contents.slice(txSig.getMessageOffset(), txSig.getMessageLength())
-                        .matchesPrefix(i == 1 ? signedBytes : keccakSignedBytes)) // index 1 is ed25519
+                                .matchesPrefix(i == 1 ? signedBytes : keccakSignedBytes)) // index 1 is ed25519
                         .isTrue();
             } else {
                 // For a KECCAK_256_HASH message type, the signed bytes are always the given hash
                 assertThat(contents.slice(txSig.getMessageOffset(), txSig.getMessageLength())
-                        .matchesPrefix(signedBytes))
+                                .matchesPrefix(signedBytes))
                         .isTrue();
             }
 
             assertThat(contents.slice(txSig.getSignatureOffset(), txSig.getSignatureLength())
-                    .matchesPrefix(expandedSigPair.signature()))
+                            .matchesPrefix(expandedSigPair.signature()))
                     .isTrue();
 
             assertThat(contents.slice(txSig.getPublicKeyOffset(), txSig.getPublicKeyLength())
-                    .matchesPrefix(expandedSigPair.keyBytes()))
+                            .matchesPrefix(expandedSigPair.keyBytes()))
                     .isTrue();
         }
     }

@@ -76,7 +76,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the Platforms.
+ * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the
+ * Platforms.
  * This class will be removed once the demo apps moved to Inversion of Control pattern to build and start platform
  * directly.
  */

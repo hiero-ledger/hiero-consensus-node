@@ -3,7 +3,6 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.PRE_ORDERED_DEPTH_FIRST;
 
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
@@ -23,7 +22,7 @@ import java.util.function.Predicate;
  */
 public final class SignedStateComparison {
 
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     private SignedStateComparison() {}
 
@@ -39,7 +38,7 @@ public final class SignedStateComparison {
             }
             return hash;
         } else {
-            return CRYPTOGRAPHY.getNullHash();
+            return NULL_HASH;
         }
     }
 
@@ -81,8 +80,8 @@ public final class SignedStateComparison {
     }
 
     /**
-     * Create a lambda that will transform the comparison iterator into an iterator that returns pairs of nodes that are
-     * different.
+     * Create a lambda that will transform the comparison iterator into an iterator that returns pairs of nodes that
+     * are different.
      */
     private static BiFunction<MerkleNode, MerkleRoute, MismatchedNodes> buildTransformer(final MerkleNode rootB) {
         return (final MerkleNode nodeA, final MerkleRoute routeA) -> {
@@ -92,14 +91,17 @@ public final class SignedStateComparison {
     }
 
     /**
-     * Builds an iterator that walks over the parts of the merkle trees that do not match each other. Nodes are visited
-     * in pre-ordered depth first order.
+     * Builds an iterator that walks over the parts of the merkle trees that do not match each other.
+     * Nodes are visited in pre-ordered depth first order.
      *
-     * @param rootA the root of tree A, must be hashed
-     * @param rootB the root of tree B, must be hashed
-     * @param deep  if true then use deep comparison. This is only needed if there are internal node hashes that are
-     *              incorrect, causing the hash mismatch to be invisible from the root of the tree. This may take
-     *              significantly longer than a shallow comparison.
+     * @param rootA
+     * 		the root of tree A, must be hashed
+     * @param rootB
+     * 		the root of tree B, must be hashed
+     * @param deep
+     * 		if true then use deep comparison. This is only needed if there are internal node hashes that
+     * 		are incorrect, causing the hash mismatch to be invisible from the root of the tree. This
+     * 		may take significantly longer than a shallow comparison.
      * @return an iterator that contains differences between tree A and tree B
      */
     public static Iterator<MismatchedNodes> mismatchedNodeIterator(
@@ -130,8 +132,10 @@ public final class SignedStateComparison {
     /**
      * Print to standard out all differences between two merkle trees.
      *
-     * @param nodeIterator an iterator that walks over mismatched nodes
-     * @param limit        the maximum number of nodes to print
+     * @param nodeIterator
+     * 		an iterator that walks over mismatched nodes
+     * @param limit
+     * 		the maximum number of nodes to print
      */
     public static void printMismatchedNodes(final Iterator<MismatchedNodes> nodeIterator, final int limit) {
 

@@ -52,7 +52,6 @@ public class FileGetInfoHandler extends FileQueryBase {
 
     /**
      * Constructs a {@link FileGetInfoHandler} with the given {@link FileOpsUsage}.
-     *
      * @param fileOpsUsage the file operations usage to be used for fee calculation
      */
     @Inject
@@ -132,9 +131,8 @@ public class FileGetInfoHandler extends FileQueryBase {
 
     /**
      * Provides information about a file.
-     *
-     * @param fileID       the file to get information about
-     * @param fileStore    the file store
+     * @param fileID the file to get information about
+     * @param fileStore the file store
      * @param ledgerConfig Ledger configuration properties
      * @return the information about the file
      */

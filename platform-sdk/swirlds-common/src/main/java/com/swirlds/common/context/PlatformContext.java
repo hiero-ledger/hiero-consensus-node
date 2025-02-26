@@ -29,13 +29,13 @@ public interface PlatformContext {
 
     /**
      * Creates a new instance of the platform context. The instance uses a {@link NoOpMetrics} implementation for
-     * metrics and a {@link com.swirlds.common.io.utility.NoOpRecycleBin}. The instance uses the static
-     * {@link CryptographyFactory#create()} call to get the cryptography. The instance uses the static
-     * {@link Time#getCurrent()} call to get the time.
+     * metrics and a {@link com.swirlds.common.io.utility.NoOpRecycleBin}.
+     * The instance uses the {@link CryptographyFactory#create()} call to get the cryptography. The instance
+     * uses the static {@link Time#getCurrent()} call to get the time.
      *
+     * @apiNote This method is meant for utilities and testing and not for a node's production operation
      * @param configuration the configuration
      * @return the platform context
-     * @apiNote This method is meant for utilities and testing and not for a node's production operation
      */
     @NonNull
     static PlatformContext create(@NonNull final Configuration configuration) {
@@ -44,7 +44,13 @@ public interface PlatformContext {
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
         final Time time = Time.getCurrent();
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
-        return create(configuration, time, metrics, fileSystemManager, new NoOpRecycleBin(), merkleCryptography);
+        return create(
+                configuration,
+                time,
+                metrics,
+                fileSystemManager,
+                new NoOpRecycleBin(),
+                merkleCryptography);
     }
 
     /**
@@ -71,7 +77,13 @@ public interface PlatformContext {
         final UncaughtExceptionHandler handler = new PlatformUncaughtExceptionHandler();
         final ExecutorFactory executorFactory = ExecutorFactory.create("platform", null, handler);
         return new DefaultPlatformContext(
-                configuration, metrics, time, executorFactory, fileSystemManager, recycleBin, merkleCryptography);
+                configuration,
+                metrics,
+                time,
+                executorFactory,
+                fileSystemManager,
+                recycleBin,
+                merkleCryptography);
     }
 
     /**

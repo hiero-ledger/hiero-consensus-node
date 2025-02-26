@@ -26,18 +26,18 @@ import java.util.function.Supplier;
  * tail and removed from the head. It is not allowed to insert nulls. This is fast copyable. A fast copy of a queue can
  * be either immutable or mutable. A mutable fast copy can only be created from a mutable queue, which would then become
  * immutable after creating this mutable fast copy.
- * <p>
+ *
  * Element insertion/deletion and fast copy creation/deletion all take constant time. Except that if a queue has n
  * elements that are not in any other queue in its queue group, then deleting it takes O(n) time.
- * <p>
+ *
  * The FCQueue objects can be thought of as being organized into "queue groups". A fast copy of a queue creates another
  * queue in the same queue group. But instantiating a queue with "new" and the constructor creates a new queue group.
- * <p>
- * All write operations are synchronized within a queue group. So it is possible to write to two different queue groups
- * at the same time, but writing to different queues in the same queue group will be done serially. Reads via getters
- * are also serialized within a thread group, but it is ok for multiple iterators to be running in multiple threads at
- * the same time within that thread group. An iterator for a queue will throw an exception if it is used after a write
- * to that queue, but it is unaffected by writes to other queues in that queue group.
+ *
+ * All write operations are synchronized within a queue group. So it is possible to write to two different queue
+ * groups at the same time, but writing to different queues in the same queue group will be done serially. Reads via
+ * getters are also serialized within a thread group, but it is ok for multiple iterators to be running in multiple
+ * threads at the same time within that thread group. An iterator for a queue will throw an exception if it is used after
+ * a write to that queue, but it is unaffected by writes to other queues in that queue group.
  */
 public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> extends FCQueue<E> {
     private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
@@ -47,8 +47,8 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
     static final Supplier<FCQueue<FCInt>> slowSupplier = SlowMockFCQueue::new;
 
     /**
-     * Calculate hash as: sum hash, rolling hash, Merkle hash. rolling hash is recommended for now (unless Merkle is
-     * tried and found fast enough)
+     * Calculate hash as: sum hash, rolling hash, Merkle hash.
+     * rolling hash is recommended for now (unless Merkle is tried and found fast enough)
      */
     protected static final FCQHashAlgorithm HASH_ALGORITHM = FCQHashAlgorithm.ROLLING_HASH;
 
@@ -163,7 +163,7 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
 
     /**
      * This method is intentionally a no-op.
-     * <p>
+     *
      * {@inheritDoc}
      */
     @Override
@@ -178,20 +178,27 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
     /**
-     * Inserts the specified element into this queue if it is possible to do so immediately without violating capacity
-     * restrictions, returning {@code true} upon success and throwing an {@code IllegalStateException} if no space is
-     * currently available.
+     * Inserts the specified element into this queue if it is possible to do so
+     * immediately without violating capacity restrictions, returning
+     * {@code true} upon success and throwing an {@code IllegalStateException}
+     * if no space is currently available.
      *
-     * @param o the element to add
+     * @param o
+     * 		the element to add
      * @return {@code true} (as specified by {@link Collection#add})
-     * @throws IllegalStateException    if the element cannot be added at this time due to capacity restrictions (this
-     *                                  cannot happen)
-     * @throws ClassCastException       if the class of the specified element prevents it from being added to this
-     *                                  queue
-     * @throws NullPointerException     if the specified element is null and this queue does not permit null elements
-     * @throws IllegalArgumentException if some property of this element prevents it from being added to this queue.
-     *                                  This will happen if the fast-copyable object o has an IOException while
-     *                                  serializing to create its hash.
+     * @throws IllegalStateException
+     * 		if the element cannot be added at this
+     * 		time due to capacity restrictions (this cannot happen)
+     * @throws ClassCastException
+     * 		if the class of the specified element
+     * 		prevents it from being added to this queue
+     * @throws NullPointerException
+     * 		if the specified element is null and
+     * 		this queue does not permit null elements
+     * @throws IllegalArgumentException
+     * 		if some property of this element prevents it from being added to this queue.
+     * 		This will happen if the fast-copyable object o
+     * 		has an IOException while serializing to create its hash.
      */
     @Override
     public boolean add(final E o) {
@@ -232,11 +239,13 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
     }
 
     /**
-     * Retrieves and removes the head of this queue.  This method differs from {@link #poll() poll()} only in that it
-     * throws an exception if this queue is empty.
+     * Retrieves and removes the head of this queue.  This method differs
+     * from {@link #poll() poll()} only in that it throws an exception if
+     * this queue is empty.
      *
      * @return the head of this queue
-     * @throws NoSuchElementException if this queue is empty
+     * @throws NoSuchElementException
+     * 		if this queue is empty
      */
     @Override
     public E remove() {
@@ -273,7 +282,8 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
     }
 
     /**
-     * Retrieves and removes the head of this queue, or returns {@code null} if this queue is empty.
+     * Retrieves and removes the head of this queue,
+     * or returns {@code null} if this queue is empty.
      *
      * @return the head of this queue, or {@code null} if this queue is empty
      */
@@ -289,11 +299,13 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
     }
 
     /**
-     * Retrieves, but does not remove, the head of this queue.  This method differs from {@link #peek peek} only in that
-     * it throws an exception if this queue is empty.
+     * Retrieves, but does not remove, the head of this queue.  This method
+     * differs from {@link #peek peek} only in that it throws an exception
+     * if this queue is empty.
      *
      * @return the head of this queue
-     * @throws NoSuchElementException if this queue is empty
+     * @throws NoSuchElementException
+     * 		if this queue is empty
      */
     @Override
     public E element() {
@@ -307,7 +319,8 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
     }
 
     /**
-     * Retrieves, but does not remove, the head of this queue, or returns {@code null} if this queue is empty.
+     * Retrieves, but does not remove, the head of this queue,
+     * or returns {@code null} if this queue is empty.
      *
      * @return the head of this queue, or {@code null} if this queue is empty
      */
@@ -396,8 +409,9 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
     }
 
     /**
-     * Removes all of the elements from this queue. The queue will be empty and the hash reset to the null value after
-     * this method returns. This does not delete the FCQueue object. It just empties the queue.
+     * Removes all of the elements from this queue.
+     * The queue will be empty and the hash reset to the null value after this method returns.
+     * This does not delete the FCQueue object. It just empties the queue.
      */
     @Override
     public void clear() {
@@ -423,7 +437,8 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
     /**
      * Find the hash of a FastCopyable object.
      *
-     * @param element an element contained by this collection that is being added, deleted, or replaced
+     * @param element
+     * 		an element contained by this collection that is being added, deleted, or replaced
      * @return the 48-byte hash of the element (getNullHash() if element is null)
      */
     protected byte[] getHash(final E element) {

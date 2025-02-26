@@ -149,7 +149,7 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
             .withFormat(FORMAT_11_0);
     private static RunningAverageMetric htFCMSize;
 
-    /// ////////////////////////////////////////
+    ///////////////////////////////////////////
     // Transaction Handlers
     private static long htFCMAccounts;
 
@@ -169,14 +169,14 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
 
     private static long htFCQRecordsCount;
     private final PlatformStateFacade platformStateFacade;
-    /// ////////////////////////////////////////
+    ///////////////////////////////////////////
     // Non copyable shared variables
     private Platform platform;
-    /// ////////////////////////////////////////
+    ///////////////////////////////////////////
     // Copyable variables
     private ThresholdLimitingHandler<Throwable> exceptionRateLimiter;
     private ProgressCfg progressCfg;
-    /// ////////////////////////////////////////
+    ///////////////////////////////////////////
     // Variables not used for state copyTo
     protected long roundCounter = 0;
 

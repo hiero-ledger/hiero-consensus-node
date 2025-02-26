@@ -62,11 +62,10 @@ public enum TransactionExecutors {
 
     /**
      * The properties to use when creating a new {@link TransactionExecutor}.
-     *
-     * @param state               the {@link State} to use
-     * @param appProperties       the properties to use
+     * @param state the {@link State} to use
+     * @param appProperties the properties to use
      * @param customTracerBinding the custom tracer binding to use
-     * @param customOps           the custom operations to use
+     * @param customOps the custom operations to use
      */
     public record Properties(
             @NonNull State state,
@@ -76,7 +75,6 @@ public enum TransactionExecutors {
             @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         /**
          * Create a new {@link Builder} instance.
-         *
          * @return a new {@link Builder} instance
          */
         public static Builder newBuilder() {
@@ -174,7 +172,6 @@ public enum TransactionExecutors {
 
     /**
      * Creates a new {@link TransactionExecutor} based on the given {@link State} and properties.
-     *
      * @param properties the properties to use for the executor
      * @return a new {@link TransactionExecutor}
      */
@@ -192,11 +189,10 @@ public enum TransactionExecutors {
 
     /**
      * Creates a new {@link TransactionExecutor}.
-     *
-     * @param state               the {@link State} to use
-     * @param properties          the properties to use
+     * @param state the {@link State} to use
+     * @param properties the properties to use
      * @param customTracerBinding the custom tracer binding to use
-     * @param customOps           the custom operations to use
+     * @param customOps the custom operations to use
      * @return a new {@link TransactionExecutor}
      */
     private TransactionExecutor newExecutor(
