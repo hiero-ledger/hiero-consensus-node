@@ -61,16 +61,9 @@ class UpdateNFTsMetadataTranslatorTest {
 
     @Test
     void matchesUpdateNFTsMetadataTest() {
-        given(attempt.configuration()).willReturn(getTestConfiguration(true));
         given(attempt.isMethod(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA))
                 .willReturn(Optional.of(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA));
         assertThat(subject.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void doesNotMatchUpdateNFTsMetadataWhenDisabled() {
-        given(attempt.configuration()).willReturn(getTestConfiguration(false));
-        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
