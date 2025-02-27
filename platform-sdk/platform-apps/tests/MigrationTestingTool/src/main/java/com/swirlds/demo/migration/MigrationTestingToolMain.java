@@ -75,8 +75,9 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
 
         final String[] parameters = ParameterProvider.getInstance().getParameters();
         logger.info(STARTUP.getMarker(), "Parsing arguments {}", (Object) parameters);
-        if(parameters == null || parameters.length < 2) {
-            throw new IllegalArgumentException("MigrationTestingTool requires at least 2 parameters: Seed(long), MaxTransactionsPerNode(int)");
+        if (parameters == null || parameters.length < 2) {
+            throw new IllegalArgumentException(
+                    "MigrationTestingTool requires at least 2 parameters: Seed(long), MaxTransactionsPerNode(int)");
         }
         seed = Long.parseLong(parameters[0]) + selfId.id();
         maximumTransactionsPerNode = Integer.parseInt(parameters[1]);
