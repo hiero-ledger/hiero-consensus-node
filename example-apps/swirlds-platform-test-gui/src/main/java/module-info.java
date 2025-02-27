@@ -8,5 +8,5 @@ module com.swirlds.platform.test.gui {
     requires com.swirlds.config.api;
     requires com.swirlds.platform.core.test.fixtures;
     requires java.desktop;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }
