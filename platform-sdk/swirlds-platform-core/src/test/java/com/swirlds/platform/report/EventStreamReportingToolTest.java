@@ -30,7 +30,6 @@ class EventStreamReportingToolTest {
 
     private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
             TestPlatformContextBuilder.create().build();
-    ;
 
     @TempDir
     Path tmpDir;
