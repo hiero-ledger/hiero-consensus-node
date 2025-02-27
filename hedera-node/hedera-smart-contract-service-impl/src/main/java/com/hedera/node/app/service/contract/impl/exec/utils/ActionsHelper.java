@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.streams.CallOperationType.OP_UNKNOWN;
 import static com.hedera.hapi.streams.ContractActionType.NO_ACTION;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfContractIn;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.OpcodeUtils.asCallOperationType;
@@ -34,7 +35,7 @@ public class ActionsHelper {
                 .callType(ContractActionType.CALL)
                 .gas(frame.getRemainingGas())
                 .callDepth(frame.getDepth() + 1)
-                .callingContract(contractIdWith(hederaIdNumOfContractIn(frame)))
+                .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)))
                 .targetedAddress(tuweniToPbjBytes(frame.getStackItem(1)))
                 .error(MISSING_ADDRESS_ERROR)
                 .callOperationType(
@@ -96,8 +97,8 @@ public class ActionsHelper {
         return sb.toString();
     }
 
-    private ContractID contractIdWith(final long num) {
-        return ContractID.newBuilder().contractNum(num).build();
+    private ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
+        return entityIdFactory(frame).newContractId(num);
     }
 
     private static int countNonNulls(@NonNull final Object... objs) {
