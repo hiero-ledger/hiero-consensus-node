@@ -13,6 +13,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import javax.inject.Inject;
@@ -25,14 +26,18 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class QueryHederaNativeOperations implements HederaNativeOperations {
     private final QueryContext context;
 
+    private final EntityIdFactory entityIdFactory;
+
     @Override
     public boolean checkForCustomFees(@NonNull final CryptoTransferTransactionBody op) {
         throw new UnsupportedOperationException("Cannot dispatch child transfers in query context");
     }
 
     @Inject
-    public QueryHederaNativeOperations(@NonNull final QueryContext context) {
+    public QueryHederaNativeOperations(
+            @NonNull final QueryContext context, @NonNull final EntityIdFactory entityIdFactory) {
         this.context = Objects.requireNonNull(context);
+        this.entityIdFactory = Objects.requireNonNull(entityIdFactory);
     }
 
     /**
@@ -148,5 +153,13 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public TransactionID getTransactionID() {
         throw new UnsupportedOperationException("Cannot get top level transaction ID in query context");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public EntityIdFactory entityIdFactory() {
+        return entityIdFactory;
     }
 }

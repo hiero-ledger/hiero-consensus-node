@@ -138,7 +138,7 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
         try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        platformContext.getConfiguration(), signedStateFile, platformStateFacade)
+                        platformContext.getConfiguration(), signedStateFile, platformStateFacade, platformContext)
                 .reservedSignedState()) {
             logger.info(
                     STARTUP.getMarker(),
@@ -405,19 +405,20 @@ public final class EventRecoveryWorkflow {
             platformStateFacade.updateLastFrozenTime(newState);
         }
 
-        final ReservedSignedState signedState = new SignedState(
-                        platformContext.getConfiguration(),
-                        CryptoStatic::verifySignature,
-                        newState,
-                        "EventRecoveryWorkflow.handleNextRound()",
-                        isFreezeState,
-                        false,
-                        false,
-                        platformStateFacade)
-                .reserve("recovery");
+        final SignedState signedState = new SignedState(
+                platformContext.getConfiguration(),
+                CryptoStatic::verifySignature,
+                newState,
+                "EventRecoveryWorkflow.handleNextRound()",
+                isFreezeState,
+                false,
+                false,
+                platformStateFacade);
+        signedState.init(platformContext);
+        final ReservedSignedState reservedSignedState = signedState.reserve("recovery");
         previousSignedState.close();
 
-        return signedState;
+        return reservedSignedState;
     }
 
     /**

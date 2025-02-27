@@ -267,7 +267,8 @@ public class Browser {
                     appDefinition.getSwirldName(),
                     nodeId,
                     appDefinition.getConfigAddressBook(),
-                    platformStateFacade);
+                    platformStateFacade,
+                    platformContext);
             final var initialState = reservedState.state();
 
             // Initialize the address book

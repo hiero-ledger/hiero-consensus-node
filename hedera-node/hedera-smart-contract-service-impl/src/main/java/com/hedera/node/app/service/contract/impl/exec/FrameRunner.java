@@ -23,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -40,13 +41,16 @@ import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 @Singleton
 public class FrameRunner {
     private final CustomGasCalculator gasCalculator;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * @param gasCalculator the gas calculator to be used
      */
     @Inject
-    public FrameRunner(@NonNull final CustomGasCalculator gasCalculator) {
+    public FrameRunner(
+            @NonNull final CustomGasCalculator gasCalculator, @NonNull final EntityIdFactory entityIdFactory) {
         this.gasCalculator = gasCalculator;
+        this.entityIdFactory = entityIdFactory;
     }
 
     /**
@@ -91,7 +95,12 @@ public class FrameRunner {
         final var gasUsed = effectiveGasUsed(gasLimit, frame);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
-                    gasUsed, senderId, recipientMetadata.hederaId(), asEvmContractId(recipientAddress), frame, tracer);
+                    gasUsed,
+                    senderId,
+                    recipientMetadata.hederaId(),
+                    asEvmContractId(entityIdFactory, recipientAddress),
+                    frame,
+                    tracer);
         } else {
             return failureFrom(gasUsed, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
         }
@@ -109,8 +118,8 @@ public class FrameRunner {
 
     private RecipientMetadata computeRecipientMetadata(
             @NonNull final MessageFrame frame, @NonNull final Address address) {
-        if (isLongZero(address)) {
-            return new RecipientMetadata(false, asNumberedContractId(address));
+        if (isLongZero(entityIdFactory, address)) {
+            return new RecipientMetadata(false, asNumberedContractId(entityIdFactory, address));
         } else {
             final var updater = proxyUpdaterFor(frame);
             return new RecipientMetadata(updater.getPendingCreation() != null, updater.getHederaContractId(address));
