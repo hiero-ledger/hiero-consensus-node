@@ -37,6 +37,12 @@ public interface HintsController {
      */
     void advanceConstruction(@NonNull Instant now, @NonNull WritableHintsStore hintsStore);
 
+    /**
+     * Advances the ongoing CRS work, if possible. This is only relevant when TSS is enabled or on genesis
+     * when the network is gathering contributions to construct CRS.
+     * @param now the current consensus time
+     * @param hintsStore the hints store
+     */
     void advanceCRSWork(@NonNull Instant now, @NonNull WritableHintsStore hintsStore);
 
     /**
