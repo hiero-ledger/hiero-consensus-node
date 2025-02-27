@@ -6,6 +6,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.TestInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
+import org.junit.jupiter.api.function.ThrowingConsumer;
 
 public class ConsensusTestRunner {
     private ConsensusTestParams params;
@@ -64,9 +65,5 @@ public class ConsensusTestRunner {
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public interface ThrowingConsumer<T> {
-        void accept(T var1) throws Throwable;
     }
 }
