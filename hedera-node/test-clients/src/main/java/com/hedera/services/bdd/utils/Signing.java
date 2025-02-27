@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.utils;
 
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.LEGACY_ETHEREUM;
@@ -25,6 +10,7 @@ import com.sun.jna.ptr.IntByReference;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
+import org.bouncycastle.math.ec.rfc8032.Ed25519;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 /**
@@ -100,6 +86,13 @@ public final class Signing {
         System.arraycopy(sig, 0, result, 0, 64);
         result[64] = (byte) (recId.getValue() + 27);
         return result;
+    }
+
+    public static byte[] signMessageEd25519(final byte[] message, byte[] privateKey) {
+        byte[] signature = new byte[Ed25519.SIGNATURE_SIZE];
+        Ed25519.sign(privateKey, 0, message, 0, message.length, signature, 0);
+
+        return signature;
     }
 
     private Signing() {}

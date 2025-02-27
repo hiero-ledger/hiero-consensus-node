@@ -1,27 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -45,7 +28,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
@@ -130,8 +112,7 @@ public class HollowAccountCompletionsTest {
         when(userTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
         when(userTxn.preHandleResult()).thenReturn(preHandleResult);
-        when(handleContext.dispatchPrecedingTransaction(any(), any(), any(), any()))
-                .thenReturn(recordBuilder);
+        when(handleContext.dispatch(any())).thenReturn(recordBuilder);
     }
 
     @Test
@@ -162,9 +143,7 @@ public class HollowAccountCompletionsTest {
         hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
 
         verify(keyVerifier).verificationFor(Bytes.wrap(new byte[] {1, 2, 3}));
-        verify(handleContext, never())
-                .dispatchPrecedingTransaction(
-                        eq(txBody), eq(CryptoUpdateStreamBuilder.class), isNull(), eq(AccountID.DEFAULT));
+        verify(handleContext, never()).dispatch(any());
     }
 
     @Test
@@ -185,7 +164,7 @@ public class HollowAccountCompletionsTest {
         hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
 
         verify(keyVerifier).verificationFor(Bytes.wrap(new byte[] {1, 2, 3}));
-        verify(handleContext).dispatchPrecedingTransaction(any(), any(), any(), any());
+        verify(handleContext).dispatch(any());
         verify(recordBuilder).accountID(AccountID.newBuilder().accountNum(1).build());
     }
 
@@ -203,7 +182,7 @@ public class HollowAccountCompletionsTest {
 
         hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
 
-        verify(handleContext, never()).dispatchPrecedingTransaction(any(), any(), any(), any());
+        verify(handleContext, never()).dispatch(any());
     }
 
     @Test
@@ -243,7 +222,7 @@ public class HollowAccountCompletionsTest {
 
         hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
 
-        verify(handleContext).dispatchPrecedingTransaction(any(), any(), any(), any());
+        verify(handleContext).dispatch(any());
         verify(recordBuilder).accountID(hollowId);
     }
 
@@ -269,7 +248,7 @@ public class HollowAccountCompletionsTest {
 
         hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
 
-        verify(handleContext, never()).dispatchPrecedingTransaction(any(), any(), any(), any());
+        verify(handleContext, never()).dispatch(any());
     }
 
     public static TransactionBody asTxn(

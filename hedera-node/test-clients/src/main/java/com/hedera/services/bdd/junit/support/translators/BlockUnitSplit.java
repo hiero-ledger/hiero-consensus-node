@@ -1,21 +1,9 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -23,6 +11,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
@@ -31,8 +20,10 @@ import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Splits a block into units for translation.
@@ -41,7 +32,7 @@ public class BlockUnitSplit {
     /**
      * Holds the parts of a transaction that are pending processing.
      */
-    private class PendingBlockTransactionParts {
+    private static class PendingBlockTransactionParts {
         @Nullable
         private TransactionParts parts;
 
@@ -49,7 +40,7 @@ public class BlockUnitSplit {
         private TransactionResult result;
 
         @Nullable
-        private TransactionOutput output;
+        private List<TransactionOutput> outputs;
 
         /**
          * Clears the pending parts.
@@ -57,7 +48,7 @@ public class BlockUnitSplit {
         void clear() {
             parts = null;
             result = null;
-            output = null;
+            outputs = null;
         }
 
         /**
@@ -69,23 +60,40 @@ public class BlockUnitSplit {
             return parts != null && result != null;
         }
 
+        void addOutput(@NonNull final TransactionOutput output) {
+            if (outputs == null) {
+                outputs = new ArrayList<>();
+            }
+            outputs.add(output);
+        }
+
         BlockTransactionParts toBlockTransactionParts() {
             requireNonNull(parts);
             requireNonNull(result);
-            return output == null
+            return outputs == null
                     ? BlockTransactionParts.sansOutput(parts, result)
-                    : BlockTransactionParts.withOutput(parts, result, output);
+                    : BlockTransactionParts.withOutputs(parts, result, outputs.toArray(TransactionOutput[]::new));
         }
     }
 
+    @Nullable
+    private List<StateChange> genesisStateChanges = new ArrayList<>();
+
+    /**
+     * Splits the given block into transactional units.
+     * @param block the block to split
+     * @return the transactional units
+     */
     public List<BlockTransactionalUnit> split(@NonNull final Block block) {
         final List<BlockTransactionalUnit> units = new ArrayList<>();
 
+        TxnIdType lastTxnIdType = null;
         TransactionID unitTxnId = null;
         PendingBlockTransactionParts pendingParts = new PendingBlockTransactionParts();
         final List<BlockTransactionParts> unitParts = new ArrayList<>();
         final List<StateChange> unitStateChanges = new ArrayList<>();
-        for (final var item : block.items()) {
+        for (int i = 0; i < block.items().size(); i++) {
+            final var item = block.items().get(i);
             switch (item.item().kind()) {
                 case UNSET, RECORD_FILE -> throw new IllegalStateException(
                         "Cannot split block with item of kind " + item.item().kind());
@@ -100,18 +108,36 @@ public class BlockUnitSplit {
                         if (pendingParts.areComplete()) {
                             unitParts.add(pendingParts.toBlockTransactionParts());
                         }
-                        if (beginsNewUnit(txnId, unitTxnId) && !unitParts.isEmpty()) {
+                        final boolean hasParentConsensusTimestamp = block.items()
+                                .get(i + 1)
+                                .transactionResultOrThrow()
+                                .hasParentConsensusTimestamp();
+                        final var txnIdType =
+                                classifyTxnId(txnId, unitTxnId, nextParts, lastTxnIdType, hasParentConsensusTimestamp);
+                        if (txnIdType == TxnIdType.NEW_UNIT_BY_ID && !unitParts.isEmpty()) {
                             completeAndAdd(units, unitParts, unitStateChanges);
                         }
                         pendingParts.clear();
-                        unitTxnId = txnId;
+                        if (genesisStateChanges != null) {
+                            unitStateChanges.addAll(genesisStateChanges);
+                            genesisStateChanges = null;
+                        }
+                        if (txnIdType != TxnIdType.AUTO_SYSFILE_MGMT_ID) {
+                            unitTxnId = txnId;
+                        }
                         pendingParts.parts = nextParts;
+                        lastTxnIdType = txnIdType;
                     }
                 }
                 case TRANSACTION_RESULT -> pendingParts.result = item.transactionResultOrThrow();
-                case TRANSACTION_OUTPUT -> pendingParts.output = item.transactionOutputOrThrow();
-                case STATE_CHANGES -> unitStateChanges.addAll(
-                        item.stateChangesOrThrow().stateChanges());
+                case TRANSACTION_OUTPUT -> pendingParts.addOutput(item.transactionOutputOrThrow());
+                case STATE_CHANGES -> {
+                    if (genesisStateChanges != null) {
+                        genesisStateChanges.addAll(item.stateChangesOrThrow().stateChanges());
+                    } else {
+                        unitStateChanges.addAll(item.stateChangesOrThrow().stateChanges());
+                    }
+                }
             }
         }
         if (pendingParts.areComplete()) {
@@ -121,13 +147,44 @@ public class BlockUnitSplit {
         return units;
     }
 
-    private boolean beginsNewUnit(@NonNull final TransactionID nextId, @Nullable final TransactionID unitTxnId) {
-        if (unitTxnId == null) {
-            return true;
+    private TxnIdType classifyTxnId(
+            @NonNull final TransactionID nextId,
+            @Nullable final TransactionID unitTxnId,
+            @NonNull final TransactionParts parts,
+            @Nullable final TxnIdType lastTxnIdType,
+            final boolean hasParentConsensusTimestamp) {
+        if (isAutoEntityMgmtTxn(parts)) {
+            return TxnIdType.AUTO_SYSFILE_MGMT_ID;
         }
-        return !nextId.accountIDOrElse(AccountID.DEFAULT).equals(unitTxnId.accountIDOrElse(AccountID.DEFAULT))
-                || !nextId.transactionValidStartOrElse(Timestamp.DEFAULT)
-                        .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT));
+        if (lastTxnIdType == TxnIdType.AUTO_SYSFILE_MGMT_ID) {
+            // Automatic system file management transactions never end a transactional unit
+            return TxnIdType.SAME_UNIT_BY_ID;
+        }
+        if (unitTxnId == null) {
+            return TxnIdType.NEW_UNIT_BY_ID;
+        }
+        // Scheduled or batch inner transactions never begin a new transactional unit
+        final var radicallyDifferent = !hasParentConsensusTimestamp
+                && !nextId.scheduled()
+                && (!nextId.accountIDOrElse(AccountID.DEFAULT).equals(unitTxnId.accountIDOrElse(AccountID.DEFAULT))
+                        || !nextId.transactionValidStartOrElse(Timestamp.DEFAULT)
+                                .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT))
+                        || unitTxnId.equals(nextId));
+        return radicallyDifferent ? TxnIdType.NEW_UNIT_BY_ID : TxnIdType.SAME_UNIT_BY_ID;
+    }
+
+    private static final Set<HederaFunctionality> AUTO_MGMT_FUNCTIONS =
+            EnumSet.of(FILE_CREATE, FILE_UPDATE, NODE_UPDATE);
+
+    private boolean isAutoEntityMgmtTxn(@NonNull final TransactionParts parts) {
+        return AUTO_MGMT_FUNCTIONS.contains(parts.function())
+                && parts.transactionIdOrThrow().nonce() > 0;
+    }
+
+    private enum TxnIdType {
+        AUTO_SYSFILE_MGMT_ID,
+        SAME_UNIT_BY_ID,
+        NEW_UNIT_BY_ID,
     }
 
     private void completeAndAdd(

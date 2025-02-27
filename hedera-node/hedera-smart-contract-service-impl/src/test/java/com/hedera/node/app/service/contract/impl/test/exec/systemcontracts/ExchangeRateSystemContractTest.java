@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract.EXCHANGE_RATE_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract.TO_TINYBARS_SELECTOR;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract.TO_TINYCENTS_SELECTOR;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
@@ -25,7 +11,6 @@ import static org.mockito.BDDMockito.given;
 
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.transaction.ExchangeRate;
-import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
@@ -35,7 +20,6 @@ import java.time.Instant;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -82,33 +66,30 @@ class ExchangeRateSystemContractTest {
 
     @Test
     void convertsPositiveNumberToTinybarsAsExpected() {
-        given(frame.getValue()).willReturn(Wei.ZERO);
         givenRate(someRate);
 
         final var someInput = tinycentsInput(someTinycentAmount);
-        final var result = subject.computeFully(someInput, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, someInput, frame);
 
         assertThat(result.output()).isEqualTo(unpackedBytesFor(someTinybarAmount));
     }
 
     @Test
     void convertsPositiveNumberToTinycentsAsExpected() {
-        given(frame.getValue()).willReturn(Wei.ZERO);
         givenRate(someRate);
 
         final var positiveInput = tinybarsInput(someTinybarAmount);
-        final var result = subject.computeFully(positiveInput, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, positiveInput, frame);
 
         assertThat(result.output()).isEqualTo(unpackedBytesFor(someTinycentAmount));
     }
 
     @Test
     void convertsZeroToTinybarsAsExpected() {
-        given(frame.getValue()).willReturn(Wei.ZERO);
         givenRate(someRate);
 
         final var zeroInput = tinycentsInput(0);
-        final var result = subject.computeFully(zeroInput, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, zeroInput, frame);
 
         assertThat(result.output()).isEqualTo(unpackedBytesFor(0));
     }
@@ -118,26 +99,15 @@ class ExchangeRateSystemContractTest {
         final var underflowInput = tinycentsInput(Bytes.wrap(
                 BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TEN).toByteArray()));
 
-        final var result = subject.computeFully(underflowInput, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, underflowInput, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
         assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }
 
     @Test
-    void valueShouldNotBeSentToThePrecompile() {
-        given(frame.getValue()).willReturn(Wei.MAX_WEI);
-
-        final var zeroInput = tinycentsInput(0);
-        final var result = subject.computeFully(zeroInput, frame);
-
-        assertThat(result.output()).isEqualTo(Bytes.EMPTY);
-        assertThat(result.result().getHaltReason().get()).isEqualTo(CustomExceptionalHaltReason.INVALID_FEE_SUBMITTED);
-    }
-
-    @Test
     void selectorMustBeFullyPresent() {
         final var fragmentSelector = Bytes.of(0xab);
-        final var result = subject.computeFully(fragmentSelector, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, fragmentSelector, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
         assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }
@@ -146,7 +116,7 @@ class ExchangeRateSystemContractTest {
     void selectorMustBeRecognized() {
         final var fragmentSelector = Bytes.of((byte) 0xab, (byte) 0xab, (byte) 0xab, (byte) 0xab);
         final var input = Bytes.concatenate(fragmentSelector, Bytes32.ZERO);
-        final var result = subject.computeFully(input, frame);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, input, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
         assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }

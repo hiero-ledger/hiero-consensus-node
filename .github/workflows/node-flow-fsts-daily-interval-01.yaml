@@ -51,6 +51,7 @@ jobs:
   crypto-update-rhel7-4n-2c:
     name: Crypto-Update-Rhel7-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -68,12 +69,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   crypto-update-rhel8-4n-2c:
     name: Crypto-Update-Rhel8-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -91,12 +91,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   crypto-update-centos7-4n-2c:
     name: Crypto-Update-CentOS7-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -114,12 +113,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   crypto-update-4n-2c:
     name: Crypto-Update-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -137,11 +135,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
 
   crypto-update-ubuntu2204-4n-2c:
     name: Crypto-Update-Ubuntu2204-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -159,11 +157,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
 
   crypto-update-removal-4n-2c:
     name: Crypto-Update-Removal-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -181,4 +179,3 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}

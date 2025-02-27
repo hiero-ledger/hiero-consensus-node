@@ -60,6 +60,7 @@ jobs:
   crypto-migration-7n-1c:
     name: Crypto-Migration-7N-1C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -77,12 +78,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   balances-validation-6n-1c:
     name: Balances-Validation-6N-1C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -102,12 +102,11 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - crypto-migration-7n-1c
-    if: ${{ !cancelled() && always() }}
-
 
   crypto-invalid-accounts-4n-4c:
     name: Crypto-Invalid-Accounts-4N-4C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -127,12 +126,11 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - balances-validation-6n-1c
-    if: ${{ !cancelled() && always() }}
-
 
   comp-nd-reconnect-correctness-6n-1c:
     name: Comp-ND-Reconnect-Correctness-6N-1C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -150,12 +148,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   reconnect-6n-4c:
     name: Reconnect-6N-4C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -175,12 +172,11 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - comp-nd-reconnect-correctness-6n-1c
-    if: ${{ !cancelled() && always() }}
-
 
   comp-neterror-4n-1c:
     name: Comp-NetError-4N-1C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -198,12 +194,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   crypto-restart-4n-1c:
     name: Crypto-Restart-4N-1C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -223,4 +218,3 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - comp-neterror-4n-1c
-    if: ${{ !cancelled() && always() }}

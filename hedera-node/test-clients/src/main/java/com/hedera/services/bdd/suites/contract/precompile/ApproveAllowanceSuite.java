@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -43,15 +28,10 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.HIGHLY_NON_DETERMINISTIC_FEES;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_CONTRACT_CALL_RESULTS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -111,33 +91,31 @@ public class ApproveAllowanceSuite {
     final Stream<DynamicTest> nftAutoCreationIncludeAllowanceCheck() {
         final var ownerAccount = "owningAlias";
         final var receivingAlias = "receivingAlias";
-        return defaultHapiSpec("NftAutoCreationIncludeAllowanceCheck", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ownerAccount),
-                        newKeyNamed(receivingAlias),
-                        // Accounts to be referenced with aliases as well
-                        cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS),
-                        // A non-fungible token with 6 serial nos
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY))
-                .when(
-                        mintToken(
-                                NON_FUNGIBLE_TOKEN,
-                                List.of(
-                                        ByteString.copyFromUtf8("A"),
-                                        ByteString.copyFromUtf8("B"),
-                                        ByteString.copyFromUtf8("C"),
-                                        ByteString.copyFromUtf8("D"),
-                                        ByteString.copyFromUtf8("E"),
-                                        ByteString.copyFromUtf8("F"))),
-                        tokenAssociate(ownerAccount, List.of(NON_FUNGIBLE_TOKEN)),
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L).between(TOKEN_TREASURY, ownerAccount)))
-                .then(cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ownerAccount),
+                newKeyNamed(receivingAlias),
+                // Accounts to be referenced with aliases as well
+                cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS),
+                // A non-fungible token with 6 serial nos
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                mintToken(
+                        NON_FUNGIBLE_TOKEN,
+                        List.of(
+                                ByteString.copyFromUtf8("A"),
+                                ByteString.copyFromUtf8("B"),
+                                ByteString.copyFromUtf8("C"),
+                                ByteString.copyFromUtf8("D"),
+                                ByteString.copyFromUtf8("E"),
+                                ByteString.copyFromUtf8("F"))),
+                tokenAssociate(ownerAccount, List.of(NON_FUNGIBLE_TOKEN)),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L).between(TOKEN_TREASURY, ownerAccount)),
+                cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))
                                 .addNftTransfers(NftTransfer.newBuilder()
                                         .setSenderAccountID(spec.registry().getAccountID(ownerAccount))
@@ -162,34 +140,29 @@ public class ApproveAllowanceSuite {
         final var nestedContract = DIRECT_ERC_CALLEE;
         final var theSpender = SPENDER;
 
-        return defaultHapiSpec(
-                        "htsTokenApproveToInnerContract",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(theSpender),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .initialSupply(10L)
-                                .maxSupply(1000L)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT).refusingEthConversion(),
-                        uploadInitCode(nestedContract),
-                        contractCreate(nestedContract).adminKey(MULTI_KEY).refusingEthConversion(),
-                        tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                        tokenAssociate(HTS_APPROVE_ALLOWANCE_CONTRACT, FUNGIBLE_TOKEN),
-                        tokenAssociate(nestedContract, FUNGIBLE_TOKEN))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(theSpender),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(10L)
+                        .maxSupply(1000L)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT).refusingEthConversion(),
+                uploadInitCode(nestedContract),
+                contractCreate(nestedContract).adminKey(MULTI_KEY).refusingEthConversion(),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                tokenAssociate(HTS_APPROVE_ALLOWANCE_CONTRACT, FUNGIBLE_TOKEN),
+                tokenAssociate(nestedContract, FUNGIBLE_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         HTS_APPROVE_ALLOWANCE_CONTRACT,
@@ -201,70 +174,69 @@ public class ApproveAllowanceSuite {
                                         BigInteger.valueOf(10))
                                 .payingWith(OWNER)
                                 .gas(4_000_000L)
-                                .via(approveTxn)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(approveTxn, SUCCESS, recordWith().status(SUCCESS)),
-                        getTxnRecord(approveTxn).andAllChildRecords().logged(),
-                        withOpContext((spec, opLog) -> {
-                            final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
-                            final var receiver = spec.registry().getContractId(nestedContract);
-                            final var idOfToken = "0.0."
-                                    + (spec.registry()
-                                            .getTokenID(FUNGIBLE_TOKEN)
-                                            .getTokenNum());
-                            var txnRecord = getTxnRecord(approveTxn)
-                                    .hasPriority(recordWith()
-                                            .contractCallResult(resultWith()
-                                                    .logs(inOrder(logWith()
-                                                            .contract(idOfToken)
-                                                            .withTopicsInOrder(List.of(
-                                                                    eventSignatureOf(APPROVE_SIGNATURE),
-                                                                    parsedToByteString(sender.getContractNum()),
-                                                                    parsedToByteString(receiver.getContractNum())))
-                                                            .longValue(10)))))
-                                    .andAllChildRecords()
-                                    .logged();
-                            allRunFor(spec, txnRecord);
-                        }));
+                                .via(approveTxn))),
+                childRecordsCheck(approveTxn, SUCCESS, recordWith().status(SUCCESS)),
+                getTxnRecord(approveTxn).andAllChildRecords().logged(),
+                withOpContext((spec, opLog) -> {
+                    final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
+                    final var receiver = spec.registry().getContractId(nestedContract);
+                    final var idOfToken =
+                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    var txnRecord = getTxnRecord(approveTxn)
+                            .hasPriority(recordWith()
+                                    .contractCallResult(resultWith()
+                                            .logs(inOrder(logWith()
+                                                    .contract(idOfToken)
+                                                    .withTopicsInOrder(List.of(
+                                                            eventSignatureOf(APPROVE_SIGNATURE),
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getContractNum())))
+                                                    .longValue(10)))))
+                            .andAllChildRecords()
+                            .logged();
+                    allRunFor(spec, txnRecord);
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
-        return defaultHapiSpec("idVariantsTreatedAsExpected")
-                .given(
-                        newKeyNamed("supplyKey"),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(OWNER).maxAutomaticTokenAssociations(2),
-                        cryptoCreate("delegatingOwner").maxAutomaticTokenAssociations(1),
-                        cryptoCreate(SPENDER))
-                .when(
-                        tokenCreate("fungibleToken").initialSupply(123).treasury(TOKEN_TREASURY),
-                        tokenCreate("nonFungibleToken")
-                                .treasury(TOKEN_TREASURY)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0L)
-                                .supplyKey("supplyKey"),
-                        mintToken(
-                                "nonFungibleToken",
-                                List.of(
-                                        ByteString.copyFromUtf8("A"),
-                                        ByteString.copyFromUtf8("B"),
-                                        ByteString.copyFromUtf8("C"))),
-                        cryptoTransfer(
-                                movingUnique("nonFungibleToken", 1L, 2L).between(TOKEN_TREASURY, OWNER),
-                                moving(10, "fungibleToken").between(TOKEN_TREASURY, OWNER)),
-                        cryptoTransfer(movingUnique("nonFungibleToken", 3L).between(TOKEN_TREASURY, "delegatingOwner")))
-                .then(
-                        submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoApproveAllowance()
-                                .addNftAllowance("delegatingOwner", "nonFungibleToken", OWNER, true, List.of())
-                                .signedBy(DEFAULT_PAYER, "delegatingOwner")),
-                        submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoApproveAllowance()
-                                .addNftAllowance(OWNER, "nonFungibleToken", SPENDER, false, List.of(1L))
-                                .addTokenAllowance(OWNER, "fungibleToken", SPENDER, 1L)
-                                .addDelegatedNftAllowance(
-                                        "delegatingOwner", "nonFungibleToken", SPENDER, OWNER, false, List.of(3L))
-                                .signedBy(DEFAULT_PAYER, OWNER)));
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(OWNER).maxAutomaticTokenAssociations(2),
+                cryptoCreate("delegatingOwner").maxAutomaticTokenAssociations(1),
+                cryptoCreate(SPENDER),
+                tokenCreate("fungibleToken").initialSupply(123).treasury(TOKEN_TREASURY),
+                tokenCreate("nonFungibleToken")
+                        .treasury(TOKEN_TREASURY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey("supplyKey"),
+                mintToken(
+                        "nonFungibleToken",
+                        List.of(
+                                ByteString.copyFromUtf8("A"),
+                                ByteString.copyFromUtf8("B"),
+                                ByteString.copyFromUtf8("C"))),
+                cryptoTransfer(
+                        movingUnique("nonFungibleToken", 1L, 2L).between(TOKEN_TREASURY, OWNER),
+                        moving(10, "fungibleToken").between(TOKEN_TREASURY, OWNER)),
+                cryptoTransfer(movingUnique("nonFungibleToken", 3L).between(TOKEN_TREASURY, "delegatingOwner")),
+                submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoApproveAllowance()
+                        .addNftAllowance("delegatingOwner", "nonFungibleToken", OWNER, true, List.of())
+                        .signedBy(DEFAULT_PAYER, "delegatingOwner")),
+                submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, "nonFungibleToken", SPENDER, false, List.of(1L))
+                        .addTokenAllowance(OWNER, "fungibleToken", SPENDER, 1L)
+                        .addDelegatedNftAllowance(
+                                "delegatingOwner", "nonFungibleToken", SPENDER, OWNER, false, List.of(3L))
+                        .signedBy(DEFAULT_PAYER, OWNER)));
     }
 
     @HapiTest
@@ -272,31 +244,30 @@ public class ApproveAllowanceSuite {
         final var theSpender = SPENDER;
         final var allowanceTxn = ALLOWANCE_TX;
 
-        return defaultHapiSpec("htsTokenAllowance", NONDETERMINISTIC_FUNCTION_PARAMETERS, HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(theSpender),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .initialSupply(10L)
-                                .maxSupply(1000L)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                        cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
-                        cryptoApproveAllowance()
-                                .payingWith(DEFAULT_PAYER)
-                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, theSpender, 2L)
-                                .via("baseApproveTxn")
-                                .signedBy(DEFAULT_PAYER, OWNER)
-                                .fee(ONE_HBAR))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(theSpender),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(10L)
+                        .maxSupply(1000L)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, theSpender, 2L)
+                        .via("baseApproveTxn")
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .fee(ONE_HBAR),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         HTS_APPROVE_ALLOWANCE_CONTRACT,
@@ -308,46 +279,18 @@ public class ApproveAllowanceSuite {
                                         asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(theSpender))))
                                 .payingWith(OWNER)
-                                .via(allowanceTxn)
-                                .hasKnownStatus(SUCCESS)
-                        //                        ,contractCall(
-                        //                                HTS_APPROVE_ALLOWANCE_CONTRACT,
-                        //                                "htsAllowance",
-                        //                                asHeadlongAddress(
-                        //
-                        // asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                        //                                HapiParserUtil.asHeadlongAddress(notAnAddress),
-                        //                                        asHeadlongAddress(
-                        //
-                        // asAddress(spec.registry().getAccountID(theSpender))))
-                        //                                        .payingWith(OWNER)
-                        //                                        .via("fakeAddressAllowance")
-                        )))
-                .then(
-                        getTxnRecord(allowanceTxn).andAllChildRecords(),
-                        childRecordsCheck(
-                                allowanceTxn,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_ALLOWANCE)
-                                                        .withStatus(SUCCESS)
-                                                        .withAllowance(2))))
-                        //                        ,childRecordsCheck(
-                        //                                "fakeAddressAllowance",
-                        //                                SUCCESS,
-                        //                                recordWith()
-                        //                                        .status(INVALID_ALLOWANCE_OWNER_ID)
-                        //                                        .contractCallResult(resultWith()
-                        //                                                .contractCallResult(htsPrecompileResult()
-                        //
-                        // .forFunction(FunctionType.HAPI_ALLOWANCE)
-                        //
-                        // .withStatus(INVALID_ALLOWANCE_OWNER_ID)
-                        //                                                        .withAllowance(0))))
-                        );
+                                .via(allowanceTxn))),
+                getTxnRecord(allowanceTxn).andAllChildRecords(),
+                childRecordsCheck(
+                        allowanceTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_ALLOWANCE)
+                                                .withStatus(SUCCESS)
+                                                .withAllowance(2)))));
     }
 
     @HapiTest
@@ -355,31 +298,26 @@ public class ApproveAllowanceSuite {
         final var approveTxn = "approveTxn";
         final var theSpender = SPENDER;
 
-        return defaultHapiSpec(
-                        "htsTokenApprove",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(theSpender),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .initialSupply(10L)
-                                .maxSupply(1000L)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT).refusingEthConversion(),
-                        tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                        tokenAssociate(HTS_APPROVE_ALLOWANCE_CONTRACT, FUNGIBLE_TOKEN))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(theSpender),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(10L)
+                        .maxSupply(1000L)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT).refusingEthConversion(),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                tokenAssociate(HTS_APPROVE_ALLOWANCE_CONTRACT, FUNGIBLE_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         HTS_APPROVE_ALLOWANCE_CONTRACT,
@@ -392,74 +330,70 @@ public class ApproveAllowanceSuite {
                                 .payingWith(OWNER)
                                 .gas(4_000_000L)
                                 .via(approveTxn)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(approveTxn, SUCCESS, recordWith().status(SUCCESS)),
-                        withOpContext((spec, opLog) -> {
-                            final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
-                            final var receiver = spec.registry().getAccountID(theSpender);
-                            final var idOfToken = "0.0."
-                                    + (spec.registry()
-                                            .getTokenID(FUNGIBLE_TOKEN)
-                                            .getTokenNum());
-                            var txnRecord = getTxnRecord(approveTxn)
-                                    .hasPriority(recordWith()
-                                            .contractCallResult(resultWith()
-                                                    .logs(inOrder(logWith()
-                                                            .contract(idOfToken)
-                                                            .withTopicsInOrder(List.of(
-                                                                    eventSignatureOf(APPROVE_SIGNATURE),
-                                                                    parsedToByteString(sender.getContractNum()),
-                                                                    parsedToByteString(receiver.getAccountNum())))
-                                                            .longValue(10)))))
-                                    .andAllChildRecords();
-                            allRunFor(spec, txnRecord);
-                        }));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(approveTxn, SUCCESS, recordWith().status(SUCCESS)),
+                withOpContext((spec, opLog) -> {
+                    final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
+                    final var receiver = spec.registry().getAccountID(theSpender);
+                    final var idOfToken =
+                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    var txnRecord = getTxnRecord(approveTxn)
+                            .hasPriority(recordWith()
+                                    .contractCallResult(resultWith()
+                                            .logs(inOrder(logWith()
+                                                    .contract(idOfToken)
+                                                    .withTopicsInOrder(List.of(
+                                                            eventSignatureOf(APPROVE_SIGNATURE),
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
+                                                    .longValue(10)))))
+                            .andAllChildRecords();
+                    allRunFor(spec, txnRecord);
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> hapiNftIsApprovedForAll() {
         final var notApprovedTxn = "notApprovedTxn";
         final var approvedForAllTxn = "approvedForAllTxn";
-        final var notAnAddress = new byte[20];
-
-        return defaultHapiSpec(
-                        "hapiNftIsApprovedForAll", NONDETERMINISTIC_FUNCTION_PARAMETERS, HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        overriding("staking.fees.nodeRewardPercentage", "10"),
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(RECIPIENT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        mintToken(
-                                NON_FUNGIBLE_TOKEN,
-                                List.of(ByteString.copyFromUtf8("A"), ByteString.copyFromUtf8("B"))),
-                        uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L).between(TOKEN_TREASURY, OWNER)),
-                        cryptoApproveAllowance()
-                                .payingWith(OWNER)
-                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, RECIPIENT, true, List.of(1L, 2L))
-                                .signedBy(DEFAULT_PAYER, OWNER)
-                                .fee(ONE_HBAR),
-                        getAccountDetails(OWNER)
-                                .payingWith(GENESIS)
-                                .has(accountDetailsWith()
-                                        .cryptoAllowancesCount(0)
-                                        .nftApprovedForAllAllowancesCount(1)
-                                        .tokenAllowancesCount(0)
-                                        .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, RECIPIENT)),
-                        getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(RECIPIENT),
-                        getTokenNftInfo(NON_FUNGIBLE_TOKEN, 2L).hasSpenderID(RECIPIENT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(RECIPIENT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("A"), ByteString.copyFromUtf8("B"))),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L).between(TOKEN_TREASURY, OWNER)),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, RECIPIENT, true, List.of(1L, 2L))
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .fee(ONE_HBAR),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .cryptoAllowancesCount(0)
+                                .nftApprovedForAllAllowancesCount(1)
+                                .tokenAllowancesCount(0)
+                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, RECIPIENT)),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(RECIPIENT),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 2L).hasSpenderID(RECIPIENT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         HTS_APPROVE_ALLOWANCE_CONTRACT,
@@ -486,53 +420,25 @@ public class ApproveAllowanceSuite {
                                 .payingWith(OWNER)
                                 .via(notApprovedTxn)
                                 .hasKnownStatus(SUCCESS)
-                                .gas(GAS_TO_OFFER)
-                        //                        ,contractCall(
-                        //                                HTS_APPROVE_ALLOWANCE_CONTRACT,
-                        //                                "htsIsApprovedForAll",
-                        //                                asHeadlongAddress(
-                        //
-                        // asAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))),
-                        //                                HapiParserUtil.asHeadlongAddress(notAnAddress),
-                        //                                asHeadlongAddress(
-                        //                                        asAddress(spec.registry().getAccountID(ACCOUNT))))
-                        //                                .payingWith(OWNER)
-                        //                                .via("fakeAddressIsApprovedForAll")
-                        //                                .hasKnownStatus(SUCCESS)
-                        //                                .gas(GAS_TO_OFFER)
-
-                        )))
-                .then(
-                        childRecordsCheck(
-                                approvedForAllTxn,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_IS_APPROVED_FOR_ALL)
-                                                        .withIsApprovedForAll(SUCCESS, true)))),
-                        childRecordsCheck(
-                                notApprovedTxn,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_IS_APPROVED_FOR_ALL)
-                                                        .withIsApprovedForAll(SUCCESS, false))))
-                        //                ,childRecordsCheck(
-                        //                                "fakeAddressIsApprovedForAll",
-                        //                                SUCCESS,
-                        //                                recordWith()
-                        //                                        .status(SUCCESS)
-                        //                                        .contractCallResult(resultWith()
-                        //                                                .contractCallResult(htsPrecompileResult()
-                        //
-                        // .forFunction(FunctionType.HAPI_IS_APPROVED_FOR_ALL)
-                        //                                                        .withIsApprovedForAll(SUCCESS,
-                        // false))))
-                        );
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        approvedForAllTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_IS_APPROVED_FOR_ALL)
+                                                .withIsApprovedForAll(SUCCESS, true)))),
+                childRecordsCheck(
+                        notApprovedTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_IS_APPROVED_FOR_ALL)
+                                                .withIsApprovedForAll(SUCCESS, false)))));
     }
 
     @HapiTest
@@ -540,39 +446,33 @@ public class ApproveAllowanceSuite {
         final var theSpender = SPENDER;
         final var theSpender2 = "spender2";
         final var allowanceTxn = ALLOWANCE_TX;
-        final var notAnAddress = new byte[20];
 
-        return defaultHapiSpec(
-                        "hapiNftGetApproved",
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
-                        cryptoCreate(theSpender),
-                        cryptoCreate(theSpender2),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .initialSupply(0)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(MULTI_KEY)
-                                .adminKey(MULTI_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
-                                .via("nftTokenMint"),
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
-                        cryptoApproveAllowance()
-                                .payingWith(DEFAULT_PAYER)
-                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, theSpender, false, List.of(1L))
-                                .via("baseApproveTxn")
-                                .logged()
-                                .signedBy(DEFAULT_PAYER, OWNER)
-                                .fee(ONE_HBAR))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(theSpender),
+                cryptoCreate(theSpender2),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .initialSupply(0)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
+                        .via("nftTokenMint"),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, theSpender, false, List.of(1L))
+                        .via("baseApproveTxn")
+                        .logged()
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .fee(ONE_HBAR),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         HTS_APPROVE_ALLOWANCE_CONTRACT,
@@ -582,16 +482,8 @@ public class ApproveAllowanceSuite {
                                         BigInteger.ONE)
                                 .payingWith(OWNER)
                                 .via(allowanceTxn)
-                                .hasKnownStatus(SUCCESS)
-                        //                        ,contractCall(
-                        //                                HTS_APPROVE_ALLOWANCE_CONTRACT,
-                        //                                "htsGetApproved",
-                        //                                HapiParserUtil.asHeadlongAddress(notAnAddress),
-                        //                                BigInteger.ONE)
-                        //                                .via("fakeAddressGetApproved")
-                        //                                .payingWith(OWNER)
-                        )))
-                .then(withOpContext((spec, opLog) -> allRunFor(
+                                .hasKnownStatus(SUCCESS))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 allowanceTxn,
@@ -605,23 +497,7 @@ public class ApproveAllowanceSuite {
                                                                 SUCCESS,
                                                                 asAddress(
                                                                         spec.registry()
-                                                                                .getAccountID(theSpender))))))
-                        //                        ,childRecordsCheck(
-                        //                                "fakeAddressGetApproved",
-                        //                                SUCCESS,
-                        //                                recordWith()
-                        //                                        .status(INVALID_TOKEN_NFT_SERIAL_NUMBER)
-                        //                                        .contractCallResult(resultWith()
-                        //                                                .contractCallResult(htsPrecompileResult()
-                        //
-                        // .forFunction(FunctionType.HAPI_GET_APPROVED)
-                        //                                                        .withApproved(
-                        //
-                        // INVALID_TOKEN_NFT_SERIAL_NUMBER,
-                        //
-                        // asAddress(AccountID.getDefaultInstance())
-                        //                                                        ))))
-                        )));
+                                                                                .getAccountID(theSpender)))))))));
     }
 
     @HapiTest
@@ -630,35 +506,30 @@ public class ApproveAllowanceSuite {
         final var theSpender2 = "spender2";
         final var allowanceTxn = ALLOWANCE_TX;
 
-        return defaultHapiSpec(
-                        "hapiNftSetApprovalForAll",
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
-                        cryptoCreate(theSpender),
-                        cryptoCreate(theSpender2),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .initialSupply(0)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(MULTI_KEY)
-                                .adminKey(MULTI_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT).refusingEthConversion(),
-                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                        tokenAssociate(HTS_APPROVE_ALLOWANCE_CONTRACT, NON_FUNGIBLE_TOKEN),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
-                                .via("nftTokenMint"),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("b"))),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("c"))),
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L).between(TOKEN_TREASURY, OWNER)))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(theSpender),
+                cryptoCreate(theSpender2),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .initialSupply(0)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT).refusingEthConversion(),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(HTS_APPROVE_ALLOWANCE_CONTRACT, NON_FUNGIBLE_TOKEN),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
+                        .via("nftTokenMint"),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("b"))),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("c"))),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L).between(TOKEN_TREASURY, OWNER)),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         HTS_APPROVE_ALLOWANCE_CONTRACT,
@@ -671,30 +542,33 @@ public class ApproveAllowanceSuite {
                                 .payingWith(OWNER)
                                 .gas(5_000_000L)
                                 .via(allowanceTxn)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(allowanceTxn, SUCCESS, recordWith().status(SUCCESS)),
-                        withOpContext((spec, opLog) -> {
-                            final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
-                            final var receiver = spec.registry().getAccountID(theSpender);
-                            final var idOfToken = "0.0."
-                                    + (spec.registry()
-                                            .getTokenID(NON_FUNGIBLE_TOKEN)
-                                            .getTokenNum());
-                            var txnRecord = getTxnRecord(allowanceTxn)
-                                    .hasPriority(recordWith()
-                                            .contractCallResult(resultWith()
-                                                    .logs(inOrder(logWith()
-                                                            .contract(idOfToken)
-                                                            .withTopicsInOrder(List.of(
-                                                                    eventSignatureOf(APPROVE_FOR_ALL_SIGNATURE),
-                                                                    parsedToByteString(sender.getContractNum()),
-                                                                    parsedToByteString(receiver.getAccountNum())))
-                                                            .booleanValue(true)))))
-                                    .andAllChildRecords()
-                                    .logged();
-                            allRunFor(spec, txnRecord);
-                        }));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(allowanceTxn, SUCCESS, recordWith().status(SUCCESS)),
+                withOpContext((spec, opLog) -> {
+                    final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
+                    final var receiver = spec.registry().getAccountID(theSpender);
+                    final var idOfToken = "0.0."
+                            + (spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
+                    var txnRecord = getTxnRecord(allowanceTxn)
+                            .hasPriority(recordWith()
+                                    .contractCallResult(resultWith()
+                                            .logs(inOrder(logWith()
+                                                    .contract(idOfToken)
+                                                    .withTopicsInOrder(List.of(
+                                                            eventSignatureOf(APPROVE_FOR_ALL_SIGNATURE),
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
+                                                    .booleanValue(true)))))
+                            .andAllChildRecords()
+                            .logged();
+                    allRunFor(spec, txnRecord);
+                }));
     }
 
     @HapiTest
@@ -724,32 +598,27 @@ public class ApproveAllowanceSuite {
         final AtomicReference<String> attackerMirrorAddr = new AtomicReference<>();
         final AtomicReference<String> calleeMirrorAddr = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "testIndirectApprovalWith" + testName,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(PRETEND_ATTACKER)
-                                .exposingCreatedIdTo(id -> attackerMirrorAddr.set(asHexedSolidityAddress(id))),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .initialSupply(Long.MAX_VALUE)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> tokenID.set(asToken(id))),
-                        uploadInitCode(PRETEND_PAIR),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        contractCreate(PRETEND_PAIR).adminKey(DEFAULT_PAYER).refusingEthConversion(),
-                        uploadInitCode(callee),
-                        contractCreate(callee)
-                                .refusingEthConversion()
-                                .adminKey(DEFAULT_PAYER)
-                                .exposingNumTo(num -> calleeMirrorAddr.set(asHexedSolidityAddress(0, 0, num))),
-                        tokenAssociate(PRETEND_PAIR, FUNGIBLE_TOKEN),
-                        tokenAssociate(callee, FUNGIBLE_TOKEN))
-                .when(sourcing(() -> contractCall(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(PRETEND_ATTACKER)
+                        .exposingCreatedIdTo(id -> attackerMirrorAddr.set(asHexedSolidityAddress(id))),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .initialSupply(Long.MAX_VALUE)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> tokenID.set(asToken(id))),
+                uploadInitCode(PRETEND_PAIR),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(PRETEND_PAIR).adminKey(DEFAULT_PAYER).refusingEthConversion(),
+                uploadInitCode(callee),
+                contractCreate(callee)
+                        .refusingEthConversion()
+                        .adminKey(DEFAULT_PAYER)
+                        .exposingNumTo(num -> calleeMirrorAddr.set(asHexedSolidityAddress(0, 0, num))),
+                tokenAssociate(PRETEND_PAIR, FUNGIBLE_TOKEN),
+                tokenAssociate(callee, FUNGIBLE_TOKEN),
+                sourcing(() -> contractCall(
                                 PRETEND_PAIR,
                                 CALL_TO,
                                 asHeadlongAddress(calleeMirrorAddr.get()),
@@ -757,21 +626,14 @@ public class ApproveAllowanceSuite {
                                 asHeadlongAddress(attackerMirrorAddr.get()))
                         .via(ATTACK_CALL)
                         .gas(5_000_000L)
-                        .hasKnownStatus(SUCCESS)))
-                .then(
-                        getTxnRecord(ATTACK_CALL).andAllChildRecords().logged(),
-                        // Under no circumstances should the pair ever have an allowance
-                        getAccountDetails(PRETEND_PAIR)
-                                .has(accountDetailsWith().tokenAllowancesCount(0))
-                                .logged(),
-                        // Unless the callee tried to do a delegatecall to the redirect,
-                        // we _should_ see the allowance on the callee
-                        expectGrantedApproval
-                                ? getAccountDetails(callee)
-                                        .has(accountDetailsWith().tokenAllowancesCount(1))
-                                        .logged()
-                                : getAccountDetails(callee)
-                                        .has(accountDetailsWith().tokenAllowancesCount(0))
-                                        .logged());
+                        .hasKnownStatus(SUCCESS)),
+                getTxnRecord(ATTACK_CALL).andAllChildRecords().logged(),
+                // Under no circumstances should the pair ever have an allowance
+                getAccountDetails(PRETEND_PAIR).has(accountDetailsWith().tokenAllowancesCount(0)),
+                // Unless the callee tried to do a delegatecall to the redirect,
+                // we _should_ see the allowance on the callee
+                expectGrantedApproval
+                        ? getAccountDetails(callee).has(accountDetailsWith().tokenAllowancesCount(1))
+                        : getAccountDetails(callee).has(accountDetailsWith().tokenAllowancesCount(0)));
     }
 }

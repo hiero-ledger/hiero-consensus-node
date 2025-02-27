@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression;
 
 import static com.hedera.services.bdd.junit.TestTags.NOT_REPEATABLE;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -39,27 +24,26 @@ import org.junit.jupiter.api.Tag;
 public class UmbrellaRedux {
     public static final String DEFAULT_PROPERTIES = "regression-mixed_ops.properties";
 
-    private AtomicLong duration = new AtomicLong(10);
-    private AtomicInteger maxOpsPerSec = new AtomicInteger(Integer.MAX_VALUE);
-    private AtomicInteger maxPendingOps = new AtomicInteger(Integer.MAX_VALUE);
-    private AtomicInteger backoffSleepSecs = new AtomicInteger(1);
-    private AtomicInteger statusTimeoutSecs = new AtomicInteger(5);
-    private AtomicReference<String> props = new AtomicReference<>(DEFAULT_PROPERTIES);
-    private AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
+    private final AtomicLong duration = new AtomicLong(10);
+    private final AtomicInteger maxOpsPerSec = new AtomicInteger(Integer.MAX_VALUE);
+    private final AtomicInteger maxPendingOps = new AtomicInteger(Integer.MAX_VALUE);
+    private final AtomicInteger backoffSleepSecs = new AtomicInteger(1);
+    private final AtomicInteger statusTimeoutSecs = new AtomicInteger(5);
+    private final AtomicReference<String> props = new AtomicReference<>(DEFAULT_PROPERTIES);
+    private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
 
     @HapiTest
     @Tag(NOT_REPEATABLE)
     final Stream<DynamicTest> umbrellaRedux() {
-        return defaultHapiSpec("UmbrellaRedux")
-                .given(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                withOpContext((spec, opLog) -> {
                     configureFromCi(spec);
                     // use ci property statusTimeoutSecs to overwrite default value
                     // of status.wait.timeout.ms
                     spec.addOverrideProperties(
                             Map.of("status.wait.timeout.ms", Integer.toString(1_000 * statusTimeoutSecs.get())));
-                }))
-                .when()
-                .then(sourcing(() -> runWithProvider(factoryFrom(props::get))
+                }),
+                sourcing(() -> runWithProvider(factoryFrom(props::get))
                         .lasting(duration::get, unit::get)
                         .maxOpsPerSec(maxOpsPerSec::get)
                         .maxPendingOps(maxPendingOps::get)

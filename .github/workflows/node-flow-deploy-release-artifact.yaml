@@ -1,5 +1,5 @@
 ##
-# Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+# Copyright (C) 2022-2025 Hedera Hashgraph, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,24 +17,37 @@
 name: "ZXF: Deploy Production Release"
 on:
   push:
-    branches:
-      - develop
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+-?*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+        description: "The github branch or tag that triggered the workflow"
 
 defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
 jobs:
   prepare-tag-release:
     name: Prepare Release [Tag]
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Install Semantic Version Tools
         run: |
           echo "::group::Download SemVer Binary"
@@ -61,23 +74,6 @@ jobs:
           echo "version=${FINAL_VERSION}" >>"${GITHUB_OUTPUT}"
           echo "prerelease=${PRERELEASE_FLAG}" >>"${GITHUB_OUTPUT}"
 
-      - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-
-      - name: Verify HAPI version
-        run: |
-          TAG_MAJOR="$(semver get major "${{ github.ref_name }}")"
-          TAG_MINOR="$(semver get minor "${{ github.ref_name }}")"
-          HAPI_VERSION=$(grep "val hapiProtoVersion = " settings.gradle.kts | sed -E 's/.+ = "(.+)"/\1/')
-          HAPI_MAJOR="$(semver get major ${HAPI_VERSION})"
-          HAPI_MINOR="$(semver get minor ${HAPI_VERSION})"
-          if [[ "${TAG_MAJOR}" != "${HAPI_MAJOR}" || "${TAG_MINOR}" != "${HAPI_MINOR}" ]]; then
-             echo "::error title=HAPI Version Mismatch::The tag version (${TAG_MAJOR}.${TAG_MINOR}) does not match the hapiProtoVersion (${HAPI_MAJOR}.${HAPI_MINOR}) specified in settings.gradle.kts"
-             exit 1
-          else
-             echo "The tag version (${TAG_MAJOR}.${TAG_MINOR}) matches the hapiProtoVersion (${HAPI_MAJOR}.${HAPI_MINOR}) specified in settings.gradle.kts"
-          fi
-
   release-tag:
     name: Release [Tag]
     uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
@@ -101,7 +97,6 @@ jobs:
       sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
       sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
       slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
-      jenkins-integration-url: ${{ secrets.RELEASE_JENKINS_INTEGRATION_URL }}
       jf-url: ${{ vars.JF_URL }}
       jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
       jf-user-name: ${{ vars.JF_USER_NAME }}
@@ -110,7 +105,7 @@ jobs:
   release-branch:
     name: Release [Branch]
     uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
-    if: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     with:
       version-policy: branch-commit
       trigger-env-deploy: integration
@@ -128,8 +123,126 @@ jobs:
       sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
       sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
       slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
-      jenkins-integration-url: ${{ secrets.RELEASE_JENKINS_INTEGRATION_URL }}
       jf-url: ${{ vars.JF_URL }}
       jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
       jf-user-name: ${{ vars.JF_USER_NAME }}
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
+
+  deploy-ci-trigger:
+    name: Trigger CI Flows
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - release-branch
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: main
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Check Prep XTS Job State
+        id: check-xts-job
+        if: ${{ needs.release-branch.result == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JOB_ENABLED="true"
+          JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="ZXF: Prepare Extended Test Suite")|.state')
+          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
+          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
+
+      - name: Trigger ZXF Prepare Extended Test Suite
+        if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
+        uses: step-security/workflow-dispatch@4d1049025980f72b1327cbfdeecb07fe7a20f577 # v1.2.4
+        with:
+          workflow: .github/workflows/zxf-prepare-extended-test-suite.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{ "ref": "${{ inputs.ref }}" }'
+
+      - name: Check Integration Job State
+        id: check-integration-job
+        if: ${{ needs.release-branch.result == 'success' && !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JOB_ENABLED="true"
+          JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="ZXF: [Node] Deploy Integration Network Release")|.state')
+          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
+          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
+
+      - name: Trigger ZXF Deploy Integration
+        if: ${{ needs.release-branch.result == 'success' && steps.check-integration-job.outputs.enabled == 'true' && !cancelled() }}
+        uses: step-security/workflow-dispatch@4d1049025980f72b1327cbfdeecb07fe7a20f577 # v1.2.4
+        with:
+          workflow: .github/workflows/node-zxf-deploy-integration.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ inputs.ref }}"
+            }'
+
+  update-hedera-protobufs:
+    name: Update Hedera Protobufs
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - prepare-tag-release
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout Hedera Services Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          ref: main
+          fetch-depth: "0"
+
+      - name: Checkout Hedera Protobufs Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.PROTOBUFS_GH_ACCESS_TOKEN }}
+          fetch-depth: "0"
+          repository: hashgraph/hedera-protobufs
+          path: hedera-protobufs
+
+      - name: Install rsync
+        run: sudo apt update && sudo apt -y install rsync
+
+      - name: Update the folders owned by Services
+        working-directory: hedera-protobufs
+        run: |
+          git push --delete origin v${{ needs.prepare-tag-release.outputs.version }} || true
+          git tag --delete v${{ needs.prepare-tag-release.outputs.version }} || true
+          rsync -a --delete ../hapi/hedera-protobufs/services/ services/
+
+      - name: Import GPG key for commit signoff
+        id: gpg_import
+        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        with:
+          gpg_private_key: ${{ secrets.PROTOBUFS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.PROTOBUFS_GPG_KEY_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+
+      - name: Add & Commit
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
+        with:
+          cwd: "hedera-protobufs"
+          author_name: swirlds-eng-automation
+          author_email: ${{ secrets.PROTOBUFS_GPG_USER_EMAIL }}
+          commit: --signoff
+          message: "ci: Copied recent protobuf changes from hedera-services"
+          new_branch: "update-recent-protobuf-changes-${{ github.run_number }}"
+          tag: 'v${{ needs.prepare-tag-release.outputs.version }} -s -m "Hedera Protobufs v${{ needs.prepare-tag-release.outputs.version }}" -u "${{ steps.gpg_import.outputs.keyid }}"'

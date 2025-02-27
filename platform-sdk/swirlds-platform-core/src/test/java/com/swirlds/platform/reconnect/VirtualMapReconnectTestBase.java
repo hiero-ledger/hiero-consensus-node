@@ -1,25 +1,12 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
@@ -35,12 +22,15 @@ import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.serialize.KeySerializer;
+import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -77,6 +67,9 @@ public abstract class VirtualMapReconnectTestBase {
     protected static final TestValue FOX = new TestValue("FOX");
     protected static final TestValue GOOSE = new TestValue("GOOSE");
 
+    protected static final KeySerializer<TestKey> KEY_SERIALIZER = new TestKeySerializer();
+    protected static final ValueSerializer<TestValue> VALUE_SERIALIZER = new TestValueSerializer();
+
     protected VirtualMap<TestKey, TestValue> teacherMap;
     protected VirtualMap<TestKey, TestValue> learnerMap;
     protected BrokenBuilder teacherBuilder;
@@ -89,18 +82,18 @@ public abstract class VirtualMapReconnectTestBase {
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
 
-    protected abstract VirtualDataSourceBuilder<TestKey, TestValue> createBuilder() throws IOException;
+    protected abstract VirtualDataSourceBuilder createBuilder() throws IOException;
 
     @BeforeEach
     void setupEach() throws Exception {
         // Some tests set custom default VirtualMap settings, e.g. StreamEventParserTest calls
         // Browser.populateSettingsCommon(). These custom settings can't be used to run VM reconnect
         // tests. As a workaround, set default settings here explicitly
-        final VirtualDataSourceBuilder<TestKey, TestValue> dataSourceBuilder = createBuilder();
+        final VirtualDataSourceBuilder dataSourceBuilder = createBuilder();
         teacherBuilder = new BrokenBuilder(dataSourceBuilder);
         learnerBuilder = new BrokenBuilder(dataSourceBuilder);
-        teacherMap = new VirtualMap<>("Teacher", teacherBuilder);
-        learnerMap = new VirtualMap<>("Learner", learnerBuilder);
+        teacherMap = new VirtualMap<>("Teacher", KEY_SERIALIZER, VALUE_SERIALIZER, teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap<>("Learner", KEY_SERIALIZER, VALUE_SERIALIZER, learnerBuilder, CONFIGURATION);
     }
 
     @BeforeAll
@@ -108,13 +101,13 @@ public abstract class VirtualMapReconnectTestBase {
         loadLog4jContext();
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualLeafRecord.class, VirtualLeafRecord::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, VirtualMap::new));
+        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
         registry.registerConstructable(new ClassConstructorPair(VirtualMapState.class, VirtualMapState::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualRootNode.class, VirtualRootNode::new));
+        registry.registerConstructable(new ClassConstructorPair(
+                VirtualRootNode.class,
+                () -> new VirtualRootNode<>(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
         registry.registerConstructable(new ClassConstructorPair(TestKey.class, TestKey::new));
         registry.registerConstructable(new ClassConstructorPair(TestValue.class, TestValue::new));
         registry.registerConstructable(new ClassConstructorPair(BrokenBuilder.class, BrokenBuilder::new));
@@ -155,10 +148,10 @@ public abstract class VirtualMapReconnectTestBase {
         }
     }
 
-    protected static final class BrokenBuilder implements VirtualDataSourceBuilder<TestKey, TestValue> {
+    protected static final class BrokenBuilder implements VirtualDataSourceBuilder {
 
         private static final long CLASS_ID = 0x5a79654cd0f96dcfL;
-        private VirtualDataSourceBuilder<TestKey, TestValue> delegate;
+        private VirtualDataSourceBuilder delegate;
         private int numCallsBeforeThrow = Integer.MAX_VALUE;
         private int numCalls = 0;
         private int numTimesToBreak = 0;
@@ -166,7 +159,7 @@ public abstract class VirtualMapReconnectTestBase {
 
         public BrokenBuilder() {}
 
-        public BrokenBuilder(VirtualDataSourceBuilder<TestKey, TestValue> delegate) {
+        public BrokenBuilder(VirtualDataSourceBuilder delegate) {
             this.delegate = delegate;
         }
 
@@ -205,13 +198,13 @@ public abstract class VirtualMapReconnectTestBase {
 
         @Override
         public BreakableDataSource copy(
-                final VirtualDataSource<TestKey, TestValue> snapshotMe, final boolean makeCopyActive) {
+                final VirtualDataSource snapshotMe, final boolean makeCopyActive, final boolean offlineUse) {
             final var breakableSnapshot = (BreakableDataSource) snapshotMe;
-            return new BreakableDataSource(this, delegate.copy(breakableSnapshot.delegate, makeCopyActive));
+            return new BreakableDataSource(this, delegate.copy(breakableSnapshot.delegate, makeCopyActive, offlineUse));
         }
 
         @Override
-        public void snapshot(final Path destination, final VirtualDataSource<TestKey, TestValue> snapshotMe) {
+        public void snapshot(final Path destination, final VirtualDataSource snapshotMe) {
             final var breakableSnapshot = (BreakableDataSource) snapshotMe;
             delegate.snapshot(destination, breakableSnapshot.delegate);
         }
@@ -230,11 +223,12 @@ public abstract class VirtualMapReconnectTestBase {
         }
     }
 
-    protected static final class BreakableDataSource implements VirtualDataSource<TestKey, TestValue> {
-        private final VirtualDataSource<TestKey, TestValue> delegate;
+    protected static final class BreakableDataSource implements VirtualDataSource {
+
+        private final VirtualDataSource delegate;
         private final BrokenBuilder builder;
 
-        public BreakableDataSource(final BrokenBuilder builder, final VirtualDataSource<TestKey, TestValue> delegate) {
+        public BreakableDataSource(final BrokenBuilder builder, final VirtualDataSource delegate) {
             this.delegate = Objects.requireNonNull(delegate);
             this.builder = Objects.requireNonNull(builder);
         }
@@ -244,11 +238,11 @@ public abstract class VirtualMapReconnectTestBase {
                 final long firstLeafPath,
                 final long lastLeafPath,
                 @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-                @NonNull final Stream<VirtualLeafRecord<TestKey, TestValue>> leafRecordsToAddOrUpdate,
-                @NonNull final Stream<VirtualLeafRecord<TestKey, TestValue>> leafRecordsToDelete,
+                @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
                 final boolean isReconnectContext)
                 throws IOException {
-            final List<VirtualLeafRecord<TestKey, TestValue>> leaves = leafRecordsToAddOrUpdate.toList();
+            final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.toList();
 
             if (builder.numTimesBroken < builder.numTimesToBreak) {
                 builder.numCalls += leaves.size();
@@ -261,27 +255,32 @@ public abstract class VirtualMapReconnectTestBase {
             }
 
             delegate.saveRecords(
-                    firstLeafPath, lastLeafPath, pathHashRecordsToUpdate, leaves.stream(), leafRecordsToDelete);
+                    firstLeafPath,
+                    lastLeafPath,
+                    pathHashRecordsToUpdate,
+                    leaves.stream(),
+                    leafRecordsToDelete,
+                    isReconnectContext);
         }
 
         @Override
-        public void close() throws IOException {
-            delegate.close();
+        public void close(final boolean keepData) throws IOException {
+            delegate.close(keepData);
         }
 
         @Override
-        public VirtualLeafRecord<TestKey, TestValue> loadLeafRecord(final TestKey key) throws IOException {
-            return delegate.loadLeafRecord(key);
+        public VirtualLeafBytes loadLeafRecord(final Bytes key, final int keyHashCode) throws IOException {
+            return delegate.loadLeafRecord(key, keyHashCode);
         }
 
         @Override
-        public VirtualLeafRecord<TestKey, TestValue> loadLeafRecord(final long path) throws IOException {
+        public VirtualLeafBytes loadLeafRecord(final long path) throws IOException {
             return delegate.loadLeafRecord(path);
         }
 
         @Override
-        public long findKey(final TestKey key) throws IOException {
-            return delegate.findKey(key);
+        public long findKey(final Bytes key, final int keyHashCode) throws IOException {
+            return delegate.findKey(key, keyHashCode);
         }
 
         @Override
@@ -295,18 +294,13 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public void copyStatisticsFrom(final VirtualDataSource<TestKey, TestValue> that) {
+        public void copyStatisticsFrom(final VirtualDataSource that) {
             delegate.copyStatisticsFrom(that);
         }
 
         @Override
         public void registerMetrics(final Metrics metrics) {
             delegate.registerMetrics(metrics);
-        }
-
-        @Override
-        public long estimatedSize(final long dirtyInternals, final long dirtyLeaves) {
-            return delegate.estimatedSize(dirtyInternals, dirtyLeaves);
         }
 
         @Override
@@ -327,6 +321,18 @@ public abstract class VirtualMapReconnectTestBase {
         @Override
         public void stopAndDisableBackgroundCompaction() {
             delegate.stopAndDisableBackgroundCompaction();
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public KeySerializer getKeySerializer() {
+            throw new UnsupportedOperationException("This method should never be called");
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public ValueSerializer getValueSerializer() {
+            throw new UnsupportedOperationException("This method should never be called");
         }
     }
 }

@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -43,34 +29,43 @@ public class TokenMintTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder, sidecarRecords, involvedTokenId) -> {
+        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
                 final var op = parts.body().tokenMintOrThrow();
                 final var tokenId = op.tokenOrThrow();
                 final var numMints = op.metadata().size();
-                final var mintedSerialNos = baseTranslator.nextNMints(tokenId, numMints);
-                final var iter = remainingStateChanges.listIterator();
-                while (iter.hasNext()) {
-                    final var stateChange = iter.next();
-                    if (stateChange.hasMapUpdate()
-                            && stateChange.mapUpdateOrThrow().keyOrThrow().hasNftIdKey()) {
-                        final var nftId =
-                                stateChange.mapUpdateOrThrow().keyOrThrow().nftIdKeyOrThrow();
-                        if (!nftId.tokenIdOrThrow().equals(tokenId)) {
-                            continue;
-                        }
-                        final var serialNo = nftId.serialNumber();
-                        if (mintedSerialNos.remove(serialNo)) {
-                            iter.remove();
-                            if (mintedSerialNos.isEmpty()) {
-                                return;
+                if (numMints > 0 && baseTranslator.tokenTypeOrThrow(tokenId) == NON_FUNGIBLE_UNIQUE) {
+                    final var mintedSerialNos = baseTranslator.nextNMints(tokenId, numMints);
+                    receiptBuilder.serialNumbers(List.copyOf(mintedSerialNos));
+                    final var iter = remainingStateChanges.listIterator();
+                    while (iter.hasNext()) {
+                        final var stateChange = iter.next();
+                        if (stateChange.hasMapUpdate()
+                                && stateChange.mapUpdateOrThrow().keyOrThrow().hasNftIdKey()) {
+                            final var nftId =
+                                    stateChange.mapUpdateOrThrow().keyOrThrow().nftIdKeyOrThrow();
+                            if (!nftId.tokenIdOrThrow().equals(tokenId)) {
+                                continue;
+                            }
+                            final var serialNo = nftId.serialNumber();
+                            if (mintedSerialNos.remove(serialNo)) {
+                                iter.remove();
+                                if (mintedSerialNos.isEmpty()) {
+                                    final var newTotalSupply = baseTranslator.newTotalSupply(tokenId, numMints);
+                                    receiptBuilder.newTotalSupply(newTotalSupply);
+                                    return;
+                                }
                             }
                         }
                     }
+                    log.error(
+                            "Not all mints had matching state changes found for successful mint with id {}",
+                            parts.transactionIdOrThrow());
+                } else {
+                    final var amountMinted = op.amount();
+                    final var newTotalSupply = baseTranslator.newTotalSupply(tokenId, amountMinted);
+                    receiptBuilder.newTotalSupply(newTotalSupply);
                 }
-                log.error(
-                        "Not all mints had matching state changes found for successful mint with id {}",
-                        parts.transactionIdOrThrow());
             }
         });
     }

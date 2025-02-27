@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
@@ -40,7 +25,7 @@ import java.util.Map;
  * The resolved forms are stored in TransferContext and then used in the rest of the transfer logic.
  */
 public class EnsureAliasesStep implements TransferStep {
-    final CryptoTransferTransactionBody op;
+    private final CryptoTransferTransactionBody op;
 
     /**
      * Temporary token transfer resolutions map containing the token transfers to alias, is needed to check if
@@ -178,7 +163,7 @@ public class EnsureAliasesStep implements TransferStep {
     }
 
     /**
-     * Check if the given accountID is an alias
+     * Check if the given accountID is an alias.
      * @param accountID the accountID to check
      * @return true if the accountID is an alias, false otherwise
      */

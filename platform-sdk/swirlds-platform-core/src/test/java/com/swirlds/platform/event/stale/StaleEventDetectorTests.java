@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.stale;
 
 import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
@@ -22,20 +7,19 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.wiring.transformers.RoutableData;
+import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig_;
-import com.swirlds.platform.gossip.shadowgraph.Generations;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -104,7 +88,7 @@ class StaleEventDetectorTests {
     @Test
     void throwIfInitialEventWindowNotSetTest() {
         final Randotron randotron = Randotron.create();
-        final NodeId selfId = new NodeId(randotron.nextPositiveLong());
+        final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
@@ -122,7 +106,7 @@ class StaleEventDetectorTests {
     @Test
     void eventIsStaleBeforeAddedTest() {
         final Randotron randotron = Randotron.create();
-        final NodeId selfId = new NodeId(randotron.nextPositiveLong());
+        final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
@@ -171,20 +155,13 @@ class StaleEventDetectorTests {
                 randotron.nextPositiveLong(), ancientThreshold, randotron.nextPositiveLong(), BIRTH_ROUND_THRESHOLD);
 
         return new ConsensusRound(
-                mock(AddressBook.class),
-                events,
-                mock(PlatformEvent.class),
-                mock(Generations.class),
-                eventWindow,
-                mock(ConsensusSnapshot.class),
-                false,
-                Instant.now());
+                mock(Roster.class), events, eventWindow, mock(ConsensusSnapshot.class), false, Instant.now());
     }
 
     @Test
     void randomEventsTest() {
         final Randotron randotron = Randotron.create();
-        final NodeId selfId = new NodeId(randotron.nextPositiveLong());
+        final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
@@ -207,7 +184,7 @@ class StaleEventDetectorTests {
 
         for (int i = 0; i < 10_000; i++) {
             final boolean selfEvent = randotron.nextBoolean(0.25);
-            final NodeId eventCreator = selfEvent ? selfId : new NodeId(randotron.nextPositiveLong());
+            final NodeId eventCreator = selfEvent ? selfId : NodeId.of(randotron.nextPositiveLong());
 
             final TestingEventBuilder eventBuilder = new TestingEventBuilder(randotron).setCreatorId(eventCreator);
 
@@ -263,7 +240,7 @@ class StaleEventDetectorTests {
     @Test
     void clearTest() {
         final Randotron randotron = Randotron.create();
-        final NodeId selfId = new NodeId(randotron.nextPositiveLong());
+        final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)

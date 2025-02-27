@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static java.util.Objects.requireNonNull;
@@ -46,12 +31,12 @@ public final class UnzipUtility {
     private static final int THRESHOLD_ZIP_SIZE = 1000000000; // 1 GB - max allowed total size of all uncompressed files
     private static final int THRESHOLD_ENTRY_SIZE = 100000000; // 100 MB - max allowed size of one uncompressed file
     // max allowed ratio between uncompressed and compressed file size
-    private static final double THRESHOLD_RATIO = 10;
+    private static final double THRESHOLD_RATIO = 100;
 
     private UnzipUtility() {}
 
     /**
-     * Extracts (unzips) a zipped file from a byte array
+     * Extracts (unzips) a zipped file from a byte array.
      * @param bytes the byte array containing the zipped file
      * @param dstDir the destination directory to extract the unzipped file to
      * @throws IOException if the destination does not exist and can't be created, or if the file can't be written
@@ -93,7 +78,7 @@ public final class UnzipUtility {
                     }
                     log.info(" - Extracted update file {}", filePath);
                 } else {
-                    if (!fileOrDir.mkdirs()) {
+                    if (!fileOrDir.exists() && !fileOrDir.mkdirs()) {
                         throw new IOException("Unable to create assets sub-directory: " + fileOrDir);
                     }
                     log.info(" - Created assets sub-directory {}", fileOrDir);
@@ -105,7 +90,7 @@ public final class UnzipUtility {
     }
 
     /**
-     * Extracts a zip entry (file entry)
+     * Extracts a zip entry (file entry).
      *
      * @param inputStream Input stream of zip file content
      * @param filePath Output file name

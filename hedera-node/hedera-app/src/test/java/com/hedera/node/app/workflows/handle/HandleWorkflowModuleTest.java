@@ -1,24 +1,18 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.base.ServiceEndpoint;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.hints.handlers.CrsPublicationHandler;
+import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.hints.handlers.HintsKeyPublicationHandler;
+import com.hedera.node.app.hints.handlers.HintsPartialSignatureHandler;
+import com.hedera.node.app.hints.handlers.HintsPreprocessingVoteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
@@ -77,8 +71,11 @@ import com.hedera.node.app.service.token.impl.handlers.TokenUpdateHandler;
 import com.hedera.node.app.service.util.impl.handlers.UtilHandlers;
 import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import com.hedera.node.app.workflows.dispatcher.TransactionHandlers;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -107,6 +104,18 @@ class HandleWorkflowModuleTest {
 
     @Mock
     private AddressBookHandlers addressBookHandlers;
+
+    @Mock
+    private HintsPreprocessingVoteHandler preprocessingVoteHandler;
+
+    @Mock
+    private HintsPartialSignatureHandler partialSignatureHandler;
+
+    @Mock
+    private HintsKeyPublicationHandler hintsKeyPublicationHandler;
+
+    @Mock
+    private CrsPublicationHandler crsPublicationHandler;
 
     @Mock
     private ConsensusCreateTopicHandler consensusCreateTopicHandler;
@@ -255,6 +264,23 @@ class HandleWorkflowModuleTest {
     @Mock
     private UtilPrngHandler utilPrngHandler;
 
+    @Mock
+    private HintsKeyPublicationHandler keyPublicationHandler;
+
+    @TempDir
+    java.nio.file.Path tempDir;
+
+    @Test
+    void exportsRosterToGivenPath() {
+        final var path = tempDir.resolve("network.json");
+        final var roster = new Roster(List.of(
+                new RosterEntry(1L, 2L, Bytes.EMPTY, List.of(new ServiceEndpoint(Bytes.EMPTY, 8080, "localhost")))));
+
+        HandleWorkflowModule.provideRosterExportHelper().accept(roster, path);
+
+        assertThat(path).exists();
+    }
+
     @Test
     void usesComponentsToGetHandlers() {
         given(consensusHandlers.consensusCreateTopicHandler()).willReturn(consensusCreateTopicHandler);
@@ -307,6 +333,8 @@ class HandleWorkflowModuleTest {
         given(addressBookHandlers.nodeDeleteHandler()).willReturn(nodeDeleteHandler);
         given(addressBookHandlers.nodeUpdateHandler()).willReturn(nodeUpdateHandler);
 
+        final var hintsHandlers = new HintsHandlers(
+                hintsKeyPublicationHandler, preprocessingVoteHandler, partialSignatureHandler, crsPublicationHandler);
         final var handlers = HandleWorkflowModule.provideTransactionHandlers(
                 networkAdminHandlers,
                 consensusHandlers,
@@ -315,7 +343,8 @@ class HandleWorkflowModuleTest {
                 scheduleHandlers,
                 tokenHandlers,
                 utilHandlers,
-                addressBookHandlers);
+                addressBookHandlers,
+                hintsHandlers);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }

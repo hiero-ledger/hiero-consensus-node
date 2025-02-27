@@ -1,25 +1,9 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.schemas;
 
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EQUALITY_KEY;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EXPIRY_SEC_KEY;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.ScheduleID;
@@ -28,16 +12,12 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduleList;
-import com.hedera.node.app.spi.fixtures.state.MapWritableStates;
-import com.swirlds.state.spi.MigrationContext;
-import com.swirlds.state.spi.StateDefinition;
-import com.swirlds.state.spi.WritableStates;
-import com.swirlds.state.test.fixtures.MapWritableKVState;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.StateDefinition;
 import java.util.Comparator;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.BDDMockito;
 
 class V0490ScheduleSchemaTest {
 
@@ -90,61 +70,5 @@ class V0490ScheduleSchemaTest {
     @Test
     void restartHappyPath() {
         Assertions.assertThatNoException().isThrownBy(() -> subject.restart(mock(MigrationContext.class)));
-    }
-
-    private WritableStates newEmptySchedulesWritableStates() {
-        final var writableStates = MapWritableStates.builder()
-                .state(new MapWritableKVState<>(SCHEDULES_BY_ID_KEY))
-                .state(new MapWritableKVState<>(SCHEDULES_BY_EQUALITY_KEY))
-                .state(new MapWritableKVState<>(SCHEDULES_BY_EXPIRY_SEC_KEY))
-                .build();
-        verifyEmptyById(writableStates);
-        verifyEmptyByExpiry(writableStates);
-        verifyEmptyByEquality(writableStates);
-
-        return writableStates;
-    }
-
-    private MigrationContext newMockCtx(final WritableStates ws) {
-        final var ctx = mock(MigrationContext.class);
-        BDDMockito.given(ctx.newStates()).willReturn(ws);
-        return ctx;
-    }
-
-    private void verifyEmptyById(final WritableStates actual) {
-        verifyEmptyScheduleState(SCHEDULES_BY_ID_KEY, actual);
-    }
-
-    private void verifyEmptyByExpiry(final WritableStates actual) {
-        verifyEmptyScheduleState(SCHEDULES_BY_EXPIRY_SEC_KEY, actual);
-    }
-
-    private void verifyEmptyByEquality(final WritableStates actual) {
-        verifyEmptyScheduleState(SCHEDULES_BY_EQUALITY_KEY, actual);
-    }
-
-    private void verifyEmptyScheduleState(final String scheduleStateKey, final WritableStates actual) {
-        assertThat(actual.get(scheduleStateKey).size()).isZero();
-    }
-
-    private void verifyNonEmptyById(final WritableStates actual) {
-        verifyNonEmptyScheduleState(SCHEDULES_BY_ID_KEY, actual);
-    }
-
-    private void verifyNonEmptyByExpiry(final WritableStates actual) {
-        verifyNonEmptyScheduleState(SCHEDULES_BY_EXPIRY_SEC_KEY, actual);
-    }
-
-    private void verifyNonEmptyByEquality(final WritableStates actual) {
-        verifyNonEmptyScheduleState(SCHEDULES_BY_EQUALITY_KEY, actual);
-    }
-
-    private void verifyNonEmptyScheduleState(final String scheduleStateKey, final WritableStates actual) {
-        // Note: we're not worried so much about a correct entity migration; just that the entity migration happened
-        final var scheduleKey = actual.get(scheduleStateKey).keys().next();
-        assertThat(scheduleKey).isNotNull();
-        final var scheduleVal = actual.get(scheduleStateKey).get(scheduleKey);
-        assertThat(scheduleVal).isNotNull();
-        assertThat(actual.get(scheduleStateKey).size()).isEqualTo(1);
     }
 }

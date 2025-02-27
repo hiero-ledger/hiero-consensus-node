@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.RunningEventHashOverride;
@@ -26,16 +12,19 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.validation.AddressBookUpdate;
+import com.swirlds.platform.event.validation.RosterUpdate;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
+import com.swirlds.platform.roster.RosterRetriever;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.address.AddressBookUtils;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -57,7 +46,9 @@ public class ReconnectStateLoader {
     private final SwirldStateManager swirldStateManager;
     private final SignedStateNexus latestImmutableStateNexus;
     private final SavedStateController savedStateController;
-    private final AddressBook addressBook;
+    private final Roster roster;
+    private final StateLifecycles stateLifecycles;
+    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Constructor.
@@ -68,7 +59,8 @@ public class ReconnectStateLoader {
      * @param swirldStateManager        manages the mutable state
      * @param latestImmutableStateNexus holds the latest immutable state
      * @param savedStateController      manages how states are saved
-     * @param addressBook               the address book
+     * @param roster                    the current roster
+     * @param stateLifecycles           state lifecycle event handler
      */
     public ReconnectStateLoader(
             @NonNull final Platform platform,
@@ -77,14 +69,18 @@ public class ReconnectStateLoader {
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final SavedStateController savedStateController,
-            @NonNull final AddressBook addressBook) {
+            @NonNull final Roster roster,
+            @NonNull final StateLifecycles stateLifecycles,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.platform = Objects.requireNonNull(platform);
         this.platformContext = Objects.requireNonNull(platformContext);
         this.platformWiring = Objects.requireNonNull(platformWiring);
         this.swirldStateManager = Objects.requireNonNull(swirldStateManager);
         this.latestImmutableStateNexus = Objects.requireNonNull(latestImmutableStateNexus);
         this.savedStateController = Objects.requireNonNull(savedStateController);
-        this.addressBook = Objects.requireNonNull(addressBook);
+        this.roster = Objects.requireNonNull(roster);
+        this.stateLifecycles = stateLifecycles;
+        this.platformStateFacade = platformStateFacade;
     }
 
     /**
@@ -102,12 +98,11 @@ public class ReconnectStateLoader {
             // It's important to call init() before loading the signed state. The loading process makes copies
             // of the state, and we want to be sure that the first state in the chain of copies has been initialized.
             final Hash reconnectHash = signedState.getState().getHash();
-            signedState
-                    .getSwirldState()
-                    .init(
-                            platform,
-                            InitTrigger.RECONNECT,
-                            signedState.getState().getPlatformState().getCreationSoftwareVersion());
+            final MerkleNodeState state = signedState.getState();
+            final SoftwareVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
+            signedState.init(platformContext);
+            stateLifecycles.onStateInitialized(state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
+
             if (!Objects.equals(signedState.getState().getHash(), reconnectHash)) {
                 throw new IllegalStateException(
                         "State hash is not permitted to change during a reconnect init() call. Previous hash was "
@@ -115,8 +110,13 @@ public class ReconnectStateLoader {
                                 + signedState.getState().getHash());
             }
 
-            // Before attempting to load the state, verify that the platform AB matches the state AB.
-            AddressBookUtils.verifyReconnectAddressBooks(addressBook, signedState.getAddressBook());
+            // Before attempting to load the state, verify that the platform roster matches the state roster.
+            final Roster stateRoster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
+            if (!roster.equals(stateRoster)) {
+                throw new IllegalStateException("Current roster and state-based roster do not contain the same nodes "
+                        + " (currentRoster=" + Roster.JSON.toJSON(roster) + ") (stateRoster="
+                        + Roster.JSON.toJSON(stateRoster) + ")");
+            }
 
             swirldStateManager.loadFromSignedState(signedState);
             // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
@@ -135,14 +135,11 @@ public class ReconnectStateLoader {
             platformWiring
                     .getSignatureCollectorStateInput()
                     .put(signedState.reserve("loading reconnect state into sig collector"));
-            platformWiring.consensusSnapshotOverride(Objects.requireNonNull(
-                    signedState.getState().getPlatformState().getSnapshot()));
+            platformWiring.consensusSnapshotOverride(
+                    Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(state)));
 
-            platformWiring
-                    .getAddressBookUpdateInput()
-                    .inject(new AddressBookUpdate(
-                            signedState.getState().getPlatformState().getPreviousAddressBook(),
-                            signedState.getState().getPlatformState().getAddressBook()));
+            final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state, platformStateFacade);
+            platformWiring.getRosterUpdateInput().inject(new RosterUpdate(previousRoster, roster));
 
             final AncientMode ancientMode = platformContext
                     .getConfiguration()
@@ -151,12 +148,12 @@ public class ReconnectStateLoader {
 
             platformWiring.updateEventWindow(new EventWindow(
                     signedState.getRound(),
-                    signedState.getState().getPlatformState().getAncientThreshold(),
-                    signedState.getState().getPlatformState().getAncientThreshold(),
+                    platformStateFacade.ancientThresholdOf(state),
+                    platformStateFacade.ancientThresholdOf(state),
                     ancientMode));
 
-            final RunningEventHashOverride runningEventHashOverride = new RunningEventHashOverride(
-                    signedState.getState().getPlatformState().getLegacyRunningEventHash(), true);
+            final RunningEventHashOverride runningEventHashOverride =
+                    new RunningEventHashOverride(platformStateFacade.legacyRunningEventHashOf(state), true);
             platformWiring.updateRunningHash(runningEventHashOverride);
             platformWiring.getPcesWriterRegisterDiscontinuityInput().inject(signedState.getRound());
 
@@ -165,9 +162,7 @@ public class ReconnectStateLoader {
                     .getNotifierWiring()
                     .getInputWire(AppNotifier::sendReconnectCompleteNotification)
                     .put(new ReconnectCompleteNotification(
-                            signedState.getRound(),
-                            signedState.getConsensusTimestamp(),
-                            signedState.getState().getSwirldState()));
+                            signedState.getRound(), signedState.getConsensusTimestamp(), signedState.getState()));
 
         } catch (final RuntimeException e) {
             logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : FAILED, reason: {}", e.getMessage());

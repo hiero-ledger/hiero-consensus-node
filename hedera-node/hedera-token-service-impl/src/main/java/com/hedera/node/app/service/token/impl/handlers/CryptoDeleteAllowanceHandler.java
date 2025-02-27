@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
@@ -33,15 +17,16 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
+import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.DeleteAllowanceValidator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -50,6 +35,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -75,7 +61,9 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn);
         final var op = txn.cryptoDeleteAllowanceOrThrow();
         final var allowances = op.nftAllowances();
@@ -113,8 +101,8 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
 
         final var accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         // validate payer account exists
-        final var payerAccount = accountStore.getAccountById(payer);
-        validateTrue(payerAccount != null, INVALID_PAYER_ACCOUNT_ID);
+        final var payerAccount = TokenHandlerHelper.getIfUsable(
+                payer, accountStore, context.expiryValidator(), INVALID_PAYER_ACCOUNT_ID);
 
         // validate the transaction body fields that include state or configuration
         // We can use payerAccount for validations since it's not mutated in validateSemantics
@@ -180,9 +168,10 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
             final var owner = getEffectiveOwner(allowance.owner(), payerAccount, accountStore, expiryValidator);
             final var token = tokenStore.get(tokenId);
             for (final var serial : serialNums) {
-                final var nft = nftStore.get(tokenId, serial);
+                final var nftId =
+                        NftID.newBuilder().serialNumber(serial).tokenId(tokenId).build();
+                final var nft = TokenHandlerHelper.getIfUsable(nftId, nftStore);
 
-                validateTrue(nft != null, INVALID_NFT_ID);
                 final AccountID accountOwner = owner.accountId();
                 validateTrue(isValidOwner(nft, accountOwner, token), SENDER_DOES_NOT_OWN_NFT_SERIAL_NO);
 
@@ -219,8 +208,8 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(op.nftAllowances().size() * NFT_DELETE_ALLOWANCE_SIZE
-                        + countNftDeleteSerials(op.nftAllowances()) * LONG_SIZE)
+                .addBytesPerTransaction((long) op.nftAllowances().size() * NFT_DELETE_ALLOWANCE_SIZE
+                        + (long) countNftDeleteSerials(op.nftAllowances()) * LONG_SIZE)
                 .calculate();
     }
 

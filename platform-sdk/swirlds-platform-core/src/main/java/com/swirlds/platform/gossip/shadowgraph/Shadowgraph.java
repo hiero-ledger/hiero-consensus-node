@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -28,7 +13,6 @@ import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -117,12 +101,12 @@ public class Shadowgraph implements Clearable {
      * Constructor.
      *
      * @param platformContext    the platform context
-     * @param addressBook        the address book
+     * @param numberOfNodes      numberOfNodes
      * @param intakeEventCounter tracks events in the intake pipeline
      */
     public Shadowgraph(
             @NonNull final PlatformContext platformContext,
-            @NonNull final AddressBook addressBook,
+            @NonNull final int numberOfNodes,
             @NonNull final IntakeEventCounter intakeEventCounter) {
 
         ancientMode = platformContext
@@ -131,7 +115,7 @@ public class Shadowgraph implements Clearable {
                 .getAncientMode();
 
         this.metrics = new ShadowgraphMetrics(platformContext);
-        this.numberOfNodes = addressBook.getSize();
+        this.numberOfNodes = numberOfNodes;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         tips = new HashSet<>();
         hashToShadowEvent = new HashMap<>();
@@ -716,7 +700,7 @@ public class Shadowgraph implements Clearable {
             final boolean knownOP = shadow(otherParent) != null;
             final boolean expiredOP = expired(otherParent);
             if (!knownOP && !expiredOP) {
-                logger.warn(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
+                logger.info(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
             }
         }
 
@@ -724,7 +708,7 @@ public class Shadowgraph implements Clearable {
             final boolean knownSP = shadow(e.getSelfParent()) != null;
             final boolean expiredSP = expired(e.getSelfParent());
             if (!knownSP && !expiredSP) {
-                logger.warn(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
+                logger.info(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
             }
         }
 

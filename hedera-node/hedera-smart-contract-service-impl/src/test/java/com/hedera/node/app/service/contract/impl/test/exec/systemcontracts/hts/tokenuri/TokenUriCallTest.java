@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.tokenuri;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CIVILIAN_OWNED_NFT;
@@ -23,6 +8,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenuri.TokenUriCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenuri.TokenUriTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -46,7 +32,8 @@ class TokenUriCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenUriTranslator.TOKEN_URI
                         .getOutputs()
-                        .encodeElements(new String(CIVILIAN_OWNED_NFT.metadata().toByteArray()))
+                        .encode(Tuple.singleton(
+                                new String(CIVILIAN_OWNED_NFT.metadata().toByteArray())))
                         .array()),
                 result.getOutput());
     }
@@ -64,7 +51,7 @@ class TokenUriCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenUriTranslator.TOKEN_URI
                         .getOutputs()
-                        .encodeElements(TokenUriCall.URI_QUERY_NON_EXISTING_TOKEN_ERROR)
+                        .encode(Tuple.singleton(TokenUriCall.URI_QUERY_NON_EXISTING_TOKEN_ERROR))
                         .array()),
                 result.getOutput());
     }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.event.emitter;
 
 import com.swirlds.platform.internal.EventImpl;
@@ -23,11 +8,8 @@ import java.util.List;
 
 /**
  * Emits events from a graph created by a {@link GraphGenerator}.
- *
- * @param <T>
- * 		the type of class implementing this interface
  */
-public interface EventEmitter<T extends EventEmitter<T>> {
+public interface EventEmitter {
 
     /**
      * Emits an event from the graph, possibly in a different order than the events were created.
@@ -55,7 +37,7 @@ public interface EventEmitter<T extends EventEmitter<T>> {
      *
      * @return the graph generator
      */
-    GraphGenerator<?> getGraphGenerator();
+    GraphGenerator getGraphGenerator();
 
     /**
      * Get the total number of events that have been emitted by this generator.
@@ -82,7 +64,7 @@ public interface EventEmitter<T extends EventEmitter<T>> {
     /**
      * Returns a copy of this object as it was first created.
      */
-    T cleanCopy();
+    EventEmitter cleanCopy();
 
     /**
      * Get a clean copy but with a different seed.
@@ -90,7 +72,7 @@ public interface EventEmitter<T extends EventEmitter<T>> {
      * @param seed
      * 		The new seed to use.
      */
-    T cleanCopy(long seed);
+    EventEmitter cleanCopy(long seed);
 
     /**
      * Get an exact copy of this event emitter in its current state. The events emitted by this
@@ -100,8 +82,8 @@ public interface EventEmitter<T extends EventEmitter<T>> {
      * Note: if this emitter has emitted a large number of events, this method may be expensive. The copied
      * emitter needs to skip all events already emitted.
      */
-    default T copy() {
-        final T emitter = cleanCopy();
+    default EventEmitter copy() {
+        final EventEmitter emitter = cleanCopy();
         emitter.skip(getNumEventsEmitted());
         return emitter;
     }
@@ -117,13 +99,4 @@ public interface EventEmitter<T extends EventEmitter<T>> {
             emitEvent();
         }
     }
-
-    /**
-     * Creates a clean copy of the underlying {@link GraphGenerator} with the supplied seed, forcing it to create a
-     * different graph.
-     *
-     * @param seed
-     * 		the new seed to use
-     */
-    void setGraphGeneratorSeed(final long seed);
 }

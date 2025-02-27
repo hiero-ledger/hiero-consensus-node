@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
 import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
@@ -24,6 +9,7 @@ import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -224,26 +210,6 @@ public class Address implements SelfSerializable {
     @NonNull
     public String getSelfName() {
         return selfName;
-    }
-
-    /**
-     * Get local IP port
-     *
-     * @param a the Address object to be operated on
-     * @return port number
-     */
-    public int getConnectPort(Address a) {
-        return isLocalTo(a) ? getPortInternal() : getPortExternal();
-    }
-
-    /**
-     * Check whether a given Address has the same external address as mine.
-     *
-     * @param a Given Address to check.
-     * @return True if they are exactly the same.
-     */
-    public boolean isLocalTo(Address a) {
-        return Objects.equals(getHostnameExternal(), a.getHostnameExternal());
     }
 
     /**
@@ -457,16 +423,16 @@ public class Address implements SelfSerializable {
     }
 
     /**
-     * Create a new Address object based this one with different {@link X509Certificate} for signature.
+     * Create a new Address object based this one with different {@link X509Certificate} for signature.  If the
+     * certificate is not encodable, the field is set to null.
      *
      * @param sigCert New signing certificate for the created Address.
      * @return The new Address.
      */
     @NonNull
-    public Address copySetSigCert(@NonNull final X509Certificate sigCert) {
-        Objects.requireNonNull(sigCert, "sigCert must not be null");
-        Address a = copy();
-        a.sigCert = checkCertificateEncoding(new SerializableX509Certificate(sigCert));
+    public Address copySetSigCert(@Nullable final X509Certificate sigCert) {
+        final Address a = copy();
+        a.sigCert = sigCert == null ? null : checkCertificateEncoding(new SerializableX509Certificate(sigCert));
         return a;
     }
 
@@ -664,7 +630,7 @@ public class Address implements SelfSerializable {
     }
 
     /**
-     * Throws an illegal argument exception if the certificate exists and is not encodable.
+     * Checks if the certificate is encodable and returns it if it is, otherwise returns null.
      *
      * @param certificate the certificate to check.
      * @return the certificate if it is encodable.
@@ -675,12 +641,7 @@ public class Address implements SelfSerializable {
         if (certificate == null) {
             return null;
         }
-        try {
-            certificate.getCertificate().getEncoded();
-            return certificate;
-        } catch (CertificateEncodingException e) {
-            throw new IllegalArgumentException("Certificate is not encodable");
-        }
+        return CryptoStatic.checkCertificate(certificate.getCertificate()) ? certificate : null;
     }
 
     /**

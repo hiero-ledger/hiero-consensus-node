@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.scratchpad.internal;
 
 import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemporaryFile;
@@ -31,6 +16,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.locks.AutoClosableLock;
 import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.common.threading.locks.locked.Locked;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.scratchpad.ScratchpadType;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -82,6 +68,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
 
     private final Set<K> fields;
     private final String id;
+    private final Configuration configuration;
 
     private final Map<K, SelfSerializable> data = new HashMap<>();
     private final AutoClosableLock lock = Locks.createAutoLock();
@@ -106,7 +93,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             @NonNull final NodeId selfId,
             @NonNull final Class<K> clazz,
             @NonNull final String id) {
-
+        this.configuration = platformContext.getConfiguration();
         final StateCommonConfig stateConfig = platformContext.getConfiguration().getConfigData(StateCommonConfig.class);
         scratchpadDirectory = stateConfig
                 .savedStateDirectory()
@@ -281,7 +268,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
      */
     @NonNull
     private Path flushToTemporaryFile() throws IOException {
-        final Path temporaryFile = buildTemporaryFile();
+        final Path temporaryFile = buildTemporaryFile(configuration);
         try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile(), false)))) {
 

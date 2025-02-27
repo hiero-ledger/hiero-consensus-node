@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -24,17 +9,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.metrics.IssMetrics;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -75,19 +63,19 @@ class RoundHashValidatorTests {
      * Based on the desired network status, generate hashes for all nodes.
      *
      * @param random                a source of randomness
-     * @param addressBook           the address book for the round
+     * @param roster                the roster for the round
      * @param desiredValidityStatus the desired validity status
      * @return a list of node IDs in the order they should be added to the hash validator
      */
     static HashGenerationData generateNodeHashes(
             final Random random,
-            final AddressBook addressBook,
+            final Roster roster,
             final HashValidityStatus desiredValidityStatus,
             final long round) {
         if (desiredValidityStatus == HashValidityStatus.VALID || desiredValidityStatus == HashValidityStatus.SELF_ISS) {
-            return generateRegularNodeHashes(random, addressBook, round);
+            return generateRegularNodeHashes(random, roster, round);
         } else if (desiredValidityStatus == HashValidityStatus.CATASTROPHIC_ISS) {
-            return generateCatastrophicNodeHashes(random, addressBook, round);
+            return generateCatastrophicNodeHashes(random, roster, round);
         } else {
             throw new IllegalArgumentException("Unsupported case " + desiredValidityStatus);
         }
@@ -96,8 +84,7 @@ class RoundHashValidatorTests {
     /**
      * Generate node hashes without there being a catastrophic ISS.
      */
-    static HashGenerationData generateRegularNodeHashes(
-            final Random random, final AddressBook addressBook, final long round) {
+    static HashGenerationData generateRegularNodeHashes(final Random random, final Roster roster, final long round) {
 
         // Greater than 1/2 must have the same hash. But all other nodes are free to take whatever other hash
         // they want. Choose that fraction randomly.
@@ -105,10 +92,10 @@ class RoundHashValidatorTests {
         final List<NodeHashInfo> nodes = new LinkedList<>();
 
         final List<NodeId> randomNodeOrder = new LinkedList<>();
-        addressBook.iterator().forEachRemaining(address -> randomNodeOrder.add(address.getNodeId()));
+        roster.rosterEntries().forEach(node -> randomNodeOrder.add(NodeId.of(node.nodeId())));
         Collections.shuffle(randomNodeOrder, random);
 
-        final long totalWeight = addressBook.getTotalWeight();
+        final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
         // This is the hash we want to be chosen for the consensus hash.
         final Hash consensusHash = randomHash(random);
@@ -124,8 +111,9 @@ class RoundHashValidatorTests {
         final List<NodeId> randomHashNodes = new LinkedList<>();
 
         // Assign each node to one of the hashing strategies described above.
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeId nodeId : randomNodeOrder) {
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
 
             if (!MAJORITY.isSatisfiedBy(correctHashWeight, totalWeight)) {
                 correctHashNodes.add(nodeId);
@@ -146,7 +134,7 @@ class RoundHashValidatorTests {
 
         // Now, decide what order the hashes should be processed. Make sure that the
         // consensus hash is the first to reach a strong minority.
-        while (nodes.size() < addressBook.getSize()) {
+        while (nodes.size() < roster.rosterEntries().size()) {
             final double choice = random.nextDouble();
 
             allowedIterations--;
@@ -155,14 +143,14 @@ class RoundHashValidatorTests {
             if (choice < 1.0 / 3) {
                 if (!correctHashNodes.isEmpty()) {
                     final NodeId nodeId = correctHashNodes.remove(0);
-                    final long weight = addressBook.getAddress(nodeId).getWeight();
+                    final long weight = nodesById.get(nodeId.id()).weight();
                     nodes.add(new NodeHashInfo(nodeId, consensusHash, round));
                     correctHashWeight += weight;
                 }
             } else if (choice < 2.0 / 3) {
                 if (!otherHashNodes.isEmpty()) {
                     final NodeId nodeId = otherHashNodes.get(0);
-                    final long weight = addressBook.getAddress(nodeId).getWeight();
+                    final long weight = nodesById.get(nodeId.id()).weight();
 
                     if (MAJORITY.isSatisfiedBy(otherHashWeight + weight, totalWeight)) {
                         // We don't want to allow the other hash to accumulate >1/2
@@ -172,7 +160,7 @@ class RoundHashValidatorTests {
                     otherHashNodes.remove(0);
 
                     nodes.add(new NodeHashInfo(nodeId, otherHash, round));
-                    otherHashWeight += addressBook.getAddress(nodeId).getWeight();
+                    otherHashWeight += nodesById.get(nodeId.id()).weight();
                 }
             } else {
                 // The random hashes will never reach a majority, so they can go in whenever
@@ -190,24 +178,25 @@ class RoundHashValidatorTests {
      * Generate node hashes that result in a catastrophic ISS.
      */
     static HashGenerationData generateCatastrophicNodeHashes(
-            final Random random, final AddressBook addressBook, final long round) {
+            final Random random, final Roster roster, final long round) {
 
         // There should exist no group of nodes with the same hash that >1/2
 
         final List<NodeHashInfo> nodes = new ArrayList<>();
 
-        final long totalWeight = addressBook.getTotalWeight();
+        final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
         final List<NodeId> randomNodeOrder = new LinkedList<>();
-        addressBook.iterator().forEachRemaining(address -> randomNodeOrder.add(address.getNodeId()));
+        roster.rosterEntries().forEach(node -> randomNodeOrder.add(NodeId.of(node.nodeId())));
         Collections.shuffle(randomNodeOrder, random);
 
         // A large group of nodes may decide to use this hash. But it won't become the consensus hash.
         final Hash otherHash = randomHash(random);
         long otherHashWeight = 0;
 
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeId nodeId : randomNodeOrder) {
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
 
             final double choice = random.nextDouble();
             if (choice < 1.0 / 3 && !MAJORITY.isSatisfiedBy(otherHashWeight + weight, totalWeight)) {
@@ -260,24 +249,25 @@ class RoundHashValidatorTests {
     void selfSignatureLastTest(final HashValidityStatus expectedStatus) {
         final Random random = getRandomPrintSeed();
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
                 .withAverageWeight(100)
                 .withWeightStandardDeviation(50)
                 .build();
 
-        final HashGenerationData hashGenerationData = generateNodeHashes(random, addressBook, expectedStatus, 0);
+        final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
 
         final long round = random.nextInt(1000);
         final RoundHashValidator validator =
-                new RoundHashValidator(round, addressBook.getTotalWeight(), Mockito.mock(IssMetrics.class));
+                new RoundHashValidator(round, RosterUtils.computeTotalWeight(roster), Mockito.mock(IssMetrics.class));
 
         boolean decided = false;
 
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeHashInfo nodeHashInfo : hashGenerationData.nodeList) {
             final NodeId nodeId = nodeHashInfo.nodeId;
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
             final Hash hash = nodeHashInfo.nodeStateHash;
 
             final boolean operationCausedDecision = validator.reportHashFromNetwork(nodeId, weight, hash);
@@ -306,18 +296,18 @@ class RoundHashValidatorTests {
     void selfSignatureFirstTest(final HashValidityStatus expectedStatus) {
         final Random random = getRandomPrintSeed();
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
                 .withAverageWeight(100)
                 .withWeightStandardDeviation(50)
                 .build();
 
-        final HashGenerationData hashGenerationData = generateNodeHashes(random, addressBook, expectedStatus, 0);
+        final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
 
         final long round = random.nextInt(1000);
         final RoundHashValidator validator =
-                new RoundHashValidator(round, addressBook.getTotalWeight(), Mockito.mock(IssMetrics.class));
+                new RoundHashValidator(round, RosterUtils.computeTotalWeight(roster), Mockito.mock(IssMetrics.class));
 
         boolean decided = false;
 
@@ -325,9 +315,10 @@ class RoundHashValidatorTests {
                 validator.reportSelfHash(thisNode.nodeStateHash),
                 "we should need to gather more data before becoming decided");
 
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeHashInfo nodeHashInfo : hashGenerationData.nodeList) {
             final NodeId nodeId = nodeHashInfo.nodeId;
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
             final Hash hash = nodeHashInfo.nodeStateHash;
 
             final boolean operationCausedDecision = validator.reportHashFromNetwork(nodeId, weight, hash);
@@ -350,27 +341,28 @@ class RoundHashValidatorTests {
     void selfSignatureInMiddleTest(final HashValidityStatus expectedStatus) {
         final Random random = getRandomPrintSeed();
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
                 .withAverageWeight(100)
                 .withWeightStandardDeviation(50)
                 .build();
 
-        final HashGenerationData hashGenerationData = generateNodeHashes(random, addressBook, expectedStatus, 0);
+        final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
 
         final long round = random.nextInt(1000);
         final RoundHashValidator validator =
-                new RoundHashValidator(round, addressBook.getTotalWeight(), Mockito.mock(IssMetrics.class));
+                new RoundHashValidator(round, RosterUtils.computeTotalWeight(roster), Mockito.mock(IssMetrics.class));
 
         boolean decided = false;
 
-        final int addSelfHashIndex = random.nextInt(addressBook.getSize() - 1);
+        final int addSelfHashIndex = random.nextInt(roster.rosterEntries().size() - 1);
         int index = 0;
 
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeHashInfo nodeHashInfo : hashGenerationData.nodeList) {
             final NodeId nodeId = nodeHashInfo.nodeId;
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
             final Hash hash = nodeHashInfo.nodeStateHash;
 
             if (index == addSelfHashIndex) {
@@ -400,22 +392,22 @@ class RoundHashValidatorTests {
     void timeoutSelfHashTest() {
         final Random random = getRandomPrintSeed();
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
                 .withAverageWeight(100)
                 .withWeightStandardDeviation(50)
                 .build();
 
-        final HashGenerationData hashGenerationData =
-                generateNodeHashes(random, addressBook, HashValidityStatus.VALID, 0);
+        final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
 
         final long round = random.nextInt(1000);
         final RoundHashValidator validator =
-                new RoundHashValidator(round, addressBook.getTotalWeight(), Mockito.mock(IssMetrics.class));
+                new RoundHashValidator(round, RosterUtils.computeTotalWeight(roster), Mockito.mock(IssMetrics.class));
 
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeHashInfo nodeHashInfo : hashGenerationData.nodeList) {
             final NodeId nodeId = nodeHashInfo.nodeId;
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
             final Hash hash = nodeHashInfo.nodeStateHash;
 
             assertFalse(validator.reportHashFromNetwork(nodeId, weight, hash), "insufficient data to make decision");
@@ -433,25 +425,24 @@ class RoundHashValidatorTests {
     void timeoutSelfHashAndSignaturesTest() {
         final Random random = getRandomPrintSeed();
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
                 .withAverageWeight(100)
                 .withWeightStandardDeviation(50)
                 .build();
-        final long totalWeight = addressBook.getTotalWeight();
+        final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
-        final HashGenerationData hashGenerationData =
-                generateNodeHashes(random, addressBook, HashValidityStatus.VALID, 0);
+        final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator =
-                new RoundHashValidator(round, addressBook.getTotalWeight(), Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator = new RoundHashValidator(round, totalWeight, Mockito.mock(IssMetrics.class));
 
         long addedWeight = 0;
 
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeHashInfo nodeHashInfo : hashGenerationData.nodeList) {
             final NodeId nodeId = nodeHashInfo.nodeId;
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
             final Hash hash = nodeHashInfo.nodeStateHash;
 
             if (MAJORITY.isSatisfiedBy(addedWeight + weight, totalWeight)) {
@@ -474,28 +465,27 @@ class RoundHashValidatorTests {
     void timeoutSignaturesTest() {
         final Random random = getRandomPrintSeed();
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
                 .withAverageWeight(100)
                 .withWeightStandardDeviation(50)
                 .build();
-        final long totalWeight = addressBook.getTotalWeight();
+        final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
-        final HashGenerationData hashGenerationData =
-                generateNodeHashes(random, addressBook, HashValidityStatus.VALID, 0);
+        final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, HashValidityStatus.VALID);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator =
-                new RoundHashValidator(round, addressBook.getTotalWeight(), Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator = new RoundHashValidator(round, totalWeight, Mockito.mock(IssMetrics.class));
 
         assertFalse(validator.reportSelfHash(thisNode.nodeStateHash), "should not allow a decision");
 
         long addedWeight = 0;
 
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeHashInfo nodeHashInfo : hashGenerationData.nodeList) {
             final NodeId nodeId = nodeHashInfo.nodeId;
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
             final Hash hash = nodeHashInfo.nodeStateHash;
 
             if (MAJORITY.isSatisfiedBy(addedWeight + weight, totalWeight)) {
@@ -519,28 +509,28 @@ class RoundHashValidatorTests {
     void timeoutWithSuperMajorityTest() {
         final Random random = getRandomPrintSeed();
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
                 .withAverageWeight(100)
                 .withWeightStandardDeviation(50)
                 .build();
-        final long totalWeight = addressBook.getTotalWeight();
+        final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
         final HashGenerationData hashGenerationData =
-                generateNodeHashes(random, addressBook, HashValidityStatus.CATASTROPHIC_ISS, 0);
+                generateNodeHashes(random, roster, HashValidityStatus.CATASTROPHIC_ISS, 0);
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, HashValidityStatus.CATASTROPHIC_ISS);
 
         final long round = random.nextInt(1000);
-        final RoundHashValidator validator =
-                new RoundHashValidator(round, addressBook.getTotalWeight(), Mockito.mock(IssMetrics.class));
+        final RoundHashValidator validator = new RoundHashValidator(round, totalWeight, Mockito.mock(IssMetrics.class));
 
         assertFalse(validator.reportSelfHash(thisNode.nodeStateHash), "should not allow a decision");
 
         long addedWeight = 0;
 
+        final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
         for (final NodeHashInfo nodeHashInfo : hashGenerationData.nodeList) {
             final NodeId nodeId = nodeHashInfo.nodeId;
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = nodesById.get(nodeId.id()).weight();
             final Hash hash = nodeHashInfo.nodeStateHash;
 
             boolean decided = validator.reportHashFromNetwork(nodeId, weight, hash);

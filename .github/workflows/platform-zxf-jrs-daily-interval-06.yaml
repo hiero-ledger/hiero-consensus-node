@@ -66,9 +66,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+
   iss:
     name: ISS
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -86,10 +88,11 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - abbrev
-    if: ${{ !cancelled() && always() }}
+
   addressBook:
     name: AddressBook
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -107,10 +110,11 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - iss
-    if: ${{ !cancelled() && always() }}
+
   addressBook-add-remove:
     name: AddressBook-Add-Remove
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -128,10 +132,11 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - addressBook
-    if: ${{ !cancelled() && always() }}
+
   migration:
     name: Migration
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -149,4 +154,3 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - addressBook-add-remove
-    if: ${{ !cancelled() && always() }}

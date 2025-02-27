@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.network;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -21,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.Utilities;
@@ -28,8 +15,7 @@ import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.RandomGraph;
 import com.swirlds.platform.network.topology.NetworkTopology;
 import com.swirlds.platform.network.topology.StaticTopology;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -123,18 +109,23 @@ class TopologyTest {
     @MethodSource("fullyConnected")
     void testFullyConnectedTopology(final int numNodes, final long ignoredSeed) {
         final Randotron randotron = Randotron.create();
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(numNodes).build();
+        final Roster roster =
+                RandomRosterBuilder.create(randotron).withSize(numNodes).build();
+        final NodeId outOfBoundsId = NodeId.of(roster.rosterEntries().stream()
+                        .mapToLong(RosterEntry::nodeId)
+                        .max()
+                        .getAsLong()
+                + 1L);
         for (int thisNode = 0; thisNode < numNodes; thisNode++) {
-            final NodeId outOfBoundsId = addressBook.getNextNodeId();
-            final NodeId thisNodeId = addressBook.getNodeId(thisNode);
+            final NodeId thisNodeId =
+                    NodeId.of(roster.rosterEntries().get(thisNode).nodeId());
 
-            final List<PeerInfo> peers = Utilities.createPeerInfoList(addressBook, thisNodeId);
+            final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, thisNodeId);
 
             final NetworkTopology topology = new StaticTopology(peers, thisNodeId);
             final Set<NodeId> neighbors = topology.getNeighbors();
             final Set<NodeId> expected = IntStream.range(0, numNodes)
-                    .mapToObj(addressBook::getNodeId)
+                    .mapToObj(i -> NodeId.of(roster.rosterEntries().get(i).nodeId()))
                     .filter(nodeId -> !Objects.equals(thisNodeId, nodeId))
                     .collect(Collectors.toSet());
             assertEquals(expected, neighbors, "all should be neighbors except me");

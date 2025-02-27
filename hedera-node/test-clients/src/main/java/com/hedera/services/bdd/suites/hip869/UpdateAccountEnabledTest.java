@@ -1,24 +1,12 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip869;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -99,9 +87,9 @@ public class UpdateAccountEnabledTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 // Submit to a different node so ingest check is skipped
                 nodeUpdate("node100")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .payingWith("payer")
-                        .accountId("0.0.1000")
+                        .accountId(asEntityString(1000))
                         .fee(ONE_HBAR)
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("failedUpdate"),
@@ -110,7 +98,7 @@ public class UpdateAccountEnabledTest {
                 validateChargedUsdWithin("failedUpdate", 0.001, 3.0),
                 nodeUpdate("node100")
                         .adminKey("testKey")
-                        .accountId("0.0.1000")
+                        .accountId(asEntityString(1000))
                         .fee(ONE_HBAR)
                         .via("updateNode"),
                 getTxnRecord("updateNode").logged(),
@@ -119,10 +107,10 @@ public class UpdateAccountEnabledTest {
 
                 // Submit with several signatures and the price should increase
                 nodeUpdate("node100")
-                        .setNode("0.0.5")
+                        .setNode(asEntityString(5))
                         .payingWith("payer")
                         .signedBy("payer", "payer", "randomAccount", "testKey")
-                        .accountId("0.0.1000")
+                        .accountId(asEntityString(1000))
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
                 validateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0));
@@ -135,11 +123,15 @@ public class UpdateAccountEnabledTest {
                 nodeCreate("testNode")
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").adminKey("adminKey").accountId("0.0.1000"),
+                nodeUpdate("testNode").adminKey("adminKey").accountId(asEntityString(1000)),
                 viewNode(
                         "testNode",
                         node -> assertEquals(
-                                AccountID.newBuilder().accountNum(1000).build(),
+                                AccountID.newBuilder()
+                                        .shardNum(shard)
+                                        .realmNum(realm)
+                                        .accountNum(1000)
+                                        .build(),
                                 node.accountId(),
                                 "Node accountId should be updated")));
     }

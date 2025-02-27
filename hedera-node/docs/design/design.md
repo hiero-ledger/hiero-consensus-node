@@ -5,16 +5,17 @@ This document details the system design for the Hedera Consensus Node software.
 **WARNING: This document is a WIP!**
 
 ### Table of Contents
- - [Introduction](#introduction)
- - [Architecture](#architecture)
- - [Hedera Application](app/app.md)
-   - [Fees](app/fees.md)
-   - [gRPC](app/grpc.md)
-   - [Records](app/records.md)
-   - [States](app/states.md)
-   - [Throttles](app/throttles.md)
-   - [Workflows](app/workflows.md)
- - [Services](services/services.md)
+
+- [Introduction](#introduction)
+- [Architecture](#architecture)
+- [Hedera Application](app/app.md)
+  - [Fees](app/fees.md)
+  - [gRPC](app/grpc.md)
+  - [Records](app/records.md)
+  - [States](app/states.md)
+  - [Throttles](app/throttles.md)
+  - [Workflows](app/workflows.md)
+- [Services](services/services.md)
 
 ## Introduction
 
@@ -62,16 +63,16 @@ modules, but as that is speculative and not currently implemented, no further me
 ![Block Diagram](images/hedera-module-block-diagram.svg)
 
 The application modules include the following:
-- `hedera-app`: The main application module. This is the entry point to the app. It ultimately depends on all modules
-  that make up the Consensus Node, and no other modules depend on it. It is at the top of the dependency tree.
+- [hedera-app](app/app.md): The main application module. This is the entry point to the app. It ultimately depends on all modules
+that make up the Consensus Node, and no other modules depend on it. It is at the top of the dependency tree.
 - `hedera-app-api`: This is the SPI for service modules. It defines APIs that are either implemented by a service
-  module, or are implemented by the `hedera-app` module and passed to the service modules. In this way, code can be
-  implemented by the app module and yet the service modules don't have to depend on that module, and they are isolated
-  from the implementation details.
-- Service modules: for example `hedera-token-service` and `hedera-file-service`. Each service module is actually made
-  up of two modules, its API module (for example `hedera-token-service`) and its implementation module
-  (for example `hedera-token-service-impl`). This is done to break circular dependencies and enforce strong API
-  boundaries between the services, and to make it easy to have multiple implementations of any module.
+module, or are implemented by the `hedera-app` module and passed to the service modules. In this way, code can be
+implemented by the app module and yet the service modules don't have to depend on that module, and they are isolated
+from the implementation details.
+- [Services modules](services/services.md): for example `hedera-token-service` and `hedera-file-service`. Each service module is actually made
+up of two modules, its API module (for example `hedera-token-service`) and its implementation module
+(for example `hedera-token-service-impl`). This is done to break circular dependencies and enforce strong API
+boundaries between the services, and to make it easy to have multiple implementations of any module.
 
 The `hedera-app` module implements all core services and interfaces required by service modules to function properly.
 It is meant to isolate service modules from working directly with the hashgraph platform, and from gRPC, and other
@@ -85,6 +86,8 @@ implementation details. It is broadly responsible for:
 - Fee handling
 - etc.
 
+### Services
+
 Each service module is responsible for:
 - Defining APIs for working with the service at a POJO level, including any entities (for example *Account*)
 - Implementing logic for persisting entities into state
@@ -94,5 +97,7 @@ Each service module is responsible for:
 consensus node. Each service can be completely tested for all possible input and for the correct generation of
 transaction records, and for all error conditions, without needing any of the actual functionality implemented by
 `hedera-app`, or standing up a complete network.
+
+See [Services](services/services.md) for more information.
 
 **NEXT: [Application Module](app/app.md)**

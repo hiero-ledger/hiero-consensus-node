@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.processors;
 
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
@@ -21,9 +6,11 @@ import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.CREATE_FUNCTIONS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.acquiredSenderAuthorizationViaDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.alreadyHalted;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isPrecompileEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isTopLevelTransaction;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.recordBuilderFor;
@@ -31,6 +18,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.transfersValue;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.RESULT_CANNOT_BE_EXTERNALIZED;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
@@ -81,6 +69,14 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         NO,
     }
 
+    /**
+     * Constructor.
+     * @param evm the evm to use in this call
+     * @param featureFlags current evm module feature flags
+     * @param precompiles the present precompiles
+     * @param addressChecks checks against addresses reserved for Hedera
+     * @param systemContracts the Hedera system contracts
+     */
     public CustomMessageCallProcessor(
             @NonNull final EVM evm,
             @NonNull final FeatureFlags featureFlags,
@@ -128,11 +124,16 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                     return;
                 }
             }
-            doExecuteSystemContract(systemContracts.get(codeAddress), frame, tracer);
+            doExecuteSystemContract(systemContracts.get(codeAddress), codeAddress, frame, tracer);
             return;
         }
 
-        final var evmPrecompile = precompiles.get(codeAddress);
+        var evmPrecompile = precompiles.get(codeAddress);
+        if (evmPrecompile != null && !isPrecompileEnabled(codeAddress, frame)) {
+            // disable precompile if so configured.
+            evmPrecompile = null;
+        }
+
         // Check to see if the code address is a system account and possibly halt
         if (addressChecks.isSystemAccount(codeAddress)) {
             doHaltIfInvalidSystemCall(frame, tracer);
@@ -187,9 +188,13 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             return false;
         }
         var selector = frame.getInputData().slice(0, 4).toArray();
-        return CREATE_FUNCTIONS.stream().anyMatch(s -> Arrays.equals(s.selector(), selector));
+        return createMethodsSet.stream().anyMatch(s -> Arrays.equals(s.selector(), selector));
     }
 
+    /**
+     * @param config the current configuration
+     * @return whether the implicit creation is currently enabled
+     */
     public boolean isImplicitCreationEnabled(@NonNull Configuration config) {
         return featureFlags.isImplicitCreationEnabled(config);
     }
@@ -234,9 +239,11 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
      */
     private void doExecuteSystemContract(
             @NonNull final HederaSystemContract systemContract,
+            @NonNull final Address systemContractAddress,
             @NonNull final MessageFrame frame,
             @NonNull final OperationTracer tracer) {
-        final var fullResult = systemContract.computeFully(frame.getInputData(), frame);
+        final var fullResult = systemContract.computeFully(
+                asNumberedContractId(entityIdFactory(frame), systemContractAddress), frame.getInputData(), frame);
         final var gasRequirement = fullResult.gasRequirement();
         final PrecompileContractResult result;
         if (frame.getRemainingGas() < gasRequirement) {

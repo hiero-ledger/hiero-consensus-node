@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static java.util.Objects.requireNonNull;
@@ -23,7 +8,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
-import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionRecordBuilder;
+import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashMap;
@@ -66,7 +51,7 @@ public class StakingRewardsDistributor {
      * @param stakingInfoStore The store to update the staking info in.
      * @param consensusNow The current consensus time.
      * @param recordBuilder The record builder to use for deleted account beneficiaries.
-     * @return The map of rewards paid to each receiver, which includes zero rewards if the calculated reward is zero.
+     * @return The map of rewards paid to each receiver, which includes zero rewards if the calculated reward is zero
      */
     public Map<AccountID, Long> payRewardsIfPending(
             @NonNull final Set<AccountID> possibleRewardReceivers,
@@ -74,7 +59,7 @@ public class StakingRewardsDistributor {
             @NonNull final WritableNetworkStakingRewardsStore stakingRewardsStore,
             @NonNull final WritableStakingInfoStore stakingInfoStore,
             @NonNull final Instant consensusNow,
-            @NonNull final DeleteCapableTransactionRecordBuilder recordBuilder) {
+            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder) {
         requireNonNull(possibleRewardReceivers);
 
         final Map<AccountID, Long> rewardsPaid = new HashMap<>();
@@ -101,9 +86,9 @@ public class StakingRewardsDistributor {
                 // accounts until we find a non-deleted account to try to reward (it may still decline)
                 if (modifiedAccount.deleted()) {
                     final var maxRedirects = recordBuilder.getNumberOfDeletedAccounts();
-                    var j = 1;
+                    var curRedirects = 1;
                     do {
-                        if (j++ > maxRedirects) {
+                        if (curRedirects++ > maxRedirects) {
                             log.error(
                                     "With {} accounts deleted, last redirect in modifications led to deleted"
                                             + " beneficiary {}",

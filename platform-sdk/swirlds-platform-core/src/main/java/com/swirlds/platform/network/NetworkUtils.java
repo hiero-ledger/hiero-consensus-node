@@ -1,25 +1,9 @@
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
-import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.config.api.Configuration;
@@ -154,12 +138,9 @@ public final class NetworkUtils {
         Objects.requireNonNull(keysAndCerts);
         Objects.requireNonNull(configuration);
 
-        final CryptoConfig cryptoConfig = configuration.getConfigData(CryptoConfig.class);
-        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
-
         try {
             return new TlsFactory(
-                    keysAndCerts.agrCert(), keysAndCerts.agrKeyPair().getPrivate(), peers, socketConfig, cryptoConfig);
+                    keysAndCerts.agrCert(), keysAndCerts.agrKeyPair().getPrivate(), peers, selfId, configuration);
         } catch (final NoSuchAlgorithmException
                 | UnrecoverableKeyException
                 | KeyStoreException

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.streams;
 
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
@@ -21,6 +6,10 @@ import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_LIS
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_VERSION;
 import static com.swirlds.common.io.streams.SerializableStreamConstants.SERIALIZATION_PROTOCOL_VERSION;
 
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.function.CheckedFunction;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.io.SelfSerializable;
@@ -31,8 +20,11 @@ import com.swirlds.common.utility.ValueReference;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -47,7 +39,10 @@ import java.util.function.Supplier;
  */
 public class SerializableDataInputStream extends AugmentedDataInputStream {
 
-    private static final int PROTOCOL_VERSION = SERIALIZATION_PROTOCOL_VERSION;
+    private static final Set<Integer> SUPPORTED_PROTOCOL_VERSIONS = Set.of(SERIALIZATION_PROTOCOL_VERSION);
+
+    /** A stream used to read PBJ objects */
+    private final ReadableSequentialData readableSequentialData;
 
     /**
      * Creates a stream capable of deserializing serializable objects.
@@ -56,19 +51,21 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
      */
     public SerializableDataInputStream(final InputStream in) {
         super(in);
+        readableSequentialData = new ReadableStreamingData(in);
     }
 
     /**
-     * Reads the protocol version written by {@link SerializableDataOutputStream#writeProtocolVersion()} and saves it
-     * internally. From this point on, it will use this version number to deserialize.
+     * Reads the protocol version written by {@link SerializableDataOutputStream#writeProtocolVersion()}
+     * From this point on, it will use this version number to deserialize.
      *
      * @throws IOException thrown if any IO problems occur
      */
-    public void readProtocolVersion() throws IOException {
+    public int readProtocolVersion() throws IOException {
         final int protocolVersion = readInt();
-        if (protocolVersion != PROTOCOL_VERSION) {
-            throw new IOException("invalid protocol version " + protocolVersion);
+        if (!SUPPORTED_PROTOCOL_VERSIONS.contains(protocolVersion)) {
+            throw new IOException("Unsupported protocol version " + protocolVersion);
         }
+        return protocolVersion;
     }
 
     /**
@@ -569,5 +566,33 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
             throw new ClassNotFoundException(classId);
         }
         return rc;
+    }
+
+    /**
+     * Reads a PBJ record from the stream.
+     *
+     * @param codec the codec to use to parse the record
+     * @param <T>   the type of the record
+     * @return the parsed record
+     * @throws IOException if an IO error occurs
+     */
+    public @NonNull <T> T readPbjRecord(@NonNull final Codec<T> codec) throws IOException {
+        final int size = readInt();
+        readableSequentialData.limit(readableSequentialData.position() + size);
+        try {
+            final T parsed = codec.parse(readableSequentialData);
+            if (readableSequentialData.position() != readableSequentialData.limit()) {
+                throw new EOFException("PBJ record was not fully read");
+            }
+            return parsed;
+        } catch (final ParseException e) {
+            if (e.getCause() instanceof BufferOverflowException || e.getCause() instanceof BufferUnderflowException) {
+                // PBJ Codec can throw these exceptions if it does not read enough bytes
+                final EOFException eofException = new EOFException("Buffer underflow while reading PBJ record");
+                eofException.addSuppressed(e);
+                throw eofException;
+            }
+            throw new IOException(e);
+        }
     }
 }

@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.logging.api.internal;
 
 import com.swirlds.base.internal.BaseExecutorFactory;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.ConfigUtils;
 import com.swirlds.logging.api.Level;
 import com.swirlds.logging.api.Marker;
 import com.swirlds.logging.api.extensions.emergency.EmergencyLogger;
@@ -69,7 +55,7 @@ public class LoggingSystem implements LogEventConsumer {
     /**
      * The Configuration object
      */
-    private final Configuration configuration;
+    private volatile Configuration configuration;
 
     /**
      * The handlers of the logging system.
@@ -129,7 +115,12 @@ public class LoggingSystem implements LogEventConsumer {
      * @implNote Currently only the level and marker configuration is updated. New handlers are not added and existing
      * handlers are not removed for now.
      */
-    public void update(final @NonNull Configuration configuration) {
+    public synchronized void update(final @NonNull Configuration configuration) {
+        Objects.requireNonNull(configuration, "configuration must not be null");
+        if (ConfigUtils.haveEqualProperties(this.configuration, configuration)) {
+            return;
+        }
+        this.configuration = configuration;
         this.levelConfig.set(HandlerLoggingLevelConfig.create(configuration, null));
         this.handlers.forEach(handler -> handler.update(configuration));
     }

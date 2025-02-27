@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.inventory;
 
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.isValid;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.keyFileAt;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.passFileFor;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.promptForPassphrase;
-import static com.hedera.services.bdd.spec.utilops.inventory.NewSpecKey.exportWithPass;
+import static com.hedera.services.bdd.spec.utilops.inventory.NewSpecKey.exportEd25519WithPass;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkFromMnemonic;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkSimpleKey;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromPem.incorporatePem;
@@ -115,7 +100,7 @@ public class SpecKeyFromFile extends UtilOp {
         if (immediateExportLoc.isPresent() && immediateExportPass.isPresent()) {
             final var exportLoc = immediateExportLoc.get();
             final var exportPass = finalPassphrase.orElse(immediateExportPass.get());
-            exportWithPass(spec, name, exportLoc, exportPass);
+            exportEd25519WithPass(spec, name, exportLoc, exportPass);
             if (verboseLoggingOn && yahcliLogger) {
                 System.out.println(".i. Exported key from " + flexLoc + " to " + exportLoc);
             }

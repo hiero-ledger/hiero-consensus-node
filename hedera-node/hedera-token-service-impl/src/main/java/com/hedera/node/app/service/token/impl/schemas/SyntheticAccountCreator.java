@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
@@ -43,7 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * This class generates synthetic records for all reserved system accounts
+ * This class generates synthetic records for all reserved system accounts.
  */
 @Singleton
 public class SyntheticAccountCreator {
@@ -60,7 +45,7 @@ public class SyntheticAccountCreator {
     private final SortedSet<Account> blocklistAcctRcds = new TreeSet<>(ACCOUNT_COMPARATOR);
 
     /**
-     * Create a new instance
+     * Create a new instance.
      */
     @Inject
     public SyntheticAccountCreator() {
@@ -68,7 +53,7 @@ public class SyntheticAccountCreator {
     }
 
     /**
-     * Returns the synthetic records for system accounts
+     * Returns the synthetic records for system accounts.
      * @return the set of accounts for which records are generated
      */
     public SortedSet<Account> systemAccounts() {
@@ -76,7 +61,7 @@ public class SyntheticAccountCreator {
     }
 
     /**
-     * Returns the synthetic records for staking accounts
+     * Returns the synthetic records for staking accounts.
      * @return the set of accounts for which records are generated
      */
     public SortedSet<Account> stakingAccounts() {
@@ -84,7 +69,7 @@ public class SyntheticAccountCreator {
     }
 
     /**
-     * Returns the synthetic records for treasury accounts
+     * Returns the synthetic records for treasury accounts.
      * @return the set of accounts for which records are generated
      */
     public SortedSet<Account> treasuryClones() {
@@ -92,7 +77,7 @@ public class SyntheticAccountCreator {
     }
 
     /**
-     * Returns the synthetic records for multi-use accounts
+     * Returns the synthetic records for multi-use accounts.
      * @return the set of accounts for which records are generated
      */
     public SortedSet<Account> multiUseAccounts() {
@@ -100,7 +85,7 @@ public class SyntheticAccountCreator {
     }
 
     /**
-     * Returns the synthetic records for blocklist accounts
+     * Returns the synthetic records for blocklist accounts.
      * @return the set of accounts for which records are generated
      */
     public SortedSet<Account> blocklistAccounts() {

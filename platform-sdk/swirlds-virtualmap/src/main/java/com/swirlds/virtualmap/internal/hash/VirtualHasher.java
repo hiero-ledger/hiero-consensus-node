@@ -1,31 +1,16 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
+import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.config.singleton.ConfigurationHolder;
+import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
-import com.swirlds.common.wiring.tasks.AbstractTask;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualValue;
@@ -34,11 +19,13 @@ import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
@@ -85,7 +72,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      * field, but it doesn't work very well as platform configs aren't loaded at the time when
      * this class is initialized. It would result in a cryptography instance with default (and
      * possibly wrong) configs be used by the hasher. Instead, this field is initialized in
-     * the {@link #hash(LongFunction, Iterator, long, long)} method and used by all hashing
+     * the {@link #hash(LongFunction, Iterator, long, long, VirtualMapConfig)} method and used by all hashing
      * tasks.
      */
     private Cryptography cryptography;
@@ -96,24 +83,6 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      * underneath the hashing threads.
      */
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
-
-    private static volatile ForkJoinPool hashingPool = null;
-
-    private static ForkJoinPool getHashingPool() {
-        ForkJoinPool pool = hashingPool;
-        if (pool == null) {
-            synchronized (VirtualHasher.class) {
-                pool = hashingPool;
-                if (pool == null) {
-                    final VirtualMapConfig vmConfig = ConfigurationHolder.getConfigData(VirtualMapConfig.class);
-                    final int hashingThreadCount = vmConfig.getNumHashThreads();
-                    pool = new ForkJoinPool(hashingThreadCount);
-                    hashingPool = pool;
-                }
-            }
-        }
-        return pool;
-    }
 
     /**
      * Indicate to the virtual hasher that it has been shut down. This method does not interrupt threads, but
@@ -139,14 +108,17 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      * @param lastLeafPath
      * 		The lastLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
      * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
+     * @param virtualMapConfig platform configuration for VirtualMap
      * @return The hash of the root of the tree
      */
     public Hash hash(
             final LongFunction<Hash> hashReader,
             Iterator<VirtualLeafRecord<K, V>> sortedDirtyLeaves,
             final long firstLeafPath,
-            final long lastLeafPath) {
-        return hash(hashReader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, null);
+            final long lastLeafPath,
+            final @NonNull VirtualMapConfig virtualMapConfig) {
+        requireNonNull(virtualMapConfig);
+        return hash(hashReader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, null, virtualMapConfig);
     }
 
     class HashHoldingTask extends AbstractTask {
@@ -160,7 +132,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             return true;
         }
 
@@ -204,53 +176,47 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         }
 
         @Override
-        public void completeExceptionally(Throwable ex) {
+        public void onException(Throwable ex) {
             if (out != null) {
                 out.completeExceptionally(ex);
             }
-            super.completeExceptionally(ex);
         }
 
         @Override
-        protected boolean exec() {
-            try {
-                final Hash hash;
-                if (leaf != null) {
-                    hash = cryptography.digestSync(leaf);
-                    listener.onLeafHashed(leaf);
-                    listener.onNodeHashed(path, hash);
-                } else {
-                    int len = 1 << height;
-                    long rankPath = Path.getLeftGrandChildPath(path, height);
-                    while (len > 1) {
-                        for (int i = 0; i < len / 2; i++) {
-                            final long hashedPath = Path.getParentPath(rankPath + i * 2);
-                            Hash left = ins[i * 2];
-                            Hash right = ins[i * 2 + 1];
-                            if ((left == null) && (right == null)) {
-                                ins[i] = null;
-                            } else {
-                                if (left == null) {
-                                    left = hashReader.apply(rankPath + i * 2);
-                                }
-                                if (right == null) {
-                                    right = hashReader.apply(rankPath + i * 2 + 1);
-                                }
-                                ins[i] = hash(hashedPath, left, right);
-                                listener.onNodeHashed(hashedPath, ins[i]);
+        protected boolean onExecute() {
+            final Hash hash;
+            if (leaf != null) {
+                hash = cryptography.digestSync(leaf);
+                listener.onLeafHashed(leaf);
+                listener.onNodeHashed(path, hash);
+            } else {
+                int len = 1 << height;
+                long rankPath = Path.getLeftGrandChildPath(path, height);
+                while (len > 1) {
+                    for (int i = 0; i < len / 2; i++) {
+                        final long hashedPath = Path.getParentPath(rankPath + i * 2);
+                        Hash left = ins[i * 2];
+                        Hash right = ins[i * 2 + 1];
+                        if ((left == null) && (right == null)) {
+                            ins[i] = null;
+                        } else {
+                            if (left == null) {
+                                left = hashReader.apply(rankPath + i * 2);
                             }
+                            if (right == null) {
+                                right = hashReader.apply(rankPath + i * 2 + 1);
+                            }
+                            ins[i] = hash(hashedPath, left, right);
+                            listener.onNodeHashed(hashedPath, ins[i]);
                         }
-                        rankPath = Path.getParentPath(rankPath);
-                        len = len >> 1;
                     }
-                    hash = ins[0];
+                    rankPath = Path.getParentPath(rankPath);
+                    len = len >> 1;
                 }
-                out.setHash(getIndexInOut(), hash);
-                return true;
-            } catch (final Throwable e) {
-                completeExceptionally(e);
-                throw e;
+                hash = ins[0];
             }
+            out.setHash(getIndexInOut(), hash);
+            return true;
         }
 
         static Hash hash(final long path, final Hash left, final Hash right) {
@@ -277,21 +243,26 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         }
     }
 
+    /**
+     * If a dirty leaves stream is empty, returns {@code null}. If leaf path is empty, that
+     * is when {@code firstLeafPath} and/or {@code lastLeafPath} are zero or less, and
+     * dirty leaves stream is not empty, throws an {@link IllegalArgumentException}.
+     *
+     * @param hashReader A function to read hashes for clean paths
+     * @param sortedDirtyLeaves A stream of leaf records, sorted by path
+     * @param firstLeafPath First leaf path
+     * @param lastLeafPath Last leaf path
+     * @param listener Hash listener. May be null
+     * @param virtualMapConfig VirtualMap config
+     */
     public Hash hash(
             final LongFunction<Hash> hashReader,
             final Iterator<VirtualLeafRecord<K, V>> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            VirtualHashListener<K, V> listener) {
-
-        // If the first or last leaf path are invalid, then there is nothing to hash.
-        if (firstLeafPath < 1 || lastLeafPath < 1) {
-            return null;
-        }
-
-        if (!sortedDirtyLeaves.hasNext()) {
-            return null;
-        }
+            VirtualHashListener<K, V> listener,
+            final @NonNull VirtualMapConfig virtualMapConfig) {
+        requireNonNull(virtualMapConfig);
 
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
         if (listener == null) {
@@ -299,6 +270,23 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                     new VirtualHashListener<>() {
                         /* noop */
                     };
+        }
+
+        ForkJoinPool hashingPool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
+                ? thread.getPool()
+                : ForkJoinPool.commonPool();
+
+        // Let the listener know we have started hashing.
+        listener.onHashingStarted();
+
+        if (!sortedDirtyLeaves.hasNext()) {
+            // Nothing to hash.
+            listener.onHashingCompleted();
+            return null;
+        } else {
+            if ((firstLeafPath < 1) || (lastLeafPath < 1)) {
+                throw new IllegalArgumentException("Dirty leaves stream is not empty, but leaf path range is empty");
+            }
         }
 
         this.hashReader = hashReader;
@@ -330,13 +318,9 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         // may not be null.
 
         // Default chunk height, from config
-        final VirtualMapConfig vmConfig = ConfigurationHolder.getConfigData(VirtualMapConfig.class);
-        final int chunkHeight = vmConfig.virtualHasherChunkHeight();
+        final int chunkHeight = virtualMapConfig.virtualHasherChunkHeight();
         int firstLeafRank = Path.getRank(firstLeafPath);
         int lastLeafRank = Path.getRank(lastLeafPath);
-
-        // Let the listener know we have started hashing.
-        listener.onHashingStarted();
 
         // This map contains all tasks created, but not scheduled for execution yet
         final HashMap<Long, ChunkHashTask> map = new HashMap<>();
@@ -344,9 +328,9 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         // the root task below. When the root task is done executing, that is it produced
         // a root hash, this hash is set as an input dependency for this result task, where
         // it's read and returned in the end of this method
-        final HashHoldingTask resultTask = new HashHoldingTask(getHashingPool(), 1, 1);
+        final HashHoldingTask resultTask = new HashHoldingTask(hashingPool, 1, 1);
         final int rootTaskHeight = Math.min(firstLeafRank, chunkHeight);
-        final ChunkHashTask rootTask = new ChunkHashTask(getHashingPool(), ROOT_PATH, rootTaskHeight);
+        final ChunkHashTask rootTask = new ChunkHashTask(hashingPool, ROOT_PATH, rootTaskHeight);
         rootTask.setOut(resultTask);
         map.put(ROOT_PATH, rootTask);
 
@@ -384,7 +368,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
             long curPath = leaf.getPath();
             ChunkHashTask curTask = map.remove(curPath);
             if (curTask == null) {
-                curTask = new ChunkHashTask(getHashingPool(), curPath, 0);
+                curTask = new ChunkHashTask(hashingPool, curPath, 0);
             }
             curTask.setLeaf(leaf);
 
@@ -435,7 +419,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                 final long parentPath = Path.getGrandParentPath(curPath, parentRankHeights[curRank]);
                 ChunkHashTask parentTask = map.remove(parentPath);
                 if (parentTask == null) {
-                    parentTask = new ChunkHashTask(getHashingPool(), parentPath, parentRankHeights[curRank]);
+                    parentTask = new ChunkHashTask(hashingPool, parentPath, parentRankHeights[curRank]);
                 }
                 curTask.setOut(parentTask);
 
@@ -471,7 +455,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                             siblingHeight = curTask.height;
                         }
                         ChunkHashTask siblingTask = map.computeIfAbsent(
-                                siblingPath, path -> new ChunkHashTask(getHashingPool(), path, siblingHeight));
+                                siblingPath, path -> new ChunkHashTask(hashingPool, path, siblingHeight));
                         // Set sibling task output to the same parent
                         siblingTask.setOut(parentTask);
                     }

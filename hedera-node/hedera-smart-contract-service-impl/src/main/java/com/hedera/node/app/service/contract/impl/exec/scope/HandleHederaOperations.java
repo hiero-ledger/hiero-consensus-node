@@ -1,31 +1,26 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.contract.impl.ContractServiceImpl.LAZY_MEMO;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.selfManagedCustomizedCreation;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.*;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer.SUPPRESSING_EXTERNALIZED_RECORD_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.*;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
@@ -46,7 +41,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -54,6 +49,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
@@ -73,8 +69,7 @@ public class HandleHederaOperations implements HederaOperations {
                     .initialBalance(0)
                     .maxAutomaticTokenAssociations(0)
                     .autoRenewPeriod(Duration.newBuilder().seconds(THREE_MONTHS_IN_SECONDS))
-                    .key(IMMUTABILITY_SENTINEL_KEY)
-                    .memo(LAZY_MEMO);
+                    .key(IMMUTABILITY_SENTINEL_KEY);
 
     private final TinybarValues tinybarValues;
     private final LedgerConfig ledgerConfig;
@@ -85,6 +80,7 @@ public class HandleHederaOperations implements HederaOperations {
     private final HederaFunctionality functionality;
     private final PendingCreationMetadataRef pendingCreationMetadataRef;
     private final AccountsConfig accountsConfig;
+    private final EntityIdFactory entityIdFactory;
 
     @Inject
     public HandleHederaOperations(
@@ -96,7 +92,8 @@ public class HandleHederaOperations implements HederaOperations {
             @NonNull final HederaConfig hederaConfig,
             @NonNull final HederaFunctionality functionality,
             @NonNull final PendingCreationMetadataRef pendingCreationMetadataRef,
-            @NonNull final AccountsConfig accountsConfig) {
+            @NonNull final AccountsConfig accountsConfig,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.ledgerConfig = requireNonNull(ledgerConfig);
         this.contractsConfig = requireNonNull(contractsConfig);
         this.context = requireNonNull(context);
@@ -106,6 +103,7 @@ public class HandleHederaOperations implements HederaOperations {
         this.functionality = requireNonNull(functionality);
         this.pendingCreationMetadataRef = requireNonNull(pendingCreationMetadataRef);
         this.accountsConfig = requireNonNull(accountsConfig);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     /**
@@ -172,7 +170,7 @@ public class HandleHederaOperations implements HederaOperations {
      */
     @Override
     public @NonNull Bytes entropy() {
-        final var entropy = context.blockRecordInfo().getNMinus3RunningHash();
+        final var entropy = context.blockRecordInfo().prngSeed();
         return (entropy == null || entropy.equals(Bytes.EMPTY)) ? ZERO_ENTROPY : entropy;
     }
 
@@ -186,8 +184,13 @@ public class HandleHederaOperations implements HederaOperations {
         final var synthCreation = TransactionBody.newBuilder()
                 .cryptoCreateAccount(CREATE_TXN_BODY_BUILDER.alias(tuweniToPbjBytes(recipient)))
                 .build();
-        final var createFee = gasCalculator.canonicalPriceInTinybars(synthCreation, payerId);
-        return (createFee) / gasCalculator.topLevelGasPrice();
+        final var createFee = gasCalculator.feeCalculatorPriceInTinyBars(synthCreation, payerId);
+
+        // isGasPrecisionLossFixEnabled is a temporary feature flag that will be removed in the future.
+        if (!contractsConfig.isGasPrecisionLossFixEnabled()) {
+            return (createFee) / gasCalculator.topLevelGasPrice();
+        }
+        return (createFee) * FEE_SCHEDULE_UNITS_PER_TINYCENT / gasCalculator.topLevelGasPriceInTinyBars();
     }
 
     /**
@@ -213,8 +216,7 @@ public class HandleHederaOperations implements HederaOperations {
     public void collectFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        final var coinbaseId =
-                AccountID.newBuilder().accountNum(ledgerConfig.fundingAccount()).build();
+        final var coinbaseId = entityIdFactory.newAccountId(ledgerConfig.fundingAccount());
         tokenServiceApi.transferFromTo(payerId, coinbaseId, amount);
     }
 
@@ -225,8 +227,7 @@ public class HandleHederaOperations implements HederaOperations {
     public void refundFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        final var coinbaseId =
-                AccountID.newBuilder().accountNum(ledgerConfig.fundingAccount()).build();
+        final var coinbaseId = entityIdFactory.newAccountId(ledgerConfig.fundingAccount());
         tokenServiceApi.transferFromTo(coinbaseId, payerId, amount);
     }
 
@@ -256,15 +257,14 @@ public class HandleHederaOperations implements HederaOperations {
     @Override
     public void createContract(final long number, final long parentNumber, @Nullable final Bytes evmAddress) {
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
-        final var parent = accountStore.getAccountById(
-                AccountID.newBuilder().accountNum(parentNumber).build());
-        final var impliedContractCreation = synthContractCreationFromParent(
-                ContractID.newBuilder().contractNum(number).build(), requireNonNull(parent));
+        final var parent = accountStore.getAccountById(entityIdFactory.newAccountId(parentNumber));
+        final var impliedContractCreation =
+                synthContractCreationFromParent(entityIdFactory.newContractId(number), requireNonNull(parent));
         try {
             dispatchAndMarkCreation(
-                    number,
+                    entityIdFactory.newContractId(number),
                     synthAccountCreationFromHapi(
-                            ContractID.newBuilder().contractNum(number).build(), evmAddress, impliedContractCreation),
+                            entityIdFactory.newContractId(number), evmAddress, impliedContractCreation),
                     impliedContractCreation,
                     parent.autoRenewAccountId(),
                     evmAddress,
@@ -284,10 +284,11 @@ public class HandleHederaOperations implements HederaOperations {
         // Note that a EthereumTransaction with a top-level creation still needs to externalize its
         // implied ContractCreateTransactionBody (unlike ContractCreate, which evidently already does so)
         dispatchAndMarkCreation(
-                number,
-                synthAccountCreationFromHapi(
-                        ContractID.newBuilder().contractNum(number).build(), evmAddress, body),
-                functionality == HederaFunctionality.ETHEREUM_TRANSACTION ? body : null,
+                entityIdFactory.newContractId(number),
+                synthAccountCreationFromHapi(entityIdFactory.newContractId(number), evmAddress, body),
+                functionality == HederaFunctionality.ETHEREUM_TRANSACTION
+                        ? selfManagedCustomizedCreation(body, entityIdFactory.newContractId(number))
+                        : null,
                 body.autoRenewAccountId(),
                 evmAddress,
                 body.hasInitcode() ? ExternalizeInitcodeOnSuccess.NO : ExternalizeInitcodeOnSuccess.YES);
@@ -300,8 +301,7 @@ public class HandleHederaOperations implements HederaOperations {
     public void deleteAliasedContract(@NonNull final Bytes evmAddress) {
         requireNonNull(evmAddress);
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        tokenServiceApi.deleteContract(
-                ContractID.newBuilder().evmAddress(evmAddress).build());
+        tokenServiceApi.deleteContract(entityIdFactory.newContractIdWithEvmAddress(evmAddress));
     }
 
     /**
@@ -310,8 +310,7 @@ public class HandleHederaOperations implements HederaOperations {
     @Override
     public void deleteUnaliasedContract(final long number) {
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        tokenServiceApi.deleteContract(
-                ContractID.newBuilder().contractNum(number).build());
+        tokenServiceApi.deleteContract(entityIdFactory.newContractId(number));
     }
 
     /**
@@ -337,7 +336,7 @@ public class HandleHederaOperations implements HederaOperations {
     @Override
     public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress) {
         final var recordBuilder = context.savepointStack()
-                .addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class)
+                .addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE)
                 .contractID(contractId)
                 .status(SUCCESS)
                 .transaction(transactionWith(TransactionBody.newBuilder()
@@ -362,7 +361,7 @@ public class HandleHederaOperations implements HederaOperations {
     }
 
     private void dispatchAndMarkCreation(
-            final long number,
+            @NonNull final ContractID contractID,
             @NonNull final CryptoCreateTransactionBody bodyToDispatch,
             @Nullable final ContractCreateTransactionBody bodyToExternalize,
             @Nullable final AccountID autoRenewAccountId,
@@ -373,20 +372,19 @@ public class HandleHederaOperations implements HederaOperations {
         // in the contract creation body for the dispatched crypto create body. This child transaction will not
         // be throttled at consensus.
         final var isTopLevelCreation = bodyToExternalize == null;
-        final var recordBuilder = context.dispatchRemovableChildTransaction(
-                TransactionBody.newBuilder().cryptoCreateAccount(bodyToDispatch).build(),
-                ContractCreateStreamBuilder.class,
-                null,
-                context.payer(),
-                isTopLevelCreation
-                        ? SUPPRESSING_EXTERNALIZED_RECORD_CUSTOMIZER
-                        : contractBodyCustomizerFor(number, bodyToExternalize),
-                HandleContext.ConsensusThrottling.OFF);
-        if (recordBuilder.status() != SUCCESS) {
+        final var body =
+                TransactionBody.newBuilder().cryptoCreateAccount(bodyToDispatch).build();
+        final var transactionCustomizer = isTopLevelCreation
+                ? SUPPRESSING_TRANSACTION_CUSTOMIZER
+                : contractBodyCustomizerFor(contractID, bodyToExternalize);
+        final var streamBuilder = context.dispatch(
+                stepDispatch(context.payer(), body, ContractCreateStreamBuilder.class, transactionCustomizer));
+        if (streamBuilder.status() != SUCCESS) {
             // The only plausible failure mode (MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED) should
             // have been pre-validated in ProxyWorldUpdater.createAccount() so this is an invariant failure
-            throw new IllegalStateException("Unexpected failure creating new contract - " + recordBuilder.status());
+            throw new IllegalStateException("Unexpected failure creating new contract - " + streamBuilder.status());
         }
+        streamBuilder.functionality(CONTRACT_CREATE);
         // If this creation runs to a successful completion, its ContractBytecode sidecar
         // goes in the top-level record or the just-created child record depending on whether
         // we are doing this on behalf of a HAPI ContractCreate call; we only include the
@@ -394,24 +392,28 @@ public class HandleHederaOperations implements HederaOperations {
         final var pendingCreationMetadata = new PendingCreationMetadata(
                 isTopLevelCreation
                         ? context.savepointStack().getBaseBuilder(ContractOperationStreamBuilder.class)
-                        : recordBuilder,
+                        : streamBuilder,
                 externalizeInitcodeOnSuccess == ExternalizeInitcodeOnSuccess.YES);
-        final var contractId = ContractID.newBuilder().contractNum(number).build();
-        pendingCreationMetadataRef.set(contractId, pendingCreationMetadata);
-        recordBuilder
-                .contractID(contractId)
+        final var newContractId = contractID.copyBuilder().build();
+        pendingCreationMetadataRef.set(newContractId, pendingCreationMetadata);
+        streamBuilder
+                .contractID(newContractId)
                 .contractCreateResult(ContractFunctionResult.newBuilder()
-                        .contractID(contractId)
+                        .contractID(newContractId)
                         .evmAddress(evmAddress)
                         .build());
         // Mark the created account as a contract with the given auto-renew account id
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        final var accountId = AccountID.newBuilder().accountNum(number).build();
+        final var accountId = AccountID.newBuilder()
+                .shardNum(contractID.shardNum())
+                .realmNum(contractID.realmNum())
+                .accountNum(contractID.contractNumOrThrow())
+                .build();
         tokenServiceApi.markAsContract(accountId, autoRenewAccountId);
     }
 
-    private ExternalizedRecordCustomizer contractBodyCustomizerFor(
-            final long createdNumber, @NonNull final ContractCreateTransactionBody op) {
+    private StreamBuilder.TransactionCustomizer contractBodyCustomizerFor(
+            @NonNull final ContractID contractID, @NonNull final ContractCreateTransactionBody op) {
         return transaction -> {
             try {
                 final var dispatchedTransaction = SignedTransaction.PROTOBUF.parseStrict(
@@ -422,7 +424,7 @@ public class HandleHederaOperations implements HederaOperations {
                     throw new IllegalArgumentException(
                             "Dispatched transaction body was not a crypto create" + dispatchedBody);
                 }
-                final var standardizedOp = standardized(createdNumber, op);
+                final var standardizedOp = standardized(contractID, op);
                 return transactionWith(dispatchedBody
                         .copyBuilder()
                         .contractCreateInstance(standardizedOp)
@@ -434,22 +436,29 @@ public class HandleHederaOperations implements HederaOperations {
         };
     }
 
+    /**
+     * Standardizes the given {@link ContractCreateTransactionBody} to not include initcode, gas, and initial balance
+     * values as these parameters are only set on the top-level HAPI transactions.
+     *
+     * @param contractID the contractID of the created contract
+     * @param op the operation to standardize
+     * @return the standardized operation
+     */
     private ContractCreateTransactionBody standardized(
-            final long createdNumber, @NonNull final ContractCreateTransactionBody op) {
-        var standardAdminKey = op.adminKey();
-        if (op.hasAdminKey()) {
-            final var adminNum =
-                    op.adminKeyOrThrow().contractIDOrElse(ContractID.DEFAULT).contractNumOrElse(0L);
-            // For mono-service fidelity, don't set an explicit admin key for a self-managed contract
-            if (createdNumber == adminNum) {
-                standardAdminKey = null;
+            @NonNull final ContractID contractID, @NonNull final ContractCreateTransactionBody op) {
+        if (needsStandardization(op)) {
+            Key newAdminKey = op.adminKey();
+            // If the admin key is not set, we set it to the contract itself for externalization
+            // Typically, the op will not have an adminkey if the transaction's HederaFunctionality is
+            // ETHEREUM_TRANSACTION
+            if (!op.hasAdminKey()) {
+                newAdminKey = Key.newBuilder()
+                        .contractID(contractID.copyBuilder().build())
+                        .build();
             }
-        }
-        if (needsStandardization(op, standardAdminKey)) {
-            // Initial balance, gas, and initcode are only set on top-level HAPI transactions
             return new ContractCreateTransactionBody(
                     com.hedera.hapi.node.contract.codec.ContractCreateTransactionBodyProtoCodec.INITCODE_SOURCE_UNSET,
-                    standardAdminKey,
+                    newAdminKey,
                     0L,
                     0L,
                     op.proxyAccountID(),
@@ -468,8 +477,7 @@ public class HandleHederaOperations implements HederaOperations {
         }
     }
 
-    private boolean needsStandardization(
-            @NonNull final ContractCreateTransactionBody op, @Nullable final Key standardAdminKey) {
-        return op.hasInitcode() || op.gas() > 0L || op.initialBalance() > 0L || standardAdminKey != op.adminKey();
+    private boolean needsStandardization(@NonNull final ContractCreateTransactionBody op) {
+        return op.hasInitcode() || op.gas() > 0L || op.initialBalance() > 0L;
     }
 }

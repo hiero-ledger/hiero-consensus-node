@@ -1,20 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
+
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,18 +20,22 @@ public interface BlockItemWriter {
     /**
      * Writes a serialized item to the destination stream.
      *
-     * @param serializedItem the serialized item to write
+     * @param bytes the serialized item to write
      */
-    void writeItem(@NonNull Bytes serializedItem);
+    default void writePbjItem(@NonNull final Bytes bytes) {
+        requireNonNull(bytes);
+        writeItem(bytes.toByteArray());
+    }
+
+    /**
+     * Writes a serialized item to the destination stream.
+     *
+     * @param bytes the serialized item to write
+     */
+    void writeItem(@NonNull byte[] bytes);
 
     /**
      * Closes the block.
      */
     void closeBlock();
-
-    /**
-     * Returns whether the writer is closed, when the block is closed
-     * @return true if the writer is closed, false otherwise
-     */
-    boolean isClosed();
 }

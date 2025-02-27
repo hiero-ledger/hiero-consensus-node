@@ -1,47 +1,43 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
-import static com.hedera.services.bdd.junit.support.RecordStreamAccess.RECORD_STREAM_ACCESS;
+import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
+import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.FREEZE_TIMEOUT;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
-import com.hedera.services.bdd.junit.support.RecordStreamAccess;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
+import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.validators.BalanceReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
+import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
+import com.hedera.services.bdd.junit.support.validators.block.BlockItemNonceValidator;
+import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
+import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
+import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,6 +57,7 @@ public class StreamValidationOp extends UtilOp {
     private static final long BUFFER_MS = 500L;
     private static final long MIN_GZIP_SIZE_IN_BYTES = 26;
     private static final String ERROR_PREFIX = "\n  - ";
+    private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
     private static final List<RecordStreamValidator> RECORD_STREAM_VALIDATORS = List.of(
             new BlockNoValidator(),
@@ -69,7 +66,12 @@ public class StreamValidationOp extends UtilOp {
             new BalanceReconciliationValidator(),
             new TokenReconciliationValidator());
 
-    private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of();
+    private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
+            TransactionRecordParityValidator.FACTORY,
+            StateChangesValidator.FACTORY,
+            BlockContentsValidator.FACTORY,
+            BlockNumberSequenceValidator.FACTORY,
+            BlockItemNonceValidator.FACTORY);
 
     public static void main(String[] args) {}
 
@@ -85,7 +87,7 @@ public class StreamValidationOp extends UtilOp {
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
         // Validate the record streams
-        final AtomicReference<RecordStreamAccess.Data> dataRef = new AtomicReference<>();
+        final AtomicReference<StreamFileAccess.RecordStreamData> dataRef = new AtomicReference<>();
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
                         data -> {
@@ -101,21 +103,30 @@ public class StreamValidationOp extends UtilOp {
                             dataRef.set(data);
                         },
                         () -> Assertions.fail("No record stream data found"));
+        // If there are no block streams to validate, we are done
+        if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
+            return false;
+        }
         // Freeze the network
         allRunFor(
                 spec,
                 freezeOnly().payingWith(GENESIS).startingIn(2).seconds(),
+                spec.targetNetworkType() == SUBPROCESS_NETWORK ? waitForFrozenNetwork(FREEZE_TIMEOUT) : noOp(),
                 // Wait for the final stream files to be created
-                sleepFor(8 * BUFFER_MS));
+                sleepFor(STREAM_FILE_WAIT.toMillis()));
         readMaybeBlockStreamsFor(spec)
                 .ifPresentOrElse(
                         blocks -> {
+                            // Re-read the record streams since they may have been updated
+                            readMaybeRecordStreamDataFor(spec)
+                                    .ifPresentOrElse(
+                                            dataRef::set, () -> Assertions.fail("No record stream data found"));
                             final var data = requireNonNull(dataRef.get());
-                            // TODO - append the final record file to the record stream data
                             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                                     .filter(factory -> factory.appliesTo(spec))
                                     .map(factory -> factory.create(spec))
                                     .flatMap(v -> v.validationErrorsIn(blocks, data))
+                                    .peek(t -> log.error("Block stream validation error", t))
                                     .map(Throwable::getMessage)
                                     .collect(joining(ERROR_PREFIX));
                             if (!maybeErrors.isBlank()) {
@@ -123,7 +134,7 @@ public class StreamValidationOp extends UtilOp {
                                         "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
                             }
                         },
-                        () -> {});
+                        () -> Assertions.fail("No block streams found"));
         return false;
     }
 
@@ -148,8 +159,9 @@ public class StreamValidationOp extends UtilOp {
         return Optional.ofNullable(blocks);
     }
 
-    private static Optional<RecordStreamAccess.Data> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {
-        RecordStreamAccess.Data data = null;
+    private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
+            @NonNull final HapiSpec spec) {
+        StreamFileAccess.RecordStreamData data = null;
         final var streamLocs = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(RECORD_STREAMS_DIR))
                 .map(Path::toAbsolutePath)
@@ -158,7 +170,7 @@ public class StreamValidationOp extends UtilOp {
         for (final var loc : streamLocs) {
             try {
                 log.info("Trying to read record files from {}", loc);
-                data = RECORD_STREAM_ACCESS.readStreamDataFrom(
+                data = STREAM_FILE_ACCESS.readStreamDataFrom(
                         loc, "sidecar", f -> new File(f).length() > MIN_GZIP_SIZE_IN_BYTES);
                 log.info("Read {} record files from {}", data.records().size(), loc);
             } catch (Exception ignore) {

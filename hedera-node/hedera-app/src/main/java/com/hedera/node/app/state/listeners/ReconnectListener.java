@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.listeners;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
@@ -25,13 +11,15 @@ import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgr
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -47,12 +35,21 @@ public class ReconnectListener implements ReconnectCompleteListener {
 
     private final Executor executor;
     private final ConfigProvider configProvider;
+    private final EntityIdFactory entityIdFactory;
+
+    @NonNull
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     @Inject
     public ReconnectListener(
-            @NonNull @Named("FreezeService") final Executor executor, @NonNull final ConfigProvider configProvider) {
+            @NonNull @Named("FreezeService") final Executor executor,
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.executor = requireNonNull(executor);
         this.configProvider = requireNonNull(configProvider);
+        this.softwareVersionFactory = softwareVersionFactory;
+        this.entityIdFactory = entityIdFactory;
     }
 
     @Override
@@ -64,16 +61,21 @@ public class ReconnectListener implements ReconnectCompleteListener {
                 notification.getConsensusTimestamp(),
                 notification.getRoundNumber(),
                 notification.getSequence());
-        final State state = notification.getState().cast();
-        final var readableStoreFactory = new ReadableStoreFactory(state);
-        final var networkAdminConfig = configProvider.getConfiguration().getConfigData(NetworkAdminConfig.class);
+        final State state = notification.getState();
+        final var readableStoreFactory = new ReadableStoreFactory(state, softwareVersionFactory);
         final var freezeStore = readableStoreFactory.getStore(ReadableFreezeStore.class);
         final var upgradeFileStore = readableStoreFactory.getStore(ReadableUpgradeFileStore.class);
         final var upgradeNodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
         final var upgradeStakingInfoStore = readableStoreFactory.getStore(ReadableStakingInfoStore.class);
         final var platformStateStore = readableStoreFactory.getStore(ReadablePlatformStateStore.class);
         final var upgradeActions = new ReadableFreezeUpgradeActions(
-                networkAdminConfig, freezeStore, executor, upgradeFileStore, upgradeNodeStore, upgradeStakingInfoStore);
+                configProvider.getConfiguration(),
+                freezeStore,
+                executor,
+                upgradeFileStore,
+                upgradeNodeStore,
+                upgradeStakingInfoStore,
+                entityIdFactory);
         try {
             // Because we only leave the latest Dagger infrastructure registered with the platform
             // notification system when the reconnect state is initialized, this platform state

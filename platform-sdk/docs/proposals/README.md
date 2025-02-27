@@ -128,7 +128,7 @@ to `Withdrawn` and closed.
 
 ## Delivery of A Proposal
 
-Once an accepted proposal has been completely implemented, tested, the code merged into `develop`, and the feature is
+Once an accepted proposal has been completely implemented, tested, the code merged into `main`, and the feature is
 planned to be enabled for production, the proposal's content should be merged with the documentation of the platform
 in `platform-sdk/docs` (or other relevant location such as `module-info.java`), as applicable, and removed
 from `platform-sdk/docs/proposals`. Once the feature is live on mainnet, the status of the proposal PR in the proposal
@@ -142,10 +142,19 @@ project should be changed to `Delivered`.
 
 ## Modifying an Accepted Design Proposal
 
-It is common that during implementation of a design, something is discovered that requires a change to the documented
-design. When this occurs, the design proposal must be updated via a modification proposal. Keeping the design up to date
-ensures that the documentation remains up to date and always reflects the intended and actual design. It also provides
-an opportunity for those who voted on and approved the accepted proposal to review the changes and weigh in on the
-resulting design.
+It is common that during implementation of a design, something is discovered that requires a material change to the
+documented design. When this occurs, the design proposal must be updated via a modification proposal. Keeping the design
+up to date ensures that the documentation remains up to date and always reflects the intended and actual design. It also
+provides an opportunity for those who voted on and approved the accepted proposal to review the changes and weigh in on
+the resulting design. Modification proposals follow the same process and flow as normal design proposals.
 
-Modification proposals follow the same process and flow as normal design proposals.
+If a non-material change needs to be made, the proposal document can be updated outside the proposal process as part of
+a normal PR. Examples of non-material changes are:
+
+- correcting a typo or grammar mistake
+- correcting labels in a diagram
+- updating the name of something which does not affect the intent of the design
+
+If you are unsure if a certain change is material or not, please
+contact [@poulok](https://github.com/poulok), [@a-saksena](https://github.com/a-saksena),
+or [@rbair](https://github.com/rbair).

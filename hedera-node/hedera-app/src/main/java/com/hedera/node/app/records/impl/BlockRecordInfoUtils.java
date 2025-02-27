@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -68,7 +53,21 @@ public final class BlockRecordInfoUtils {
      */
     @Nullable
     public static Bytes blockHashByBlockNumber(@NonNull final BlockInfo blockInfo, final long blockNo) {
-        final var blockHashes = blockInfo.blockHashes();
+        return blockHashByBlockNumber(blockInfo.blockHashes(), blockInfo.lastBlockNumber(), blockNo);
+    }
+
+    /**
+     * Given a concatenated sequence of 48-byte block hashes, where the rightmost hash was
+     * for the given last block number, returns either the hash of the block at the given
+     * block number, or null if the block number is out of range.
+     *
+     * @param blockHashes the concatenated sequence of block hashes
+     * @param lastBlockNo the block number of the rightmost hash in the sequence
+     * @param blockNo the block number of the hash to return
+     * @return the hash of the block at the given block number if available, null otherwise
+     */
+    public static @Nullable Bytes blockHashByBlockNumber(
+            @NonNull final Bytes blockHashes, final long lastBlockNo, final long blockNo) {
         final var blocksAvailable = blockHashes.length() / HASH_SIZE;
 
         // Smart contracts (and other services) call this API. Should a smart contract call this, we don't really
@@ -77,8 +76,6 @@ public final class BlockRecordInfoUtils {
         if (blockNo < 0) {
             return null;
         }
-
-        final var lastBlockNo = blockInfo.lastBlockNumber();
         final var firstAvailableBlockNo = lastBlockNo - blocksAvailable + 1;
         // If blocksAvailable == 0, then firstAvailable == blockNo; and all numbers are
         // either less than or greater than or equal to blockNo, so we return unavailable

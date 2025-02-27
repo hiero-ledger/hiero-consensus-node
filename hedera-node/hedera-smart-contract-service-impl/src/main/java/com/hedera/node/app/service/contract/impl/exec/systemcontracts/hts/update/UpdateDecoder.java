@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -25,12 +10,15 @@ import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.token.TokenUpdateNftsTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
+import com.hedera.hapi.node.token.TokenUpdateTransactionBody.Builder;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
@@ -39,6 +27,8 @@ import com.hedera.node.app.service.contract.impl.exec.utils.KeyValueWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -82,6 +72,8 @@ public class UpdateDecoder {
 
     private static final int KEY_TYPE = 0;
     private static final int KEY_VALUE = 1;
+    private static final int SERIAL_NUMBERS = 1;
+    private static final int METADATA = 2;
 
     private static final int INHERIT_ACCOUNT_KEY = 0;
     private static final int CONTRACT_ID = 1;
@@ -90,7 +82,9 @@ public class UpdateDecoder {
     private static final int DELEGATABLE_CONTRACT_ID = 4;
 
     @Inject
-    public UpdateDecoder() {}
+    public UpdateDecoder() {
+        // Dagger2
+    }
 
     private static boolean isKnownImmutable(@Nullable final Token token) {
         return token != null && IMMUTABILITY_SENTINEL_KEY.equals(token.adminKeyOrElse(IMMUTABILITY_SENTINEL_KEY));
@@ -105,7 +99,8 @@ public class UpdateDecoder {
     public @Nullable TransactionBody decodeTokenUpdateV1(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1.decodeCall(
                 attempt.input().toArrayUnsafe());
-        return decodeTokenUpdate(call, attempt.addressIdConverter());
+        final var decoded = decodeTokenUpdate(call, attempt);
+        return TransactionBody.newBuilder().tokenUpdate(decoded).build();
     }
 
     /**
@@ -117,7 +112,21 @@ public class UpdateDecoder {
     public @Nullable TransactionBody decodeTokenUpdateV2(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2.decodeCall(
                 attempt.input().toArrayUnsafe());
-        return decodeTokenUpdate(call, attempt.addressIdConverter());
+        final var decoded = decodeTokenUpdate(call, attempt);
+        return TransactionBody.newBuilder().tokenUpdate(decoded).build();
+    }
+
+    /**
+     * Decodes a call to {@link UpdateTranslator#TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA} into a synthetic {@link TransactionBody}.
+     *
+     * @param attempt the attempt
+     * @return the synthetic transaction body
+     */
+    public TransactionBody decodeTokenUpdateWithMetadata(@NonNull final HtsCallAttempt attempt) {
+        final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.decodeCall(
+                attempt.input().toArrayUnsafe());
+        final var decoded = decodeUpdateWithMeta(call, attempt);
+        return TransactionBody.newBuilder().tokenUpdate(decoded).build();
     }
 
     /**
@@ -129,7 +138,8 @@ public class UpdateDecoder {
     public @Nullable TransactionBody decodeTokenUpdateV3(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3.decodeCall(
                 attempt.input().toArrayUnsafe());
-        return decodeTokenUpdate(call, attempt.addressIdConverter());
+        final var decoded = decodeTokenUpdate(call, attempt);
+        return TransactionBody.newBuilder().tokenUpdate(decoded).build();
     }
 
     /**
@@ -156,17 +166,17 @@ public class UpdateDecoder {
         return decodeTokenUpdateExpiry(call, attempt.addressIdConverter());
     }
 
-    private @Nullable TransactionBody decodeTokenUpdate(
-            @NonNull final Tuple call, @NonNull final AddressIdConverter addressIdConverter) {
+    private TokenUpdateTransactionBody.Builder decodeTokenUpdate(
+            @NonNull final Tuple call, @NonNull final HtsCallAttempt attempt) {
         final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
 
         final var tokenName = (String) hederaToken.get(0);
         final var tokenSymbol = (String) hederaToken.get(1);
-        final var tokenTreasury = addressIdConverter.convert(hederaToken.get(2));
+        final var tokenTreasury = attempt.addressIdConverter().convert(hederaToken.get(2));
         final var memo = (String) hederaToken.get(3);
-        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), addressIdConverter);
-        final var tokenExpiry = decodeTokenExpiry(hederaToken.get(8), addressIdConverter);
+        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), attempt);
+        final var tokenExpiry = decodeTokenExpiry(hederaToken.get(8), attempt.addressIdConverter());
 
         // Build the transaction body
         final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
@@ -195,63 +205,105 @@ public class UpdateDecoder {
                 && tokenExpiry.autoRenewPeriod().seconds() != 0) {
             txnBodyBuilder.autoRenewPeriod(tokenExpiry.autoRenewPeriod());
         }
+        addKeys(tokenKeys, txnBodyBuilder);
+        return txnBodyBuilder;
+    }
 
-        try {
-            return bodyWith(tokenKeys, txnBodyBuilder);
-        } catch (IllegalArgumentException ignore) {
-            return null;
+    public TokenUpdateTransactionBody.Builder decodeUpdateWithMeta(
+            @NonNull final Tuple call, @NonNull final HtsCallAttempt attempt) {
+        final var tokenUpdateTransactionBody = decodeTokenUpdate(call, attempt);
+        final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
+        final Bytes tokenMetadata = hederaToken.size() > 9 ? Bytes.wrap((byte[]) hederaToken.get(9)) : null;
+        if (tokenMetadata != null && tokenMetadata.length() > 0) {
+            tokenUpdateTransactionBody.metadata(tokenMetadata);
         }
+        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), attempt);
+        addKeys(tokenKeys, tokenUpdateTransactionBody);
+        addMetaKey(tokenKeys, tokenUpdateTransactionBody);
+        return tokenUpdateTransactionBody;
     }
 
     @Nullable
     public TransactionBody decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
+        final boolean metadataSupport =
+                attempt.configuration().getConfigData(ContractsConfig.class).metadataKeyAndFieldEnabled();
         final var call = UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION.decodeCall(
                 attempt.input().toArrayUnsafe());
 
         final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
-        final var tokenKeys = decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter());
+        final var tokenKeys = decodeTokenKeys(call.get(TOKEN_KEYS), attempt);
 
         // Build the transaction body
         final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
         txnBodyBuilder.token(tokenId);
-
+        addKeys(tokenKeys, txnBodyBuilder);
+        if (metadataSupport) {
+            addMetaKey(tokenKeys, txnBodyBuilder);
+        }
         try {
-            return bodyWith(tokenKeys, txnBodyBuilder);
+            return TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build();
         } catch (IllegalArgumentException ignore) {
             return null;
         }
     }
 
-    private TransactionBody bodyWith(
-            final List<TokenKeyWrapper> tokenKeys, final TokenUpdateTransactionBody.Builder builder) {
+    public TransactionBody decodeUpdateNFTsMetadata(@NonNull final HtsCallAttempt attempt) {
+        final var call = UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA.decodeCall(
+                attempt.input().toArrayUnsafe());
+
+        final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
+        final List<Long> serialNumbers = Longs.asList(call.get(SERIAL_NUMBERS));
+        final byte[] metadata = call.get(METADATA);
+
+        final var txnBodyBuilder = TokenUpdateNftsTransactionBody.newBuilder()
+                .token(tokenId)
+                .serialNumbers(serialNumbers)
+                .metadata(Bytes.wrap(metadata));
+
+        return TransactionBody.newBuilder().tokenUpdateNfts(txnBodyBuilder).build();
+    }
+
+    private void addKeys(final List<TokenKeyWrapper> tokenKeys, final TokenUpdateTransactionBody.Builder builder) {
         tokenKeys.forEach(tokenKeyWrapper -> {
             final var key = tokenKeyWrapper.key().asGrpc();
             if (key == Key.DEFAULT) {
                 throw new IllegalArgumentException();
             }
-            if (tokenKeyWrapper.isUsedForAdminKey()) {
-                builder.adminKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForKycKey()) {
-                builder.kycKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForFreezeKey()) {
-                builder.freezeKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForWipeKey()) {
-                builder.wipeKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForSupplyKey()) {
-                builder.supplyKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForFeeScheduleKey()) {
-                builder.feeScheduleKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForPauseKey()) {
-                builder.pauseKey(key);
+            setUsedKeys(builder, tokenKeyWrapper, key);
+        });
+    }
+
+    private void setUsedKeys(Builder builder, TokenKeyWrapper tokenKeyWrapper, Key key) {
+        if (tokenKeyWrapper.isUsedForAdminKey()) {
+            builder.adminKey(key);
+        }
+        if (tokenKeyWrapper.isUsedForKycKey()) {
+            builder.kycKey(key);
+        }
+        if (tokenKeyWrapper.isUsedForFreezeKey()) {
+            builder.freezeKey(key);
+        }
+        if (tokenKeyWrapper.isUsedForWipeKey()) {
+            builder.wipeKey(key);
+        }
+        if (tokenKeyWrapper.isUsedForSupplyKey()) {
+            builder.supplyKey(key);
+        }
+        if (tokenKeyWrapper.isUsedForFeeScheduleKey()) {
+            builder.feeScheduleKey(key);
+        }
+        if (tokenKeyWrapper.isUsedForPauseKey()) {
+            builder.pauseKey(key);
+        }
+    }
+
+    private void addMetaKey(final List<TokenKeyWrapper> tokenKeys, final TokenUpdateTransactionBody.Builder builder) {
+        tokenKeys.forEach(tokenKeyWrapper -> {
+            final var key = tokenKeyWrapper.key().asGrpc();
+            if (tokenKeyWrapper.isUsedForMetadataKey()) {
+                builder.metadataKey(key);
             }
         });
-        return TransactionBody.newBuilder().tokenUpdate(builder).build();
     }
 
     private TransactionBody decodeTokenUpdateExpiry(
@@ -278,8 +330,8 @@ public class UpdateDecoder {
         return TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build();
     }
 
-    private static List<TokenKeyWrapper> decodeTokenKeys(
-            @NonNull final Tuple[] tokenKeysTuples, @NonNull final AddressIdConverter addressIdConverter) {
+    private List<TokenKeyWrapper> decodeTokenKeys(
+            @NonNull final Tuple[] tokenKeysTuples, @NonNull final HtsCallAttempt attempt) {
         final List<TokenKeyWrapper> tokenKeys = new ArrayList<>(tokenKeysTuples.length);
         for (final var tokenKeyTuple : tokenKeysTuples) {
             final var keyType = ((BigInteger) tokenKeyTuple.get(KEY_TYPE)).intValue();
@@ -287,9 +339,12 @@ public class UpdateDecoder {
             final var inheritAccountKey = (Boolean) keyValueTuple.get(INHERIT_ACCOUNT_KEY);
             final byte[] ed25519 = keyValueTuple.get(ED25519);
             final byte[] ecdsaSecp256K1 = keyValueTuple.get(ECDSA_SECP_256K1);
-            final var contractId = asNumericContractId(addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
-            final var delegatableContractId =
-                    asNumericContractId(addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
+            final var contractId = asNumericContractId(
+                    attempt.nativeOperations().entityIdFactory(),
+                    attempt.addressIdConverter().convert(keyValueTuple.get(CONTRACT_ID)));
+            final var delegatableContractId = asNumericContractId(
+                    attempt.nativeOperations().entityIdFactory(),
+                    attempt.addressIdConverter().convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
 
             tokenKeys.add(new TokenKeyWrapper(
                     keyType,
@@ -304,13 +359,13 @@ public class UpdateDecoder {
         return tokenKeys;
     }
 
-    private static TokenExpiryWrapper decodeTokenExpiry(
+    private TokenExpiryWrapper decodeTokenExpiry(
             @NonNull final Tuple expiryTuple, @NonNull final AddressIdConverter addressIdConverter) {
         final var second = (long) expiryTuple.get(0);
         final var autoRenewAccount = addressIdConverter.convert(expiryTuple.get(1));
         final var autoRenewPeriod =
                 Duration.newBuilder().seconds(expiryTuple.get(2)).build();
         return new TokenExpiryWrapper(
-                second, autoRenewAccount.accountNum() == 0 ? null : autoRenewAccount, autoRenewPeriod);
+                second, autoRenewAccount.accountNumOrElse(0L) == 0 ? null : autoRenewAccount, autoRenewPeriod);
     }
 }

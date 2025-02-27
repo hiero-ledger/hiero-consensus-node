@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -38,19 +23,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.PlatformState;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SavedStateMetadataField;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
+import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -90,7 +77,7 @@ class SavedStateMetadataTests {
     /** generates a random non-negative node id. */
     private NodeId generateRandomNodeId(@NonNull final Random random) {
         Objects.requireNonNull(random, "random must not be null");
-        return new NodeId(random.nextLong(Long.MAX_VALUE));
+        return NodeId.of(random.nextLong(Long.MAX_VALUE));
     }
 
     @Test
@@ -205,23 +192,27 @@ class SavedStateMetadataTests {
 
         final SignedState signedState = mock(SignedState.class);
         final SigSet sigSet = mock(SigSet.class);
-        final MerkleRoot state = mock(MerkleRoot.class);
+        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
+        final ConsensusSnapshot consensusSnapshot = mock(ConsensusSnapshot.class);
         when(state.getHash()).thenReturn(randomHash(random));
-        final PlatformState platformState = mock(PlatformState.class);
-        when(platformState.getLegacyRunningEventHash()).thenReturn(randomHash(random));
-        when(platformState.getSnapshot()).thenReturn(mock(ConsensusSnapshot.class));
-        final AddressBook addressBook = mock(AddressBook.class);
+        final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
+        when(state.getHash()).thenReturn(randomHash(random));
+        when(platformStateFacade.legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
+        when(platformStateFacade.consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
+
+        final Roster roster = mock(Roster.class);
+        RosterServiceStateMock.setup(state, roster);
 
         when(signedState.getState()).thenReturn(state);
-        when(state.getPlatformState()).thenReturn(platformState);
-        when(platformState.getAddressBook()).thenReturn(addressBook);
         when(signedState.getSigSet()).thenReturn(sigSet);
         when(sigSet.getSigningNodes())
-                .thenReturn(new ArrayList<>(List.of(new NodeId(3L), new NodeId(1L), new NodeId(2L))));
+                .thenReturn(new ArrayList<>(List.of(NodeId.of(3L), NodeId.of(1L), NodeId.of(2L))));
 
-        final SavedStateMetadata metadata = SavedStateMetadata.create(signedState, new NodeId(1234), Instant.now());
+        final SavedStateMetadata metadata =
+                SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now(), platformStateFacade);
 
-        assertEquals(List.of(new NodeId(1L), new NodeId(2L), new NodeId(3L)), metadata.signingNodes());
+        assertEquals(List.of(NodeId.of(1L), NodeId.of(2L), NodeId.of(3L)), metadata.signingNodes());
     }
 
     @Test

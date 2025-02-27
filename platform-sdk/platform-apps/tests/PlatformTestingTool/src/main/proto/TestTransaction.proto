@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 syntax = "proto3";
 package proto;
 
@@ -205,6 +206,12 @@ enum SimpleAction {
   CAUSE_ISS = 0;
 }
 
+message StateSignatureTransaction {
+  int64 round = 1;
+  bytes signature = 2;
+  bytes hash = 3;
+}
+
 message TestTransaction {
   oneof body {
     RandomBytesTransaction bytesTransaction = 1;
@@ -213,6 +220,7 @@ message TestTransaction {
     ControlTransaction controlTransaction = 4;
     FreezeTransaction freezeTransaction = 5;
     SimpleAction simpleAction = 6;
+    StateSignatureTransaction stateSignatureTransaction = 7;
   }
 }
 

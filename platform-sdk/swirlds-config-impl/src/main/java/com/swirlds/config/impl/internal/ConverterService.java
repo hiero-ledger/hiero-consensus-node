@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.impl.internal;
 
 import com.swirlds.config.api.converter.ConfigConverter;
@@ -27,6 +12,7 @@ import com.swirlds.config.impl.converters.DurationConverter;
 import com.swirlds.config.impl.converters.EnumConverter;
 import com.swirlds.config.impl.converters.FileConverter;
 import com.swirlds.config.impl.converters.FloatConverter;
+import com.swirlds.config.impl.converters.InetAddressConverter;
 import com.swirlds.config.impl.converters.IntegerConverter;
 import com.swirlds.config.impl.converters.LongConverter;
 import com.swirlds.config.impl.converters.PathConverter;
@@ -40,6 +26,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
@@ -91,6 +78,8 @@ class ConverterService implements ConfigLifecycle {
     private static final ConfigConverter<Duration> DURATION_CONVERTER = new DurationConverter();
 
     private static final ConfigConverter<ChronoUnit> CHRONO_UNIT_CONVERTER = new ChronoUnitConverter();
+
+    private static final ConfigConverter<InetAddress> INET_ADDRESS_CONFIG_CONVERTER = new InetAddressConverter();
 
     ConverterService() {
         this.converters = new ConcurrentHashMap<>();
@@ -173,6 +162,7 @@ class ConverterService implements ConfigLifecycle {
         addConverter(ZonedDateTime.class, ZONED_DATE_TIME_CONVERTER);
         addConverter(Duration.class, DURATION_CONVERTER);
         addConverter(ChronoUnit.class, CHRONO_UNIT_CONVERTER);
+        addConverter(InetAddress.class, INET_ADDRESS_CONFIG_CONVERTER);
         initialized = true;
     }
 

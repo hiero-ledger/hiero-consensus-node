@@ -1,31 +1,16 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.util.impl.handlers;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.UtilPrngConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -64,9 +49,9 @@ public class UtilPrngHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         // Negative ranges are not allowed
-        if (txn.utilPrngOrThrow().range() < 0) {
+        if (context.body().utilPrngOrThrow().range() < 0) {
             throw new PreCheckException(ResponseCodeEnum.INVALID_PRNG_RANGE);
         }
     }
@@ -105,7 +90,7 @@ public class UtilPrngHandler implements TransactionHandler {
         // probably not possible, and if we really wanted to defend against that, we could deterministically
         // pre-populate the initial running hashes. Or we can return all zeros. Either way is just as safe, so we'll
         // just return whatever it is we are given. If we *do* happen to get back null, treat as empty zeros.
-        var pseudoRandomBytes = context.blockRecordInfo().getNMinus3RunningHash();
+        var pseudoRandomBytes = context.blockRecordInfo().prngSeed();
         if (pseudoRandomBytes == null || pseudoRandomBytes.length() == 0) {
             log.info("No n-3 record running hash available. Will use all zeros.");
             pseudoRandomBytes = MISSING_N_MINUS_3_RUNNING_HASH;
@@ -123,7 +108,7 @@ public class UtilPrngHandler implements TransactionHandler {
     }
 
     /**
-     * Generate a random number from the given bytes in the given range
+     * Generate a random number from the given bytes in the given range.
      * @param pseudoRandomBytes bytes to generate random number from
      * @param range range of the random number
      * @return random number
@@ -138,16 +123,16 @@ public class UtilPrngHandler implements TransactionHandler {
     }
 
     /**
-     * Returns {@code x mod m}, a non-negative value less than {@code m}. This differs from {@code x %
-     * m}, which might be negative.
+     * Returns {@code dividend mod divisor}, a non-negative value less than {@code divisor}.
+     * This differs from {@code dividend % divisor}, which might be negative.
      *
      * @throws ArithmeticException if {@code m <= 0}
      */
-    public static long mod(long x, int m) {
-        if (m <= 0) {
+    public static long mod(long dividend, int divisor) {
+        if (divisor <= 0) {
             throw new ArithmeticException("Modulus must be positive");
         }
-        long result = x % m;
-        return (result >= 0) ? result : result + m;
+        long result = dividend % divisor;
+        return (result >= 0) ? result : result + divisor;
     }
 }

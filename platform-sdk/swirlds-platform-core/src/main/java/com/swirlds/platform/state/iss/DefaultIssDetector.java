@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.iss;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -21,6 +6,8 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
@@ -28,29 +15,28 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.components.transaction.system.SystemTransactionExtractionUtils;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.metrics.IssMetrics;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.sequence.map.ConcurrentSequenceMap;
 import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.state.notifications.IssNotification.IssType;
 import com.swirlds.platform.util.MarkerFileWriter;
 import com.swirlds.platform.wiring.components.StateAndRound;
-import com.swirlds.state.spi.HapiUtils;
+import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -66,9 +52,9 @@ public class DefaultIssDetector implements IssDetector {
     private long previousRound = -1;
 
     /**
-     * The address book of this network.
+     * The roster of this network.
      */
-    private final AddressBook addressBook;
+    private final Roster roster;
 
     /**
      * The current software version
@@ -119,7 +105,7 @@ public class DefaultIssDetector implements IssDetector {
      * Create an object that tracks reported hashes and detects ISS events.
      *
      * @param platformContext              the platform context
-     * @param addressBook                  the address book for the network
+     * @param roster                       the roster for the network
      * @param currentSoftwareVersion       the current software version
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
      *                                     validate them like normal.
@@ -128,7 +114,7 @@ public class DefaultIssDetector implements IssDetector {
      */
     public DefaultIssDetector(
             @NonNull final PlatformContext platformContext,
-            @NonNull final AddressBook addressBook,
+            @NonNull final Roster roster,
             @NonNull final SemanticVersion currentSoftwareVersion,
             final boolean ignorePreconsensusSignatures,
             final long ignoredRound) {
@@ -144,7 +130,7 @@ public class DefaultIssDetector implements IssDetector {
         selfIssRateLimiter = new RateLimiter(platformContext.getTime(), timeBetweenIssLogs);
         catastrophicIssRateLimiter = new RateLimiter(platformContext.getTime(), timeBetweenIssLogs);
 
-        this.addressBook = Objects.requireNonNull(addressBook);
+        this.roster = Objects.requireNonNull(roster);
         this.currentSoftwareVersion = Objects.requireNonNull(currentSoftwareVersion);
 
         this.roundData = new ConcurrentSequenceMap<>(
@@ -159,7 +145,7 @@ public class DefaultIssDetector implements IssDetector {
         if (ignoredRound != DO_NOT_IGNORE_ROUNDS) {
             logger.warn(STARTUP.getMarker(), "No ISS detection will be performed for round {}", ignoredRound);
         }
-        this.issMetrics = new IssMetrics(platformContext.getMetrics(), addressBook);
+        this.issMetrics = new IssMetrics(platformContext.getMetrics(), roster);
     }
 
     /**
@@ -216,7 +202,8 @@ public class DefaultIssDetector implements IssDetector {
 
         previousRound = roundNumber;
 
-        roundData.put(roundNumber, new RoundHashValidator(roundNumber, addressBook.getTotalWeight(), issMetrics));
+        roundData.put(
+                roundNumber, new RoundHashValidator(roundNumber, RosterUtils.computeTotalWeight(roster), issMetrics));
 
         return removedRounds.stream()
                 .map(this::handleRemovedRound)
@@ -247,7 +234,7 @@ public class DefaultIssDetector implements IssDetector {
                 issNotifications.add(selfHashCheckResult);
             }
 
-            issNotifications.addAll(handlePostconsensusSignatures(stateAndRound.round()));
+            issNotifications.addAll(handlePostconsensusSignatures(stateAndRound.systemTransactions()));
 
             return issNotifications.isEmpty() ? null : issNotifications;
         }
@@ -292,14 +279,12 @@ public class DefaultIssDetector implements IssDetector {
     /**
      * Handle postconsensus state signatures.
      *
-     * @param round the round that may contain state signatures
+     * @param stateSignatureTransactions the transactions containining state signatures
      * @return a list of ISS notifications, which may be empty, but will not contain null
      */
     @NonNull
-    private List<IssNotification> handlePostconsensusSignatures(@NonNull final ConsensusRound round) {
-        final List<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactions =
-                SystemTransactionExtractionUtils.extractFromRound(round, StateSignatureTransaction.class);
-
+    private List<IssNotification> handlePostconsensusSignatures(
+            final Queue<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactions) {
         if (stateSignatureTransactions == null) {
             return List.of();
         }
@@ -345,7 +330,9 @@ public class DefaultIssDetector implements IssDetector {
             return null;
         }
 
-        if (!addressBook.contains(signerId)) {
+        final RosterEntry node = RosterUtils.getRosterEntryOrNull(roster, signerId.id());
+
+        if (node == null) {
             // we don't care about nodes not in the address book
             return null;
         }
@@ -355,8 +342,6 @@ public class DefaultIssDetector implements IssDetector {
             return null;
         }
 
-        final long nodeWeight = addressBook.getAddress(signerId).getWeight();
-
         final RoundHashValidator roundValidator = roundData.get(signaturePayload.round());
         if (roundValidator == null) {
             // We are being asked to validate a signature from the far future or far past, or a round that has already
@@ -364,8 +349,8 @@ public class DefaultIssDetector implements IssDetector {
             return null;
         }
 
-        final boolean decided = roundValidator.reportHashFromNetwork(
-                signerId, nodeWeight, new Hash(signaturePayload.hash().toByteArray()));
+        final boolean decided =
+                roundValidator.reportHashFromNetwork(signerId, node.weight(), new Hash(signaturePayload.hash()));
         if (decided) {
             return checkValidity(roundValidator);
         }

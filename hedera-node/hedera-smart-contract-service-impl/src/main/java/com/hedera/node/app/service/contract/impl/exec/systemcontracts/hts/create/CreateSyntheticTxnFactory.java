@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create;
 
 import com.hedera.hapi.node.base.Key;
@@ -26,11 +11,15 @@ import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FixedFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FractionalFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.RoyaltyFeeWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.inject.Singleton;
 
+/**
+ * A factory for creating a {@link TokenCreateTransactionBody.Builder}.
+ */
 @Singleton
 public class CreateSyntheticTxnFactory {
 
@@ -38,6 +27,10 @@ public class CreateSyntheticTxnFactory {
         // Singleton constructor
     }
 
+    /**
+     * @param tokenCreateWrapper the wrapper of token create transaction
+     * @return the body of the token create transaction
+     */
     @NonNull
     public static TokenCreateTransactionBody.Builder createToken(@NonNull final TokenCreateWrapper tokenCreateWrapper) {
         final var txnBodyBuilder = TokenCreateTransactionBody.newBuilder();
@@ -69,11 +62,19 @@ public class CreateSyntheticTxnFactory {
         return txnBodyBuilder;
     }
 
+    public static TokenCreateTransactionBody.Builder createTokenWithMetadata(
+            @NonNull final TokenCreateWrapper tokenCreateWrapper) {
+        final var transactionBodyBuilder = createToken(tokenCreateWrapper);
+        setMetadata(tokenCreateWrapper, transactionBodyBuilder);
+        setMetadataKey(tokenCreateWrapper, transactionBodyBuilder);
+        return transactionBodyBuilder;
+    }
+
     private static void setTokenKeys(
             @NonNull final TokenCreateWrapper tokenCreateWrapper, final Builder txnBodyBuilder) {
         tokenCreateWrapper.getTokenKeys().forEach(tokenKeyWrapper -> {
             final var key = tokenKeyWrapper.key().asGrpc();
-            if (key == Key.DEFAULT) {
+            if (Key.DEFAULT.equals(key)) {
                 throw new IllegalArgumentException();
             }
             if (tokenKeyWrapper.isUsedForAdminKey()) {
@@ -112,6 +113,21 @@ public class CreateSyntheticTxnFactory {
         }
         if (tokenCreateWrapper.getExpiry().autoRenewPeriod() != null) {
             txnBodyBuilder.autoRenewPeriod(tokenCreateWrapper.getExpiry().autoRenewPeriod());
+        }
+    }
+
+    private static void setMetadataKey(
+            @NonNull final TokenCreateWrapper tokenCreateWrapper, final Builder txnBodyBuilder) {
+        tokenCreateWrapper.getTokenKeys().stream()
+                .filter(TokenKeyWrapper::isUsedForMetadataKey)
+                .map(tokenKeyWrapper -> tokenKeyWrapper.key().asGrpc())
+                .forEach(txnBodyBuilder::metadataKey);
+    }
+
+    private static void setMetadata(
+            @NonNull final TokenCreateWrapper tokenCreateWrapper, final Builder txnBodyBuilder) {
+        if (tokenCreateWrapper.getMetadata() != null) {
+            txnBodyBuilder.metadata(tokenCreateWrapper.getMetadata());
         }
     }
 

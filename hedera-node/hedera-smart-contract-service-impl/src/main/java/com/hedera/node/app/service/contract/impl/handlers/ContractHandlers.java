@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static java.util.Objects.requireNonNull;
@@ -22,6 +7,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+/**
+ * This class contains all workflow-related handlers regarding contract operations in Hedera.
+ */
 @Singleton
 public class ContractHandlers {
 
@@ -49,6 +37,20 @@ public class ContractHandlers {
 
     private final EthereumTransactionHandler ethereumTransactionHandler;
 
+    /**
+     * @param contractCallHandler the handler for contract call transactions
+     * @param contractCallLocalHandler the handler for contract call local transactions
+     * @param contractCreateHandler the handler for contract create transactions
+     * @param contractDeleteHandler the handler for contract delete transactions
+     * @param contractGetBySolidityIDHandler the handler for contract get by solidity id queries
+     * @param contractGetBytecodeHandler the handler for contract get bytecode queries
+     * @param contractGetInfoHandler the handler for contract get info queries
+     * @param contractGetRecordsHandler the handler for contract get records queries
+     * @param contractSystemDeleteHandler the handler for contract delete transactions
+     * @param contractSystemUndeleteHandler the handler for contract undelete transactions
+     * @param contractUpdateHandler the handler for contract update transactions
+     * @param ethereumTransactionHandler the handler for ethereum transactions
+     */
     @Inject
     public ContractHandlers(
             @NonNull final ContractCallHandler contractCallHandler,
@@ -84,50 +86,86 @@ public class ContractHandlers {
                 requireNonNull(ethereumTransactionHandler, "ethereumTransactionHandler must not be null");
     }
 
+    /**
+     * @return the handler for contract call transactions
+     */
     public ContractCallHandler contractCallHandler() {
         return contractCallHandler;
     }
 
+    /**
+     * @return the handler for contract call local transactions
+     */
     public ContractCallLocalHandler contractCallLocalHandler() {
         return contractCallLocalHandler;
     }
 
+    /**
+     * @return the handler for contract create transactions
+     */
     public ContractCreateHandler contractCreateHandler() {
         return contractCreateHandler;
     }
 
+    /**
+     * @return the handler for contract delete transactions
+     */
     public ContractDeleteHandler contractDeleteHandler() {
         return contractDeleteHandler;
     }
 
+    /**
+     * @return the handler for contract get by solidity id queries
+     */
     public ContractGetBySolidityIDHandler contractGetBySolidityIDHandler() {
         return contractGetBySolidityIDHandler;
     }
 
+    /**
+     * @return the handler for contract get bytecode queries
+     */
     public ContractGetBytecodeHandler contractGetBytecodeHandler() {
         return contractGetBytecodeHandler;
     }
 
+    /**
+     * @return the handler for contract get info queries
+     */
     public ContractGetInfoHandler contractGetInfoHandler() {
         return contractGetInfoHandler;
     }
 
+    /**
+     * @return the handler for contract get records queries
+     */
     public ContractGetRecordsHandler contractGetRecordsHandler() {
         return contractGetRecordsHandler;
     }
 
+    /**
+     * @return the handler for contract delete transactions
+     */
     public ContractSystemDeleteHandler contractSystemDeleteHandler() {
         return contractSystemDeleteHandler;
     }
 
+    /**
+     * @return the handler for contract undelete transactions
+     */
     public ContractSystemUndeleteHandler contractSystemUndeleteHandler() {
         return contractSystemUndeleteHandler;
     }
 
+    /**
+     * @return the handler for contract update transactions
+     */
     public ContractUpdateHandler contractUpdateHandler() {
         return contractUpdateHandler;
     }
 
+    /**
+     * @return the handler for ethereum transactions
+     */
     public EthereumTransactionHandler ethereumTransactionHandler() {
         return ethereumTransactionHandler;
     }

@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanceof.BalanceOfTranslator.BALANCE_OF;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -24,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,10 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
@@ -71,6 +59,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transf
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.swirlds.common.utility.CommonUtils;
@@ -103,31 +92,38 @@ class HtsCallAttemptTest extends CallTestBase {
     @Mock
     private MintDecoder mintDecoder;
 
-    private List<CallTranslator> callTranslators;
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private List<CallTranslator<HtsCallAttempt>> callTranslators;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     @BeforeEach
     void setUp() {
         callTranslators = List.of(
-                new AssociationsTranslator(associationsDecoder),
-                new Erc20TransfersTranslator(),
-                new Erc721TransferFromTranslator(),
-                new MintTranslator(mintDecoder),
-                new ClassicTransfersTranslator(classicTransfersDecoder),
-                new BalanceOfTranslator(),
-                new IsApprovedForAllTranslator(),
-                new NameTranslator(),
-                new TotalSupplyTranslator(),
-                new SymbolTranslator(),
-                new TokenUriTranslator(),
-                new OwnerOfTranslator(),
-                new DecimalsTranslator());
+                new AssociationsTranslator(associationsDecoder, systemContractMethodRegistry, contractMetrics),
+                new Erc20TransfersTranslator(systemContractMethodRegistry, contractMetrics),
+                new Erc721TransferFromTranslator(systemContractMethodRegistry, contractMetrics),
+                new MintTranslator(mintDecoder, systemContractMethodRegistry, contractMetrics),
+                new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics),
+                new BalanceOfTranslator(systemContractMethodRegistry, contractMetrics),
+                new IsApprovedForAllTranslator(systemContractMethodRegistry, contractMetrics),
+                new NameTranslator(systemContractMethodRegistry, contractMetrics),
+                new TotalSupplyTranslator(systemContractMethodRegistry, contractMetrics),
+                new SymbolTranslator(systemContractMethodRegistry, contractMetrics),
+                new TokenUriTranslator(systemContractMethodRegistry, contractMetrics),
+                new OwnerOfTranslator(systemContractMethodRegistry, contractMetrics),
+                new DecimalsTranslator(systemContractMethodRegistry, contractMetrics));
     }
 
     @Test
     void nonLongZeroAddressesArentTokens() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input =
                 TestHelpers.bytesForRedirect(Erc20TransfersTranslator.ERC_20_TRANSFER.selector(), EIP_1014_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -138,17 +134,20 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertNull(subject.redirectToken());
-        verifyNoInteractions(nativeOperations);
+        verify(nativeOperations).entityIdFactory();
     }
 
     @Test
     void invalidSelectorLeadsToMissingCall() {
         given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -159,15 +158,18 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertNull(subject.asExecutableCall());
     }
 
     @Test
     void constructsDecimals() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 DecimalsTranslator.DECIMALS.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -178,15 +180,18 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(DecimalsCall.class, subject.asExecutableCall());
     }
 
     @Test
     void constructsTokenUri() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 TokenUriTranslator.TOKEN_URI.encodeCallWithArgs(BigInteger.ONE).array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -197,15 +202,18 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(TokenUriCall.class, subject.asExecutableCall());
     }
 
     @Test
     void constructsOwnerOf() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 OwnerOfTranslator.OWNER_OF.encodeCallWithArgs(BigInteger.ONE).array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -216,18 +224,21 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(OwnerOfCall.class, subject.asExecutableCall());
     }
 
     @Test
     void constructsBalanceOf() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 BALANCE_OF
                         .encodeCallWithArgs(asHeadlongAddress(EIP_1014_ADDRESS))
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -238,12 +249,14 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(BalanceOfCall.class, subject.asExecutableCall());
     }
 
     @Test
     void constructsIsApprovedForAllErc() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(EIP_1014_ADDRESS);
         final var input = TestHelpers.bytesForRedirect(
                 IsApprovedForAllTranslator.ERC_IS_APPROVED_FOR_ALL
@@ -251,6 +264,7 @@ class HtsCallAttemptTest extends CallTestBase {
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -261,17 +275,20 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(IsApprovedForAllCall.class, subject.asExecutableCall());
     }
 
     @Test
     void constructsIsApprovedForAllClassic() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(EIP_1014_ADDRESS);
         final var input = Bytes.wrap(IsApprovedForAllTranslator.CLASSIC_IS_APPROVED_FOR_ALL
                 .encodeCallWithArgs(address, address, address)
                 .array());
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -282,15 +299,18 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(IsApprovedForAllCall.class, subject.asExecutableCall());
     }
 
     @Test
     void constructsTotalSupply() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 TotalSupplyTranslator.TOTAL_SUPPLY.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -301,15 +321,18 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(TotalSupplyCall.class, subject.asExecutableCall());
     }
 
     @Test
     void constructsName() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 NameTranslator.NAME.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -320,15 +343,18 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(NameCall.class, subject.asExecutableCall());
     }
 
     @Test
     void constructsSymbol() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(
                 SymbolTranslator.SYMBOL.encodeCallWithArgs().array(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -339,6 +365,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(SymbolCall.class, subject.asExecutableCall());
     }
@@ -347,6 +374,7 @@ class HtsCallAttemptTest extends CallTestBase {
     void constructsErc721TransferFromRedirectToNonfungible() {
         given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(NON_FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
                 Erc721TransferFromTranslator.ERC_721_TRANSFER_FROM
@@ -359,6 +387,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -369,6 +398,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(Erc721TransferFromCall.class, subject.asExecutableCall());
     }
@@ -377,6 +407,7 @@ class HtsCallAttemptTest extends CallTestBase {
     void constructsErc20TransferFromRedirectToFungible() {
         given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
                 Erc20TransfersTranslator.ERC_20_TRANSFER_FROM
@@ -389,6 +420,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -399,6 +431,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(Erc20TransfersCall.class, subject.asExecutableCall());
     }
@@ -407,6 +440,7 @@ class HtsCallAttemptTest extends CallTestBase {
     void constructsErc20TransferRedirectToFungible() {
         given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
                 Erc20TransfersTranslator.ERC_20_TRANSFER
@@ -416,6 +450,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -426,6 +461,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
         assertInstanceOf(Erc20TransfersCall.class, subject.asExecutableCall());
     }
@@ -465,10 +501,13 @@ class HtsCallAttemptTest extends CallTestBase {
         if (isRedirect) {
             given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                     .willReturn(FUNGIBLE_TOKEN);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         }
+
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -479,6 +518,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
 
         assertInstanceOf(DispatchForResponseCodeHtsCall.class, subject.asExecutableCall());
@@ -532,6 +572,7 @@ class HtsCallAttemptTest extends CallTestBase {
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -542,6 +583,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
 
         assertInstanceOf(ClassicTransfersCall.class, subject.asExecutableCall());
@@ -603,6 +645,7 @@ class HtsCallAttemptTest extends CallTestBase {
         }
 
         final var subject = new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 EIP_1014_ADDRESS,
@@ -613,6 +656,7 @@ class HtsCallAttemptTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
 
         assertInstanceOf(DispatchForResponseCodeHtsCall.class, subject.asExecutableCall());

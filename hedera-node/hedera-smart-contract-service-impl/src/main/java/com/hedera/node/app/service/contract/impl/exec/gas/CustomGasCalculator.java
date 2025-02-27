@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.gas;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
@@ -30,14 +15,15 @@ import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.CancunGasCalculator;
 
-// FUTURE(#12991): GasCalculators for specific EVM versions should be injected based on
-//  `evm.version` configuration setting, just like EVM modules themselves.  Right now (0.49-0.50
-//  timeframe) it is ok to just fix our CustomGasCalculator at Besu's Cancun level because the only
-//  changes it has over Besu's Shanghai level is that it has defaults for blob gas prices, and those
-//  methods are never called at the Shanghai level anyway, nor at the Cancun level because we don't
-//  support blobs.
-
-// too many parents
+/**
+ * FUTURE(#12991): GasCalculators for specific EVM versions should be injected based on
+ * `evm.version` configuration setting, just like EVM modules themselves.  Right now (0.49-0.50
+ * timeframe) it is ok to just fix our CustomGasCalculator at Besu's Cancun level because the only
+ * changes it has over Besu's Shanghai level is that it has defaults for blob gas prices, and those
+ * methods are never called at the Shanghai level anyway, nor at the Cancun level because we don't
+ * support blobs.
+ * too many parents
+ */
 @SuppressWarnings("java:S110")
 @Singleton
 public class CustomGasCalculator extends CancunGasCalculator {
@@ -48,6 +34,9 @@ public class CustomGasCalculator extends CancunGasCalculator {
     private static final int LOG_TOPIC_SIZE = 32;
     private static final int LOG_BLOOM_SIZE = 256;
 
+    /**
+     * Default constructor for injection.
+     */
     @Inject
     public CustomGasCalculator() {
         // Dagger2
@@ -79,8 +68,8 @@ public class CustomGasCalculator extends CancunGasCalculator {
         final var hevmGasCost = gasCostOfStoring(
                 logSize(numTopics, dataLength),
                 lifetime,
-                tinybarValues.topLevelTinybarRbhPrice(),
-                tinybarValues.topLevelTinybarGasPrice());
+                tinybarValues.topLevelTinycentRbhPrice(),
+                tinybarValues.topLevelTinycentGasPrice());
 
         return Math.max(evmGasCost, hevmGasCost);
     }
@@ -97,6 +86,7 @@ public class CustomGasCalculator extends CancunGasCalculator {
      *
      * FUTURE: Gas for system contract method calls needs to be a) determined by measurement of
      * resources consumed, and b) incorporated into the fee schedule.
+     * @return the hardcoded gas cost for ED verification
      */
     public long getEdSignatureVerificationSystemContractGasCost() {
         return 1_500_000L;
@@ -104,15 +94,15 @@ public class CustomGasCalculator extends CancunGasCalculator {
 
     /**
      * Logically, would return the gas cost of storing the given number of bytes for the given number of seconds,
-     * given the relative prices of a byte-hour and a gas unit in tinybar.
+     * given the relative prices of a byte-hour and a gas unit in tinycent.
      *
      * <p>But for differential testing, ignores the {@code numBytes} and returns the gas cost of storing just a
      * single byte for the given number of seconds.
      *
      * @param numBytes ignored
      * @param lifetime the number of seconds to store a single byte
-     * @param rbhPrice the price of a byte-hour in tinybar
-     * @param gasPrice the price of a gas unit in tinybar
+     * @param rbhPrice the price of a byte-hour in tinycent
+     * @param gasPrice the price of a gas unit in tinycent
      * @return the gas cost of storing a single byte for the given number of seconds
      */
     private static long gasCostOfStoring(

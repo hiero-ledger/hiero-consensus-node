@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
@@ -22,7 +7,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
 import static com.hedera.services.bdd.spec.keys.deterministic.Bip0032.mnemonicToEd25519Key;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bytecodePath;
-import static java.util.stream.Collectors.toSet;
 
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
@@ -32,9 +16,21 @@ import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.*;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.Duration;
+import com.hederahashgraph.api.proto.java.FileID;
+import com.hederahashgraph.api.proto.java.RealmID;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.ServiceEndpoint;
+import com.hederahashgraph.api.proto.java.ShardID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.*;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SplittableRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -95,7 +91,8 @@ public class HapiSpecSetup {
     public enum TxnProtoStructure {
         NEW,
         OLD,
-        ALTERNATE
+        ALTERNATE,
+        NORMALIZED
     }
 
     public HapiSpecSetup(HapiPropertySource props) {
@@ -107,7 +104,7 @@ public class HapiSpecSetup {
      *
      * @return the Ed25519 private key for the default payer in this spec setup
      */
-    public EdDSAPrivateKey payerKey() {
+    public EdDSAPrivateKey payerKeyAsEd25519() {
         if (StringUtils.isNotEmpty(defaultPayerKey())) {
             return Ed25519Utils.keyFrom(com.swirlds.common.utility.CommonUtils.unhex(defaultPayerKey()));
         } else if (StringUtils.isNotEmpty(defaultPayerMnemonic())) {
@@ -128,6 +125,14 @@ public class HapiSpecSetup {
      */
     public void addOverrides(@NonNull final Map<String, String> props) {
         this.props = HapiPropertySource.inPriorityOrder(new MapPropertySource(props), this.props);
+    }
+
+    /**
+     * Returns whether the default transaction memo should be the name of the {@link HapiSpec}
+     * submitting the transaction.
+     */
+    public boolean useSpecName() {
+        return props.getBoolean("memo.useSpecName");
     }
 
     public FileID addressBookId() {
@@ -167,15 +172,6 @@ public class HapiSpecSetup {
             ciPropertiesMap = MapPropertySource.parsedFromCommaDelimited(props.get("ci.properties.map"));
         }
         return ciPropertiesMap;
-    }
-
-    public Set<HederaFunctionality> txnTypesToSchedule() {
-        final var commaDelimited = props.get("spec.autoScheduledTxns");
-        return commaDelimited.isBlank()
-                ? Collections.emptySet()
-                : Arrays.stream(commaDelimited.split(","))
-                        .map(HederaFunctionality::valueOf)
-                        .collect(toSet());
     }
 
     public Duration defaultAutoRenewPeriod() {
@@ -513,15 +509,15 @@ public class HapiSpecSetup {
     }
 
     public AccountID nodeRewardAccount() {
-        return asAccount("0.0.801");
+        return asAccount(props.get("default.shard"), props.get("default.realm"), "801");
     }
 
     public AccountID stakingRewardAccount() {
-        return asAccount("0.0.800");
+        return asAccount(props.get("default.shard"), props.get("default.realm"), "800");
     }
 
     public AccountID feeCollectorAccount() {
-        return asAccount("0.0.802");
+        return asAccount(props.get("default.shard"), props.get("default.realm"), "802");
     }
 
     public String nodeRewardAccountName() {

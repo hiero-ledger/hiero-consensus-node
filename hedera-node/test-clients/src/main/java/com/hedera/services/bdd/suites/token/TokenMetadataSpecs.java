@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairsInAnyOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -30,8 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TOKEN_NAMES;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -110,10 +94,11 @@ public class TokenMetadataSpecs {
 
     @HapiTest
     final Stream<DynamicTest> creationRequiresAppropriateSigsHappyPath() {
-        return defaultHapiSpec("CreationRequiresAppropriateSigsHappyPath", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(cryptoCreate(PAYER), cryptoCreate(TOKEN_TREASURY).balance(0L), newKeyNamed(ADMIN_KEY))
-                .when()
-                .then(tokenCreate("shouldWork")
+        return hapiTest(
+                cryptoCreate(PAYER),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                newKeyNamed(ADMIN_KEY),
+                tokenCreate("shouldWork")
                         .treasury(TOKEN_TREASURY)
                         .payingWith(PAYER)
                         .adminKey(ADMIN_KEY)
@@ -127,16 +112,15 @@ public class TokenMetadataSpecs {
         String metadata = "metadata";
         String saltedName = salted(PRIMARY);
 
-        return defaultHapiSpec("FungibleCreationHappyPath", NONDETERMINISTIC_TOKEN_NAMES)
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(0L),
-                        cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(METADATA_KEY),
-                        newKeyNamed(FREEZE_KEY),
-                        newKeyNamed(KYC_KEY))
-                .when(tokenCreate(PRIMARY)
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(METADATA_KEY),
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(KYC_KEY),
+                tokenCreate(PRIMARY)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(memo)
                         .name(saltedName)
@@ -152,91 +136,87 @@ public class TokenMetadataSpecs {
                         .kycKey(KYC_KEY)
                         .freezeKey(FREEZE_KEY)
                         .metaData(metadata)
-                        .via(CREATE_TXN))
-                .then(
-                        withOpContext((spec, opLog) -> {
-                            var createTxn = getTxnRecord(CREATE_TXN);
-                            allRunFor(spec, createTxn);
-                            var timestamp = createTxn
-                                    .getResponseRecord()
-                                    .getConsensusTimestamp()
-                                    .getSeconds();
-                            spec.registry().saveExpiry(PRIMARY, timestamp + THREE_MONTHS_IN_SECONDS);
-                        }),
-                        getTokenInfo(PRIMARY)
-                                .logged()
-                                .hasRegisteredId(PRIMARY)
-                                .hasTokenType(TokenType.FUNGIBLE_COMMON)
-                                .hasSupplyType(TokenSupplyType.FINITE)
-                                .hasEntityMemo(memo)
-                                .hasName(saltedName)
-                                .hasTreasury(TOKEN_TREASURY)
-                                .hasAutoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                .hasValidExpiry()
-                                .hasDecimals(1)
-                                .hasAdminKey(PRIMARY)
-                                .hasSupplyKey(PRIMARY)
-                                .hasMetadataKey(PRIMARY)
-                                .hasMetadata(metadata)
-                                .hasMaxSupply(1000)
-                                .hasTotalSupply(500)
-                                .hasAutoRenewAccount(AUTO_RENEW_ACCOUNT),
-                        getAccountInfo(TOKEN_TREASURY)
-                                .hasToken(relationshipWith(PRIMARY)
-                                        .balance(500)
-                                        .kyc(TokenKycStatus.Granted)
-                                        .freeze(TokenFreezeStatus.Unfrozen)));
+                        .via(CREATE_TXN),
+                withOpContext((spec, opLog) -> {
+                    var createTxn = getTxnRecord(CREATE_TXN);
+                    allRunFor(spec, createTxn);
+                    var timestamp = createTxn
+                            .getResponseRecord()
+                            .getConsensusTimestamp()
+                            .getSeconds();
+                    spec.registry().saveExpiry(PRIMARY, timestamp + THREE_MONTHS_IN_SECONDS);
+                }),
+                getTokenInfo(PRIMARY)
+                        .logged()
+                        .hasRegisteredId(PRIMARY)
+                        .hasTokenType(TokenType.FUNGIBLE_COMMON)
+                        .hasSupplyType(TokenSupplyType.FINITE)
+                        .hasEntityMemo(memo)
+                        .hasName(saltedName)
+                        .hasTreasury(TOKEN_TREASURY)
+                        .hasAutoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .hasValidExpiry()
+                        .hasDecimals(1)
+                        .hasAdminKey(PRIMARY)
+                        .hasSupplyKey(PRIMARY)
+                        .hasMetadataKey(PRIMARY)
+                        .hasMetadata(metadata)
+                        .hasMaxSupply(1000)
+                        .hasTotalSupply(500)
+                        .hasAutoRenewAccount(AUTO_RENEW_ACCOUNT),
+                getAccountInfo(TOKEN_TREASURY)
+                        .hasToken(relationshipWith(PRIMARY)
+                                .balance(500)
+                                .kyc(TokenKycStatus.Granted)
+                                .freeze(TokenFreezeStatus.Unfrozen)));
     }
 
     @HapiTest
     final Stream<DynamicTest> nonFungibleCreationHappyPath() {
         String metadata = "metadata";
-        return defaultHapiSpec("NonFungibleCreationHappyPath", NONDETERMINISTIC_TOKEN_NAMES)
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(0L),
-                        cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(METADATA_KEY),
-                        newKeyNamed(KYC_KEY))
-                .when(
-                        tokenCreate(NON_FUNGIBLE_UNIQUE_FINITE)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .initialSupply(0)
-                                .maxSupply(100)
-                                .treasury(TOKEN_TREASURY)
-                                .supplyKey(GENESIS)
-                                .metadataKey(METADATA_KEY)
-                                .kycKey(KYC_KEY)
-                                .metaData(metadata)
-                                .via(CREATE_TXN),
-                        getTxnRecord(CREATE_TXN)
-                                .logged()
-                                .hasPriority(recordWith()
-                                        .autoAssociated(accountTokenPairsInAnyOrder(
-                                                List.of(Pair.of(TOKEN_TREASURY, NON_FUNGIBLE_UNIQUE_FINITE))))))
-                .then(
-                        withOpContext((spec, opLog) -> {
-                            var createTxn = getTxnRecord(CREATE_TXN);
-                            allRunFor(spec, createTxn);
-                            var timestamp = createTxn
-                                    .getResponseRecord()
-                                    .getConsensusTimestamp()
-                                    .getSeconds();
-                            spec.registry().saveExpiry(NON_FUNGIBLE_UNIQUE_FINITE, timestamp + THREE_MONTHS_IN_SECONDS);
-                        }),
-                        getTokenInfo(NON_FUNGIBLE_UNIQUE_FINITE)
-                                .logged()
-                                .hasRegisteredId(NON_FUNGIBLE_UNIQUE_FINITE)
-                                .hasTokenType(NON_FUNGIBLE_UNIQUE)
-                                .hasSupplyType(TokenSupplyType.FINITE)
-                                .hasTotalSupply(0)
-                                .hasMaxSupply(100),
-                        getAccountInfo(TOKEN_TREASURY)
-                                .hasToken(relationshipWith(NON_FUNGIBLE_UNIQUE_FINITE)
-                                        .balance(0)
-                                        .kyc(TokenKycStatus.Granted)));
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(METADATA_KEY),
+                newKeyNamed(KYC_KEY),
+                tokenCreate(NON_FUNGIBLE_UNIQUE_FINITE)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(0)
+                        .maxSupply(100)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(GENESIS)
+                        .metadataKey(METADATA_KEY)
+                        .kycKey(KYC_KEY)
+                        .metaData(metadata)
+                        .via(CREATE_TXN),
+                getTxnRecord(CREATE_TXN)
+                        .logged()
+                        .hasPriority(recordWith()
+                                .autoAssociated(accountTokenPairsInAnyOrder(
+                                        List.of(Pair.of(TOKEN_TREASURY, NON_FUNGIBLE_UNIQUE_FINITE))))),
+                withOpContext((spec, opLog) -> {
+                    var createTxn = getTxnRecord(CREATE_TXN);
+                    allRunFor(spec, createTxn);
+                    var timestamp = createTxn
+                            .getResponseRecord()
+                            .getConsensusTimestamp()
+                            .getSeconds();
+                    spec.registry().saveExpiry(NON_FUNGIBLE_UNIQUE_FINITE, timestamp + THREE_MONTHS_IN_SECONDS);
+                }),
+                getTokenInfo(NON_FUNGIBLE_UNIQUE_FINITE)
+                        .logged()
+                        .hasRegisteredId(NON_FUNGIBLE_UNIQUE_FINITE)
+                        .hasTokenType(NON_FUNGIBLE_UNIQUE)
+                        .hasSupplyType(TokenSupplyType.FINITE)
+                        .hasTotalSupply(0)
+                        .hasMaxSupply(100),
+                getAccountInfo(TOKEN_TREASURY)
+                        .hasToken(relationshipWith(NON_FUNGIBLE_UNIQUE_FINITE)
+                                .balance(0)
+                                .kyc(TokenKycStatus.Granted)));
     }
 
     @HapiTest
@@ -245,24 +225,24 @@ public class TokenMetadataSpecs {
         String metadata = "metadata";
         String saltedName = salted(PRIMARY);
 
-        return defaultHapiSpec("updatingMetadataWorksWithMetadataKey", NONDETERMINISTIC_TOKEN_NAMES)
-                .given(cryptoCreate(TOKEN_TREASURY).balance(100L), newKeyNamed(SUPPLY_KEY), newKeyNamed(METADATA_KEY))
-                .when(
-                        tokenCreate(PRIMARY)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .entityMemo(memo)
-                                .name(saltedName)
-                                .treasury(TOKEN_TREASURY)
-                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                .metadataKey(METADATA_KEY)
-                                .maxSupply(1000)
-                                .initialSupply(500)
-                                .decimals(1)
-                                .metaData(metadata),
-                        getTokenInfo(PRIMARY).hasMetadata(metadata))
-                .then(
-                        tokenUpdate(PRIMARY).newMetadata("newMetadata").signedBy(DEFAULT_PAYER, METADATA_KEY),
-                        getTokenInfo(PRIMARY).hasMetadata("newMetadata"));
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(100L),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(METADATA_KEY),
+                tokenCreate(PRIMARY)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .entityMemo(memo)
+                        .name(saltedName)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .metadataKey(METADATA_KEY)
+                        .maxSupply(1000)
+                        .initialSupply(500)
+                        .decimals(1)
+                        .metaData(metadata),
+                getTokenInfo(PRIMARY).hasMetadata(metadata),
+                tokenUpdate(PRIMARY).newMetadata("newMetadata").signedBy(DEFAULT_PAYER, METADATA_KEY),
+                getTokenInfo(PRIMARY).hasMetadata("newMetadata"));
     }
 
     @HapiTest
@@ -271,28 +251,25 @@ public class TokenMetadataSpecs {
         String metadata = "metadata";
         String saltedName = salted(PRIMARY);
 
-        return defaultHapiSpec("updatingMetadataWorksWithAdminKey", NONDETERMINISTIC_TOKEN_NAMES)
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(100L),
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(METADATA_KEY))
-                .when(
-                        tokenCreate(PRIMARY)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .entityMemo(memo)
-                                .name(saltedName)
-                                .treasury(TOKEN_TREASURY)
-                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                .adminKey(ADMIN_KEY)
-                                .maxSupply(1000)
-                                .initialSupply(500)
-                                .decimals(1)
-                                .metaData(metadata),
-                        getTokenInfo(PRIMARY).hasMetadata(metadata))
-                .then(
-                        tokenUpdate(PRIMARY).newMetadata("newMetadata").signedBy(DEFAULT_PAYER, ADMIN_KEY),
-                        getTokenInfo(PRIMARY).hasMetadata("newMetadata"));
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(100L),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(METADATA_KEY),
+                tokenCreate(PRIMARY)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .entityMemo(memo)
+                        .name(saltedName)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .adminKey(ADMIN_KEY)
+                        .maxSupply(1000)
+                        .initialSupply(500)
+                        .decimals(1)
+                        .metaData(metadata),
+                getTokenInfo(PRIMARY).hasMetadata(metadata),
+                tokenUpdate(PRIMARY).newMetadata("newMetadata").signedBy(DEFAULT_PAYER, ADMIN_KEY),
+                getTokenInfo(PRIMARY).hasMetadata("newMetadata"));
     }
 
     @HapiTest
@@ -301,30 +278,27 @@ public class TokenMetadataSpecs {
         String metadata = "metadata";
         String saltedName = salted(PRIMARY);
 
-        return defaultHapiSpec("cannotUpdateMetadataWithoutAdminOrMetadataKeySignature", NONDETERMINISTIC_TOKEN_NAMES)
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(100L),
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(METADATA_KEY))
-                .when(
-                        tokenCreate(PRIMARY)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .entityMemo(memo)
-                                .name(saltedName)
-                                .treasury(TOKEN_TREASURY)
-                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                .adminKey(ADMIN_KEY)
-                                .maxSupply(1000)
-                                .initialSupply(500)
-                                .decimals(1)
-                                .metaData(metadata),
-                        getTokenInfo(PRIMARY).logged(),
-                        tokenUpdate(PRIMARY)
-                                .newMetadata("newMetadata")
-                                .signedBy(DEFAULT_PAYER)
-                                .hasKnownStatus(INVALID_SIGNATURE))
-                .then();
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(100L),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(METADATA_KEY),
+                tokenCreate(PRIMARY)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .entityMemo(memo)
+                        .name(saltedName)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .adminKey(ADMIN_KEY)
+                        .maxSupply(1000)
+                        .initialSupply(500)
+                        .decimals(1)
+                        .metaData(metadata),
+                getTokenInfo(PRIMARY).logged(),
+                tokenUpdate(PRIMARY)
+                        .newMetadata("newMetadata")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest
@@ -333,28 +307,25 @@ public class TokenMetadataSpecs {
         String metadata = "metadata";
         String saltedName = salted(PRIMARY);
 
-        return defaultHapiSpec("cannotUpdateMetadataOnImmutableToken", NONDETERMINISTIC_TOKEN_NAMES)
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(100L),
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(METADATA_KEY))
-                .when(
-                        tokenCreate(PRIMARY)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .entityMemo(memo)
-                                .name(saltedName)
-                                .treasury(TOKEN_TREASURY)
-                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                .maxSupply(1000)
-                                .initialSupply(500)
-                                .decimals(1)
-                                .metaData(metadata),
-                        getTokenInfo(PRIMARY).logged(),
-                        tokenUpdate(PRIMARY)
-                                .newMetadata("newMetadata")
-                                .signedBy(DEFAULT_PAYER)
-                                .hasKnownStatus(TOKEN_IS_IMMUTABLE))
-                .then();
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(100L),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(METADATA_KEY),
+                tokenCreate(PRIMARY)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .entityMemo(memo)
+                        .name(saltedName)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .maxSupply(1000)
+                        .initialSupply(500)
+                        .decimals(1)
+                        .metaData(metadata),
+                getTokenInfo(PRIMARY).logged(),
+                tokenUpdate(PRIMARY)
+                        .newMetadata("newMetadata")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(TOKEN_IS_IMMUTABLE));
     }
 }

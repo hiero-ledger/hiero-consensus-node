@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -74,6 +59,14 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     boolean startUserTransaction(@NonNull Instant consensusTime, @NonNull State state);
 
     /**
+     * Check if a user transaction will start a new block, without any side effects.
+     * @param consensusTime the current consensus time
+     * @param state the state to read BlockInfo from
+     * @return true if a new block will be created, false otherwise
+     */
+    boolean willOpenNewBlock(@NonNull Instant consensusTime, @NonNull State state);
+
+    /**
      * "Advances the consensus clock" by updating the latest consensus timestamp that the node has handled. This should
      * be called early on in the transaction handling process in order to avoid assigning the same consensus timestamp
      * to multiple transactions.
@@ -109,13 +102,13 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     void close();
 
     /**
-     * Notifies the block record manager that any startup migration records have been streamed.
-     */
-    void markMigrationRecordsStreamed();
-
-    /**
      * Get the consensus time of the latest handled transaction, or EPOCH if no transactions have been handled yet
      */
     @NonNull
     Instant consTimeOfLastHandledTxn();
+
+    /**
+     * Notifies the block record manager that any startup migration records have been streamed.
+     */
+    void markMigrationRecordsStreamed();
 }

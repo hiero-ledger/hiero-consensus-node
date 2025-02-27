@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,7 +21,7 @@ import java.util.function.Consumer;
  * It's not meant to be used for other purposes. This class tracks the changes to the fields to prevent resetting original
  * platform state fields to null if they are not updated.
  */
-class PlatformStateValueAccumulator implements PlatformStateAccessor {
+public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     /**
      * The address book for this round.
@@ -264,7 +249,7 @@ class PlatformStateValueAccumulator implements PlatformStateAccessor {
                     "No minimum judge info found in state for round " + round + ", snapshot is null");
         }
 
-        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot.getMinimumJudgeInfoList();
+        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot.minimumJudgeInfoList();
         if (minimumJudgeInfo.isEmpty()) {
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + round + ", list is empty");
@@ -478,7 +463,7 @@ class PlatformStateValueAccumulator implements PlatformStateAccessor {
     }
 
     @Override
-    public void bulkUpdate(@NonNull Consumer<PlatformStateAccessor> updater) {
-        throw new UnsupportedOperationException("This implementation doesn't support bulkUpdate operation");
+    public void bulkUpdate(@NonNull Consumer<PlatformStateModifier> updater) {
+        updater.accept(this);
     }
 }

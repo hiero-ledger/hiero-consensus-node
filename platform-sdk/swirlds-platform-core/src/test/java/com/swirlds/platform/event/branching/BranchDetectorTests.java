@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.branching;
 
 import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
@@ -22,12 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -71,15 +56,14 @@ class BranchDetectorTests {
     @Test
     void requiresEventWindow() {
         final Randotron randotron = Randotron.create();
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(8).build();
+        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
 
         final PlatformEvent event = new TestingEventBuilder(randotron)
-                .setCreatorId(addressBook.getNodeId(0))
+                .setCreatorId(NodeId.of(roster.rosterEntries().get(0).nodeId()))
                 .setBirthRound(1)
                 .build();
 
-        final BranchDetector branchDetector = new DefaultBranchDetector(addressBook);
+        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
 
         // We expect this to throw if we haven't yet specified the event window.
         assertThrows(IllegalStateException.class, () -> branchDetector.checkForBranches(event));
@@ -91,13 +75,15 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster =
+                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : addressBook.getNodeIdSet()) {
+        for (final NodeId nodeId : roster.rosterEntries().stream()
+                .map(re -> NodeId.of(re.nodeId()))
+                .toList()) {
             events.addAll(generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 512));
         }
 
@@ -107,7 +93,7 @@ class BranchDetectorTests {
 
         long ancientThreshold = initialBirthRound;
 
-        final BranchDetector branchDetector = new DefaultBranchDetector(addressBook);
+        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
                 new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
 
@@ -141,17 +127,21 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster =
+                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = addressBook.getNodeId(randotron.nextInt(0, addressBook.getSize()));
+        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
+                .get(randotron.nextInt(0, roster.rosterEntries().size()))
+                .nodeId());
         PlatformEvent branchingEvent = null;
         PlatformEvent siblingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : addressBook.getNodeIdSet()) {
+        for (final NodeId nodeId : roster.rosterEntries().stream()
+                .map(re -> NodeId.of(re.nodeId()))
+                .toList()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -176,7 +166,7 @@ class BranchDetectorTests {
 
         long ancientThreshold = initialBirthRound;
 
-        final BranchDetector branchDetector = new DefaultBranchDetector(addressBook);
+        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
                 new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
 
@@ -231,16 +221,20 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster =
+                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = addressBook.getNodeId(randotron.nextInt(0, addressBook.getSize()));
+        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
+                .get(randotron.nextInt(0, roster.rosterEntries().size()))
+                .nodeId());
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : addressBook.getNodeIdSet()) {
+        for (final NodeId nodeId : roster.rosterEntries().stream()
+                .map(re -> NodeId.of(re.nodeId()))
+                .toList()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -263,7 +257,7 @@ class BranchDetectorTests {
 
         long ancientThreshold = initialBirthRound;
 
-        final BranchDetector branchDetector = new DefaultBranchDetector(addressBook);
+        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
                 new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
 
@@ -301,16 +295,20 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster =
+                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = addressBook.getNodeId(randotron.nextInt(0, addressBook.getSize()));
+        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
+                .get(randotron.nextInt(0, roster.rosterEntries().size()))
+                .nodeId());
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : addressBook.getNodeIdSet()) {
+        for (final NodeId nodeId : roster.rosterEntries().stream()
+                .map(re -> NodeId.of(re.nodeId()))
+                .toList()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -335,7 +333,7 @@ class BranchDetectorTests {
 
         long ancientThreshold = initialBirthRound;
 
-        final BranchDetector branchDetector = new DefaultBranchDetector(addressBook);
+        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
                 new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
 
@@ -371,16 +369,20 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster =
+                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = addressBook.getNodeId(randotron.nextInt(0, addressBook.getSize()));
+        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
+                .get(randotron.nextInt(0, roster.rosterEntries().size()))
+                .nodeId());
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : addressBook.getNodeIdSet()) {
+        for (final NodeId nodeId : roster.rosterEntries().stream()
+                .map(re -> NodeId.of(re.nodeId()))
+                .toList()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -402,7 +404,7 @@ class BranchDetectorTests {
 
         long ancientThreshold = initialBirthRound;
 
-        final BranchDetector branchDetector = new DefaultBranchDetector(addressBook);
+        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
                 new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
 
@@ -436,16 +438,20 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster =
+                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = addressBook.getNodeId(randotron.nextInt(0, addressBook.getSize()));
+        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
+                .get(randotron.nextInt(0, roster.rosterEntries().size()))
+                .nodeId());
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : addressBook.getNodeIdSet()) {
+        for (final NodeId nodeId : roster.rosterEntries().stream()
+                .map(re -> NodeId.of(re.nodeId()))
+                .toList()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -471,7 +477,7 @@ class BranchDetectorTests {
 
         long ancientThreshold = initialBirthRound;
 
-        final BranchDetector branchDetector = new DefaultBranchDetector(addressBook);
+        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
                 new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
 

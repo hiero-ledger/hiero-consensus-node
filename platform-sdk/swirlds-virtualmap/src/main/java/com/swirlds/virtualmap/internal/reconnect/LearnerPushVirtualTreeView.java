@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
@@ -116,11 +101,6 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     private final RecordAccessor<K, V> originalRecords;
 
     private final ReconnectMapStats mapStats;
-
-    /**
-     * True until we have handled our first leaf
-     */
-    private boolean firstLeaf = true;
 
     /**
      * Create a new {@link LearnerPushVirtualTreeView}.
@@ -262,11 +242,6 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
-        if (firstLeaf) {
-            root.prepareForFirstLeaf();
-            firstLeaf = false;
-        }
-
         final VirtualLeafRecord<K, V> leaf = in.readSerializable(false, VirtualLeafRecord::new);
         nodeRemover.newLeafNode(leaf.getPath(), leaf.getKey());
         root.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest

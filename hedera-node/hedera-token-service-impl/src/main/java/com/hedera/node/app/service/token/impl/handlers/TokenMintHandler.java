@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN;
@@ -45,7 +30,6 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -57,10 +41,12 @@ import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsVal
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -92,7 +78,6 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
         final var txn = context.body();
-        pureChecks(txn);
         final var op = txn.tokenMintOrThrow();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
@@ -103,7 +88,9 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn);
         final var op = txn.tokenMintOrThrow();
         validateTruePreCheck(op.hasToken(), INVALID_TOKEN_ID);
@@ -138,8 +125,14 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
         if (token.tokenType() == TokenType.FUNGIBLE_COMMON) {
             validateTrue(op.amount() >= 0, INVALID_TOKEN_MINT_AMOUNT);
             // we need to know if treasury mint while creation to ignore supply key exist or not.
-            long newTotalSupply =
-                    mintFungible(token, treasuryRel, op.amount(), accountStore, tokenStore, tokenRelStore);
+            long newTotalSupply = mintFungible(
+                    token,
+                    treasuryRel,
+                    op.amount(),
+                    accountStore,
+                    tokenStore,
+                    tokenRelStore,
+                    context.expiryValidator());
             recordBuilder.newTotalSupply(newTotalSupply);
         } else {
             // get the config needed for validation
@@ -159,7 +152,8 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
                     accountStore,
                     tokenStore,
                     tokenRelStore,
-                    nftStore);
+                    nftStore,
+                    context.expiryValidator());
             recordBuilder.newTotalSupply(tokenStore.get(tokenId).totalSupply());
             recordBuilder.serialNumbers(mintedSerials);
         }
@@ -182,14 +176,15 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
      * serial number of the given base unique token, and increments total owned nfts of the
      * non-fungible token.
      *
-     * @param token
-     * @param treasuryRel   - the treasury relation of the token
-     * @param metadata      - the metadata of the nft to be minted
-     * @param consensusTime - the consensus time of the transaction
-     * @param accountStore  - the account store
-     * @param tokenStore    - the token store
-     * @param tokenRelStore - the token relation store
-     * @param nftStore      - the nft store
+     * @param token           - the token to mint nfts for
+     * @param treasuryRel     - the treasury relation of the token
+     * @param metadata        - the metadata of the nft to be minted
+     * @param consensusTime   - the consensus time of the transaction
+     * @param accountStore    - the account store
+     * @param tokenStore      - the token store
+     * @param tokenRelStore   - the token relation store
+     * @param nftStore        - the nft store
+     * @param expiryValidator - the expiry validator
      */
     private List<Long> mintNonFungible(
             final Token token,
@@ -199,7 +194,8 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
             @NonNull final WritableAccountStore accountStore,
             @NonNull final WritableTokenStore tokenStore,
             @NonNull final WritableTokenRelationStore tokenRelStore,
-            @NonNull final WritableNftStore nftStore) {
+            @NonNull final WritableNftStore nftStore,
+            @NonNull final ExpiryValidator expiryValidator) {
         final var metadataCount = metadata.size();
         validateFalse(metadata.isEmpty(), INVALID_TOKEN_MINT_METADATA);
 
@@ -207,15 +203,23 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
         final var tokenId = treasuryRel.tokenId();
 
         // get the treasury account
-        var treasuryAccount = accountStore.get(treasuryRel.accountIdOrThrow());
-        validateTrue(treasuryAccount != null, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
+        var treasuryAccount = TokenHandlerHelper.getIfUsable(
+                treasuryRel.accountIdOrThrow(), accountStore, expiryValidator, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
 
         // get the latest serial number minted for the token
         var currentSerialNumber = token.lastUsedSerialNumber();
         validateTrue((currentSerialNumber + metadataCount) <= MAX_SERIAL_NO_ALLOWED, SERIAL_NUMBER_LIMIT_REACHED);
 
         // Change the supply on token
-        changeSupply(token, treasuryRel, metadataCount, FAIL_INVALID, accountStore, tokenStore, tokenRelStore);
+        changeSupply(
+                token,
+                treasuryRel,
+                metadataCount,
+                FAIL_INVALID,
+                accountStore,
+                tokenStore,
+                tokenRelStore,
+                expiryValidator);
         // Since changeSupply call above modifies the treasuryAccount, we need to get the modified treasuryAccount
         treasuryAccount = accountStore.get(treasuryRel.accountIdOrThrow());
         // The token is modified in previous step, so we need to get the modified token
@@ -227,7 +231,7 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
             currentSerialNumber++;
             // The default sentinel account is used (0.0.0) to represent unique tokens owned by the treasury
             final var uniqueToken = buildNewlyMintedNft(consensusTime, tokenId, meta, currentSerialNumber);
-            nftStore.put(uniqueToken);
+            nftStore.putAndIncrementCount(uniqueToken);
             // all minted serials should be added to the receipt
             mintedSerials.add(currentSerialNumber);
         }

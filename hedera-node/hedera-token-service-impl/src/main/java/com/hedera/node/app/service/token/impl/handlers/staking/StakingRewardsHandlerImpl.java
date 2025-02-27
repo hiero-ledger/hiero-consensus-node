@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakeIdChangeType.FROM_ACCOUNT_TO_ACCOUNT;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.getAllRewardReceivers;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE;
@@ -33,8 +17,9 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
-import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionRecordBuilder;
+import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -58,6 +43,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
     private final StakingRewardsDistributor rewardsPayer;
     private final StakePeriodManager stakePeriodManager;
     private final StakeInfoHelper stakeInfoHelper;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * Default constructor for injection.
@@ -69,10 +55,12 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
     public StakingRewardsHandlerImpl(
             @NonNull final StakingRewardsDistributor rewardsPayer,
             @NonNull final StakePeriodManager stakePeriodManager,
-            @NonNull final StakeInfoHelper stakeInfoHelper) {
+            @NonNull final StakeInfoHelper stakeInfoHelper,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.rewardsPayer = requireNonNull(rewardsPayer);
         this.stakePeriodManager = requireNonNull(stakePeriodManager);
         this.stakeInfoHelper = requireNonNull(stakeInfoHelper);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     /** {@inheritDoc} */
@@ -87,7 +75,8 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         final var stakingRewardsStore = context.writableStore(WritableNetworkStakingRewardsStore.class);
         final var stakingInfoStore = context.writableStore(WritableStakingInfoStore.class);
         final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
-        final var stakingRewardAccountId = asAccount(accountsConfig.stakingRewardAccount());
+
+        final var stakingRewardAccountId = entityIdFactory.newAccountId(accountsConfig.stakingRewardAccount());
         final var consensusNow = context.consensusTime();
         // When an account StakedIdType is FROM_ACCOUNT or TO_ACCOUNT, we need to assess if the staked accountId
         // could be in a reward situation. So add those staked accountIds to the list of possible reward receivers
@@ -100,7 +89,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         // a SCHEDULED dispatch)
         rewardReceivers.removeAll(prePaidRewards.keySet());
         // Pay rewards to all possible reward receivers, returns all rewards paid
-        final var recordBuilder = context.userTransactionRecordBuilder(DeleteCapableTransactionRecordBuilder.class);
+        final var recordBuilder = context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class);
         final var rewardsPaid = rewardsPayer.payRewardsIfPending(
                 rewardReceivers, writableStore, stakingRewardsStore, stakingInfoStore, consensusNow, recordBuilder);
 
@@ -250,18 +239,17 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             @Nullable Set<AccountID> specialRewardReceivers,
             @NonNull final Account account,
             @NonNull final WritableAccountStore accountStore) {
-        if (specialRewardReceivers == null) {
-            // Always trigger a reward situation for the new stakee when they are
-            // gaining an indirect staker, even if it doesn't change their total stake
-            specialRewardReceivers = new LinkedHashSet<>();
-        }
+        // Always trigger a reward situation for the new stakee when they are
+        // gaining an indirect staker, even if it doesn't change their total stake
+        var updatedSpecialRewardReceivers =
+                (specialRewardReceivers == null ? new LinkedHashSet<AccountID>() : specialRewardReceivers);
         final var stakedAccountId = account.stakedAccountId();
         final var stakedAccount = accountStore.getOriginalValue(stakedAccountId);
         // if the special reward receiver account is not staked to a node, it will not need to receive reward
         if (stakedAccount != null && stakedAccount.hasStakedNodeId()) {
-            specialRewardReceivers.add(stakedAccountId);
+            updatedSpecialRewardReceivers.add(stakedAccountId);
         }
-        return specialRewardReceivers;
+        return updatedSpecialRewardReceivers;
     }
 
     /**
@@ -338,7 +326,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
                                     && earnedZeroRewardsBecauseOfZeroStake(
                                             originalAccount, stakingRewardStore, consensusNow)));
             final var stakePeriodStart = stakePeriodManager.startUpdateFor(
-                    originalAccount, modifiedAccount, wasRewarded, containStakeMetaChanges, consensusNow);
+                    originalAccount, modifiedAccount, wasRewarded, containStakeMetaChanges);
             if (stakePeriodStart != -1) {
                 final var copy = modifiedAccount.copyBuilder();
                 copy.stakePeriodStart(stakePeriodStart);
@@ -366,7 +354,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore,
             @NonNull final Instant consensusNow) {
         return Objects.requireNonNull(account).stakePeriodStart()
-                < stakePeriodManager.firstNonRewardableStakePeriod(stakingRewardStore, consensusNow);
+                < stakePeriodManager.firstNonRewardableStakePeriod(stakingRewardStore);
     }
 
     private void adjustNodeStakes(
@@ -389,8 +377,8 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
                     // So, it will be leaving some rewards from its current node unclaimed.
                     // We need to record that, so we don't include them in the pendingRewards
                     // calculation later
-                    final var effectiveStakeRewardStart = rewardableStakeStartFor(
-                            stakingRewardStore.isStakingRewardsActivated(), originalAccount, consensusNow);
+                    final var effectiveStakeRewardStart =
+                            rewardableStakeStartFor(stakingRewardStore.isStakingRewardsActivated(), originalAccount);
                     stakeInfoHelper.increaseUnclaimedStakeRewards(
                             currentStakedNodeId, effectiveStakeRewardStart, stakingInfoStore);
                 }
@@ -402,8 +390,9 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             final var modifiedStakedNodeId = modifiedAccount.stakedNodeId();
             // We need the latest updates to balance and stakedToMe for the account in modifications also
             // to be reflected in stake awarded. So use the modifiedAccount instead of originalAccount
-            if (modifiedStakedNodeId != SENTINEL_NODE_ID)
+            if (modifiedStakedNodeId != SENTINEL_NODE_ID) {
                 stakeInfoHelper.awardStake(modifiedStakedNodeId, modifiedAccount, stakingInfoStore);
+            }
         }
     }
 
@@ -466,17 +455,16 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             // either because she is staking < 1 hbar, or because she started staking only
             // today or yesterday; we don't care about the exact reason, we just remember
             // her total stake as long as she didn't begin staking today exactly
-            return account.stakePeriodStart() < stakePeriodManager.currentStakePeriod(consensusNow);
+            return account.stakePeriodStart() < stakePeriodManager.currentStakePeriod();
         }
     }
 
-    private long rewardableStakeStartFor(
-            final boolean rewardsActivated, @NonNull final Account account, @NonNull final Instant consensusNow) {
+    private long rewardableStakeStartFor(final boolean rewardsActivated, @NonNull final Account account) {
         if (!rewardsActivated || account.declineReward()) {
             return 0;
         }
         final var startPeriod = account.stakePeriodStart();
-        final var currentPeriod = stakePeriodManager.currentStakePeriod(consensusNow);
+        final var currentPeriod = stakePeriodManager.currentStakePeriod();
         if (startPeriod >= currentPeriod) {
             return 0;
         } else {

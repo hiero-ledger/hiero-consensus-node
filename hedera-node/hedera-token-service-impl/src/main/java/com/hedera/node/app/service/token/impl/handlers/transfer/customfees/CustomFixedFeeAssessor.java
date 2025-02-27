@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.adjustHbarFees;
@@ -24,6 +9,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -80,9 +66,38 @@ public class CustomFixedFeeAssessor {
         }
         final var fixedFeeSpec = fee.fixedFeeOrThrow();
         if (!fixedFeeSpec.hasDenominatingTokenId()) {
-            assessHbarFees(sender, fee, result);
+            assessHbarFees(sender, fee, result, true);
         } else {
-            assessHTSFees(sender, token, fee, result);
+            assessHTSFees(sender, token, fee, result, true);
+        }
+    }
+
+    /**
+     * Set Transactions custom fees as assessed.
+     * <p>
+     * Note: Transaction custom fees can be only fixed fees. Any transaction that dispatch
+     * crypto transfer to assess custom fees should provide the toplevel fees in the handle metadata
+     *
+     * @param fixedCustomFee simple transfer body representing the custom fixed fee
+     * @param result assessment result
+     */
+    public void setTransactionFeesAsAssessed(
+            final AccountID payer, final FixedCustomFee fixedCustomFee, final AssessmentResult result) {
+        if (fixedCustomFee.hasFixedFee() && fixedCustomFee.hasFeeCollectorAccountId()) {
+            final var fixedFee = fixedCustomFee.fixedFee();
+            final var customFee = CustomFee.newBuilder()
+                    .feeCollectorAccountId(fixedCustomFee.feeCollectorAccountId())
+                    .fixedFee(fixedFee)
+                    .build();
+
+            if (fixedFee.hasDenominatingTokenId()) {
+                final var token = Token.newBuilder()
+                        .tokenId(fixedFee.denominatingTokenId())
+                        .build();
+                assessHTSFees(payer, token, customFee, result, false);
+            } else {
+                assessHbarFees(payer, customFee, result, false);
+            }
         }
     }
 
@@ -94,12 +109,17 @@ public class CustomFixedFeeAssessor {
      * @param result the assessment result which will be used to create next level of transaction body
      */
     private void assessHbarFees(
-            @NonNull final AccountID sender, @NonNull final CustomFee hbarFee, @NonNull final AssessmentResult result) {
+            @NonNull final AccountID sender,
+            @NonNull final CustomFee hbarFee,
+            @NonNull final AssessmentResult result,
+            boolean doAdjustments) {
         final var collector = hbarFee.feeCollectorAccountId();
         final var fixedSpec = hbarFee.fixedFee();
         final var amount = fixedSpec.amount();
 
-        adjustHbarFees(result, sender, hbarFee);
+        if (doAdjustments) {
+            adjustHbarFees(result, sender, hbarFee);
+        }
         // add all assessed fees for transaction record
         result.addAssessedCustomFee(AssessedCustomFee.newBuilder()
                 .effectivePayerAccountId(sender)
@@ -120,13 +140,15 @@ public class CustomFixedFeeAssessor {
             @NonNull final AccountID sender,
             @NonNull final Token token,
             @NonNull final CustomFee htsFee,
-            @NonNull final AssessmentResult result) {
+            @NonNull final AssessmentResult result,
+            boolean doAdjustments) {
         final var collector = htsFee.feeCollectorAccountIdOrThrow();
         final var fixedFeeSpec = htsFee.fixedFeeOrThrow();
         final var amount = fixedFeeSpec.amount();
         final var denominatingToken = fixedFeeSpec.denominatingTokenIdOrThrow();
-        adjustHtsFees(result, sender, collector, token, amount, denominatingToken);
-
+        if (doAdjustments) {
+            adjustHtsFees(result, sender, collector, token, amount, denominatingToken);
+        }
         // add all assessed fees for transaction record
         result.addAssessedCustomFee(AssessedCustomFee.newBuilder()
                 .effectivePayerAccountId(sender)

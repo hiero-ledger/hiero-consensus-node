@@ -193,9 +193,9 @@ This file contains the address book to use when starting from genesis.
 **Congestion Pricing**: A mechanism designed to manage network congestion by dynamically adjusting
 transaction fees based on network demand. The primary goal of congestion pricing is to discourage
 excessive network usage during peak times. Refer to
-[Congestion Pricing](https://github.com/hashgraph/hedera-services/blob/develop/hedera-node/docs/fees/automated-congestion-pricing.md)
+[Congestion Pricing](https://github.com/hashgraph/hedera-services/blob/main/hedera-node/docs/fees/automated-congestion-pricing.md)
 and
-[Fees](https://github.com/hashgraph/hedera-services/blob/develop/hedera-node/docs/design/app/fees.md).
+[Fees](https://github.com/hashgraph/hedera-services/blob/main/hedera-node/docs/design/app/fees.md).
 
 ## Consensus Time
 

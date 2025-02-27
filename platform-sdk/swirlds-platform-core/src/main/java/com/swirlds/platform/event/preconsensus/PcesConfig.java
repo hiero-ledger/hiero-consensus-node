@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.config.api.ConfigData;
@@ -87,6 +72,8 @@ import java.time.Duration;
  *                                             time, pause PCES replay until the system is able to catch up.
  * @param limitReplayFrequency                 if true, then directly limit the replay frequency of preconsensus events
  * @param maxEventReplayFrequency              the maximum number of events that can be replayed per second
+ * @param inlinePcesSyncOption                 when to sync the preconsensus event file to disk (applies only to inline
+ *                                             PCES)
  */
 @ConfigData("event.preconsensus")
 public record PcesConfig(
@@ -109,4 +96,5 @@ public record PcesConfig(
         @ConfigProperty(defaultValue = "1m") Duration suspiciousRoundDurabilityDuration,
         @ConfigProperty(defaultValue = "1ms") Duration replayHealthThreshold,
         @ConfigProperty(defaultValue = "true") boolean limitReplayFrequency,
-        @ConfigProperty(defaultValue = "5000") int maxEventReplayFrequency) {}
+        @ConfigProperty(defaultValue = "5000") int maxEventReplayFrequency,
+        @ConfigProperty(defaultValue = "EVERY_SELF_EVENT") FileSyncOption inlinePcesSyncOption) {}

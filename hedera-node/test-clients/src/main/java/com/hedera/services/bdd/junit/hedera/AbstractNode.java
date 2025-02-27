@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera;
 
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.BLOCK_STREAMS_DIR;
@@ -25,6 +10,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CONFIG_
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CURRENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.DATA_DIR;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.GENESIS_PROPERTIES;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.NODE_ADMIN_KEYS_JSON;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OUTPUT_DIR;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.UPGRADE_DIR;
 import static java.util.Objects.requireNonNull;
@@ -56,6 +42,11 @@ public abstract class AbstractNode implements HederaNode {
     }
 
     @Override
+    public int getGrpcNodeOperatorPort() {
+        return metadata.grpcNodeOperatorPort();
+    }
+
+    @Override
     public long getNodeId() {
         return metadata.nodeId();
     }
@@ -82,19 +73,32 @@ public abstract class AbstractNode implements HederaNode {
                     .resolve(DATA_DIR)
                     .resolve(CONFIG_DIR)
                     .resolve(GENESIS_PROPERTIES);
+            case NODE_ADMIN_KEYS_JSON -> workingDir
+                    .resolve(DATA_DIR)
+                    .resolve(CONFIG_DIR)
+                    .resolve(NODE_ADMIN_KEYS_JSON);
             case APPLICATION_PROPERTIES -> workingDir
                     .resolve(DATA_DIR)
                     .resolve(CONFIG_DIR)
                     .resolve(APPLICATION_PROPERTIES);
             case LOG4J2_XML -> workingDir.resolve(LOG4J2_XML);
+            case DATA_CONFIG_DIR -> workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR);
             case RECORD_STREAMS_DIR -> workingDir
                     .resolve(DATA_DIR)
                     .resolve(RECORD_STREAMS_DIR)
-                    .resolve("record0.0." + getAccountId().accountNumOrThrow());
+                    .resolve(String.format(
+                            "record%s.%s.%s",
+                            getAccountId().shardNum(),
+                            getAccountId().realmNum(),
+                            getAccountId().accountNumOrThrow()));
             case BLOCK_STREAMS_DIR -> workingDir
                     .resolve(DATA_DIR)
                     .resolve(BLOCK_STREAMS_DIR)
-                    .resolve("block-0.0." + getAccountId().accountNumOrThrow());
+                    .resolve(String.format(
+                            "block-%s.%s.%s",
+                            getAccountId().shardNum(),
+                            getAccountId().realmNum(),
+                            getAccountId().accountNumOrThrow()));
             case UPGRADE_ARTIFACTS_DIR -> workingDir
                     .resolve(DATA_DIR)
                     .resolve(UPGRADE_DIR)

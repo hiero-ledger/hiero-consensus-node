@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -40,8 +24,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_CONTRACT_CALL_RESULTS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
@@ -223,30 +205,29 @@ public class TokenExpiryInfoSuite {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> updatedAutoRenewAccountID = new AtomicReference<>();
         final var someValidExpiry = new AtomicLong();
-        return defaultHapiSpec("updateExpiryInfoForTokenAndReadLatestInfo")
-                .given(
-                        new RunnableOp(() ->
-                                someValidExpiry.set(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS + 123L)),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L),
-                        cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
-                        cryptoCreate(UPDATED_AUTO_RENEW_ACCOUNT)
-                                .keyShape(SigControl.ED25519_ON)
-                                .balance(0L)
-                                .exposingCreatedIdTo(updatedAutoRenewAccountID::set),
-                        newKeyNamed(ADMIN_KEY),
-                        uploadInitCode(TOKEN_EXPIRY_CONTRACT),
-                        contractCreate(TOKEN_EXPIRY_CONTRACT).gas(1_000_000L),
-                        tokenCreate(VANILLA_TOKEN)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .treasury(TOKEN_TREASURY)
-                                .expiry(100)
-                                .autoRenewAccount(AUTO_RENEW_ACCOUNT)
-                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                .maxSupply(1000)
-                                .initialSupply(500L)
-                                .adminKey(ADMIN_KEY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                new RunnableOp(
+                        () -> someValidExpiry.set(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS + 123L)),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                cryptoCreate(UPDATED_AUTO_RENEW_ACCOUNT)
+                        .keyShape(SigControl.ED25519_ON)
+                        .balance(0L)
+                        .exposingCreatedIdTo(updatedAutoRenewAccountID::set),
+                newKeyNamed(ADMIN_KEY),
+                uploadInitCode(TOKEN_EXPIRY_CONTRACT),
+                contractCreate(TOKEN_EXPIRY_CONTRACT).gas(1_000_000L),
+                tokenCreate(VANILLA_TOKEN)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .treasury(TOKEN_TREASURY)
+                        .expiry(100)
+                        .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .maxSupply(1000)
+                        .initialSupply(500L)
+                        .adminKey(ADMIN_KEY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, TOKEN_EXPIRY_CONTRACT))),
@@ -262,8 +243,8 @@ public class TokenExpiryInfoSuite {
                                 .alsoSigningWithFullPrefix(ADMIN_KEY, UPDATED_AUTO_RENEW_ACCOUNT)
                                 .via("updateExpiryAndReadLatestInfoTxn")
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(GENESIS))))
-                .then(withOpContext((spec, opLog) -> allRunFor(
+                                .payingWith(GENESIS))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 "updateExpiryAndReadLatestInfoTxn",
@@ -286,27 +267,23 @@ public class TokenExpiryInfoSuite {
 
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "GetExpiryInfoForToken",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS)
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(0L),
-                        cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
-                        newKeyNamed(ADMIN_KEY),
-                        uploadInitCode(TOKEN_EXPIRY_CONTRACT),
-                        contractCreate(TOKEN_EXPIRY_CONTRACT).gas(1_000_000L),
-                        tokenCreate(VANILLA_TOKEN)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .treasury(TOKEN_TREASURY)
-                                .expiry(100)
-                                .autoRenewAccount(AUTO_RENEW_ACCOUNT)
-                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                .maxSupply(1000)
-                                .initialSupply(500L)
-                                .adminKey(ADMIN_KEY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                newKeyNamed(ADMIN_KEY),
+                uploadInitCode(TOKEN_EXPIRY_CONTRACT),
+                contractCreate(TOKEN_EXPIRY_CONTRACT).gas(1_000_000L),
+                tokenCreate(VANILLA_TOKEN)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .treasury(TOKEN_TREASURY)
+                        .expiry(100)
+                        .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .maxSupply(1000)
+                        .initialSupply(500L)
+                        .adminKey(ADMIN_KEY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         TOKEN_EXPIRY_CONTRACT,
@@ -327,47 +304,36 @@ public class TokenExpiryInfoSuite {
                         contractCallLocal(
                                 TOKEN_EXPIRY_CONTRACT,
                                 GET_EXPIRY_INFO_FOR_TOKEN,
-                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get()))))))
-                .then(
-                        childRecordsCheck(
-                                "expiryForInvalidTokenIDTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)
-                                //                                        .contractCallResult(resultWith()
-                                //
-                                // .contractCallResult(htsPrecompileResult()
-                                //
-                                // .forFunction(FunctionType.HAPI_GET_TOKEN_EXPIRY_INFO)
-                                //                                                        .withStatus(INVALID_TOKEN_ID)
-                                //                                                        .withExpiry(0,
-                                // AccountID.getDefaultInstance(), 0)))
-                                ),
-                        withOpContext((spec, opLog) -> {
-                            final var getTokenInfoQuery = getTokenInfo(VANILLA_TOKEN);
-                            allRunFor(spec, getTokenInfoQuery);
-                            final var expirySecond = getTokenInfoQuery
-                                    .getResponse()
-                                    .getTokenGetInfo()
-                                    .getTokenInfo()
-                                    .getExpiry()
-                                    .getSeconds();
-                            allRunFor(
-                                    spec,
-                                    childRecordsCheck(
-                                            "expiryTxn",
-                                            SUCCESS,
-                                            recordWith()
-                                                    .status(SUCCESS)
-                                                    .contractCallResult(resultWith()
-                                                            .contractCallResult(htsPrecompileResult()
-                                                                    .forFunction(
-                                                                            FunctionType.HAPI_GET_TOKEN_EXPIRY_INFO)
-                                                                    .withStatus(SUCCESS)
-                                                                    .withExpiry(
-                                                                            expirySecond,
-                                                                            spec.registry()
-                                                                                    .getAccountID(AUTO_RENEW_ACCOUNT),
-                                                                            THREE_MONTHS_IN_SECONDS)))));
-                        }));
+                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get()))))),
+                childRecordsCheck(
+                        "expiryForInvalidTokenIDTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_TOKEN_ID)),
+                withOpContext((spec, opLog) -> {
+                    final var getTokenInfoQuery = getTokenInfo(VANILLA_TOKEN);
+                    allRunFor(spec, getTokenInfoQuery);
+                    final var expirySecond = getTokenInfoQuery
+                            .getResponse()
+                            .getTokenGetInfo()
+                            .getTokenInfo()
+                            .getExpiry()
+                            .getSeconds();
+                    allRunFor(
+                            spec,
+                            childRecordsCheck(
+                                    "expiryTxn",
+                                    SUCCESS,
+                                    recordWith()
+                                            .status(SUCCESS)
+                                            .contractCallResult(resultWith()
+                                                    .contractCallResult(htsPrecompileResult()
+                                                            .forFunction(FunctionType.HAPI_GET_TOKEN_EXPIRY_INFO)
+                                                            .withStatus(SUCCESS)
+                                                            .withExpiry(
+                                                                    expirySecond,
+                                                                    spec.registry()
+                                                                            .getAccountID(AUTO_RENEW_ACCOUNT),
+                                                                    THREE_MONTHS_IN_SECONDS)))));
+                }));
     }
 }

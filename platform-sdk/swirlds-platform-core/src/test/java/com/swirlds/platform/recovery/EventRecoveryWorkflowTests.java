@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -28,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,9 +26,9 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.recovery.internal.StreamedRound;
-import com.swirlds.platform.state.PlatformState;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SwirldState;
 import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import java.io.IOException;
@@ -107,8 +93,6 @@ class EventRecoveryWorkflowTests {
     @Test
     @DisplayName("applyTransactions() Test")
     void applyTransactionsTest() {
-        final PlatformState platformState = mock(PlatformState.class);
-
         final List<ConsensusEvent> events = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             events.add(mock(PlatformEvent.class));
@@ -120,39 +104,39 @@ class EventRecoveryWorkflowTests {
         final List<PlatformEvent> preHandleList = new ArrayList<>();
         final AtomicBoolean roundHandled = new AtomicBoolean(false);
 
-        final SwirldState immutableState = mock(SwirldState.class);
+        final StateLifecycles<MerkleNodeState> stateLifecycles = mock(StateLifecycles.class);
+        final MerkleNodeState immutableState = mock(MerkleNodeState.class);
         doAnswer(invocation -> {
                     assertFalse(roundHandled.get(), "round should not have been handled yet");
                     preHandleList.add(invocation.getArgument(0));
                     return null;
                 })
-                .when(immutableState)
-                .preHandle(any());
+                .when(stateLifecycles)
+                .onPreHandle(any(), same(immutableState), any());
         doAnswer(invocation -> {
                     fail("mutable state should handle transactions");
                     return null;
                 })
-                .when(immutableState)
-                .handleConsensusRound(any(), any());
+                .when(stateLifecycles)
+                .onHandleConsensusRound(any(), same(immutableState), any());
 
-        final SwirldState mutableState = mock(SwirldState.class);
+        final MerkleNodeState mutableState = mock(MerkleNodeState.class);
         doAnswer(invocation -> {
                     fail("immutable state should pre-handle transactions");
                     return null;
                 })
-                .when(mutableState)
-                .preHandle(any());
+                .when(stateLifecycles)
+                .onPreHandle(any(), same(mutableState), any());
         doAnswer(invocation -> {
                     assertFalse(roundHandled.get(), "round should only be handled once");
                     assertSame(round, invocation.getArgument(0), "unexpected round");
-                    assertSame(platformState, invocation.getArgument(1), "unexpected dual state");
                     roundHandled.set(true);
                     return null;
                 })
-                .when(mutableState)
-                .handleConsensusRound(any(), any());
+                .when(stateLifecycles)
+                .onHandleConsensusRound(any(), same(mutableState), any());
 
-        EventRecoveryWorkflow.applyTransactions(immutableState, mutableState, platformState, round);
+        EventRecoveryWorkflow.applyTransactions(stateLifecycles, immutableState, mutableState, round);
 
         assertEquals(events.size(), preHandleList.size(), "incorrect number of pre-handle calls");
         for (int index = 0; index < events.size(); index++) {

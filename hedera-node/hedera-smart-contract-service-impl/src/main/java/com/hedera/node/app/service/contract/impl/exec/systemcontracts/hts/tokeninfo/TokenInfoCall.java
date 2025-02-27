@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -22,8 +7,11 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.tokenInfoTupleFor;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator.TOKEN_INFO;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator.TOKEN_INFO_V2;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Function;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -39,16 +27,19 @@ import org.apache.tuweni.bytes.Bytes;
 public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
     private final Configuration configuration;
     private final boolean isStaticCall;
+    private final Function function;
 
     public TokenInfoCall(
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             final boolean isStaticCall,
             @Nullable final Token token,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            Function function) {
         super(gasCalculator, enhancement, token);
         this.configuration = requireNonNull(configuration);
         this.isStaticCall = isStaticCall;
+        this.function = function;
     }
 
     /**
@@ -77,8 +68,17 @@ public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
         if (isStaticCall && status != SUCCESS) {
             return revertResult(status, gasRequirement);
         }
-        return successResult(
-                TOKEN_INFO.getOutputs().encodeElements(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId)),
-                gasRequirement);
+
+        return function.getName().equals(TOKEN_INFO.methodName())
+                ? successResult(
+                        TOKEN_INFO
+                                .getOutputs()
+                                .encode(Tuple.of(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId, 1))),
+                        gasRequirement)
+                : successResult(
+                        TOKEN_INFO_V2
+                                .getOutputs()
+                                .encode(Tuple.of(status.protoOrdinal(), tokenInfoTupleFor(token, ledgerId, 2))),
+                        gasRequirement);
     }
 }

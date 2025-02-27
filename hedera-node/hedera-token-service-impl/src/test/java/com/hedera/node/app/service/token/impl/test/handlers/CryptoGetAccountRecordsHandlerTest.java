@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
@@ -23,9 +8,12 @@ import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.QueryHeader;
@@ -40,9 +28,11 @@ import com.hedera.hapi.node.token.CryptoGetStakersQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
 import com.hedera.node.app.service.token.impl.handlers.CryptoGetAccountRecordsHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
+import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -55,6 +45,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -149,7 +140,7 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
     void validatesAccountDoesntExist() {
         refreshStoresWithCurrentTokenOnlyInReadable();
         mockQueryContext(
-                BaseCryptoHandler.asAccount(987),
+                idFactory.newAccountId(987),
                 QueryHeader.newBuilder().responseType(ANSWER_ONLY).build());
 
         Assertions.assertThatThrownBy(() -> subject.validate(context))
@@ -261,6 +252,32 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
         Assertions.assertThat(result.cryptoGetAccountRecords().accountID()).isEqualTo(id);
         // Make sure no records are returned
         Assertions.assertThat(result.cryptoGetAccountRecords().records()).isEmpty();
+    }
+
+    @Test
+    void verifyFeeComputation() {
+        mockQueryContext(id, QueryHeader.newBuilder().responseType(COST_ANSWER).build());
+        // setup the readable store
+        given(context.createStore(ReadableAccountStore.class)).willReturn(readableStore);
+        final ResponseHeader.Builder testHeaderBuilder = ResponseHeader.newBuilder();
+        testHeaderBuilder.nodeTransactionPrecheckCode(ResponseCodeEnum.OK);
+        testHeaderBuilder.responseType(ResponseType.COST_ANSWER);
+
+        final FeeCalculator feeSpy = Mockito.spy(new FakeFeeCalculator());
+        given(context.feeCalculator()).willReturn(feeSpy);
+
+        // validate a schedule that is present in state
+        given(context.query())
+                .willReturn(Query.newBuilder()
+                        .cryptoGetProxyStakers(CryptoGetStakersQuery.DEFAULT)
+                        .cryptoGetAccountRecords(newAcctRecordsQuery(id).build())
+                        .build());
+        Fees actual = subject.computeFees(context);
+        assertThat(actual.networkFee()).isEqualTo(0L);
+        assertThat(actual.nodeFee()).isEqualTo(0L);
+        assertThat(actual.serviceFee()).isEqualTo(0L);
+        assertThat(actual.totalFee()).isEqualTo(0L);
+        verify(feeSpy).legacyCalculate(any());
     }
 
     @CsvSource({"ANSWER_ONLY", "COST_ANSWER_STATE_PROOF", "ANSWER_STATE_PROOF"})

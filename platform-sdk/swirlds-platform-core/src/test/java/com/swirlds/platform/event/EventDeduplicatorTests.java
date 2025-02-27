@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -26,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -158,7 +144,7 @@ class EventDeduplicatorTests {
         for (int i = 0; i < TEST_EVENT_COUNT; i++) {
             if (submittedEvents.isEmpty() || random.nextBoolean()) {
                 // submit a brand new event half the time
-                final NodeId creatorId = new NodeId(random.nextInt(NODE_ID_COUNT));
+                final NodeId creatorId = NodeId.of(random.nextInt(NODE_ID_COUNT));
                 final long eventGeneration = Math.max(0, minimumGenerationNonAncient + random.nextInt(-1, 10));
                 final long eventBirthRound =
                         Math.max(ConsensusConstants.ROUND_FIRST, minimumRoundNonAncient + random.nextLong(-1, 4));
@@ -195,12 +181,13 @@ class EventDeduplicatorTests {
                         emittedEvents);
             } else {
                 // submit a duplicate event with a different signature 25% of the time
-                final PlatformEvent duplicateEvent = new PlatformEvent(
-                        submittedEvents
-                                .get(random.nextInt(submittedEvents.size()))
-                                .getUnsignedEvent(),
-                        randomSignatureBytes(random) // randomize the signature
-                        );
+                final PlatformEvent platformEvent = submittedEvents.get(random.nextInt(submittedEvents.size()));
+                final PlatformEvent duplicateEvent = new PlatformEvent(new GossipEvent.Builder()
+                        .eventCore(platformEvent.getGossipEvent().eventCore())
+                        .signature(randomSignatureBytes(random)) // randomize the signature
+                        .transactions(platformEvent.getGossipEvent().transactions())
+                        .build());
+                duplicateEvent.setHash(platformEvent.getHash());
 
                 if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
                     if (duplicateEvent.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient) {

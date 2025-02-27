@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -1436,5 +1421,43 @@ public class AtomicCryptoTransferHTSSuite {
                                 .contractCallResult(resultWith()
                                         .contractCallResult(
                                                 htsPrecompileResult().withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nullContractAdminKeyTransfer() {
+        final var nullAdminKeyXferTxn = "nullAdminKeyXferTxn";
+        return hapiTest(
+                cryptoCreate(RECEIVER),
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT).omitAdminKey(),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, CONTRACT, ONE_HUNDRED_HBARS)),
+                withOpContext((spec, opLog) -> {
+                    final var receiver = spec.registry().getAccountID(RECEIVER);
+                    final var contract = spec.registry().getAccountID(CONTRACT);
+                    final var amountToBeSent = 50 * ONE_HBAR;
+                    allRunFor(
+                            spec,
+                            contractCall(
+                                            CONTRACT,
+                                            TRANSFER_MULTIPLE_TOKENS,
+                                            transferList()
+                                                    .withAccountAmounts(
+                                                            accountAmount(contract, -amountToBeSent, false),
+                                                            accountAmount(receiver, amountToBeSent, false))
+                                                    .build(),
+                                            EMPTY_TUPLE_ARRAY)
+                                    .payingWith(GENESIS)
+                                    .via(nullAdminKeyXferTxn)
+                                    .gas(GAS_TO_OFFER));
+                }),
+                childRecordsCheck(
+                        nullAdminKeyXferTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))
+                                .transfers(including(tinyBarsFromTo(CONTRACT, RECEIVER, 50 * ONE_HBAR)))));
     }
 }

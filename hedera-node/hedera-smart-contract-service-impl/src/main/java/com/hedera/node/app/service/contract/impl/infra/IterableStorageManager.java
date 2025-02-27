@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.infra;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
@@ -93,6 +78,12 @@ public class IterableStorageManager {
                                     firstContractKey,
                                     contractAccesses.contractID(),
                                     tuweniToPbjBytes(access.key()));
+                            case ZERO_INTO_EMPTY_SLOT -> {
+                                // Ensure a "new" zero isn't put into state, remove from KV state
+                                store.removeSlot(
+                                        new SlotKey(contractAccesses.contractID(), tuweniToPbjBytes(access.key())));
+                                yield firstContractKey;
+                            }
                                 // We always insert the new slot at the head
                             case INSERTION -> insertAccessedValue(
                                     store,
@@ -106,7 +97,8 @@ public class IterableStorageManager {
         }));
 
         // Update contract metadata with the net change in slots used
-        allSizeChanges.forEach(change -> {
+        long slotUsageChange = 0;
+        for (final var change : allSizeChanges) {
             if (change.numInsertions() != 0 || change.numRemovals() != 0) {
                 enhancement
                         .operations()
@@ -114,8 +106,12 @@ public class IterableStorageManager {
                                 change.contractID(),
                                 firstKeys.getOrDefault(change.contractID(), Bytes.EMPTY),
                                 change.netChange());
+                slotUsageChange += change.netChange();
             }
-        });
+        }
+        if (slotUsageChange != 0) {
+            store.adjustSlotCount(slotUsageChange);
+        }
     }
 
     /**
@@ -152,7 +148,7 @@ public class IterableStorageManager {
         requireNonNull(key);
         final var slotKey = new SlotKey(contractID, key);
         try {
-            final var slotValue = slotValueFor(store, false, slotKey, "Missing key ");
+            final var slotValue = slotValueFor(store, slotKey, "Missing key ");
             final var nextKey = slotValue.nextKey();
             final var prevKey = slotValue.previousKey();
             if (!Bytes.EMPTY.equals(nextKey)) {
@@ -212,24 +208,19 @@ public class IterableStorageManager {
 
     private void updatePrevFor(
             @NonNull final SlotKey key, @NonNull final Bytes newPrevKey, @NonNull final ContractStateStore store) {
-        final var value = slotValueFor(store, true, key, "Missing next key ");
+        final var value = slotValueFor(store, key, "Missing next key ");
         store.putSlot(key, value.copyBuilder().previousKey(newPrevKey).build());
     }
 
     private void updateNextFor(
             @NonNull final SlotKey key, @NonNull final Bytes newNextKey, @NonNull final ContractStateStore store) {
-        final var value = slotValueFor(store, true, key, "Missing prev key ");
+        final var value = slotValueFor(store, key, "Missing prev key ");
         store.putSlot(key, value.copyBuilder().nextKey(newNextKey).build());
     }
 
     @NonNull
     private SlotValue slotValueFor(
-            @NonNull final ContractStateStore store,
-            final boolean forModify,
-            @NonNull final SlotKey slotKey,
-            @NonNull final String msgOnError) {
-        return forModify
-                ? requireNonNull(store.getSlotValueForModify(slotKey), () -> msgOnError + slotKey.key())
-                : requireNonNull(store.getSlotValue(slotKey), () -> msgOnError + slotKey.key());
+            @NonNull final ContractStateStore store, @NonNull final SlotKey slotKey, @NonNull final String msgOnError) {
+        return requireNonNull(store.getSlotValue(slotKey), () -> msgOnError + slotKey.key());
     }
 }

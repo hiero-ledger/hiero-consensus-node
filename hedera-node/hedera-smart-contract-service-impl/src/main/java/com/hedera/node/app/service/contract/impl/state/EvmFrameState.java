@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -96,6 +82,8 @@ public interface EvmFrameState {
     /**
      * Returns whether the account with the given address is a "hollow account"; that is, an account
      * created by a value transfer to a 20-byte alias, without an explicit cryptographic key given.
+     * @param address the address of the account which should be checked if it is a hollow account
+     * @return true if the account is hollow
      */
     boolean isHollowAccount(@NonNull Address address);
 
@@ -197,6 +185,10 @@ public interface EvmFrameState {
     @NonNull
     Bytes getTokenRedirectCode(@NonNull Address address);
 
+    /**
+     * @param contractID the contract to extract its code hash
+     * @return the code hash of the contract
+     */
     @NonNull
     Hash getCodeHash(ContractID contractID);
 
@@ -227,10 +219,29 @@ public interface EvmFrameState {
      * Returns the hash of the redirect bytecode for the account with the given address.
      *
      * @param address the account address
-     * @return the redirect code for the token
+     * @return the redirect code for the account
      */
     @NonNull
     Hash getAccountRedirectCodeHash(@Nullable Address address);
+
+    /**
+     * Returns the redirect bytecode for the schedule with the given address.  This should only be called for schedule
+     * transaction entities
+     *
+     * @param address the schedule address
+     * @return the redirect code for the schedule
+     */
+    @NonNull
+    Bytes getScheduleRedirectCode(@Nullable Address address);
+
+    /**
+     * Returns the hash of the redirect bytecode for the schedule with the given address.
+     *
+     * @param address the schedule address
+     * @return the redirect code for the schedule
+     */
+    @NonNull
+    Hash getScheduleRedirectCodeHash(@Nullable Address address);
 
     /**
      * Returns the native account with the given account id.
@@ -349,4 +360,11 @@ public interface EvmFrameState {
      */
     @NonNull
     RentFactors getRentFactorsFor(ContractID contractID);
+
+    /**
+     * Returns the entity id factory.
+     * @return the entity id factory
+     */
+    @NonNull
+    EntityIdFactory entityIdFactory();
 }

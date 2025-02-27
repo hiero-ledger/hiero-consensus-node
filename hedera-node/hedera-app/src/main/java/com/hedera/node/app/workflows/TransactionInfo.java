@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -50,8 +35,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 public record TransactionInfo(
         @NonNull Transaction transaction,
         @NonNull TransactionBody txBody,
-        @Nullable TransactionID transactionID,
-        @Nullable AccountID payerID,
+        @NonNull TransactionID transactionID,
+        @NonNull AccountID payerID,
         @NonNull SignatureMap signatureMap,
         @NonNull Bytes signedBytes,
         @NonNull HederaFunctionality functionality,
@@ -73,23 +58,5 @@ public record TransactionInfo(
                 signedBytes,
                 functionality,
                 serializedTransaction);
-    }
-
-    public static TransactionInfo from(
-            @NonNull Transaction transaction,
-            @NonNull TransactionBody txBody,
-            @NonNull SignatureMap signatureMap,
-            @NonNull Bytes signedBytes,
-            @NonNull HederaFunctionality functionality) {
-        TransactionID transactionId = null;
-        AccountID payerId = null;
-        if (txBody.transactionID() != null) {
-            transactionId = txBody.transactionID();
-            if (transactionId.accountID() != null) {
-                payerId = txBody.transactionID().accountID();
-            }
-        }
-        return new TransactionInfo(
-                transaction, txBody, transactionId, payerId, signatureMap, signedBytes, functionality, null);
     }
 }

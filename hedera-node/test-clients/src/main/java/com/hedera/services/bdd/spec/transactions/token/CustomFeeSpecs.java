@@ -1,32 +1,22 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.token;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CustomFee;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
+import com.hederahashgraph.api.proto.java.FixedCustomFee;
 import com.hederahashgraph.api.proto.java.FixedFee;
 import com.hederahashgraph.api.proto.java.Fraction;
 import com.hederahashgraph.api.proto.java.FractionalFee;
 import com.hederahashgraph.api.proto.java.RoyaltyFee;
+import java.util.Arrays;
 import java.util.OptionalLong;
 import java.util.function.Function;
 
@@ -132,7 +122,7 @@ public class CustomFeeSpecs {
 
     static CustomFee builtRoyaltyNoFallback(
             long numerator, long denominator, String collector, boolean allCollectorsExempt, HapiSpec spec) {
-        final var feeCollector = TxnUtils.asId(collector, spec);
+        final var feeCollector = asId(collector, spec);
         return CustomFee.newBuilder()
                 .setRoyaltyFee(baseRoyaltyBuilder(numerator, denominator))
                 .setFeeCollectorAccountId(feeCollector)
@@ -147,7 +137,7 @@ public class CustomFeeSpecs {
             boolean allCollectorsExempt,
             Function<HapiSpec, FixedFee> fixedFallback,
             HapiSpec spec) {
-        final var feeCollector = TxnUtils.asId(collector, spec);
+        final var feeCollector = asId(collector, spec);
         final var fallback = fixedFallback.apply(spec);
         return CustomFee.newBuilder()
                 .setRoyaltyFee(baseRoyaltyBuilder(numerator, denominator).setFallbackFee(fallback))
@@ -172,7 +162,7 @@ public class CustomFeeSpecs {
     }
 
     static FixedFee builtFixedHtsSansCollector(long amount, String denom, HapiSpec spec) {
-        final var denomId = TxnUtils.asTokenId(denom, spec);
+        final var denomId = asTokenId(denom, spec);
         return FixedFee.newBuilder()
                 .setAmount(amount)
                 .setDenominatingTokenId(denomId)
@@ -212,5 +202,81 @@ public class CustomFeeSpecs {
                 .setAllCollectorsAreExempt(allCollectorsExempt)
                 .setFixedFee(fixedBuilder)
                 .setFeeCollectorAccountId(collectorId);
+    }
+
+    static FixedCustomFee.Builder baseConsensusFixedBuilder(long amount, String collector, HapiSpec spec) {
+        final var collectorId =
+                isIdLiteral(collector) ? asAccount(collector) : spec.registry().getAccountID(collector);
+        final var fixedBuilder = FixedFee.newBuilder().setAmount(amount);
+        return FixedCustomFee.newBuilder().setFixedFee(fixedBuilder).setFeeCollectorAccountId(collectorId);
+    }
+
+    static FixedCustomFee.Builder baseConsensusFixedBuilderNoCollector(long amount) {
+        final var fixedBuilder = FixedFee.newBuilder().setAmount(amount);
+        return FixedCustomFee.newBuilder().setFixedFee(fixedBuilder);
+    }
+
+    static FixedCustomFee.Builder baseConsensusFixedBuilder(long amount, AccountID collector) {
+        final var fixedBuilder = FixedFee.newBuilder().setAmount(amount);
+        return FixedCustomFee.newBuilder().setFixedFee(fixedBuilder).setFeeCollectorAccountId(collector);
+    }
+
+    // consensus custom fee suppliers
+    public static Function<HapiSpec, FixedCustomFee> fixedConsensusHbarFee(long amount, String collector) {
+        return spec -> builtConsensusFixedHbar(amount, collector, spec);
+    }
+
+    public static Function<HapiSpec, FixedCustomFee> fixedConsensusHbarFeeNoCollector(long amount) {
+        return spec -> builtConsensusFixedHbarNoCollector(amount);
+    }
+
+    public static Function<HapiSpec, FixedCustomFee> fixedConsensusHbarFee(long amount, AccountID collector) {
+        return spec -> builtConsensusFixedHbar(amount, collector);
+    }
+
+    public static Function<HapiSpec, FixedCustomFee> fixedConsensusHtsFee(long amount, String denom, String collector) {
+        return spec -> builtConsensusFixedHts(amount, denom, collector, spec);
+    }
+
+    // builders
+    static FixedCustomFee builtConsensusFixedHbar(long amount, String collector, HapiSpec spec) {
+        return baseConsensusFixedBuilder(amount, collector, spec).build();
+    }
+
+    static FixedCustomFee builtConsensusFixedHbarNoCollector(long amount) {
+        return baseConsensusFixedBuilderNoCollector(amount).build();
+    }
+
+    static FixedCustomFee builtConsensusFixedHbar(long amount, AccountID collector) {
+        return baseConsensusFixedBuilder(amount, collector).build();
+    }
+
+    static FixedCustomFee builtConsensusFixedHts(long amount, String denom, String collector, HapiSpec spec) {
+        final var builder = baseConsensusFixedBuilder(amount, collector, spec);
+        final var denomId =
+                isIdLiteral(denom) ? asToken(denom) : spec.registry().getTokenID(denom);
+        builder.getFixedFeeBuilder().setDenominatingTokenId(denomId);
+        return builder.build();
+    }
+
+    public static Function<HapiSpec, FixedFee> hbarLimit(long amount) {
+        return spec -> FixedFee.newBuilder().setAmount(amount).build();
+    }
+
+    public static Function<HapiSpec, FixedFee> htsLimit(String token, long amount) {
+        return spec -> FixedFee.newBuilder()
+                .setDenominatingTokenId(asTokenId(token, spec))
+                .setAmount(amount)
+                .build();
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static Function<HapiSpec, CustomFeeLimit> maxCustomFee(
+            String account, Function<HapiSpec, FixedFee>... fees) {
+        return spec -> CustomFeeLimit.newBuilder()
+                .setAccountId(asId(account, spec))
+                .addAllFees(Arrays.stream(fees).map(fee -> fee.apply(spec)).toList())
+                .build();
     }
 }

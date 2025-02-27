@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -34,15 +20,13 @@ import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 public class QueryPaymentSuite {
-    private static final Logger log = LogManager.getLogger(QueryPaymentSuite.class);
-    private static final String NODE = "0.0.3";
+
+    private static final String NODE = asEntityString(3);
 
     /*
      * 1. multiple payers pay amount to node as well as one more beneficiary. But node gets less query payment fee
@@ -51,32 +35,29 @@ public class QueryPaymentSuite {
      */
     @HapiTest
     final Stream<DynamicTest> queryPaymentsFailsWithInsufficientFunds() {
-        return defaultHapiSpec("queryPaymentsFailsWithInsufficientFunds")
-                .given(
-                        cryptoCreate("a").balance(500_000_000L),
-                        cryptoCreate("b").balance(1_234L),
-                        cryptoCreate("c").balance(1_234L),
-                        cryptoCreate("d").balance(1_234L))
-                .when()
-                .then(
-                        getAccountInfo(GENESIS)
-                                .withPayment(cryptoTransfer(spec -> multiAccountPaymentToNode003AndBeneficiary(
-                                                spec, "a", "b", "c", 1_000L, 2L))
-                                        .payingWith("a"))
-                                .setNode(NODE)
-                                .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE),
-                        getAccountInfo(GENESIS)
-                                .withPayment(cryptoTransfer(spec -> multiAccountPaymentToNode003AndBeneficiary(
-                                                spec, "d", "b", "c", 5000, 200L))
-                                        .payingWith("a"))
-                                .setNode(NODE)
-                                .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
-                        getAccountInfo(GENESIS)
-                                .withPayment(cryptoTransfer(spec -> multiAccountPaymentToNode003AndBeneficiary(
-                                                spec, "d", GENESIS, "c", 5000, 200L))
-                                        .payingWith("a"))
-                                .setNode(NODE)
-                                .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
+        return hapiTest(
+                cryptoCreate("a").balance(500_000_000L),
+                cryptoCreate("b").balance(1_234L),
+                cryptoCreate("c").balance(1_234L),
+                cryptoCreate("d").balance(1_234L),
+                getAccountInfo(GENESIS)
+                        .withPayment(cryptoTransfer(spec ->
+                                        multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1_000L, 2L))
+                                .payingWith("a"))
+                        .setNode(NODE)
+                        .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE),
+                getAccountInfo(GENESIS)
+                        .withPayment(cryptoTransfer(spec ->
+                                        multiAccountPaymentToNode003AndBeneficiary(spec, "d", "b", "c", 5000, 200L))
+                                .payingWith("a"))
+                        .setNode(NODE)
+                        .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                getAccountInfo(GENESIS)
+                        .withPayment(cryptoTransfer(spec ->
+                                        multiAccountPaymentToNode003AndBeneficiary(spec, "d", GENESIS, "c", 5000, 200L))
+                                .payingWith("a"))
+                        .setNode(NODE)
+                        .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     /*
@@ -87,65 +68,56 @@ public class QueryPaymentSuite {
      */
     @HapiTest
     final Stream<DynamicTest> queryPaymentsMultiBeneficiarySucceeds() {
-        return defaultHapiSpec("queryPaymentsMultiBeneficiarySucceeds")
-                .given(
-                        cryptoCreate("a").balance(1_234L),
-                        cryptoCreate("b").balance(1_234L),
-                        cryptoCreate("c").balance(1_234L))
-                .when()
-                .then(
-                        getAccountInfo(GENESIS)
-                                .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1_000L, 200L)))
-                                .setNode(NODE)
-                                .hasAnswerOnlyPrecheck(OK),
-                        getAccountInfo(GENESIS)
-                                .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 900, 200L)))
-                                .setNode(NODE)
-                                .payingWith("a")
-                                .hasAnswerOnlyPrecheck(OK),
-                        getAccountInfo(GENESIS)
-                                .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1200, 200L)))
-                                .setNode(NODE)
-                                .payingWith("a")
-                                .fee(10L)
-                                .hasAnswerOnlyPrecheck(OK));
+        return hapiTest(
+                cryptoCreate("a").balance(1_234L),
+                cryptoCreate("b").balance(1_234L),
+                cryptoCreate("c").balance(1_234L),
+                getAccountInfo(GENESIS)
+                        .withPayment(cryptoTransfer(
+                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1_000L, 200L)))
+                        .setNode(NODE)
+                        .hasAnswerOnlyPrecheck(OK),
+                getAccountInfo(GENESIS)
+                        .withPayment(cryptoTransfer(
+                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 900, 200L)))
+                        .setNode(NODE)
+                        .payingWith("a")
+                        .hasAnswerOnlyPrecheck(OK),
+                getAccountInfo(GENESIS)
+                        .withPayment(cryptoTransfer(
+                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1200, 200L)))
+                        .setNode(NODE)
+                        .payingWith("a")
+                        .fee(10L)
+                        .hasAnswerOnlyPrecheck(OK));
     }
 
     // Check if multiple payers or single payer pay amount to node
     @HapiTest
     final Stream<DynamicTest> queryPaymentsSingleBeneficiaryChecked() {
-        return defaultHapiSpec("queryPaymentsSingleBeneficiaryChecked")
-                .given(
-                        cryptoCreate("a").balance(500_000_000L),
-                        cryptoCreate("b").balance(1_234L),
-                        cryptoCreate("c").balance(1_234L))
-                .when()
-                .then(
-                        getAccountInfo(GENESIS).fee(100L).setNode(NODE).hasAnswerOnlyPrecheck(OK),
-                        getAccountInfo(GENESIS)
-                                .payingWith("a")
-                                .nodePayment(Long.MAX_VALUE)
-                                .setNode(NODE)
-                                .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
-                        getAccountInfo(GENESIS)
-                                .withPayment(
-                                        cryptoTransfer(spec -> multiAccountPaymentToNode003(spec, "a", "b", 1_000L)))
-                                .hasAnswerOnlyPrecheck(OK));
+        return hapiTest(
+                cryptoCreate("a").balance(500_000_000L),
+                cryptoCreate("b").balance(1_234L),
+                cryptoCreate("c").balance(1_234L),
+                getAccountInfo(GENESIS).fee(100L).setNode(NODE).hasAnswerOnlyPrecheck(OK),
+                getAccountInfo(GENESIS)
+                        .payingWith("a")
+                        .nodePayment(Long.MAX_VALUE)
+                        .setNode(NODE)
+                        .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                getAccountInfo(GENESIS)
+                        .withPayment(cryptoTransfer(spec -> multiAccountPaymentToNode003(spec, "a", "b", 1_000L)))
+                        .hasAnswerOnlyPrecheck(OK));
     }
 
     // Check if payment is not done to node
     @HapiTest
     final Stream<DynamicTest> queryPaymentsNotToNodeFails() {
-        return defaultHapiSpec("queryPaymentsNotToNodeFails")
-                .given(
-                        cryptoCreate("a").balance(500_000_000L),
-                        cryptoCreate("b").balance(1_234L),
-                        cryptoCreate("c").balance(1_234L))
-                .when()
-                .then(getAccountInfo(GENESIS)
+        return hapiTest(
+                cryptoCreate("a").balance(500_000_000L),
+                cryptoCreate("b").balance(1_234L),
+                cryptoCreate("c").balance(1_234L),
+                getAccountInfo(GENESIS)
                         .withPayment(cryptoTransfer(spec -> invalidPaymentToNode(spec, "a", "b", "c", 1200))
                                 .payingWith("a"))
                         .setNode(NODE)

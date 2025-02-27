@@ -1,26 +1,10 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.node.app.service.evm.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -48,12 +32,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.ACCEPTED_MONO_GAS_CALCULATION_DIFFERENCE;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.ALLOW_SKIPPED_ENTITY_IDS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_CONTRACT_CALL_RESULTS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_NONCE;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -191,38 +169,33 @@ public class LazyCreateThroughPrecompileSuite {
         final AtomicLong civilianId = new AtomicLong();
         final AtomicReference<String> nftMirrorAddr = new AtomicReference<>();
 
-        return defaultHapiSpec("AutoCreationFailsWithMirrorAddress", NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(nftKey),
-                        uploadInitCode(AUTO_CREATION_MODES),
-                        contractCreate(AUTO_CREATION_MODES),
-                        cryptoCreate(CIVILIAN)
-                                .keyShape(ED25519)
-                                .exposingCreatedIdTo(id -> civilianId.set(id.getAccountNum())),
-                        tokenCreate(nft)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(nftKey)
-                                .initialSupply(0)
-                                .treasury(CIVILIAN)
-                                .exposingCreatedIdTo(
-                                        idLit -> nftMirrorAddr.set(asHexedSolidityAddress(asToken(idLit)))),
-                        mintToken(nft, List.of(ByteString.copyFromUtf8(ONE_TIME))))
-                .when(
-                        cryptoApproveAllowance()
-                                .payingWith(CIVILIAN)
-                                .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of()),
-                        sourcing(() -> contractCall(
-                                        AUTO_CREATION_MODES,
-                                        CREATE_DIRECTLY,
-                                        headlongFromHexed(nftMirrorAddr.get()),
-                                        mirrorAddrWith(civilianId.get()),
-                                        mirrorAddrWith(civilianId.get() + 1_000_001),
-                                        1L,
-                                        false)
-                                .via(creationAttempt)
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)))
-                .then(childRecordsCheck(
+        return hapiTest(
+                newKeyNamed(nftKey),
+                uploadInitCode(AUTO_CREATION_MODES),
+                contractCreate(AUTO_CREATION_MODES),
+                cryptoCreate(CIVILIAN).keyShape(ED25519).exposingCreatedIdTo(id -> civilianId.set(id.getAccountNum())),
+                tokenCreate(nft)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(nftKey)
+                        .initialSupply(0)
+                        .treasury(CIVILIAN)
+                        .exposingCreatedIdTo(idLit -> nftMirrorAddr.set(asHexedSolidityAddress(asToken(idLit)))),
+                mintToken(nft, List.of(ByteString.copyFromUtf8(ONE_TIME))),
+                cryptoApproveAllowance()
+                        .payingWith(CIVILIAN)
+                        .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of()),
+                sourcing(() -> contractCall(
+                                AUTO_CREATION_MODES,
+                                CREATE_DIRECTLY,
+                                headlongFromHexed(nftMirrorAddr.get()),
+                                mirrorAddrWith(civilianId.get()),
+                                mirrorAddrWith(civilianId.get() + 1_000_001),
+                                1L,
+                                false)
+                        .via(creationAttempt)
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                childRecordsCheck(
                         creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_ALIAS_KEY)));
     }
 
@@ -230,32 +203,25 @@ public class LazyCreateThroughPrecompileSuite {
     final Stream<DynamicTest> erc20TransferLazyCreate() {
         final AtomicReference<String> tokenAddr = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "erc20TransferLazyCreate",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        ACCEPTED_MONO_GAS_CALCULATION_DIFFERENCE,
-                        ALLOW_SKIPPED_ENTITY_IDS)
-                .given(
-                        newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(5)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(id -> tokenAddr.set(
-                                        HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
-                        uploadInitCode(ERC_20_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key. Also, because of gas difference
-                        contractCreate(ERC_20_CONTRACT).refusingEthConversion(),
-                        tokenAssociate(ERC_20_CONTRACT, List.of(FUNGIBLE_TOKEN)),
-                        cryptoTransfer(moving(5, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, ERC_20_CONTRACT)))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(5)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(id -> tokenAddr.set(
+                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                uploadInitCode(ERC_20_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key. Also, because of gas difference
+                contractCreate(ERC_20_CONTRACT).refusingEthConversion(),
+                tokenAssociate(ERC_20_CONTRACT, List.of(FUNGIBLE_TOKEN)),
+                cryptoTransfer(moving(5, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, ERC_20_CONTRACT)),
+                withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -311,43 +277,35 @@ public class LazyCreateThroughPrecompileSuite {
                                         record.getTransactionFee()
                                                 / record.getContractCallResult().getGasUsed());
                             }));
-                }))
-                .then();
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> erc20TransferFromLazyCreate() {
-        return defaultHapiSpec(
-                        "erc20TransferFromLazyCreate",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        ACCEPTED_MONO_GAS_CALCULATION_DIFFERENCE,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        ALLOW_SKIPPED_ENTITY_IDS)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(RECIPIENT),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .initialSupply(10L)
-                                .maxSupply(1000L)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(ERC_20_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key. Also, because of gas difference
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(RECIPIENT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(10L)
+                        .maxSupply(1000L)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(ERC_20_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key. Also, because of gas difference
 
-                        contractCreate(ERC_20_CONTRACT).refusingEthConversion(),
-                        tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                        tokenAssociate(RECIPIENT, FUNGIBLE_TOKEN),
-                        tokenAssociate(ERC_20_CONTRACT, FUNGIBLE_TOKEN),
-                        cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)))
-                .when(withOpContext((spec, opLog) -> {
+                contractCreate(ERC_20_CONTRACT).refusingEthConversion(),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                tokenAssociate(RECIPIENT, FUNGIBLE_TOKEN),
+                tokenAssociate(ERC_20_CONTRACT, FUNGIBLE_TOKEN),
+                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
+                withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -432,41 +390,33 @@ public class LazyCreateThroughPrecompileSuite {
                                         record.getTransactionFee()
                                                 / record.getContractCallResult().getGasUsed());
                             }));
-                }))
-                .then();
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> erc721TransferFromLazyCreate() {
-        return defaultHapiSpec(
-                        "erc721TransferFromLazyCreate",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        ACCEPTED_MONO_GAS_CALCULATION_DIFFERENCE,
-                        ALLOW_SKIPPED_ENTITY_IDS)
-                .given(
-                        newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(SPENDER),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(ERC_721_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key. Also, because of gas difference
-                        contractCreate(ERC_721_CONTRACT).refusingEthConversion(),
-                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                        tokenAssociate(SPENDER, NON_FUNGIBLE_TOKEN),
-                        tokenAssociate(ERC_721_CONTRACT, NON_FUNGIBLE_TOKEN),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(FIRST_META, SECOND_META)),
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(ERC_721_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key. Also, because of gas difference
+                contractCreate(ERC_721_CONTRACT).refusingEthConversion(),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(SPENDER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(ERC_721_CONTRACT, NON_FUNGIBLE_TOKEN),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(FIRST_META, SECOND_META)),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -534,45 +484,37 @@ public class LazyCreateThroughPrecompileSuite {
                                         record.getTransactionFee()
                                                 / record.getContractCallResult().getGasUsed());
                             }));
-                }))
-                .then();
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> htsTransferFromFungibleTokenLazyCreate() {
         final var allowance = 10L;
         final var successfulTransferFromTxn = "txn";
-        return defaultHapiSpec(
-                        "htsTransferFromFungibleTokenLazyCreate",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(5),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .initialSupply(10L)
-                                .maxSupply(1000L)
-                                .supplyKey(MULTI_KEY)
-                                .treasury(OWNER),
-                        uploadInitCode(HTS_TRANSFER_FROM_CONTRACT),
-                        contractCreate(HTS_TRANSFER_FROM_CONTRACT),
-                        cryptoApproveAllowance()
-                                .payingWith(DEFAULT_PAYER)
-                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, HTS_TRANSFER_FROM_CONTRACT, allowance)
-                                .via(BASE_APPROVE_TXN)
-                                .signedBy(DEFAULT_PAYER, OWNER)
-                                .fee(ONE_HBAR),
-                        getAccountDetails(OWNER)
-                                .payingWith(GENESIS)
-                                .has(accountDetailsWith()
-                                        .tokenAllowancesContaining(
-                                                FUNGIBLE_TOKEN, HTS_TRANSFER_FROM_CONTRACT, allowance)))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(5),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(10L)
+                        .maxSupply(1000L)
+                        .supplyKey(MULTI_KEY)
+                        .treasury(OWNER),
+                uploadInitCode(HTS_TRANSFER_FROM_CONTRACT),
+                contractCreate(HTS_TRANSFER_FROM_CONTRACT),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, HTS_TRANSFER_FROM_CONTRACT, allowance)
+                        .via(BASE_APPROVE_TXN)
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .fee(ONE_HBAR),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .tokenAllowancesContaining(FUNGIBLE_TOKEN, HTS_TRANSFER_FROM_CONTRACT, allowance)),
+                withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -612,36 +554,30 @@ public class LazyCreateThroughPrecompileSuite {
                             getAliasedAccountBalance(alias)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, allowance / 2)
                                     .logged());
-                }))
-                .then();
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> htsTransferFromForNFTLazyCreate() {
-        return defaultHapiSpec(
-                        "htsTransferFromForNFTLazyCreate",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        ACCEPTED_MONO_GAS_CALCULATION_DIFFERENCE)
-                .given(
-                        newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(5),
-                        tokenCreate(NFT_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .treasury(OWNER)
-                                .initialSupply(0L)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(HTS_TRANSFER_FROM_CONTRACT),
-                        contractCreate(HTS_TRANSFER_FROM_CONTRACT),
-                        mintToken(NFT_TOKEN, List.of(META1, META2)),
-                        cryptoApproveAllowance()
-                                .payingWith(DEFAULT_PAYER)
-                                .addNftAllowance(OWNER, NFT_TOKEN, HTS_TRANSFER_FROM_CONTRACT, false, List.of(2L))
-                                .via(BASE_APPROVE_TXN)
-                                .signedBy(DEFAULT_PAYER, OWNER)
-                                .fee(ONE_HBAR))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(5),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .treasury(OWNER)
+                        .initialSupply(0L)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(HTS_TRANSFER_FROM_CONTRACT),
+                contractCreate(HTS_TRANSFER_FROM_CONTRACT),
+                mintToken(NFT_TOKEN, List.of(META1, META2)),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addNftAllowance(OWNER, NFT_TOKEN, HTS_TRANSFER_FROM_CONTRACT, false, List.of(2L))
+                        .via(BASE_APPROVE_TXN)
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .fee(ONE_HBAR),
+                withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -681,36 +617,31 @@ public class LazyCreateThroughPrecompileSuite {
                             getAliasedAccountBalance(alias)
                                     .hasTokenBalance(NFT_TOKEN, 1)
                                     .logged());
-                }))
-                .then();
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> revertedAutoCreationRollsBackEvenIfTopLevelSucceeds() {
-        return defaultHapiSpec(
-                        "revertedAutoCreationRollsBackEvenIfTopLevelSucceeds",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        ACCEPTED_MONO_GAS_CALCULATION_DIFFERENCE)
-                .given(
-                        newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(5),
-                        tokenCreate(NFT_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .treasury(OWNER)
-                                .initialSupply(0L)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(AUTO_CREATION_MODES),
-                        // Adding refusingEthConversion() due to fee differences
-                        contractCreate(AUTO_CREATION_MODES).refusingEthConversion(),
-                        mintToken(NFT_TOKEN, List.of(META1, META2)),
-                        cryptoApproveAllowance()
-                                .payingWith(DEFAULT_PAYER)
-                                .addNftAllowance(OWNER, NFT_TOKEN, AUTO_CREATION_MODES, false, List.of(2L))
-                                .via(BASE_APPROVE_TXN)
-                                .signedBy(DEFAULT_PAYER, OWNER)
-                                .fee(ONE_HBAR))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(5),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .treasury(OWNER)
+                        .initialSupply(0L)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(AUTO_CREATION_MODES),
+                // Adding refusingEthConversion() due to fee differences
+                contractCreate(AUTO_CREATION_MODES).refusingEthConversion(),
+                mintToken(NFT_TOKEN, List.of(META1, META2)),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addNftAllowance(OWNER, NFT_TOKEN, AUTO_CREATION_MODES, false, List.of(2L))
+                        .via(BASE_APPROVE_TXN)
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .fee(ONE_HBAR),
+                withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -731,16 +662,15 @@ public class LazyCreateThroughPrecompileSuite {
                                     .alsoSigningWithFullPrefix(OWNER)
                                     .refusingEthConversion()
                                     .hasKnownStatus(SUCCESS));
-                }))
-                .then(
-                        getTxnRecord(TRANSFER_TXN).hasNonStakingChildRecordCount(1),
-                        childRecordsCheck(
-                                TRANSFER_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(REVERTED_SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))));
+                }),
+                getTxnRecord(TRANSFER_TXN).hasNonStakingChildRecordCount(1),
+                childRecordsCheck(
+                        TRANSFER_TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(REVERTED_SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))));
     }
 }

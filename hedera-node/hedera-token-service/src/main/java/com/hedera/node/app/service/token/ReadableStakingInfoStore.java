@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token;
 
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
@@ -34,7 +19,7 @@ public interface ReadableStakingInfoStore {
      * @return {@link StakingNodeInfo} object if successfully fetched or {@code null} if the node doesn't exist
      */
     @Nullable
-    StakingNodeInfo get(final long nodeId);
+    StakingNodeInfo get(long nodeId);
 
     /**
      * Fetches all node IDs from state. If no nodes exist, returns an empty collection.

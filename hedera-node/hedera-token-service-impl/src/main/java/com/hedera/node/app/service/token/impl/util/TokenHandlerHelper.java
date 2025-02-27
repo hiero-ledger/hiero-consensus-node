@@ -1,37 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.util;
 
-/*
- * Copyright (C) 2023 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
@@ -57,11 +27,11 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -81,30 +51,30 @@ public class TokenHandlerHelper {
     }
 
     /**
-     * Enum to determine the type of account ID, aliased or not aliased
+     * Enum to determine the type of account ID, aliased or not aliased.
      */
     public enum AccountIDType {
         /**
-         * Account ID is aliased
+         * Account ID is aliased.
          */
         ALIASED_ID,
         /**
-         * Account ID is not aliased
+         * Account ID is not aliased.
          */
         NOT_ALIASED_ID
     }
 
     /**
      * Returns the account if it exists and is usable. A {@link HandleException} is thrown if the account is invalid.
-     * Note that this method should also work with account ID's that represent smart contracts
-     * If the account is deleted the return error code is ACCOUNT_DELETED
+     * Note that this method should also work with account ID's that represent smart contracts.
+     * If the account is deleted the return error code is ACCOUNT_DELETED.
      *
      * @param accountId the ID of the account to get
      * @param accountStore the {@link ReadableTokenStore} to use for account retrieval
      * @param expiryValidator the {@link ExpiryValidator} to determine if the account is expired
      * @param errorIfNotUsable the {@link ResponseCodeEnum} to use if the account is not found/usable
-     * @throws HandleException if any of the account conditions are not met
      * @return the account if it exists and is usable
+     * @throws HandleException if any of the account conditions are not met
      */
     @NonNull
     public static Account getIfUsable(
@@ -118,82 +88,6 @@ public class TokenHandlerHelper {
                 expiryValidator,
                 errorIfNotUsable,
                 ACCOUNT_DELETED,
-                AccountIDType.NOT_ALIASED_ID);
-    }
-
-    /**
-     * Returns the account if it exists and is usable. A {@link HandleException} is thrown if the account is invalid.
-     * Note that this method should also work with account ID's that represent smart contracts
-     * If the account is deleted the return error code is ACCOUNT_DELETED
-     *
-     * @param accountId the ID of the account to get
-     * @param accountStore the {@link ReadableTokenStore} to use for account retrieval
-     * @param expiryValidator the {@link ExpiryValidator} to determine if the account is expired
-     * @param errorIfNotUsable the {@link ResponseCodeEnum} to use if the account is not found/usable
-     * @throws HandleException if any of the account conditions are not met
-     * @return the account if it exists and is usable
-     */
-    @NonNull
-    public static Account getIfUsableForAliasedId(
-            @NonNull final AccountID accountId,
-            @NonNull final ReadableAccountStore accountStore,
-            @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final ResponseCodeEnum errorIfNotUsable) {
-        return getIfUsable(
-                accountId, accountStore, expiryValidator, errorIfNotUsable, ACCOUNT_DELETED, AccountIDType.ALIASED_ID);
-    }
-
-    /**
-     * Returns the account if it exists and is usable. A {@link HandleException} is thrown if the account is invalid.
-     * Note that this method should also work with account ID's that represent smart contracts
-     * If the account is deleted the return error code is INVALID_AUTORENEW_ACCOUNT
-     *
-     * @param accountId the ID of the account to get
-     * @param accountStore the {@link ReadableTokenStore} to use for account retrieval
-     * @param expiryValidator the {@link ExpiryValidator} to determine if the account is expired
-     * @param errorIfNotUsable the {@link ResponseCodeEnum} to use if the account is not found/usable
-     * @throws HandleException if any of the account conditions are not met
-     * @return the account if it exists and is usable
-     */
-    @NonNull
-    public static Account getIfUsableForAutoRenew(
-            @NonNull final AccountID accountId,
-            @NonNull final ReadableAccountStore accountStore,
-            @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final ResponseCodeEnum errorIfNotUsable) {
-        return getIfUsable(
-                accountId,
-                accountStore,
-                expiryValidator,
-                errorIfNotUsable,
-                INVALID_AUTORENEW_ACCOUNT,
-                AccountIDType.NOT_ALIASED_ID);
-    }
-
-    /**
-     * Returns the account if it exists and is usable. A {@link HandleException} is thrown if the account is invalid.
-     * Note that this method should also work with account ID's that represent smart contracts.
-     * If the account is deleted the return error code is INVALID_TREASURY_ACCOUNT_FOR_TOKEN
-     *
-     * @param accountId the ID of the account to get
-     * @param accountStore the {@link ReadableTokenStore} to use for account retrieval
-     * @param expiryValidator the {@link ExpiryValidator} to determine if the account is expired
-     * @param errorIfNotUsable the {@link ResponseCodeEnum} to use if the account is not found/usable
-     * @throws HandleException if any of the account conditions are not met
-     * @return the account if it exists and is usable
-     */
-    @NonNull
-    public static Account getIfUsableWithTreasury(
-            @NonNull final AccountID accountId,
-            @NonNull final ReadableAccountStore accountStore,
-            @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final ResponseCodeEnum errorIfNotUsable) {
-        return getIfUsable(
-                accountId,
-                accountStore,
-                expiryValidator,
-                errorIfNotUsable,
-                INVALID_TREASURY_ACCOUNT_FOR_TOKEN,
                 AccountIDType.NOT_ALIASED_ID);
     }
 
@@ -231,7 +125,7 @@ public class TokenHandlerHelper {
         final var isContract = acct.smartContract();
 
         validateFalse(acct.deleted(), errorOnAccountDeleted);
-        final var type = isContract ? EntityType.CONTRACT : EntityType.ACCOUNT;
+        final var type = isContract ? EntityType.CONTRACT_BYTECODE : EntityType.ACCOUNT;
 
         final var expiryStatus =
                 expiryValidator.expirationStatus(type, acct.expiredAndPendingRemoval(), acct.tinybarBalance());
@@ -241,22 +135,7 @@ public class TokenHandlerHelper {
     }
 
     /**
-     * Enum to determine the type of validations to be performed on the token. If the token is allowed to be paused
-     * or not
-     */
-    public enum TokenValidations {
-        /**
-         * Token should not be paused
-         */
-        REQUIRE_NOT_PAUSED,
-        /**
-         * Token can be paused
-         */
-        PERMIT_PAUSED
-    }
-
-    /**
-     * Returns the token if it exists and is usable. A {@link HandleException} is thrown if the token is invalid
+     * Returns the token if it exists and is usable. A {@link HandleException} is thrown if the token is invalid.
      * @param tokenId the ID of the token to get
      * @param tokenStore the {@link ReadableTokenStore} to use for token retrieval
      * @return the token if it exists and is usable
@@ -266,40 +145,59 @@ public class TokenHandlerHelper {
     }
 
     /**
-     * Returns the token if it exists and is usable. A {@link HandleException} is thrown if the token is invalid
+     * Returns the token if it exists and is usable. A {@link HandleException} is thrown if the token is invalid.
      *
      * @param tokenId the ID of the token to get
      * @param tokenStore the {@link ReadableTokenStore} to use for token retrieval
      * @param tokenValidations whether validate paused token status
-     * @throws HandleException if any of the token conditions are not met
      * @return the token if it exists and is usable
+     * @throws HandleException if any of the token conditions are not met
      */
     @NonNull
     public static Token getIfUsable(
             @NonNull final TokenID tokenId,
             @NonNull final ReadableTokenStore tokenStore,
             @NonNull final TokenValidations tokenValidations) {
+        return getIfUsable(tokenId, tokenStore, tokenValidations, null);
+    }
+
+    /**
+     * Returns the token if it exists and is usable. A {@link HandleException} is thrown if the token is invalid.
+     *
+     * @param tokenId the ID of the token to get
+     * @param tokenStore the {@link ReadableTokenStore} to use for token retrieval
+     * @param tokenValidations whether validate paused token status
+     * @param errorIfNotUsable the error response code, if token is not usable
+     * @return the token if it exists and is usable
+     * @throws HandleException if any of the token conditions are not met
+     */
+    @NonNull
+    public static Token getIfUsable(
+            @NonNull final TokenID tokenId,
+            @NonNull final ReadableTokenStore tokenStore,
+            @NonNull final TokenValidations tokenValidations,
+            @Nullable final ResponseCodeEnum errorIfNotUsable) {
         requireNonNull(tokenId);
         requireNonNull(tokenStore);
         requireNonNull(tokenValidations);
 
         final var token = tokenStore.get(tokenId);
-        validateTrue(token != null, INVALID_TOKEN_ID);
-        validateFalse(token.deleted(), TOKEN_WAS_DELETED);
+        validateTrue(token != null, errorIfNotUsable == null ? INVALID_TOKEN_ID : errorIfNotUsable);
+        validateFalse(token.deleted(), errorIfNotUsable == null ? TOKEN_WAS_DELETED : errorIfNotUsable);
         if (tokenValidations == REQUIRE_NOT_PAUSED) {
-            validateFalse(token.paused(), TOKEN_IS_PAUSED);
+            validateFalse(token.paused(), errorIfNotUsable == null ? TOKEN_IS_PAUSED : errorIfNotUsable);
         }
         return token;
     }
 
     /**
-     * Returns the token relation if it exists and is usable
+     * Returns the token relation if it exists and is usable.
      *
      * @param accountId the ID of the account
      * @param tokenId the ID of the token
      * @param tokenRelStore the {@link ReadableTokenRelationStore} to use for token relation retrieval
-     * @throws HandleException if any of the token relation conditions are not met
      * @return the token relation if it exists and is usable
+     * @throws HandleException if any of the token relation conditions are not met
      */
     @NonNull
     public static TokenRelation getIfUsable(
@@ -318,11 +216,11 @@ public class TokenHandlerHelper {
     }
 
     /**
-     * Returns the NFT if it exists and is usable
+     * Returns the NFT if it exists and is usable.
      * @param nftId the ID of the NFT
      * @param nftStore the {@link ReadableNftStore} to use for NFT retrieval
-     * @throws HandleException if any of the NFT conditions are not met
      * @return the NFT if it exists and is usable
+     * @throws HandleException if any of the NFT conditions are not met
      */
     public static Nft getIfUsable(@NonNull final NftID nftId, @NonNull final ReadableNftStore nftStore) {
         requireNonNull(nftId);
@@ -334,7 +232,98 @@ public class TokenHandlerHelper {
     }
 
     /**
-     * Returns the token relation if it exists and is usable
+     * Returns the account if it exists and is usable. A {@link HandleException} is thrown if the account is invalid.
+     * Note that this method should also work with account ID's that represent smart contracts
+     * If the account is deleted the return error code is ACCOUNT_DELETED
+     *
+     * @param accountId the ID of the account to get
+     * @param accountStore the {@link ReadableTokenStore} to use for account retrieval
+     * @param expiryValidator the {@link ExpiryValidator} to determine if the account is expired
+     * @param errorIfNotUsable the {@link ResponseCodeEnum} to use if the account is not found/usable
+     * @return the account if it exists and is usable
+     * @throws HandleException if any of the account conditions are not met
+     */
+    @NonNull
+    public static Account getIfUsableForAliasedId(
+            @NonNull final AccountID accountId,
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final ExpiryValidator expiryValidator,
+            @NonNull final ResponseCodeEnum errorIfNotUsable) {
+        return getIfUsable(
+                accountId, accountStore, expiryValidator, errorIfNotUsable, ACCOUNT_DELETED, AccountIDType.ALIASED_ID);
+    }
+
+    /**
+     * Returns the account if it exists and is usable. A {@link HandleException} is thrown if the account is invalid.
+     * Note that this method should also work with account ID's that represent smart contracts
+     * If the account is deleted the return error code is INVALID_AUTORENEW_ACCOUNT
+     *
+     * @param accountId the ID of the account to get
+     * @param accountStore the {@link ReadableTokenStore} to use for account retrieval
+     * @param expiryValidator the {@link ExpiryValidator} to determine if the account is expired
+     * @param errorIfNotUsable the {@link ResponseCodeEnum} to use if the account is not found/usable
+     * @return the account if it exists and is usable
+     * @throws HandleException if any of the account conditions are not met
+     */
+    @NonNull
+    public static Account getIfUsableForAutoRenew(
+            @NonNull final AccountID accountId,
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final ExpiryValidator expiryValidator,
+            @NonNull final ResponseCodeEnum errorIfNotUsable) {
+        return getIfUsable(
+                accountId,
+                accountStore,
+                expiryValidator,
+                errorIfNotUsable,
+                INVALID_AUTORENEW_ACCOUNT,
+                AccountIDType.NOT_ALIASED_ID);
+    }
+
+    /**
+     * Returns the account if it exists and is usable. A {@link HandleException} is thrown if the account is invalid.
+     * Note that this method should also work with account ID's that represent smart contracts.
+     * If the account is deleted the return error code is INVALID_TREASURY_ACCOUNT_FOR_TOKEN
+     *
+     * @param accountId the ID of the account to get
+     * @param accountStore the {@link ReadableTokenStore} to use for account retrieval
+     * @param expiryValidator the {@link ExpiryValidator} to determine if the account is expired
+     * @param errorIfNotUsable the {@link ResponseCodeEnum} to use if the account is not found/usable
+     * @return the account if it exists and is usable
+     * @throws HandleException if any of the account conditions are not met
+     */
+    @NonNull
+    public static Account getIfUsableWithTreasury(
+            @NonNull final AccountID accountId,
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final ExpiryValidator expiryValidator,
+            @NonNull final ResponseCodeEnum errorIfNotUsable) {
+        return getIfUsable(
+                accountId,
+                accountStore,
+                expiryValidator,
+                errorIfNotUsable,
+                INVALID_TREASURY_ACCOUNT_FOR_TOKEN,
+                AccountIDType.NOT_ALIASED_ID);
+    }
+
+    /**
+     * Enum to determine the type of validations to be performed on the token. If the token is allowed to be paused
+     * or not
+     */
+    public enum TokenValidations {
+        /**
+         * Token should not be paused.
+         */
+        REQUIRE_NOT_PAUSED,
+        /**
+         * Token can be paused.
+         */
+        PERMIT_PAUSED
+    }
+
+    /**
+     * Returns the token relation if it exists and is usable.
      * @param key the key to check
      * @param responseCode the response code to throw if the key is empty
      * @throws PreCheckException if the key is empty

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.internal;
 
 import com.swirlds.common.platform.NodeId;
@@ -58,23 +43,16 @@ class WinTab2Consensus extends PrePaintableJPanel {
             }
             String s = "";
             s += "Node" + firstNodeId.id();
-            long r1 = consensus.getDeleteRound();
-            long r2 = consensus.getFameDecidedBelow();
-            long r3 = consensus.getMaxRound();
+            final long rd = consensus.getFameDecidedBelow();
+            final long rc = consensus.getMaxRound();
 
-            if (r1 == -1) {
-                s += "\n           = latest deleted round-created";
-            } else {
-                s += String.format("\n%,10d = latest deleted round-created", r1);
-            }
-
-            s += String.format("\n%,10d = latest round-decided (delete round +%,d)", r2, r2 - r1);
-            s += String.format("\n%,10d = latest round-created (deleted round +%,d)", r3, r3 - r1);
+            s += String.format("\n%,10d = latest round-decided", rd);
+            s += String.format("\n%,10d = latest round-created", rc);
 
             text.setFont(new Font("monospaced", Font.PLAIN, 14));
 
             text.setText(s);
-        } catch (java.util.ConcurrentModificationException err) {
+        } catch (final java.util.ConcurrentModificationException err) {
             // We started displaying before all the platforms were added. That's ok.
         }
     }

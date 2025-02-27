@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.traceability;
 
-import static com.hedera.node.app.service.evm.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -53,12 +38,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.FULLY_NONDETERMINISTIC;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.HIGHLY_NON_DETERMINISTIC_FEES;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_CONTRACT_CALL_RESULTS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_NONCE;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -175,11 +154,10 @@ public class TraceabilitySuite {
     private static final String SET_SECOND_SLOT = "setSlot2";
     private static final String DELEGATE_CALL_ADDRESS_GET_SLOT_2 = "delegateCallAddressGetSlot2";
     private static final String AUTO_ACCOUNT_TXN = "autoAccount";
-    private static final String LAZY_CREATE_PROPERTY = "lazyCreation.enabled";
     public static final String SIDECARS_PROP = "contracts.sidecars";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) throws Throwable {
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
                 withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.streamsLoc(byNodeId(0))))),
                 overriding("contracts.enforceCreationThrottle", "false"));
@@ -188,133 +166,124 @@ public class TraceabilitySuite {
     @HapiTest
     @Order(1)
     final Stream<DynamicTest> traceabilityE2EScenario1() {
-        return defaultHapiSpec(
-                        "traceabilityE2EScenario1",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
-                                .gas(500_000L)
-                                .via(FIRST_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
+                        .gas(500_000L)
+                        .via(FIRST_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(55)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(55)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298224)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(68492)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.valueOf(55),
-                                BigInteger.TWO,
-                                BigInteger.TWO),
-                        contractCustomCreate(
-                                        TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298224)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(68492)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.valueOf(55),
+                        BigInteger.TWO,
+                        BigInteger.TWO),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(12))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(12))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(12)),
-                        contractCustomCreate(
-                                        TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.valueOf(11), BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(12)),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.valueOf(11), BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(11)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(11)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(11),
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(11),
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -322,372 +291,355 @@ public class TraceabilitySuite {
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
                                 .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(55)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(2),
+                                                        formattedAssertionValue(55))),
+                                StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                        .withStorageChanges(StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(12),
+                                                formattedAssertionValue(143))),
+                                StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                        .withStorageChanges(
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(0)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(11),
+                                                        formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
                                 List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(55)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(55))),
-                                        StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                                .withStorageChanges(StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(12),
-                                                        formattedAssertionValue(143))),
-                                        StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                                .withStorageChanges(
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(0)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(11),
-                                                                formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(33979)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962655)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959873)
-                                                        .setGasUsed(5324)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(55)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(951947)
-                                                        .setGasUsed(2315)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(12)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(949181)
-                                                        .setGasUsed(3180)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(143)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(945691)
-                                                        .setGasUsed(5778)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressGetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(927670)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(939625)
-                                                        .setGasUsed(1501)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressSetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec)),
-                                                                BigInteger.valueOf(0)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(923945)
-                                                        .setGasUsed(423)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(0)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(937787)
-                                                        .setGasUsed(3345)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressGetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(922327)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(11)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(934107)
-                                                        .setGasUsed(4235)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressSetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec)),
-                                                                BigInteger.valueOf(0)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(918579)
-                                                        .setGasUsed(3224)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
-                                                        .build())))));
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(33979)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962655)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959873)
+                                                .setGasUsed(5324)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(55)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(951947)
+                                                .setGasUsed(2315)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(12)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(949181)
+                                                .setGasUsed(3180)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(143)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(945691)
+                                                .setGasUsed(5778)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressGetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(927670)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(939625)
+                                                .setGasUsed(1501)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressSetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec)),
+                                                        BigInteger.valueOf(0)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(923945)
+                                                .setGasUsed(423)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(0)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(937787)
+                                                .setGasUsed(3345)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressGetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(922327)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(11)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(934107)
+                                                .setGasUsed(4235)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressSetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec)),
+                                                        BigInteger.valueOf(0)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(918579)
+                                                .setGasUsed(3224)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
+                                                .build())))));
     }
 
     @HapiTest
     @Order(2)
     final Stream<DynamicTest> traceabilityE2EScenario2() {
-        return defaultHapiSpec(
-                        "traceabilityE2EScenario2",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO)
-                                .via(FIRST_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO)
+                        .via(FIRST_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48260)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(8792)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO),
-                        contractCustomCreate(
-                                        TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(99))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48260)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(8792)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(99))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(99))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(99))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(99)),
-                        contractCustomCreate(
-                                        TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.valueOf(88), BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(99)),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.valueOf(88), BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(88)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(88)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(88),
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(88),
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -695,406 +647,390 @@ public class TraceabilitySuite {
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
                                 .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(0)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(55))),
+                                StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                        .withStorageChanges(
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(100)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(0)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(2),
+                                                        formattedAssertionValue(99),
+                                                        formattedAssertionValue(143))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
                                 List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0), formattedAssertionValue(0)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(55))),
-                                        StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                                .withStorageChanges(
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(100)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(0)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(99),
-                                                                formattedAssertionValue(143))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(70255)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario2",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962721)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959939)
-                                                        .setGasUsed(22424)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(55)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(937512)
-                                                        .setGasUsed(5811)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressGetSlot2",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + SECOND, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(919554)
-                                                        .setGasUsed(2315)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(99)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(931421)
-                                                        .setGasUsed(4235)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressSetSlot2",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + SECOND, spec)),
-                                                                BigInteger.valueOf(143)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(915892)
-                                                        .setGasUsed(3180)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(143)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(926886)
-                                                        .setGasUsed(5819)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "delegateCallAddressGetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(909118)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(920783)
-                                                        .setGasUsed(21353)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "delegateCallAddressSetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec)),
-                                                                BigInteger.valueOf(100)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(905444)
-                                                        .setGasUsed(20323)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(100)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(899403)
-                                                        .setGasUsed(3387)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "delegateCallAddressGetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(884502)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(895682)
-                                                        .setGasUsed(1476)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "delegateCallAddressSetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec)),
-                                                                BigInteger.valueOf(0)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(880714)
-                                                        .setGasUsed(424)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
-                                                        .build())))));
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(70255)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962721)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959939)
+                                                .setGasUsed(22424)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(55)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(937512)
+                                                .setGasUsed(5811)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressGetSlot2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + SECOND, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(919554)
+                                                .setGasUsed(2315)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(99)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(931421)
+                                                .setGasUsed(4235)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressSetSlot2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + SECOND, spec)),
+                                                        BigInteger.valueOf(143)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(915892)
+                                                .setGasUsed(3180)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(143)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(926886)
+                                                .setGasUsed(5819)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "delegateCallAddressGetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(909118)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(920783)
+                                                .setGasUsed(21353)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "delegateCallAddressSetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec)),
+                                                        BigInteger.valueOf(100)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(905444)
+                                                .setGasUsed(20323)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(100)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(899403)
+                                                .setGasUsed(3387)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "delegateCallAddressGetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(884502)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(895682)
+                                                .setGasUsed(1476)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "delegateCallAddressSetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec)),
+                                                        BigInteger.valueOf(0)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(880714)
+                                                .setGasUsed(424)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
+                                                .build())))));
     }
 
     @HapiTest
     @Order(3)
     final Stream<DynamicTest> traceabilityE2EScenario3() {
-        return defaultHapiSpec(
-                        "traceabilityE2EScenario3", NONDETERMINISTIC_FUNCTION_PARAMETERS, HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
-                                .via(FIRST_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
+                        .via(FIRST_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(55)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(55)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298224)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(68492)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.valueOf(55),
-                                BigInteger.TWO,
-                                BigInteger.TWO),
-                        contractCustomCreate(
-                                        TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298224)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(68492)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.valueOf(55),
+                        BigInteger.TWO,
+                        BigInteger.TWO),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(12))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(12))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(12)),
-                        contractCustomCreate(
-                                        TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.valueOf(11), BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(12)),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.valueOf(11), BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(11)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(11)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(11),
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(11),
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -1102,1761 +1038,14 @@ public class TraceabilitySuite {
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
                                 .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
-                                TRACEABILITY_TXN,
-                                List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(55)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(55252)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(524))),
-                                        StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                                .withStorageChanges(
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(54)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(11),
-                                                                formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(57011)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario3",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962697)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959915)
-                                                        .setGasUsed(5324)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                SET_FIRST_SLOT,
-                                                                BigInteger.valueOf(55252)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(954321)
-                                                        .setGasUsed(5810)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                DELEGATE_CALL_ADDRESS_GET_SLOT_2,
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(936102)
-                                                        .setGasUsed(2315)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(948230)
-                                                        .setGasUsed(4209)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "delegateCallAddressSetSlot2",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec)),
-                                                                BigInteger.valueOf(524)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(932463)
-                                                        .setGasUsed(3180)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(524)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(941036)
-                                                        .setGasUsed(3278)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressGetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(925548)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(937112)
-                                                        .setGasUsed(21401)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressSetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec)),
-                                                                BigInteger.valueOf(54)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(921471)
-                                                        .setGasUsed(20323)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(54)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(915443)
-                                                        .setGasUsed(3345)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressGetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(900333)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(11)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(911452)
-                                                        .setGasUsed(4235)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressSetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec)),
-                                                                BigInteger.valueOf(0)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(896278)
-                                                        .setGasUsed(3224)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
-                                                        .build())))));
-    }
-
-    @HapiTest
-    @Order(4)
-    final Stream<DynamicTest> traceabilityE2EScenario4() {
-        return defaultHapiSpec(
-                        "traceabilityE2EScenario4", NONDETERMINISTIC_FUNCTION_PARAMETERS, HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
-                                .via(FIRST_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
-                                FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY)
                                         .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(3)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(4))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298224)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(68492)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.TWO,
-                                BigInteger.valueOf(3),
-                                BigInteger.valueOf(4)),
-                        contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO)
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48260)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(8792)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO),
-                        contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48260)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(8792)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        TRACEABILITY,
-                                        "eetScenario4",
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
-                                .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
-                                TRACEABILITY_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(55)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(3),
-                                                        formattedAssertionValue(4)),
                                                 StorageChange.onlyRead(
-                                                        formattedAssertionValue(2), formattedAssertionValue(4))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(23913)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario4",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962676)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959894)
-                                                        .setGasUsed(3223)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(3)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(956509)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(3)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(953687)
-                                                        .setGasUsed(3224)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(4)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(950160)
-                                                        .setGasUsed(5810)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                DELEGATE_CALL_ADDRESS_GET_SLOT_2,
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + SECOND, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(932006)
-                                                        .setGasUsed(2315)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(4)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(943755)
-                                                        .setGasUsed(3953)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "delegateCallAddressSetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec)),
-                                                                BigInteger.valueOf(55)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(925596)
-                                                        .setGasUsed(423)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(55)))
-                                                        .build())))));
-    }
-
-    @HapiTest
-    @Order(5)
-    final Stream<DynamicTest> traceabilityE2EScenario5() {
-        return defaultHapiSpec("traceabilityE2EScenario5", FULLY_NONDETERMINISTIC)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
-                                .via(FIRST_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
-                                FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(55)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298224)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(68492)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.valueOf(55),
-                                BigInteger.TWO,
-                                BigInteger.TWO),
-                        contractCustomCreate(
-                                        TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
-                                .via(SECOND_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
-                                SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(12))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(12)),
-                        contractCustomCreate(
-                                        TRACEABILITY, THIRD, BigInteger.valueOf(4), BigInteger.ONE, BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
-                                THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(4)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(1)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298236)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(48592)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.valueOf(4),
-                                BigInteger.ONE,
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        TRACEABILITY,
-                                        "eetScenario5",
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
-                                .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
-                                TRACEABILITY_TXN,
-                                List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(55)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(55252))),
-                                        StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                                .withStorageChanges(StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(12),
-                                                        formattedAssertionValue(524))),
-                                        StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0), formattedAssertionValue(4)),
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(1))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(27376)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario5",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962719)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959937)
-                                                        .setGasUsed(5324)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                SET_FIRST_SLOT,
-                                                                BigInteger.valueOf(55252)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(952011)
-                                                        .setGasUsed(2315)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(12)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(949245)
-                                                        .setGasUsed(3180)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(524)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(945755)
-                                                        .setGasUsed(5777)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "staticCallAddressGetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_STATICCALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(927734)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(4)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(939707)
-                                                        .setGasUsed(3320)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "staticCallAddressGetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_STATICCALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(924242)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build())))));
-    }
-
-    @HapiTest
-    @Order(6)
-    final Stream<DynamicTest> traceabilityE2EScenario6() {
-        return defaultHapiSpec("traceabilityE2EScenario6", FULLY_NONDETERMINISTIC)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
-                                .via(FIRST_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
-                                FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(3)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(4))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298224)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(68492)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.TWO,
-                                BigInteger.valueOf(3),
-                                BigInteger.valueOf(4)),
-                        contractCustomCreate(
-                                        TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(3))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(3))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(3)),
-                        contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(1)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ONE,
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        TRACEABILITY,
-                                        "eetScenario6",
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
-                                .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
-                                TRACEABILITY_TXN,
-                                List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0), formattedAssertionValue(2)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(3),
-                                                                formattedAssertionValue(4)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(4),
-                                                                formattedAssertionValue(5))),
-                                        StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0), formattedAssertionValue(0)),
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(1))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(29910)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario6",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962720)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959938)
-                                                        .setGasUsed(5324)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(4)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(954344)
-                                                        .setGasUsed(5810)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                DELEGATE_CALL_ADDRESS_GET_SLOT_2,
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + SECOND, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(936124)
-                                                        .setGasUsed(2315)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(4)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(948254)
-                                                        .setGasUsed(4209)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "delegateCallAddressSetSlot2",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + SECOND, spec)),
-                                                                BigInteger.valueOf(5)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(932487)
-                                                        .setGasUsed(3180)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(5)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(943521)
-                                                        .setGasUsed(5777)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "staticCallAddressGetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_STATICCALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(925534)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(937229)
-                                                        .setGasUsed(3320)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "staticCallAddressGetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_STATICCALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setGas(921803)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build())))));
-    }
-
-    @HapiTest
-    @Order(7)
-    final Stream<DynamicTest> traceabilityE2EScenario7() {
-        return defaultHapiSpec("traceabilityE2EScenario7", NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        uploadInitCode(TRACEABILITY_CALLCODE),
-                        contractCreate(TRACEABILITY_CALLCODE, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
-                                .via(FIRST_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(55)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(115992)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                .setGasUsed(67632)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY_CALLCODE,
-                                TRACEABILITY_CALLCODE,
-                                BigInteger.valueOf(55),
-                                BigInteger.TWO,
-                                BigInteger.TWO),
-                        contractCustomCreate(
-                                        TRACEABILITY_CALLCODE,
-                                        SECOND,
-                                        BigInteger.ZERO,
-                                        BigInteger.ZERO,
-                                        BigInteger.valueOf(12))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(12))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(116016)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                .setGasUsed(27832)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY_CALLCODE + SECOND,
-                                TRACEABILITY_CALLCODE,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(12)),
-                        contractCustomCreate(
-                                        TRACEABILITY_CALLCODE,
-                                        THIRD,
-                                        BigInteger.valueOf(4),
-                                        BigInteger.ONE,
-                                        BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(4)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(1)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(116004)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
-                                                .setGasUsed(47732)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY_CALLCODE + THIRD,
-                                TRACEABILITY_CALLCODE,
-                                BigInteger.valueOf(4),
-                                BigInteger.ONE,
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        TRACEABILITY_CALLCODE,
-                                        "eetScenario7",
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY_CALLCODE + "B", spec)),
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY_CALLCODE + "C", spec)))
-                                .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
-                                TRACEABILITY_TXN,
-                                List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY_CALLCODE)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(55)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(55252))),
-                                        StateChange.stateChangeFor(TRACEABILITY_CALLCODE + SECOND)
-                                                .withStorageChanges(
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(54)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(0)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(2),
-                                                                formattedAssertionValue(12),
-                                                                formattedAssertionValue(524))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(51483)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE,
-                                                                "eetScenario7",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(962797)
-                                                        .setGasUsed(2500)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setCallDepth(1)
-                                                        .setGas(959897)
-                                                        .setGasUsed(5249)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE,
-                                                                SET_FIRST_SLOT,
-                                                                BigInteger.valueOf(55252)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(951931)
-                                                        .setGasUsed(2368)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(12)))
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(949163)
-                                                        .setGasUsed(3215)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(524)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(945630)
-                                                        .setGasUsed(6069)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE,
-                                                                "callcodeAddressGetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALLCODE)
-                                                        .setCallingContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setGas(927361)
-                                                        .setGasUsed(2500)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(
-                                                                encodeFunctionCall(TRACEABILITY_CALLCODE, GET_ZERO_SLOT)
-                                                                        .concat(CALL_CODE_INPUT_SUFFIX))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(939264)
-                                                        .setGasUsed(21544)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE,
-                                                                "callcodeAddressSetSlot0",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + THIRD, spec)),
-                                                                BigInteger.valueOf(54)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALLCODE)
-                                                        .setCallingContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setGas(923465)
-                                                        .setGasUsed(20381)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                        TRACEABILITY_CALLCODE,
-                                                                        SET_ZERO_SLOT,
-                                                                        BigInteger.valueOf(54))
-                                                                .concat(CALL_CODE_INPUT_SUFFIX))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(917687)
-                                                        .setGasUsed(3393)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE,
-                                                                "callcodeAddressGetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + THIRD, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALLCODE)
-                                                        .setCallingContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setGas(902511)
-                                                        .setGasUsed(2522)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(
-                                                                        TRACEABILITY_CALLCODE, GET_FIRST_SLOT)
-                                                                .concat(CALL_CODE_INPUT_SUFFIX))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(913958)
-                                                        .setGasUsed(1270)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE,
-                                                                "callcodeAddressSetSlot1",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + THIRD, spec)),
-                                                                BigInteger.valueOf(0)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALLCODE)
-                                                        .setCallingContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setGas(898793)
-                                                        .setGasUsed(349)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                        TRACEABILITY_CALLCODE,
-                                                                        SET_FIRST_SLOT,
-                                                                        BigInteger.valueOf(0))
-                                                                .concat(CALL_CODE_INPUT_SUFFIX))
-                                                        .build())))));
-    }
-
-    @HapiTest
-    @Order(8)
-    final Stream<DynamicTest> traceabilityE2EScenario8() {
-        return defaultHapiSpec(
-                        "traceabilityE2EScenario8",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        uploadInitCode(TRACEABILITY_CALLCODE),
-                        contractCreate(TRACEABILITY_CALLCODE, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
-                                .via(FIRST_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(55)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(115992)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                .setGasUsed(67632)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY_CALLCODE,
-                                TRACEABILITY_CALLCODE,
-                                BigInteger.valueOf(55),
-                                BigInteger.TWO,
-                                BigInteger.TWO),
-                        contractCustomCreate(
-                                        TRACEABILITY_CALLCODE,
-                                        SECOND,
-                                        BigInteger.ZERO,
-                                        BigInteger.ZERO,
-                                        BigInteger.valueOf(12))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(12))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(116016)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                .setGasUsed(27832)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY_CALLCODE + SECOND,
-                                TRACEABILITY_CALLCODE,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(12)),
-                        contractCustomCreate(
-                                        TRACEABILITY_CALLCODE,
-                                        THIRD,
-                                        BigInteger.valueOf(4),
-                                        BigInteger.ONE,
-                                        BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
-                                THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(4)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(1)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(116004)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
-                                                .setGasUsed(47732)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY_CALLCODE + THIRD,
-                                TRACEABILITY_CALLCODE,
-                                BigInteger.valueOf(4),
-                                BigInteger.ONE,
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        TRACEABILITY_CALLCODE,
-                                        "eetScenario8",
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY_CALLCODE + "B", spec)),
-                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY_CALLCODE + "C", spec)))
-                                .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
-                                TRACEABILITY_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(55),
-                                                        formattedAssertionValue(55)),
+                                                        formattedAssertionValue(0), formattedAssertionValue(55)),
                                                 StorageChange.readAndWritten(
                                                         formattedAssertionValue(1),
                                                         formattedAssertionValue(2),
@@ -2864,326 +1053,1982 @@ public class TraceabilitySuite {
                                                 StorageChange.readAndWritten(
                                                         formattedAssertionValue(2),
                                                         formattedAssertionValue(2),
+                                                        formattedAssertionValue(524))),
+                                StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                        .withStorageChanges(
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(54)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(11),
+                                                        formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                TRACEABILITY_TXN,
+                                List.of(
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(57011)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario3",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962697)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959915)
+                                                .setGasUsed(5324)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(55252)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(954321)
+                                                .setGasUsed(5810)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        DELEGATE_CALL_ADDRESS_GET_SLOT_2,
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(936102)
+                                                .setGasUsed(2315)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(948230)
+                                                .setGasUsed(4209)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "delegateCallAddressSetSlot2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec)),
+                                                        BigInteger.valueOf(524)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(932463)
+                                                .setGasUsed(3180)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(524)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(941036)
+                                                .setGasUsed(3278)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressGetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(925548)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(937112)
+                                                .setGasUsed(21401)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressSetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec)),
+                                                        BigInteger.valueOf(54)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(921471)
+                                                .setGasUsed(20323)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(54)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(915443)
+                                                .setGasUsed(3345)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressGetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(900333)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(11)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(911452)
+                                                .setGasUsed(4235)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressSetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec)),
+                                                        BigInteger.valueOf(0)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(896278)
+                                                .setGasUsed(3224)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
+                                                .build())))));
+    }
+
+    @HapiTest
+    @Order(4)
+    final Stream<DynamicTest> traceabilityE2EScenario4() {
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
+                        .via(FIRST_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(3)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(4))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298224)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(68492)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.TWO,
+                        BigInteger.valueOf(3),
+                        BigInteger.valueOf(4)),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO)
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                SECOND_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48260)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(8792)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                THIRD_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48260)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(8792)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        TRACEABILITY,
+                                        "eetScenario4",
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
+                                .gas(1_000_000)
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(55)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(3),
+                                                formattedAssertionValue(4)),
+                                        StorageChange.onlyRead(
+                                                formattedAssertionValue(2), formattedAssertionValue(4))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                TRACEABILITY_TXN,
+                                List.of(
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(23913)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario4",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962676)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959894)
+                                                .setGasUsed(3223)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(3)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(956509)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(3)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(953687)
+                                                .setGasUsed(3224)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(4)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(950160)
+                                                .setGasUsed(5810)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        DELEGATE_CALL_ADDRESS_GET_SLOT_2,
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + SECOND, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(932006)
+                                                .setGasUsed(2315)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(4)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(943755)
+                                                .setGasUsed(3953)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "delegateCallAddressSetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec)),
+                                                        BigInteger.valueOf(55)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(925596)
+                                                .setGasUsed(423)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(55)))
+                                                .build())))));
+    }
+
+    @HapiTest
+    @Order(5)
+    final Stream<DynamicTest> traceabilityE2EScenario5() {
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
+                        .via(FIRST_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(55)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298224)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(68492)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.valueOf(55),
+                        BigInteger.TWO,
+                        BigInteger.TWO),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
+                        .via(SECOND_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(12))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                SECOND_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(12)),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.valueOf(4), BigInteger.ONE, BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(4)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(1)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                THIRD_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298236)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(48592)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.valueOf(4),
+                        BigInteger.ONE,
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        TRACEABILITY,
+                                        "eetScenario5",
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
+                                .gas(1_000_000)
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(55)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(2),
+                                                        formattedAssertionValue(55252))),
+                                StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                        .withStorageChanges(StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(12),
+                                                formattedAssertionValue(524))),
+                                StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(4)),
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(1), formattedAssertionValue(1))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                TRACEABILITY_TXN,
+                                List.of(
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(27376)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario5",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962719)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959937)
+                                                .setGasUsed(5324)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(55252)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(952011)
+                                                .setGasUsed(2315)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(12)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(949245)
+                                                .setGasUsed(3180)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(524)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(945755)
+                                                .setGasUsed(5777)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "staticCallAddressGetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_STATICCALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(927734)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(4)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(939707)
+                                                .setGasUsed(3320)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "staticCallAddressGetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_STATICCALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(924242)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build())))));
+    }
+
+    @HapiTest
+    @Order(6)
+    final Stream<DynamicTest> traceabilityE2EScenario6() {
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
+                        .via(FIRST_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(3)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(4))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298224)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(68492)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.TWO,
+                        BigInteger.valueOf(3),
+                        BigInteger.valueOf(4)),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(3))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(3))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                SECOND_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(3)),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(1)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                THIRD_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ONE,
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        TRACEABILITY,
+                                        "eetScenario6",
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
+                                .gas(1_000_000)
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(2)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(3),
+                                                        formattedAssertionValue(4)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(2),
+                                                        formattedAssertionValue(4),
+                                                        formattedAssertionValue(5))),
+                                StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(0)),
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(1), formattedAssertionValue(1))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                TRACEABILITY_TXN,
+                                List.of(
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(29910)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario6",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962720)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959938)
+                                                .setGasUsed(5324)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(4)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(954344)
+                                                .setGasUsed(5810)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        DELEGATE_CALL_ADDRESS_GET_SLOT_2,
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + SECOND, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(936124)
+                                                .setGasUsed(2315)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(4)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(948254)
+                                                .setGasUsed(4209)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "delegateCallAddressSetSlot2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + SECOND, spec)),
+                                                        BigInteger.valueOf(5)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(932487)
+                                                .setGasUsed(3180)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(5)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(943521)
+                                                .setGasUsed(5777)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "staticCallAddressGetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_STATICCALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(925534)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(937229)
+                                                .setGasUsed(3320)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "staticCallAddressGetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_STATICCALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setGas(921803)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build())))));
+    }
+
+    @HapiTest
+    @Order(7)
+    final Stream<DynamicTest> traceabilityE2EScenario7() {
+        return hapiTest(
+                uploadInitCode(TRACEABILITY_CALLCODE),
+                contractCreate(TRACEABILITY_CALLCODE, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
+                        .via(FIRST_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(55)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(115992)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                        .setGasUsed(67632)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY_CALLCODE,
+                        TRACEABILITY_CALLCODE,
+                        BigInteger.valueOf(55),
+                        BigInteger.TWO,
+                        BigInteger.TWO),
+                contractCustomCreate(
+                                TRACEABILITY_CALLCODE, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(12))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                SECOND_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(116016)
+                                        .setRecipientContract(
+                                                spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                        .setGasUsed(27832)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY_CALLCODE + SECOND,
+                        TRACEABILITY_CALLCODE,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(12)),
+                contractCustomCreate(
+                                TRACEABILITY_CALLCODE, THIRD, BigInteger.valueOf(4), BigInteger.ONE, BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(4)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(1)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                THIRD_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(116004)
+                                        .setRecipientContract(
+                                                spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
+                                        .setGasUsed(47732)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY_CALLCODE + THIRD,
+                        TRACEABILITY_CALLCODE,
+                        BigInteger.valueOf(4),
+                        BigInteger.ONE,
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        TRACEABILITY_CALLCODE,
+                                        "eetScenario7",
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY_CALLCODE + "B", spec)),
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY_CALLCODE + "C", spec)))
+                                .gas(1_000_000)
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY_CALLCODE)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(55)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(2),
+                                                        formattedAssertionValue(55252))),
+                                StateChange.stateChangeFor(TRACEABILITY_CALLCODE + SECOND)
+                                        .withStorageChanges(
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(54)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(0)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(2),
+                                                        formattedAssertionValue(12),
                                                         formattedAssertionValue(524))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(29301)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE,
-                                                                "eetScenario8",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(962562)
-                                                        .setGasUsed(2500)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setCallDepth(1)
-                                                        .setGas(959662)
-                                                        .setGasUsed(3281)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                TRACEABILITY_TXN,
+                                List.of(
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(51483)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        "eetScenario7",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(962797)
+                                                .setGasUsed(2500)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY_CALLCODE, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setCallDepth(1)
+                                                .setGas(959897)
+                                                .setGasUsed(5249)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        SET_FIRST_SLOT,
+                                                        BigInteger.valueOf(55252)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(951931)
+                                                .setGasUsed(2368)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(12)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY_CALLCODE, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(949163)
+                                                .setGasUsed(3215)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(524)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(945630)
+                                                .setGasUsed(6069)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        "callcodeAddressGetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALLCODE)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setGas(927361)
+                                                .setGasUsed(2500)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY_CALLCODE, GET_ZERO_SLOT)
+                                                        .concat(CALL_CODE_INPUT_SUFFIX))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(939264)
+                                                .setGasUsed(21544)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        "callcodeAddressSetSlot0",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + THIRD, spec)),
+                                                        BigInteger.valueOf(54)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALLCODE)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setGas(923465)
+                                                .setGasUsed(20381)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
                                                                 TRACEABILITY_CALLCODE,
                                                                 SET_ZERO_SLOT,
-                                                                BigInteger.valueOf(2)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(956103)
-                                                        .setGasUsed(2522)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY_CALLCODE, GET_FIRST_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setCallDepth(1)
-                                                        .setGas(953185)
-                                                        .setGasUsed(3149)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
+                                                                BigInteger.valueOf(54))
+                                                        .concat(CALL_CODE_INPUT_SUFFIX))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(917687)
+                                                .setGasUsed(3393)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        "callcodeAddressGetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + THIRD, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALLCODE)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setGas(902511)
+                                                .setGasUsed(2522)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY_CALLCODE, GET_FIRST_SLOT)
+                                                        .concat(CALL_CODE_INPUT_SUFFIX))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(913958)
+                                                .setGasUsed(1270)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        "callcodeAddressSetSlot1",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + THIRD, spec)),
+                                                        BigInteger.valueOf(0)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALLCODE)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setGas(898793)
+                                                .setGasUsed(349)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
                                                                 TRACEABILITY_CALLCODE,
                                                                 SET_FIRST_SLOT,
-                                                                BigInteger.valueOf(55252)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(949717)
-                                                        .setGasUsed(5783)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
+                                                                BigInteger.valueOf(0))
+                                                        .concat(CALL_CODE_INPUT_SUFFIX))
+                                                .build())))));
+    }
+
+    @HapiTest
+    @Order(8)
+    final Stream<DynamicTest> traceabilityE2EScenario8() {
+        return hapiTest(
+                uploadInitCode(TRACEABILITY_CALLCODE),
+                contractCreate(TRACEABILITY_CALLCODE, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
+                        .via(FIRST_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(55)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(115992)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                        .setGasUsed(67632)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY_CALLCODE,
+                        TRACEABILITY_CALLCODE,
+                        BigInteger.valueOf(55),
+                        BigInteger.TWO,
+                        BigInteger.TWO),
+                contractCustomCreate(
+                                TRACEABILITY_CALLCODE, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(12))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                SECOND_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(116016)
+                                        .setRecipientContract(
+                                                spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                        .setGasUsed(27832)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY_CALLCODE + SECOND,
+                        TRACEABILITY_CALLCODE,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(12)),
+                contractCustomCreate(
+                                TRACEABILITY_CALLCODE, THIRD, BigInteger.valueOf(4), BigInteger.ONE, BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(4)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(1)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                THIRD_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(116004)
+                                        .setRecipientContract(
+                                                spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
+                                        .setGasUsed(47732)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY_CALLCODE + THIRD,
+                        TRACEABILITY_CALLCODE,
+                        BigInteger.valueOf(4),
+                        BigInteger.ONE,
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        TRACEABILITY_CALLCODE,
+                                        "eetScenario8",
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY_CALLCODE + "B", spec)),
+                                        asHeadlongAddress(getNestedContractAddress(TRACEABILITY_CALLCODE + "C", spec)))
+                                .gas(1_000_000)
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY_CALLCODE)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(55),
+                                                formattedAssertionValue(55)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(55252)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(524))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                TRACEABILITY_TXN,
+                                List.of(
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(29301)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        "eetScenario8",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(962562)
+                                                .setGasUsed(2500)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY_CALLCODE, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setCallDepth(1)
+                                                .setGas(959662)
+                                                .setGasUsed(3281)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE, SET_ZERO_SLOT, BigInteger.valueOf(2)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(956103)
+                                                .setGasUsed(2522)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY_CALLCODE, GET_FIRST_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setCallDepth(1)
+                                                .setGas(953185)
+                                                .setGasUsed(3149)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        SET_FIRST_SLOT,
+                                                        BigInteger.valueOf(55252)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(949717)
+                                                .setGasUsed(5783)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        "callcodeAddressGetSlot2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + SECOND, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALLCODE)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(931536)
+                                                .setGasUsed(2368)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY_CALLCODE, GET_SECOND_SLOT)
+                                                        .concat(CALL_CODE_INPUT_SUFFIX))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(943633)
+                                                .setGasUsed(4290)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY_CALLCODE,
+                                                        "callcodeAddressSetSlot2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(
+                                                                        TRACEABILITY_CALLCODE + SECOND, spec)),
+                                                        BigInteger.valueOf(524)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALLCODE)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(927853)
+                                                .setGasUsed(3215)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
                                                                 TRACEABILITY_CALLCODE,
-                                                                "callcodeAddressGetSlot2",
+                                                                SET_SECOND_SLOT,
+                                                                BigInteger.valueOf(524))
+                                                        .concat(CALL_CODE_INPUT_SUFFIX))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALLCODE)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE))
+                                                .setGas(938599)
+                                                .setGasUsed(4144)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                                TRACEABILITY_CALLCODE,
+                                                                "callcodeAddressSetSlot0",
                                                                 hexedSolidityAddressToHeadlongAddress(
                                                                         getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + SECOND, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALLCODE)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(931536)
-                                                        .setGasUsed(2368)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
-                                                        .setInput(encodeFunctionCall(
-                                                                        TRACEABILITY_CALLCODE, GET_SECOND_SLOT)
-                                                                .concat(CALL_CODE_INPUT_SUFFIX))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(943633)
-                                                        .setGasUsed(4290)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
+                                                                                TRACEABILITY_CALLCODE + THIRD, spec)),
+                                                                BigInteger.valueOf(55))
+                                                        .concat(CALL_CODE_INPUT_SUFFIX))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALLCODE)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
+                                                .setGas(920350)
+                                                .setGasUsed(481)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
                                                                 TRACEABILITY_CALLCODE,
-                                                                "callcodeAddressSetSlot2",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY_CALLCODE + SECOND, spec)),
-                                                                BigInteger.valueOf(524)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALLCODE)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(927853)
-                                                        .setGasUsed(3215)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                        TRACEABILITY_CALLCODE,
-                                                                        SET_SECOND_SLOT,
-                                                                        BigInteger.valueOf(524))
-                                                                .concat(CALL_CODE_INPUT_SUFFIX))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALLCODE)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY_CALLCODE))
-                                                        .setGas(938599)
-                                                        .setGasUsed(4144)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                        TRACEABILITY_CALLCODE,
-                                                                        "callcodeAddressSetSlot0",
-                                                                        hexedSolidityAddressToHeadlongAddress(
-                                                                                getNestedContractAddress(
-                                                                                        TRACEABILITY_CALLCODE + THIRD,
-                                                                                        spec)),
-                                                                        BigInteger.valueOf(55))
-                                                                .concat(CALL_CODE_INPUT_SUFFIX))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALLCODE)
-                                                        .setCallingContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + SECOND))
-                                                        .setGas(920350)
-                                                        .setGasUsed(481)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(spec.registry()
-                                                                .getContractId(TRACEABILITY_CALLCODE + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                        TRACEABILITY_CALLCODE,
-                                                                        SET_ZERO_SLOT,
-                                                                        BigInteger.valueOf(55))
-                                                                .concat(CALL_CODE_INPUT_SUFFIX))
-                                                        .build())))));
+                                                                SET_ZERO_SLOT,
+                                                                BigInteger.valueOf(55))
+                                                        .concat(CALL_CODE_INPUT_SUFFIX))
+                                                .build())))));
     }
 
     @HapiTest
     @Order(9)
     final Stream<DynamicTest> traceabilityE2EScenario9() {
-        return defaultHapiSpec("traceabilityE2EScenario9", FULLY_NONDETERMINISTIC)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
-                                .via(FIRST_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
+                        .via(FIRST_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(55)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(55)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298224)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(68492)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.valueOf(55),
-                                BigInteger.TWO,
-                                BigInteger.TWO),
-                        contractCustomCreate(
-                                        TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298224)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(68492)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.valueOf(55),
+                        BigInteger.TWO,
+                        BigInteger.TWO),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(12))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(12))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(12)),
-                        contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(12)),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(1)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(1)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ONE,
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ONE,
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -3192,308 +3037,292 @@ public class TraceabilitySuite {
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                 .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(55)),
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(1), formattedAssertionValue(2))),
+                                StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                        .withStorageChanges(StorageChange.onlyRead(
+                                                formattedAssertionValue(2), formattedAssertionValue(12))),
+                                StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(0)),
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(1), formattedAssertionValue(1))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
                                 List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(55)),
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(2))),
-                                        StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                                .withStorageChanges(StorageChange.onlyRead(
-                                                        formattedAssertionValue(2), formattedAssertionValue(12))),
-                                        StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0), formattedAssertionValue(0)),
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(1))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(50335)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setRevertReason(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario9",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962678)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959896)
-                                                        .setGasUsed(5324)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                SET_FIRST_SLOT,
-                                                                BigInteger.valueOf(55252)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(951970)
-                                                        .setGasUsed(2315)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(12)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(949204)
-                                                        .setGasUsed(3180)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(524)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(943262)
-                                                        .setGasUsed(29899)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setRevertReason(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, "callToContractCForE2EScenario92"))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setGas(928136)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setGas(925354)
-                                                        .setGasUsed(20323)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(55)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setGas(905136)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setGas(902302)
-                                                        .setGasUsed(3224)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(155)))
-                                                        .build())))));
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(50335)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setRevertReason(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario9",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962678)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(55)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959896)
+                                                .setGasUsed(5324)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(55252)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(951970)
+                                                .setGasUsed(2315)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(12)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(949204)
+                                                .setGasUsed(3180)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(524)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(943262)
+                                                .setGasUsed(29899)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setRevertReason(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, "callToContractCForE2EScenario92"))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setGas(928136)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setGas(925354)
+                                                .setGasUsed(20323)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(55)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setGas(905136)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setGas(902302)
+                                                .setGasUsed(3224)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(155)))
+                                                .build())))));
     }
 
     @HapiTest
     @Order(10)
     final Stream<DynamicTest> traceabilityE2EScenario10() {
-        return defaultHapiSpec(
-                        "traceabilityE2EScenario10",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
-                                .via(FIRST_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
+                        .via(FIRST_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(3)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(4))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(3)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(4))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298224)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(68492)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.TWO,
-                                BigInteger.valueOf(3),
-                                BigInteger.valueOf(4)),
-                        contractCustomCreate(
-                                        TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(3))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298224)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(68492)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.TWO,
+                        BigInteger.valueOf(3),
+                        BigInteger.valueOf(4)),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(3))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(3))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(3))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(3)),
-                        contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(3)),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(1)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(1)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ONE,
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ONE,
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -3501,342 +3330,330 @@ public class TraceabilitySuite {
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
                                 .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(2)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(3),
+                                                        formattedAssertionValue(4))),
+                                StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                        .withStorageChanges(StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(3),
+                                                formattedAssertionValue(5))),
+                                StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(0)),
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(1), formattedAssertionValue(1))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
                                 List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0), formattedAssertionValue(2)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(3),
-                                                                formattedAssertionValue(4))),
-                                        StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                                .withStorageChanges(StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(3),
-                                                        formattedAssertionValue(5))),
-                                        StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0), formattedAssertionValue(0)),
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(1))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(52541)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario10",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962676)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959894)
-                                                        .setGasUsed(5324)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(4)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(954300)
-                                                        .setGasUsed(5811)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressGetSlot2",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + SECOND, spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(936080)
-                                                        .setGasUsed(2315)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(3)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(948209)
-                                                        .setGasUsed(4235)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "callAddressSetSlot2",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + SECOND, spec)),
-                                                                BigInteger.valueOf(5)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(932417)
-                                                        .setGasUsed(3180)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(5)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(941228)
-                                                        .setGasUsed(29898)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setRevertReason(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, "failingGettingAndSetting"))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setGas(926135)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setGas(923353)
-                                                        .setGasUsed(20323)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(12)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setGas(903135)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setGas(900301)
-                                                        .setGasUsed(3224)
-                                                        .setCallDepth(2)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
-                                                        .build())))));
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(52541)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario10",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962676)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959894)
+                                                .setGasUsed(5324)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(4)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(954300)
+                                                .setGasUsed(5811)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressGetSlot2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + SECOND, spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(936080)
+                                                .setGasUsed(2315)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(3)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_SECOND_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(948209)
+                                                .setGasUsed(4235)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "callAddressSetSlot2",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + SECOND, spec)),
+                                                        BigInteger.valueOf(5)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(932417)
+                                                .setGasUsed(3180)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_SECOND_SLOT, BigInteger.valueOf(5)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(941228)
+                                                .setGasUsed(29898)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setRevertReason(EMPTY)
+                                                .setInput(encodeFunctionCall(TRACEABILITY, "failingGettingAndSetting"))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setGas(926135)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setGas(923353)
+                                                .setGasUsed(20323)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(12)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setGas(903135)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setGas(900301)
+                                                .setGasUsed(3224)
+                                                .setCallDepth(2)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
+                                                .build())))));
     }
 
     @HapiTest
     @Order(11)
     final Stream<DynamicTest> traceabilityE2EScenario11() {
-        return defaultHapiSpec("traceabilityE2EScenario11", NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        uploadInitCode(TRACEABILITY),
-                        contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
-                                .via(FIRST_CREATE_TXN)
-                                .gas(500_000L),
-                        expectContractStateChangesSidecarFor(
+        return hapiTest(
+                uploadInitCode(TRACEABILITY),
+                contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
+                        .via(FIRST_CREATE_TXN)
+                        .gas(500_000L),
+                expectContractStateChangesSidecarFor(
+                        FIRST_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(2)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(3)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(4))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(2)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(3)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(4))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(298224)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY))
-                                                .setGasUsed(68492)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN,
-                                TRACEABILITY,
-                                TRACEABILITY,
-                                BigInteger.TWO,
-                                BigInteger.valueOf(3),
-                                BigInteger.valueOf(4)),
-                        contractCustomCreate(
-                                        TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(3))
-                                .via(SECOND_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(298224)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
+                                        .setGasUsed(68492)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN,
+                        TRACEABILITY,
+                        TRACEABILITY,
+                        BigInteger.TWO,
+                        BigInteger.valueOf(3),
+                        BigInteger.valueOf(4)),
+                contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(3))
+                        .via(SECOND_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        SECOND_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(3))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(3))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        SECOND_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                SECOND_CREATE_TXN,
-                                TRACEABILITY + SECOND,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ZERO,
-                                BigInteger.valueOf(3)),
-                        contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
-                                .via(THIRD_CREATE_TXN),
-                        expectContractStateChangesSidecarFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        SECOND_CREATE_TXN,
+                        TRACEABILITY + SECOND,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        BigInteger.valueOf(3)),
+                contractCustomCreate(TRACEABILITY, THIRD, BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
+                        .via(THIRD_CREATE_TXN),
+                expectContractStateChangesSidecarFor(
+                        THIRD_CREATE_TXN,
+                        List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                .withStorageChanges(
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(1),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(1)),
+                                        StorageChange.readAndWritten(
+                                                formattedAssertionValue(2),
+                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
-                                List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                        .withStorageChanges(
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(1),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(1)),
-                                                StorageChange.readAndWritten(
-                                                        formattedAssertionValue(2),
-                                                        formattedAssertionValue(0),
-                                                        formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        THIRD_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(48248)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                .setGasUsed(28692)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                THIRD_CREATE_TXN,
-                                TRACEABILITY + THIRD,
-                                TRACEABILITY,
-                                BigInteger.ZERO,
-                                BigInteger.ONE,
-                                BigInteger.ZERO))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(48248)
+                                        .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
+                                        .setGasUsed(28692)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        THIRD_CREATE_TXN,
+                        TRACEABILITY + THIRD,
+                        TRACEABILITY,
+                        BigInteger.ZERO,
+                        BigInteger.ONE,
+                        BigInteger.ZERO),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -3844,149 +3661,145 @@ public class TraceabilitySuite {
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "B", spec)),
                                         asHeadlongAddress(getNestedContractAddress(TRACEABILITY + "C", spec)))
                                 .gas(1_000_000)
-                                .via(TRACEABILITY_TXN))))
-                .then(
-                        expectContractStateChangesSidecarFor(
+                                .via(TRACEABILITY_TXN))),
+                expectContractStateChangesSidecarFor(
+                        TRACEABILITY_TXN,
+                        List.of(
+                                StateChange.stateChangeFor(TRACEABILITY)
+                                        .withStorageChanges(
+                                                StorageChange.onlyRead(
+                                                        formattedAssertionValue(0), formattedAssertionValue(2)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(3),
+                                                        formattedAssertionValue(4))),
+                                StateChange.stateChangeFor(TRACEABILITY + THIRD)
+                                        .withStorageChanges(
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(0),
+                                                        formattedAssertionValue(123)),
+                                                StorageChange.readAndWritten(
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(1),
+                                                        formattedAssertionValue(0))))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
                                 List.of(
-                                        StateChange.stateChangeFor(TRACEABILITY)
-                                                .withStorageChanges(
-                                                        StorageChange.onlyRead(
-                                                                formattedAssertionValue(0), formattedAssertionValue(2)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(3),
-                                                                formattedAssertionValue(4))),
-                                        StateChange.stateChangeFor(TRACEABILITY + THIRD)
-                                                .withStorageChanges(
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(0),
-                                                                formattedAssertionValue(123)),
-                                                        StorageChange.readAndWritten(
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(1),
-                                                                formattedAssertionValue(0))))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        TRACEABILITY_TXN,
-                                        List.of(
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setGas(978632)
-                                                        .setGasUsed(44077)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY,
-                                                                "eetScenario11",
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "B", spec)),
-                                                                hexedSolidityAddressToHeadlongAddress(
-                                                                        getNestedContractAddress(
-                                                                                TRACEABILITY + "C", spec))))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(962676)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(959894)
-                                                        .setGasUsed(5324)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(4)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(951979)
-                                                        .setGasUsed(237)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + SECOND))
-                                                        .setRevertReason(EMPTY)
-                                                        .setInput(ByteString.copyFrom(
-                                                                "readAndWriteThenRevert()"
-                                                                        .getBytes(StandardCharsets.UTF_8)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(949041)
-                                                        .setGasUsed(2347)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setCallDepth(1)
-                                                        .setGas(946244)
-                                                        .setGasUsed(20323)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(123)))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(926025)
-                                                        .setGasUsed(2391)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
-                                                        .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
-                                                        .build(),
-                                                ContractAction.newBuilder()
-                                                        .setCallType(CALL)
-                                                        .setCallOperationType(CallOperationType.OP_CALL)
-                                                        .setCallingContract(
-                                                                spec.registry().getContractId(TRACEABILITY))
-                                                        .setGas(923172)
-                                                        .setGasUsed(3224)
-                                                        .setCallDepth(1)
-                                                        .setRecipientContract(
-                                                                spec.registry().getContractId(TRACEABILITY + THIRD))
-                                                        .setOutput(EMPTY)
-                                                        .setInput(encodeFunctionCall(
-                                                                TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
-                                                        .build())))));
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setGas(978632)
+                                                .setGasUsed(44077)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY,
+                                                        "eetScenario11",
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "B", spec)),
+                                                        hexedSolidityAddressToHeadlongAddress(
+                                                                getNestedContractAddress(TRACEABILITY + "C", spec))))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(962676)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(2)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(959894)
+                                                .setGasUsed(5324)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(4)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_DELEGATECALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(951979)
+                                                .setGasUsed(237)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + SECOND))
+                                                .setRevertReason(EMPTY)
+                                                .setInput(ByteString.copyFrom(
+                                                        "readAndWriteThenRevert()".getBytes(StandardCharsets.UTF_8)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(949041)
+                                                .setGasUsed(2347)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(0)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_ZERO_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setCallDepth(1)
+                                                .setGas(946244)
+                                                .setGasUsed(20323)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_ZERO_SLOT, BigInteger.valueOf(123)))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(926025)
+                                                .setGasUsed(2391)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(uint256ReturnWithValue(BigInteger.valueOf(1)))
+                                                .setInput(encodeFunctionCall(TRACEABILITY, GET_FIRST_SLOT))
+                                                .build(),
+                                        ContractAction.newBuilder()
+                                                .setCallType(CALL)
+                                                .setCallOperationType(CallOperationType.OP_CALL)
+                                                .setCallingContract(
+                                                        spec.registry().getContractId(TRACEABILITY))
+                                                .setGas(923172)
+                                                .setGasUsed(3224)
+                                                .setCallDepth(1)
+                                                .setRecipientContract(
+                                                        spec.registry().getContractId(TRACEABILITY + THIRD))
+                                                .setOutput(EMPTY)
+                                                .setInput(encodeFunctionCall(
+                                                        TRACEABILITY, SET_FIRST_SLOT, BigInteger.valueOf(0)))
+                                                .build())))));
     }
 
     @HapiTest
@@ -4026,16 +3839,15 @@ public class TraceabilitySuite {
     @Order(13)
     final Stream<DynamicTest> traceabilityE2EScenario13() {
         final AtomicReference<AccountID> accountIDAtomicReference = new AtomicReference<>();
-        return defaultHapiSpec("traceabilityE2EScenario13", FULLY_NONDETERMINISTIC)
-                .given(
-                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                                .via(AUTO_ACCOUNT_TXN),
-                        getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).exposingIdTo(accountIDAtomicReference::set),
-                        getTxnRecord(AUTO_ACCOUNT_TXN).andAllChildRecords(),
-                        uploadInitCode(PAY_RECEIVABLE_CONTRACT))
-                .when(ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                        .via(AUTO_ACCOUNT_TXN),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).exposingIdTo(accountIDAtomicReference::set),
+                getTxnRecord(AUTO_ACCOUNT_TXN).andAllChildRecords(),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
@@ -4043,43 +3855,41 @@ public class TraceabilitySuite {
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
                         .gasLimit(1_000_000L)
                         .hasKnownStatus(SUCCESS)
-                        .via(FIRST_CREATE_TXN))
-                .then(
-                        withOpContext((spec, opLog) -> {
-                            final HapiGetTxnRecord txnRecord = getTxnRecord(FIRST_CREATE_TXN);
-                            allRunFor(
-                                    spec,
-                                    txnRecord,
-                                    expectContractActionSidecarFor(
-                                            FIRST_CREATE_TXN,
-                                            List.of(ContractAction.newBuilder()
-                                                    .setCallType(CREATE)
-                                                    .setCallOperationType(CallOperationType.OP_CREATE)
-                                                    .setCallingAccount(accountIDAtomicReference.get())
-                                                    .setRecipientContract(
-                                                            spec.registry().getContractId(PAY_RECEIVABLE_CONTRACT))
-                                                    .setGas(937984)
-                                                    .setGasUsed(135)
-                                                    .setOutput(EMPTY)
-                                                    .build())));
-                        }),
-                        // The bytecode is externalized along with the synthetic ContractCreate
-                        // child following the top-level EthereumTransaction record (index=1)
-                        expectContractBytecodeSansInitcodeFor(FIRST_CREATE_TXN, 1, PAY_RECEIVABLE_CONTRACT));
+                        .via(FIRST_CREATE_TXN),
+                withOpContext((spec, opLog) -> {
+                    final HapiGetTxnRecord txnRecord = getTxnRecord(FIRST_CREATE_TXN);
+                    allRunFor(
+                            spec,
+                            txnRecord,
+                            expectContractActionSidecarFor(
+                                    FIRST_CREATE_TXN,
+                                    List.of(ContractAction.newBuilder()
+                                            .setCallType(CREATE)
+                                            .setCallOperationType(CallOperationType.OP_CREATE)
+                                            .setCallingAccount(accountIDAtomicReference.get())
+                                            .setRecipientContract(
+                                                    spec.registry().getContractId(PAY_RECEIVABLE_CONTRACT))
+                                            .setGas(937984)
+                                            .setGasUsed(135)
+                                            .setOutput(EMPTY)
+                                            .build())));
+                }),
+                // The bytecode is externalized along with the synthetic ContractCreate
+                // child following the top-level EthereumTransaction record (index=1)
+                expectContractBytecodeSansInitcodeFor(FIRST_CREATE_TXN, 1, PAY_RECEIVABLE_CONTRACT));
     }
 
     @HapiTest
     @Order(14)
     final Stream<DynamicTest> traceabilityE2EScenario14() {
-        return defaultHapiSpec("traceabilityE2EScenario14", FULLY_NONDETERMINISTIC)
-                .given(
-                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                                .via(AUTO_ACCOUNT_TXN),
-                        getTxnRecord(AUTO_ACCOUNT_TXN).andAllChildRecords(),
-                        uploadInitCode(PAY_RECEIVABLE_CONTRACT))
-                .when(ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                        .via(AUTO_ACCOUNT_TXN),
+                getTxnRecord(AUTO_ACCOUNT_TXN).andAllChildRecords(),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
                         .type(EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
@@ -4087,8 +3897,8 @@ public class TraceabilitySuite {
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
                         .gasLimit(1_000_000L)
                         .hasKnownStatus(SUCCESS)
-                        .via(TRACEABILITY_TXN))
-                .then(withOpContext((spec, opLog) -> {
+                        .via(TRACEABILITY_TXN),
+                withOpContext((spec, opLog) -> {
                     final AtomicReference<AccountID> accountIDAtomicReference = new AtomicReference<>();
                     final var hapiGetAccountInfo =
                             getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).exposingIdTo(accountIDAtomicReference::set);
@@ -4128,138 +3938,122 @@ public class TraceabilitySuite {
         final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
         final AtomicReference<byte[]> bytecodeFromMirror = new AtomicReference<>();
         final AtomicReference<String> mirrorLiteralId = new AtomicReference<>();
-        final String specName = "traceabilityE2EScenario15";
-        return defaultHapiSpec(
-                        specName,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        uploadInitCode(contract),
-                        contractCreate(contract)
-                                .via(CREATE_TXN)
-                                .exposingNumTo(num ->
-                                        factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(0, 0, num))),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(153184)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(contract))
-                                                .setGasUsed(613)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(CREATE_TXN, contract, contract))
-                .when(
-                        sourcing(() -> contractCallLocal(
-                                        contract,
-                                        GET_BYTECODE,
-                                        asHeadlongAddress(factoryEvmAddress.get()),
-                                        BigInteger.valueOf(salt))
-                                .exposingTypedResultsTo(results -> {
-                                    final var tcInitcode = (byte[]) results[0];
-                                    testContractInitcode.set(tcInitcode);
-                                    log.info(
-                                            "Contract reported TestContract" + " initcode is {} bytes",
-                                            tcInitcode.length);
-                                })),
-                        sourcing(() -> contractCallLocal(
-                                        contract, "getAddress", testContractInitcode.get(), BigInteger.valueOf(salt))
-                                .exposingTypedResultsTo(results -> {
-                                    log.info("Contract reported address" + " results {}", results);
-                                    final var expectedAddr = (Address) results[0];
-                                    final var hexedAddress = expectedAddr.toString();
-                                    log.info("  --> Expected CREATE2 address" + " is {}", hexedAddress);
-                                    expectedCreate2Address.set(hexedAddress);
-                                })),
-                        sourcing(() -> contractCall(
-                                        contract, DEPLOY, testContractInitcode.get(), BigInteger.valueOf(salt))
-                                .payingWith(GENESIS)
-                                .gas(4_000_000L)
-                                .sending(tcValue)
-                                .via(CREATE_2_TXN)),
-                        withOpContext((spec, opLog) -> {
-                            final var parentId = spec.registry().getContractId(contract);
-                            final var childId = ContractID.newBuilder()
-                                    .setContractNum(parentId.getContractNum() + 1L)
-                                    .build();
-                            mirrorLiteralId.set("0.0." + childId.getContractNum());
-                            final var topLevelCallTxnRecord = getTxnRecord(CREATE_2_TXN)
-                                    .andAllChildRecords()
-                                    .logged();
-                            final var hapiGetContractBytecode = getContractBytecode(mirrorLiteralId.get())
-                                    .exposingBytecodeTo(bytecodeFromMirror::set);
-                            allRunFor(
-                                    spec,
-                                    topLevelCallTxnRecord,
-                                    expectContractStateChangesSidecarFor(
-                                            CREATE_2_TXN,
-                                            List.of(StateChange.stateChangeFor(
-                                                            HapiPropertySource.asContractString(childId))
-                                                    .withStorageChanges(
-                                                            StorageChange.readAndWritten(
-                                                                    formattedAssertionValue(0L),
-                                                                    formattedAssertionValue(0L),
-                                                                    ByteStringUtils.wrapUnsafely(
-                                                                            Bytes.fromHexString(factoryEvmAddress.get())
-                                                                                    .trimLeadingZeros()
-                                                                                    .toArrayUnsafe())),
-                                                            StorageChange.readAndWritten(
-                                                                    formattedAssertionValue(1L),
-                                                                    formattedAssertionValue(0L),
-                                                                    formattedAssertionValue(salt))))),
-                                    expectContractActionSidecarFor(
-                                            CREATE_2_TXN,
-                                            List.of(
-                                                    ContractAction.newBuilder()
-                                                            .setCallType(CALL)
-                                                            .setCallOperationType(CallOperationType.OP_CALL)
-                                                            .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                            .setGas(3965516)
-                                                            .setValue(tcValue)
-                                                            .setRecipientContract(
-                                                                    spec.registry()
-                                                                            .getContractId(contract))
-                                                            .setGasUsed(80193)
-                                                            .setOutput(EMPTY)
-                                                            .setInput(
-                                                                    encodeFunctionCall(
-                                                                            contract,
-                                                                            DEPLOY,
-                                                                            testContractInitcode.get(),
-                                                                            BigInteger.valueOf(salt)))
-                                                            .build(),
-                                                    ContractAction.newBuilder()
-                                                            .setCallType(CREATE)
-                                                            .setCallOperationType(CallOperationType.OP_CREATE2)
-                                                            .setCallingContract(
-                                                                    spec.registry()
-                                                                            .getContractId(contract))
-                                                            .setGas(3870552)
-                                                            .setRecipientContract(childId)
-                                                            .setGasUsed(44936)
-                                                            .setValue(tcValue)
-                                                            .setOutput(EMPTY)
-                                                            .setCallDepth(1)
-                                                            .build())),
-                                    hapiGetContractBytecode);
-                            allRunFor(
-                                    spec,
-                                    // The bytecode is externalized along with the synthetic ContractCreate
-                                    // child corresponding to the internal creation (index=1)
-                                    expectExplicitContractBytecode(
-                                            CREATE_2_TXN,
-                                            1,
-                                            asContract(mirrorLiteralId.get()),
-                                            ByteStringUtils.wrapUnsafely(testContractInitcode.get()),
-                                            ByteStringUtils.wrapUnsafely(bytecodeFromMirror.get())));
-                        }))
-                .then();
+        return hapiTest(
+                uploadInitCode(contract),
+                contractCreate(contract)
+                        .via(CREATE_TXN)
+                        .exposingNumTo(
+                                num -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(0, 0, num))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(153184)
+                                        .setRecipientContract(spec.registry().getContractId(contract))
+                                        .setGasUsed(613)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(CREATE_TXN, contract, contract),
+                sourcing(() -> contractCallLocal(
+                                contract,
+                                GET_BYTECODE,
+                                asHeadlongAddress(factoryEvmAddress.get()),
+                                BigInteger.valueOf(salt))
+                        .exposingTypedResultsTo(results -> {
+                            final var tcInitcode = (byte[]) results[0];
+                            testContractInitcode.set(tcInitcode);
+                            log.info("Contract reported TestContract" + " initcode is {} bytes", tcInitcode.length);
+                        })),
+                sourcing(() -> contractCallLocal(
+                                contract, "getAddress", testContractInitcode.get(), BigInteger.valueOf(salt))
+                        .exposingTypedResultsTo(results -> {
+                            log.info("Contract reported address" + " results {}", results);
+                            final var expectedAddr = (Address) results[0];
+                            final var hexedAddress = expectedAddr.toString();
+                            log.info("  --> Expected CREATE2 address" + " is {}", hexedAddress);
+                            expectedCreate2Address.set(hexedAddress);
+                        })),
+                sourcing(() -> contractCall(contract, DEPLOY, testContractInitcode.get(), BigInteger.valueOf(salt))
+                        .payingWith(GENESIS)
+                        .gas(4_000_000L)
+                        .sending(tcValue)
+                        .via(CREATE_2_TXN)),
+                withOpContext((spec, opLog) -> {
+                    final var parentId = spec.registry().getContractId(contract);
+                    final var childId = ContractID.newBuilder()
+                            .setContractNum(parentId.getContractNum() + 1L)
+                            .build();
+                    mirrorLiteralId.set("0.0." + childId.getContractNum());
+                    final var topLevelCallTxnRecord =
+                            getTxnRecord(CREATE_2_TXN).andAllChildRecords().logged();
+                    final var hapiGetContractBytecode =
+                            getContractBytecode(mirrorLiteralId.get()).exposingBytecodeTo(bytecodeFromMirror::set);
+                    allRunFor(
+                            spec,
+                            topLevelCallTxnRecord,
+                            expectContractStateChangesSidecarFor(
+                                    CREATE_2_TXN,
+                                    List.of(StateChange.stateChangeFor(HapiPropertySource.asContractString(childId))
+                                            .withStorageChanges(
+                                                    StorageChange.readAndWritten(
+                                                            formattedAssertionValue(0L),
+                                                            formattedAssertionValue(0L),
+                                                            ByteStringUtils.wrapUnsafely(
+                                                                    Bytes.fromHexString(factoryEvmAddress.get())
+                                                                            .trimLeadingZeros()
+                                                                            .toArrayUnsafe())),
+                                                    StorageChange.readAndWritten(
+                                                            formattedAssertionValue(1L),
+                                                            formattedAssertionValue(0L),
+                                                            formattedAssertionValue(salt))))),
+                            expectContractActionSidecarFor(
+                                    CREATE_2_TXN,
+                                    List.of(
+                                            ContractAction.newBuilder()
+                                                    .setCallType(CALL)
+                                                    .setCallOperationType(CallOperationType.OP_CALL)
+                                                    .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                                    .setGas(3965516)
+                                                    .setValue(tcValue)
+                                                    .setRecipientContract(
+                                                            spec.registry().getContractId(contract))
+                                                    .setGasUsed(80193)
+                                                    .setOutput(EMPTY)
+                                                    .setInput(
+                                                            encodeFunctionCall(
+                                                                    contract,
+                                                                    DEPLOY,
+                                                                    testContractInitcode.get(),
+                                                                    BigInteger.valueOf(salt)))
+                                                    .build(),
+                                            ContractAction.newBuilder()
+                                                    .setCallType(CREATE)
+                                                    .setCallOperationType(CallOperationType.OP_CREATE2)
+                                                    .setCallingContract(
+                                                            spec.registry().getContractId(contract))
+                                                    .setGas(3870552)
+                                                    .setRecipientContract(childId)
+                                                    .setGasUsed(44936)
+                                                    .setValue(tcValue)
+                                                    .setOutput(EMPTY)
+                                                    .setCallDepth(1)
+                                                    .build())),
+                            hapiGetContractBytecode);
+                    allRunFor(
+                            spec,
+                            // The bytecode is externalized along with the synthetic ContractCreate
+                            // child corresponding to the internal creation (index=1)
+                            expectExplicitContractBytecode(
+                                    CREATE_2_TXN,
+                                    1,
+                                    asContract(mirrorLiteralId.get()),
+                                    ByteStringUtils.wrapUnsafely(testContractInitcode.get()),
+                                    ByteStringUtils.wrapUnsafely(bytecodeFromMirror.get())));
+                }));
     }
 
     @HapiTest
@@ -4269,41 +4063,39 @@ public class TraceabilitySuite {
         final String PRECOMPILE_CALLER = "PrecompileCaller";
         final String txn = "payTxn";
         final String toHash = "toHash";
-        return defaultHapiSpec("traceabilityE2EScenario16", FULLY_NONDETERMINISTIC)
-                .given(
-                        tokenCreate("goodToken")
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .treasury(GENESIS)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(PRECOMPILE_CALLER),
-                        contractCreate(PRECOMPILE_CALLER).via(txn),
-                        withOpContext((spec, opLog) -> {
-                            final HapiGetTxnRecord txnRecord = getTxnRecord(txn);
-                            allRunFor(
-                                    spec,
-                                    txnRecord,
-                                    expectContractActionSidecarFor(
-                                            txn,
-                                            List.of(ContractAction.newBuilder()
-                                                    .setCallType(CREATE)
-                                                    .setCallOperationType(CallOperationType.OP_CREATE)
-                                                    .setCallingAccount(
-                                                            spec.registry().getAccountID(GENESIS))
-                                                    .setRecipientContract(
-                                                            spec.registry().getContractId(PRECOMPILE_CALLER))
-                                                    .setGas(125628)
-                                                    .setGasUsed(942)
-                                                    .setOutput(EMPTY)
-                                                    .build())));
-                        }),
-                        expectContractBytecodeSidecarFor(txn, PRECOMPILE_CALLER, PRECOMPILE_CALLER))
-                .when(sourcing(() -> contractCall(
+        return hapiTest(
+                tokenCreate("goodToken")
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(GENESIS)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(PRECOMPILE_CALLER),
+                contractCreate(PRECOMPILE_CALLER).via(txn),
+                withOpContext((spec, opLog) -> {
+                    final HapiGetTxnRecord txnRecord = getTxnRecord(txn);
+                    allRunFor(
+                            spec,
+                            txnRecord,
+                            expectContractActionSidecarFor(
+                                    txn,
+                                    List.of(ContractAction.newBuilder()
+                                            .setCallType(CREATE)
+                                            .setCallOperationType(CallOperationType.OP_CREATE)
+                                            .setCallingAccount(spec.registry().getAccountID(GENESIS))
+                                            .setRecipientContract(
+                                                    spec.registry().getContractId(PRECOMPILE_CALLER))
+                                            .setGas(125628)
+                                            .setGasUsed(942)
+                                            .setOutput(EMPTY)
+                                            .build())));
+                }),
+                expectContractBytecodeSidecarFor(txn, PRECOMPILE_CALLER, PRECOMPILE_CALLER),
+                sourcing(() -> contractCall(
                                 PRECOMPILE_CALLER,
                                 "callSha256AndIsToken",
                                 toHash.getBytes(),
                                 HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                        .via("callTxn")))
-                .then(withOpContext((spec, opLog) -> {
+                        .via("callTxn")),
+                withOpContext((spec, opLog) -> {
                     final byte[] expectedHash =
                             Hashing.sha256().hashBytes(toHash.getBytes()).asBytes();
                     allRunFor(
@@ -4320,15 +4112,17 @@ public class TraceabilitySuite {
                                                     .setRecipientContract(
                                                             spec.registry().getContractId(PRECOMPILE_CALLER))
                                                     .setGasUsed(5330)
-                                                    .setInput(encodeFunctionCall(
-                                                            PRECOMPILE_CALLER,
-                                                            "callSha256AndIsToken",
-                                                            toHash.getBytes(),
-                                                            hexedSolidityAddressToHeadlongAddress(
-                                                                    HapiPropertySource.asHexedSolidityAddress(
-                                                                            vanillaTokenID.get()))))
-                                                    .setOutput(ByteStringUtils.wrapUnsafely(
-                                                            encodeTuple("(bool,bytes32)", true, expectedHash)))
+                                                    .setInput(
+                                                            encodeFunctionCall(
+                                                                    PRECOMPILE_CALLER,
+                                                                    "callSha256AndIsToken",
+                                                                    toHash.getBytes(),
+                                                                    hexedSolidityAddressToHeadlongAddress(
+                                                                            HapiPropertySource.asHexedSolidityAddress(
+                                                                                    vanillaTokenID.get()))))
+                                                    .setOutput(
+                                                            ByteStringUtils.wrapUnsafely(
+                                                                    encodeTuple("(bool,bytes32)", true, expectedHash)))
                                                     .build(),
                                             ContractAction.newBuilder()
                                                     .setCallType(PRECOMPILE)
@@ -4338,9 +4132,10 @@ public class TraceabilitySuite {
                                                     .setGas(75902)
                                                     // SHA 256 precompile address is
                                                     // 0x02
-                                                    .setRecipientContract(ContractID.newBuilder()
-                                                            .setContractNum(2)
-                                                            .build())
+                                                    .setRecipientContract(
+                                                            ContractID.newBuilder()
+                                                                    .setContractNum(2)
+                                                                    .build())
                                                     .setGasUsed(72)
                                                     .setInput(ByteStringUtils.wrapUnsafely(toHash.getBytes()))
                                                     .setOutput(ByteStringUtils.wrapUnsafely(expectedHash))
@@ -4354,19 +4149,27 @@ public class TraceabilitySuite {
                                                     .setGas(72555)
                                                     // HTS precompile address is
                                                     // 0x167
-                                                    .setRecipientContract(ContractID.newBuilder()
-                                                            .setContractNum(359)
-                                                            .build())
+                                                    .setRecipientContract(
+                                                            ContractID.newBuilder()
+                                                                    .setContractNum(359)
+                                                                    .build())
                                                     .setGasUsed(100)
-                                                    .setInput(ByteStringUtils.wrapUnsafely(Function.parse(
-                                                                    "isToken" + "(address)")
-                                                            .encodeCallWithArgs(
-                                                                    hexedSolidityAddressToHeadlongAddress(
-                                                                            HapiPropertySource.asHexedSolidityAddress(
-                                                                                    vanillaTokenID.get())))
-                                                            .array()))
-                                                    .setOutput(ByteStringUtils.wrapUnsafely(encodeTuple(
-                                                            ("(int64,bool)"), (long) SUCCESS.getNumber(), true)))
+                                                    .setInput(
+                                                            ByteStringUtils.wrapUnsafely(
+                                                                    Function.parse("isToken" + "(address)")
+                                                                            .encodeCallWithArgs(
+                                                                                    hexedSolidityAddressToHeadlongAddress(
+                                                                                            HapiPropertySource
+                                                                                                    .asHexedSolidityAddress(
+                                                                                                            vanillaTokenID
+                                                                                                                    .get())))
+                                                                            .array()))
+                                                    .setOutput(
+                                                            ByteStringUtils.wrapUnsafely(
+                                                                    encodeTuple(
+                                                                            ("(int64,bool)"),
+                                                                            (long) SUCCESS.getNumber(),
+                                                                            true)))
                                                     .setCallDepth(1)
                                                     .build())));
                 }));
@@ -4375,34 +4178,31 @@ public class TraceabilitySuite {
     @HapiTest
     @Order(17)
     final Stream<DynamicTest> traceabilityE2EScenario17() {
-        return defaultHapiSpec("traceabilityE2EScenario17")
-                .given(
-                        uploadInitCode(REVERTING_CONTRACT),
-                        contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(6))
-                                .via(FIRST_CREATE_TXN),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(185276)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(REVERTING_CONTRACT))
-                                                .setGasUsed(345)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN, REVERTING_CONTRACT, REVERTING_CONTRACT, BigInteger.valueOf(6)))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                uploadInitCode(REVERTING_CONTRACT),
+                contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(6)).via(FIRST_CREATE_TXN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(185276)
+                                        .setRecipientContract(spec.registry().getContractId(REVERTING_CONTRACT))
+                                        .setGasUsed(345)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN, REVERTING_CONTRACT, REVERTING_CONTRACT, BigInteger.valueOf(6)),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(REVERTING_CONTRACT, "createContract", BigInteger.valueOf(4))
                                 .gas(1_000_000)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .via(TRACEABILITY_TXN))))
-                .then(withOpContext((spec, opLog) -> allRunFor(
+                                .via(TRACEABILITY_TXN))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -4434,26 +4234,24 @@ public class TraceabilitySuite {
     @HapiTest
     @Order(18)
     final Stream<DynamicTest> traceabilityE2EScenario18() {
-        return defaultHapiSpec("traceabilityE2EScenario18")
-                .given(uploadInitCode(REVERTING_CONTRACT))
-                .when(contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(4))
+        return hapiTest(
+                uploadInitCode(REVERTING_CONTRACT),
+                contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(4))
                         .via(FIRST_CREATE_TXN)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
-                .then(
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(185276)
-                                                .setGasUsed(201)
-                                                .setRevertReason(EMPTY)
-                                                .build())))),
-                        expectFailedContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN, REVERTING_CONTRACT, BigInteger.valueOf(4)));
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(185276)
+                                        .setGasUsed(201)
+                                        .setRevertReason(EMPTY)
+                                        .build())))),
+                expectFailedContractBytecodeSidecarFor(FIRST_CREATE_TXN, REVERTING_CONTRACT, BigInteger.valueOf(4)));
     }
 
     @HapiTest
@@ -4462,21 +4260,20 @@ public class TraceabilitySuite {
         final var RECEIVER = "RECEIVER";
         final var hbarsToSend = 1;
         final var transferTxn = "payTxn";
-        return defaultHapiSpec("traceabilityE2EScenario19", FULLY_NONDETERMINISTIC)
-                .given(
-                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoCreate(RECEIVER).balance(0L),
-                        cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                                .via(AUTO_ACCOUNT_TXN),
-                        getTxnRecord(AUTO_ACCOUNT_TXN).andAllChildRecords())
-                .when(ethereumCryptoTransfer(RECEIVER, hbarsToSend)
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RECEIVER).balance(0L),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                        .via(AUTO_ACCOUNT_TXN),
+                getTxnRecord(AUTO_ACCOUNT_TXN).andAllChildRecords(),
+                ethereumCryptoTransfer(RECEIVER, hbarsToSend)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .gasLimit(2_000_000L)
                         .payingWith(RELAYER)
-                        .via(transferTxn))
-                .then(withOpContext((spec, opLog) -> {
+                        .via(transferTxn),
+                withOpContext((spec, opLog) -> {
                     final AtomicReference<AccountID> ethSenderAccountReference = new AtomicReference<>();
                     final var hapiGetAccountInfo =
                             getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).exposingIdTo(ethSenderAccountReference::set);
@@ -4503,60 +4300,55 @@ public class TraceabilitySuite {
     @HapiTest
     @Order(20)
     final Stream<DynamicTest> traceabilityE2EScenario20() {
-        return defaultHapiSpec("traceabilityE2EScenario20", HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(uploadInitCode(REVERTING_CONTRACT))
-                .when(contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(6))
+        return hapiTest(
+                uploadInitCode(REVERTING_CONTRACT),
+                contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(6))
                         .via(FIRST_CREATE_TXN)
                         .gas(64774)
-                        .hasKnownStatus(INSUFFICIENT_GAS))
-                .then(
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(50)
-                                                .setGasUsed(50)
-                                                .setError(ByteString.copyFromUtf8(INSUFFICIENT_GAS.name()))
-                                                .build())))),
-                        expectFailedContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN, REVERTING_CONTRACT, BigInteger.valueOf(6)));
+                        .hasKnownStatus(INSUFFICIENT_GAS),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(50)
+                                        .setGasUsed(50)
+                                        .setError(ByteString.copyFromUtf8(INSUFFICIENT_GAS.name()))
+                                        .build())))),
+                expectFailedContractBytecodeSidecarFor(FIRST_CREATE_TXN, REVERTING_CONTRACT, BigInteger.valueOf(6)));
     }
 
     @HapiTest
     @Order(21)
     final Stream<DynamicTest> traceabilityE2EScenario21() {
-        return defaultHapiSpec("traceabilityE2EScenario21", FULLY_NONDETERMINISTIC)
-                .given(
-                        uploadInitCode(REVERTING_CONTRACT),
-                        contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(6))
-                                .via(FIRST_CREATE_TXN),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                expectContractActionSidecarFor(
-                                        FIRST_CREATE_TXN,
-                                        List.of(ContractAction.newBuilder()
-                                                .setCallType(CREATE)
-                                                .setCallOperationType(CallOperationType.OP_CREATE)
-                                                .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                                .setGas(185276)
-                                                .setRecipientContract(
-                                                        spec.registry().getContractId(REVERTING_CONTRACT))
-                                                .setGasUsed(345)
-                                                .setOutput(EMPTY)
-                                                .build())))),
-                        expectContractBytecodeSidecarFor(
-                                FIRST_CREATE_TXN, REVERTING_CONTRACT, REVERTING_CONTRACT, BigInteger.valueOf(6)))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                uploadInitCode(REVERTING_CONTRACT),
+                contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(6)).via(FIRST_CREATE_TXN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        expectContractActionSidecarFor(
+                                FIRST_CREATE_TXN,
+                                List.of(ContractAction.newBuilder()
+                                        .setCallType(CREATE)
+                                        .setCallOperationType(CallOperationType.OP_CREATE)
+                                        .setCallingAccount(TxnUtils.asId(GENESIS, spec))
+                                        .setGas(185276)
+                                        .setRecipientContract(spec.registry().getContractId(REVERTING_CONTRACT))
+                                        .setGasUsed(345)
+                                        .setOutput(EMPTY)
+                                        .build())))),
+                expectContractBytecodeSidecarFor(
+                        FIRST_CREATE_TXN, REVERTING_CONTRACT, REVERTING_CONTRACT, BigInteger.valueOf(6)),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(REVERTING_CONTRACT, "callingWrongAddress")
                                 .gas(1_000_000)
                                 .hasKnownStatusFrom(SUCCESS, INVALID_SOLIDITY_ADDRESS)
-                                .via(TRACEABILITY_TXN))))
-                .then(withOpContext((spec, opLog) -> allRunFor(
+                                .via(TRACEABILITY_TXN))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -4642,32 +4434,29 @@ public class TraceabilitySuite {
     @Order(23)
     final Stream<DynamicTest> vanillaBytecodeSidecar2() {
         final var contract = "CreateTrivial";
-        final String trivialCreate = "vanillaBytecodeSidecar2";
         final var firstTxn = "firstTxn";
-        return defaultHapiSpec(trivialCreate, NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(uploadInitCode(contract))
-                .when(contractCreate(contract).via(firstTxn))
-                .then(
-                        withOpContext((spec, opLog) -> {
-                            final HapiGetTxnRecord txnRecord = getTxnRecord(firstTxn);
-                            allRunFor(
-                                    spec,
-                                    txnRecord,
-                                    expectContractActionSidecarFor(
-                                            firstTxn,
-                                            List.of(ContractAction.newBuilder()
-                                                    .setCallType(CREATE)
-                                                    .setCallOperationType(CallOperationType.OP_CREATE)
-                                                    .setCallingAccount(
-                                                            spec.registry().getAccountID(GENESIS))
-                                                    .setRecipientContract(
-                                                            spec.registry().getContractId(contract))
-                                                    .setGas(184672)
-                                                    .setGasUsed(214)
-                                                    .setOutput(EMPTY)
-                                                    .build())));
-                        }),
-                        expectContractBytecodeSidecarFor(firstTxn, contract, contract));
+        return hapiTest(
+                uploadInitCode(contract),
+                contractCreate(contract).via(firstTxn),
+                withOpContext((spec, opLog) -> {
+                    final HapiGetTxnRecord txnRecord = getTxnRecord(firstTxn);
+                    allRunFor(
+                            spec,
+                            txnRecord,
+                            expectContractActionSidecarFor(
+                                    firstTxn,
+                                    List.of(ContractAction.newBuilder()
+                                            .setCallType(CREATE)
+                                            .setCallOperationType(CallOperationType.OP_CREATE)
+                                            .setCallingAccount(spec.registry().getAccountID(GENESIS))
+                                            .setRecipientContract(
+                                                    spec.registry().getContractId(contract))
+                                            .setGas(184672)
+                                            .setGasUsed(214)
+                                            .setOutput(EMPTY)
+                                            .build())));
+                }),
+                expectContractBytecodeSidecarFor(firstTxn, contract, contract));
     }
 
     @Order(24)
@@ -4957,7 +4746,6 @@ public class TraceabilitySuite {
         final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
         final AtomicReference<AccountID> mergedAccountId = new AtomicReference<>();
         final var CREATE_2_TXN = "create2Txn";
-        final var specName = "hollowAccountCreate2MergeExportsExpectedSidecars";
         return hapiTest(
                 overriding("contracts.sidecars", ""),
                 newKeyNamed(adminKey),

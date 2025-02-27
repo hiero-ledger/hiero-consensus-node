@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager.ZONE_UTC;
@@ -79,14 +64,16 @@ class StakeRewardCalculatorImplTest {
 
     @Test
     void zeroRewardsForMissingNodeStakeInfo() {
-        final var reward = subject.computeRewardFromDetails(Account.newBuilder().build(), null, 321, 123);
+        final var reward = StakeRewardCalculatorImpl.computeRewardFromDetails(
+                Account.newBuilder().build(), null, 321, 123);
         assertEquals(0, reward);
     }
 
     @Test
     void zeroRewardsForDeletedNodeStakeInfo() {
         final var stakingInfo = StakingNodeInfo.newBuilder().deleted(true).build();
-        final var reward = subject.computeRewardFromDetails(Account.newBuilder().build(), stakingInfo, 321, 123);
+        final var reward = StakeRewardCalculatorImpl.computeRewardFromDetails(
+                Account.newBuilder().build(), stakingInfo, 321, 123);
         assertEquals(0, reward);
     }
 
@@ -103,7 +90,7 @@ class StakeRewardCalculatorImplTest {
         rewardHistory.set(2, 1L);
         setUpMocks();
         given(stakingInfoStore.getOriginalValue(0L)).willReturn(stakingNodeInfo);
-        given(stakePeriodManager.currentStakePeriod(consensusTime)).willReturn(TODAY_NUMBER);
+        given(stakePeriodManager.currentStakePeriod()).willReturn(TODAY_NUMBER);
         given(stakingNodeInfo.rewardSumHistory()).willReturn(rewardHistory);
         // Staked node ID of -1 will return a node ID address of 0
         given(account.stakedNodeId()).willReturn(-1L);
@@ -167,10 +154,10 @@ class StakeRewardCalculatorImplTest {
     }
 
     private void setUpMocks() {
-        given(stakePeriodManager.firstNonRewardableStakePeriod(stakingRewardsStore, consensusTime))
+        given(stakePeriodManager.firstNonRewardableStakePeriod(stakingRewardsStore))
                 .willReturn(TODAY_NUMBER);
         willCallRealMethod().given(stakePeriodManager).effectivePeriod(anyLong());
-        willCallRealMethod().given(stakePeriodManager).isRewardable(anyLong(), any(), any());
+        willCallRealMethod().given(stakePeriodManager).isRewardable(anyLong(), any());
     }
 
     private static List<Long> newRewardHistory() {

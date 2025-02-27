@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v6;
 
 import static com.hedera.node.app.records.RecordTestData.BLOCK_NUM;
@@ -22,6 +7,7 @@ import static com.hedera.node.app.records.RecordTestData.SIGNER;
 import static com.hedera.node.app.records.RecordTestData.STARTING_RUNNING_HASH_OBJ;
 import static com.hedera.node.app.records.RecordTestData.TEST_BLOCKS;
 import static com.hedera.node.app.records.RecordTestData.VERSION;
+import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -86,7 +72,6 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
         appBuilder = appBuilder()
                 .withHapiVersion(VERSION)
-                .withSoftwareVersion(VERSION)
                 .withConfigValue("hedera.recordStream.enabled", true)
                 .withConfigValue("hedera.recordStream.logDir", tempDir.toString())
                 .withConfigValue("hedera.recordStream.sidecarDir", "sidecar")
@@ -101,10 +86,11 @@ final class BlockRecordWriterV6Test extends AppTestBase {
                 .withConfigValue("hedera.recordStream.compressFilesOnCreation", compress)
                 .build();
         config = app.configProvider().getConfiguration().getConfigData(BlockRecordStreamConfig.class);
-        hapiVersion = app.softwareVersion().getHapiVersion();
+        hapiVersion = app.hapiVersion();
         writer = new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem);
         final var ext = compress ? ".rcd.gz" : ".rcd";
-        final var recordDir = fileSystem.getPath(config.logDir(), "record" + selfNodeInfo.memo() + "/");
+        final var recordDir =
+                fileSystem.getPath(config.logDir(), "record" + asAccountString(selfNodeInfo.accountId()) + "/");
         recordPath = recordDir.resolve("2018-08-24T16_25_42.000000890Z" + ext);
         sigPath = recordDir.resolve("2018-08-24T16_25_42.000000890Z.rcd_sig");
     }
@@ -167,7 +153,8 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         void recordDirectoryCouldNotBeCreated() throws IOException {
             // Given a "logDir" in the config that points not to a directory, but to a pre-existing FILE (!!!)
             final var config = buildAndGetConfig();
-            final var recordDir = fileSystem.getPath(config.logDir(), "record" + selfNodeInfo.memo() + "/");
+            final var recordDir =
+                    fileSystem.getPath(config.logDir(), "record" + asAccountString(selfNodeInfo.accountId()) + "/");
             Files.createDirectories(recordDir.getParent());
             Files.createFile(recordDir);
 
@@ -217,8 +204,9 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             // Given a configuration and a pre-existing record directory
             app = appBuilder.build();
             config = app.configProvider().getConfiguration().getConfigData(BlockRecordStreamConfig.class);
-            hapiVersion = app.softwareVersion().getHapiVersion();
-            final var recordDir = fileSystem.getPath(config.logDir(), "record" + selfNodeInfo.memo() + "/");
+            hapiVersion = app.hapiVersion();
+            final var recordDir =
+                    fileSystem.getPath(config.logDir(), "record" + asAccountString(selfNodeInfo.accountId()) + "/");
             Files.createDirectories(recordDir);
 
             // When we create a new writer and initialize it

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.mod;
 
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withClearedField;
@@ -25,6 +10,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -141,7 +127,12 @@ public class BodyIdClearingStrategy extends IdClearingStrategy<TxnModification> 
             entry(
                     "proto.EthereumTransactionBody.call_data",
                     ExpectedResponse.atConsensus(INVALID_ETHEREUM_TRANSACTION)),
-            entry("proto.TokenUpdateNftsTransactionBody.token", ExpectedResponse.atIngest(INVALID_TOKEN_ID)));
+            entry("proto.TokenUpdateNftsTransactionBody.token", ExpectedResponse.atIngest(INVALID_TOKEN_ID)),
+            entry("proto.PendingAirdropId.receiver_id", ExpectedResponse.atIngest(INVALID_PENDING_AIRDROP_ID)),
+            entry(
+                    "proto.PendingAirdropId.fungible_token_type",
+                    ExpectedResponse.atConsensus(INVALID_PENDING_AIRDROP_ID)),
+            entry("proto.PendingAirdropId.sender_id", ExpectedResponse.atIngest(INVALID_PENDING_AIRDROP_ID)));
 
     private static final Map<String, ExpectedResponse> SCHEDULED_CLEARED_ID_RESPONSES = Map.ofEntries(
             entry("proto.AccountAmount.accountID", ExpectedResponse.atConsensusOneOf(INVALID_ACCOUNT_ID)));

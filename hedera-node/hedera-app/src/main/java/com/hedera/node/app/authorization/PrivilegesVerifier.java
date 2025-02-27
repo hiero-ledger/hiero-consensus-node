@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.authorization;
 
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
@@ -91,7 +76,7 @@ public class PrivilegesVerifier {
                     txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
             case CRYPTO_DELETE -> checkEntityDelete(
                     txBody.cryptoDeleteOrThrow().deleteAccountIDOrThrow().accountNumOrThrow());
-            case NODE_CREATE, NODE_DELETE -> checkNodeChange(payerId);
+            case NODE_CREATE -> checkNodeCreate(payerId);
             default -> SystemPrivilege.UNNECESSARY;
         };
     }
@@ -137,7 +122,7 @@ public class PrivilegesVerifier {
         return accountID.accountNumOrThrow() == accountsConfig.feeSchedulesAdmin() || isSuperUser(accountID);
     }
 
-    private boolean hasNodeChangePrivilige(@NonNull final AccountID accountID) {
+    private boolean hasNodeCreatePrivilige(@NonNull final AccountID accountID) {
         return accountID.accountNumOrThrow() == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
     }
 
@@ -217,8 +202,8 @@ public class PrivilegesVerifier {
         }
     }
 
-    private SystemPrivilege checkNodeChange(@NonNull final AccountID payerId) {
-        return hasNodeChangePrivilige(payerId) ? AUTHORIZED : UNAUTHORIZED;
+    private SystemPrivilege checkNodeCreate(@NonNull final AccountID payerId) {
+        return hasNodeCreatePrivilige(payerId) ? AUTHORIZED : UNAUTHORIZED;
     }
 
     private SystemPrivilege checkEntityDelete(final long entityNum) {

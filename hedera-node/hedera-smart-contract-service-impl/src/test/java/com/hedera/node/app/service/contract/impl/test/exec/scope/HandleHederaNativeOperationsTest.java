@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.scope;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -36,7 +21,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PARANOID_SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.LAZY_CREATION_MEMO;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -45,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -65,12 +49,15 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
+import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionRecordBuilder;
+import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.SortedSet;
 import java.util.function.Predicate;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
@@ -114,6 +101,15 @@ class HandleHederaNativeOperationsTest {
     @Mock
     private ReadableNftStore nftStore;
 
+    @Mock
+    private KeyVerifier keyVerifier;
+
+    @Mock
+    private SortedSet<Key> keys;
+
+    @Mock
+    EntityIdFactory entityIdFactory;
+
     private final Deque<MessageFrame> stack = new ArrayDeque<>();
 
     private HandleHederaNativeOperations subject;
@@ -124,7 +120,7 @@ class HandleHederaNativeOperationsTest {
 
     @BeforeEach
     void setUp() {
-        subject = new HandleHederaNativeOperations(context, A_SECP256K1_KEY);
+        subject = new HandleHederaNativeOperations(context, A_SECP256K1_KEY, entityIdFactory);
         deletedAccount = AccountID.newBuilder().accountNum(1L).build();
         beneficiaryAccount = AccountID.newBuilder().accountNum(2L).build();
     }
@@ -183,20 +179,14 @@ class HandleHederaNativeOperationsTest {
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
-        when(context.dispatchRemovablePrecedingTransaction(
-                        eq(synthLazyCreate),
-                        eq(CryptoCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        any()))
-                .thenReturn(cryptoCreateRecordBuilder);
+        when(context.dispatch(any())).thenReturn(cryptoCreateRecordBuilder);
 
         given(cryptoCreateRecordBuilder.status()).willReturn(OK);
 
         final var status = subject.createHollowAccount(CANONICAL_ALIAS);
         assertEquals(OK, status);
 
-        verify(cryptoCreateRecordBuilder).memo(LAZY_CREATION_MEMO);
+        verify(cryptoCreateRecordBuilder, never()).memo(any());
     }
 
     @Test
@@ -205,24 +195,18 @@ class HandleHederaNativeOperationsTest {
                 .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.dispatchRemovablePrecedingTransaction(
-                        eq(synthLazyCreate),
-                        eq(CryptoCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        any()))
+        given(context.dispatch(assertArg(options -> assertEquals(synthLazyCreate, options.body()))))
                 .willReturn(cryptoCreateRecordBuilder);
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         final var status = assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS));
         assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
-        verify(cryptoCreateRecordBuilder).memo(LAZY_CREATION_MEMO);
+        verify(cryptoCreateRecordBuilder, never()).memo(any());
     }
 
     @Test
     void finalizeHollowAccountAsContractUsesApiAndStore() {
-        final var entityNumGenerator = mock(EntityNumGenerator.class);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
@@ -301,7 +285,7 @@ class HandleHederaNativeOperationsTest {
 
     @Test
     void trackDeletionUpdatesMap() {
-        final DeleteCapableTransactionRecordBuilder beneficiaries = mock(DeleteCapableTransactionRecordBuilder.class);
+        final DeleteCapableTransactionStreamBuilder beneficiaries = mock(DeleteCapableTransactionStreamBuilder.class);
         given(frame.getMessageFrameStack()).willReturn(stack);
         stack.push(frame);
         given(frame.getContextVariable(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE)).willReturn(beneficiaries);
@@ -314,6 +298,11 @@ class HandleHederaNativeOperationsTest {
 
     @Test
     void settingNonceUsesApi() {
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("hedera.shard", 0)
+                .withValue("hedera.realm", 0)
+                .getOrCreateConfig();
+        given(context.configuration()).willReturn(configuration);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
 
@@ -348,5 +337,12 @@ class HandleHederaNativeOperationsTest {
                 .willReturn(true);
         final var result = subject.checkForCustomFees(CryptoTransferTransactionBody.DEFAULT);
         assertTrue(result);
+    }
+
+    @Test
+    void authorizingSimpleKeysTest() {
+        given(context.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.authorizingSimpleKeys()).willReturn(keys);
+        assertSame(keys, subject.authorizingSimpleKeys());
     }
 }

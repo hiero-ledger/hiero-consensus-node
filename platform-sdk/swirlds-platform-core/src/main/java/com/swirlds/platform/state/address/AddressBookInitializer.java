@@ -1,27 +1,16 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.address;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.roster.RosterRetriever.retrieveActiveOrGenesisRoster;
+import static com.swirlds.platform.roster.RosterUtils.buildAddressBook;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.config.AddressBookConfig;
+import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.Address;
@@ -73,6 +62,9 @@ public class AddressBookInitializer {
     /** The context for the platform */
     @NonNull
     private final PlatformContext platformContext;
+
+    @NonNull
+    private final StateLifecycles stateLifecycles;
     /** The current version of the application from config.txt. */
     @NonNull
     private final SoftwareVersion currentVersion;
@@ -81,8 +73,8 @@ public class AddressBookInitializer {
     /** The initial state. Must not be null. */
     @NonNull
     private final SignedState initialState;
-    /** The address book in the state. Must not be null */
-    @NonNull
+    /** The address book in the state. May be null only at genesis */
+    @Nullable
     private final AddressBook stateAddressBook;
     /** The address book derived from config.txt */
     @NonNull
@@ -105,14 +97,14 @@ public class AddressBookInitializer {
 
     /**
      * Constructs an AddressBookInitializer to initialize an address book from config.txt, the saved state from disk, or
-     * the SwirldState on upgrade.
+     * the state on upgrade.
      *
-     * @param selfId            The id of this node.
-     * @param currentVersion    The current version of the application.
-     * @param softwareUpgrade   Indicate that the software version has upgraded.
-     * @param initialState      The initial state to start from.
+     * @param selfId The id of this node.
+     * @param currentVersion The current version of the application.
+     * @param softwareUpgrade Indicate that the software version has upgraded.
+     * @param initialState The initial state to start from.
      * @param configAddressBook The address book derived from config.txt.
-     * @param platformContext   The context for the platform.
+     * @param platformContext The context for the platform.
      */
     public AddressBookInitializer(
             @NonNull final NodeId selfId,
@@ -120,17 +112,21 @@ public class AddressBookInitializer {
             final boolean softwareUpgrade,
             @NonNull final SignedState initialState,
             @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformContext platformContext) {
+            @NonNull final PlatformContext platformContext,
+            @NonNull final StateLifecycles stateLifecycles,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.selfId = Objects.requireNonNull(selfId, "The selfId must not be null.");
         this.currentVersion = Objects.requireNonNull(currentVersion, "The currentVersion must not be null.");
         this.softwareUpgrade = softwareUpgrade;
         this.configAddressBook = Objects.requireNonNull(configAddressBook, "The configAddressBook must not be null.");
         this.platformContext = Objects.requireNonNull(platformContext, "The platformContext must not be null.");
+        this.stateLifecycles = stateLifecycles;
         final AddressBookConfig addressBookConfig =
                 platformContext.getConfiguration().getConfigData(AddressBookConfig.class);
         this.initialState = Objects.requireNonNull(initialState, "The initialState must not be null.");
 
-        this.stateAddressBook = initialState.getState().getPlatformState().getAddressBook();
+        final var book = buildAddressBook(retrieveActiveOrGenesisRoster(initialState.getState(), platformStateFacade));
+        this.stateAddressBook = (book == null || book.getSize() == 0) ? null : book;
         if (stateAddressBook == null && !initialState.isGenesisState()) {
             throw new IllegalStateException("Only genesis states can have null address books.");
         }
@@ -226,10 +222,10 @@ public class AddressBookInitializer {
             logger.info(
                     STARTUP.getMarker(),
                     "The address book weight may be updated by the application using data from the state snapshot.");
-            candidateAddressBook = initialState
-                    .getSwirldState()
-                    .updateWeight(configAddressBook.copy(), platformContext)
-                    .copy();
+
+            AddressBook configAddressBookCopy = configAddressBook.copy();
+            stateLifecycles.onUpdateWeight(initialState.getState(), configAddressBookCopy, platformContext);
+            candidateAddressBook = configAddressBookCopy;
             candidateAddressBook = checkCandidateAddressBookValidity(candidateAddressBook);
             previousAddressBook = stateAddressBook;
             copyCertsIfAbsent(configAddressBook, stateAddressBook);
@@ -303,7 +299,7 @@ public class AddressBookInitializer {
     private synchronized void recordAddressBooks(@NonNull final AddressBook usedAddressBook) {
         final String date = DATE_TIME_FORMAT.format(Instant.now());
         final String addressBookFileName =
-                "%s_v%s_%s_node_%s.txt".formatted(ADDRESS_BOOK_FILE_PREFIX, currentVersion, date, selfId);
+                "%s_v%s_%s_node_%s.txt".formatted(ADDRESS_BOOK_FILE_PREFIX, currentVersion.getVersion(), date, selfId);
         final String addressBookDebugFileName = addressBookFileName + ".debug";
         try {
             final File debugFile = Path.of(this.pathToAddressBookDirectory.toString(), addressBookDebugFileName)

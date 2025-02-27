@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
@@ -54,14 +39,14 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Provides validations for TokenCreateTransactionBody
+ * Provides validations for TokenCreateTransactionBody.
  */
 @Singleton
 public class TokenCreateValidator {
     private final TokenAttributesValidator tokenAttributesValidator;
 
     /**
-     * Default constructor for injection
+     * Default constructor for injection.
      * @param tokenAttributesValidator token attributes validator
      */
     @Inject
@@ -70,7 +55,7 @@ public class TokenCreateValidator {
     }
 
     /**
-     * Validations needed in pre-handle for {@link TokenCreateTransactionBody} are done here
+     * Validations needed in pre-handle for {@link TokenCreateTransactionBody} are done here.
      * @param op token create transaction body
      * @throws PreCheckException if any of the validations fail
      */
@@ -97,7 +82,7 @@ public class TokenCreateValidator {
     }
 
     /**
-     * All validations in handle needed for {@link TokenCreateTransactionBody} are done here
+     * All validations in handle needed for {@link TokenCreateTransactionBody} are done here.
      * @param context context
      * @param accountStore account store
      * @param op token create transaction body
@@ -140,7 +125,7 @@ public class TokenCreateValidator {
     }
 
     /**
-     * Validates initial supply and decimals based on token type
+     * Validates initial supply and decimals based on token type.
      * @param type token type
      * @param initialSupply initial supply
      * @param decimals decimals
@@ -159,7 +144,7 @@ public class TokenCreateValidator {
     }
 
     /**
-     * Validates supply type and max supply
+     * Validates supply type and max supply.
      * @param supplyType supply type
      * @param maxSupply max supply
      * @throws PreCheckException if validation fails

@@ -1,21 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.logging.api.internal;
 
+import com.swirlds.base.internal.BaseExecutorFactory;
+import com.swirlds.base.utility.FileSystemUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.source.ConfigSource;
@@ -26,12 +13,16 @@ import com.swirlds.logging.api.extensions.emergency.EmergencyLogger;
 import com.swirlds.logging.api.extensions.emergency.EmergencyLoggerProvider;
 import com.swirlds.logging.api.extensions.handler.LogHandler;
 import com.swirlds.logging.api.internal.configuration.ConfigLevelConverter;
+import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.logging.api.internal.configuration.MarkerStateConverter;
 import com.swirlds.logging.api.internal.emergency.EmergencyLoggerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -93,10 +84,22 @@ public class DefaultLoggingSystem {
                                     event.context()))
                     .forEach(internalLoggingSystem::accept);
             initialized.set(true);
+
+            final InternalLoggingConfig loggingConfig = configuration.getConfigData(InternalLoggingConfig.class);
+            final long millis = Optional.ofNullable(loggingConfig.reloadConfigPeriod())
+                    .orElse(Duration.ofSeconds(10))
+                    .toMillis();
+            BaseExecutorFactory.getInstance()
+                    .scheduleAtFixedRate(this::updateConfiguration, 0, millis, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             EMERGENCY_LOGGER.log(Level.ERROR, "Unable to initialize logging system", e);
             throw e;
         }
+    }
+
+    private void updateConfiguration() {
+        final Configuration configuration = createConfiguration();
+        this.internalLoggingSystem.update(configuration);
     }
 
     @NonNull
@@ -105,9 +108,14 @@ public class DefaultLoggingSystem {
         final Path configFilePath =
                 Optional.ofNullable(logConfigPath).map(Path::of).orElseGet(() -> Path.of("log.properties"));
         try {
+            if (!FileSystemUtils.waitForPathPresence(configFilePath)) {
+                throw new FileNotFoundException("File not found: " + configFilePath);
+            }
+
             final ConfigSource configSource = new PropertyFileConfigSource(configFilePath);
             return ConfigurationBuilder.create()
                     .withSource(configSource)
+                    .withConfigDataType(InternalLoggingConfig.class)
                     .withConverter(new MarkerStateConverter())
                     .withConverter(new ConfigLevelConverter())
                     .build();
@@ -116,7 +124,9 @@ public class DefaultLoggingSystem {
                     Level.WARN,
                     "Unable to load logging configuration from path: '%s'. Using default configuration."
                             .formatted(configFilePath));
-            return ConfigurationBuilder.create().build();
+            return ConfigurationBuilder.create()
+                    .withConfigDataType(InternalLoggingConfig.class)
+                    .build();
         }
     }
 

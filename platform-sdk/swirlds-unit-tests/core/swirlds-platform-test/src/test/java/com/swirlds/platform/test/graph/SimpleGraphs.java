@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.graph;
 
 import static com.swirlds.platform.test.fixtures.event.EventImplTestUtils.createEventImpl;
@@ -40,20 +25,20 @@ public class SimpleGraphs {
      */
     public static List<PlatformEvent> graph5e2n(final Random random) {
         final PlatformEvent e0 =
-                new TestingEventBuilder(random).setCreatorId(new NodeId(1)).build();
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
         final PlatformEvent e1 =
-                new TestingEventBuilder(random).setCreatorId(new NodeId(2)).build();
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(2)).build();
         final PlatformEvent e2 = new TestingEventBuilder(random)
-                .setCreatorId(new NodeId(1))
+                .setCreatorId(NodeId.of(1))
                 .setSelfParent(e0)
                 .setOtherParent(e1)
                 .build();
         final PlatformEvent e3 = new TestingEventBuilder(random)
-                .setCreatorId(new NodeId(1))
+                .setCreatorId(NodeId.of(1))
                 .setSelfParent(e2)
                 .build();
         final PlatformEvent e4 = new TestingEventBuilder(random)
-                .setCreatorId(new NodeId(2))
+                .setCreatorId(NodeId.of(2))
                 .setSelfParent(e1)
                 .setOtherParent(e2)
                 .build();
@@ -85,7 +70,7 @@ public class SimpleGraphs {
         // generation 0
         final EventImpl e0 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(1))
+                        .setCreatorId(NodeId.of(1))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.680Z")),
                 null,
                 null);
@@ -93,7 +78,7 @@ public class SimpleGraphs {
 
         final EventImpl e1 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(2))
+                        .setCreatorId(NodeId.of(2))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.681Z")),
                 null,
                 null);
@@ -101,7 +86,7 @@ public class SimpleGraphs {
 
         final EventImpl e2 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(3))
+                        .setCreatorId(NodeId.of(3))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.682Z")),
                 null,
                 null);
@@ -109,14 +94,14 @@ public class SimpleGraphs {
         // generation 1
         final EventImpl e3 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(1))
+                        .setCreatorId(NodeId.of(1))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.683Z")),
                 e0,
                 e1);
 
         final EventImpl e4 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(3))
+                        .setCreatorId(NodeId.of(3))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.686Z")),
                 e2,
                 null);
@@ -124,21 +109,21 @@ public class SimpleGraphs {
         // generation 2
         final EventImpl e5 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(1))
+                        .setCreatorId(NodeId.of(1))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.685Z")),
                 e3,
                 null);
 
         final EventImpl e6 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(2))
+                        .setCreatorId(NodeId.of(2))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.686Z")),
                 e1,
                 e3);
 
         final EventImpl e7 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(3))
+                        .setCreatorId(NodeId.of(3))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.690Z")),
                 e4,
                 e1);
@@ -146,7 +131,7 @@ public class SimpleGraphs {
         // generation 3
         final EventImpl e8 = createEventImpl(
                 new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(3))
+                        .setCreatorId(NodeId.of(3))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.694Z")),
                 e7,
                 e6);

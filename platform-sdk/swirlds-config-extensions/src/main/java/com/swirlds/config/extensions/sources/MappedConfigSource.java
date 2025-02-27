@@ -1,29 +1,19 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.extensions.sources;
 
 import com.swirlds.config.api.source.ConfigSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Collections;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -52,7 +42,7 @@ import org.apache.logging.log4j.Logger;
  * @see ConfigSource
  * @see ConfigMapping
  */
-public class MappedConfigSource extends AbstractConfigSource {
+public class MappedConfigSource implements ConfigSource {
     private static final String PROPERTY_NOT_FOUND = "Property '{}' not found in original config source";
     private static final String PROPERTY_ALREADY_DEFINED = "Property '%s' already defined";
     private static final String DUPLICATE_PROPERTY = "Property '{}' already found in original config source";
@@ -63,6 +53,7 @@ public class MappedConfigSource extends AbstractConfigSource {
 
     private final Queue<ConfigMapping> configMappings;
     private final Map<String, String> properties;
+    private final Map<String, List<String>> listProperties;
 
     /**
      * Constructor that takes the wrapped config.
@@ -73,6 +64,7 @@ public class MappedConfigSource extends AbstractConfigSource {
         this.wrappedSource = Objects.requireNonNull(wrappedSource, "wrappedSource must not be null");
         configMappings = new ConcurrentLinkedQueue<>();
         properties = new HashMap<>();
+        listProperties = new HashMap<>();
     }
 
     /**
@@ -106,34 +98,90 @@ public class MappedConfigSource extends AbstractConfigSource {
         }
 
         configMappings.add(configMapping);
+        properties.clear();
+        listProperties.clear();
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    protected Map<String, String> getInternalProperties() {
-        if (properties.isEmpty()) {
-            final Map<String, String> internalProperties = wrappedSource.getProperties();
-            final Map<String, String> mappedProperties = new HashMap<>();
-
-            configMappings.forEach(configMapping -> {
-                if (internalProperties.containsKey(configMapping.mappedName())) {
-                    logger.warn(DUPLICATE_PROPERTY, configMapping.mappedName());
-                } else if (!internalProperties.containsKey(configMapping.originalName())) {
-                    logger.warn(PROPERTY_NOT_FOUND, configMapping.originalName());
-                } else {
-                    mappedProperties.put(
-                            configMapping.mappedName(), internalProperties.get(configMapping.originalName()));
-                    logger.debug("Added config mapping: {}", configMapping);
-                }
-            });
-
-            properties.putAll(internalProperties);
-            properties.putAll(mappedProperties);
+    private void generateMapping() {
+        if (!properties.isEmpty() || !listProperties.isEmpty()) {
+            return;
         }
-        return Collections.unmodifiableMap(properties);
+
+        final Map<String, String> internalProperties = new HashMap<>();
+        final Map<String, List<String>> internalListProperties = new HashMap<>();
+        wrappedSource.getPropertyNames().forEach(propertyName -> {
+            if (wrappedSource.isListProperty(propertyName)) {
+                internalListProperties.put(propertyName, wrappedSource.getListValue(propertyName));
+            } else {
+                internalProperties.put(propertyName, wrappedSource.getValue(propertyName));
+            }
+        });
+
+        final Map<String, String> mappedProperties = new HashMap<>();
+        final Map<String, List<String>> mappedListProperties = new HashMap<>();
+
+        configMappings.forEach(configMapping -> {
+            final String mappedName = configMapping.mappedName();
+            final String originalName = configMapping.originalName();
+
+            if (internalProperties.containsKey(mappedName) || internalListProperties.containsKey(mappedName)) {
+                logger.warn(DUPLICATE_PROPERTY, mappedName);
+            } else if (!internalProperties.containsKey(originalName)
+                    && !internalListProperties.containsKey(originalName)) {
+                logger.warn(PROPERTY_NOT_FOUND, originalName);
+            } else {
+                if (wrappedSource.isListProperty(originalName)) {
+                    mappedListProperties.put(mappedName, internalListProperties.get(originalName));
+                } else {
+                    mappedProperties.put(mappedName, internalProperties.get(originalName));
+                }
+                logger.debug("Added config mapping: {}", configMapping);
+            }
+        });
+
+        properties.putAll(internalProperties);
+        properties.putAll(mappedProperties);
+        listProperties.putAll(internalListProperties);
+        listProperties.putAll(mappedListProperties);
+    }
+
+    @NonNull
+    @Override
+    public Set<String> getPropertyNames() {
+        generateMapping();
+        return Stream.concat(properties.keySet().stream(), listProperties.keySet().stream())
+                .collect(Collectors.toSet());
+    }
+
+    @Nullable
+    @Override
+    public String getValue(@NonNull final String propertyName) throws NoSuchElementException {
+        generateMapping();
+        Objects.requireNonNull(propertyName, "propertyName must not be null");
+        if (isListProperty(propertyName)) {
+            throw new NoSuchElementException("Property " + propertyName + " is a list property");
+        }
+
+        return properties.get(propertyName);
+    }
+
+    @Override
+    public boolean isListProperty(@NonNull final String propertyName) throws NoSuchElementException {
+        generateMapping();
+        Objects.requireNonNull(propertyName, "propertyName must not be null");
+        return listProperties.containsKey(propertyName);
+    }
+
+    @NonNull
+    @Override
+    public List<String> getListValue(@NonNull final String propertyName) throws NoSuchElementException {
+        generateMapping();
+        Objects.requireNonNull(propertyName, "propertyName must not be null");
+        if (!isListProperty(propertyName)) {
+            throw new NoSuchElementException("Property " + propertyName + " is not a list property");
+        }
+
+        return listProperties.get(propertyName);
     }
 
     /**

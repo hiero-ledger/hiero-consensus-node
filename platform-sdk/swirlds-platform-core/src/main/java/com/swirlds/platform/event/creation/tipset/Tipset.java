@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation.tipset;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +15,7 @@ import java.util.Objects;
  */
 public class Tipset {
 
-    private final AddressBook addressBook;
+    private final Roster roster;
 
     /**
      * The tip generations, indexed by node index.
@@ -45,11 +31,11 @@ public class Tipset {
     /**
      * Create an empty tipset.
      *
-     * @param addressBook the current address book
+     * @param roster the current address book
      */
-    public Tipset(@NonNull final AddressBook addressBook) {
-        this.addressBook = Objects.requireNonNull(addressBook);
-        tips = new long[addressBook.getSize()];
+    public Tipset(@NonNull final Roster roster) {
+        this.roster = Objects.requireNonNull(roster);
+        tips = new long[roster.rosterEntries().size()];
 
         // Necessary because we currently start at generation 0, not generation 1.
         Arrays.fill(tips, UNDEFINED);
@@ -62,7 +48,7 @@ public class Tipset {
      * @return a new empty tipset
      */
     private static @NonNull Tipset buildEmptyTipset(@NonNull final Tipset tipset) {
-        return new Tipset(tipset.addressBook);
+        return new Tipset(tipset.roster);
     }
 
     /**
@@ -104,8 +90,8 @@ public class Tipset {
      * @return the tip generation for the node
      */
     public long getTipGenerationForNode(@NonNull final NodeId nodeId) {
-        final int index = addressBook.getIndexOfNodeId(nodeId);
-        if (index == AddressBook.NOT_IN_ADDRESS_BOOK_INDEX) {
+        final int index = RosterUtils.getIndex(roster, nodeId.id());
+        if (index == -1) {
             return UNDEFINED;
         }
         return tips[index];
@@ -128,7 +114,7 @@ public class Tipset {
      * @return this object
      */
     public @NonNull Tipset advance(@NonNull final NodeId creator, final long generation) {
-        final int index = addressBook.getIndexOfNodeId(creator);
+        final int index = RosterUtils.getIndex(roster, creator.id());
         tips[index] = Math.max(tips[index], generation);
         return this;
     }
@@ -158,7 +144,7 @@ public class Tipset {
         long nonZeroWeight = 0;
         long zeroWeightCount = 0;
 
-        final int selfIndex = addressBook.getIndexOfNodeId(selfId);
+        final int selfIndex = RosterUtils.getIndex(roster, selfId.id());
         for (int index = 0; index < tips.length; index++) {
             if (index == selfIndex) {
                 // We don't consider self advancement here, since self advancement does nothing to help consensus.
@@ -166,13 +152,13 @@ public class Tipset {
             }
 
             if (this.tips[index] < that.tips[index]) {
-                final NodeId nodeId = addressBook.getNodeId(index);
-                final Address address = addressBook.getAddress(nodeId);
+                final RosterEntry address = roster.rosterEntries().get(index);
+                final NodeId nodeId = NodeId.of(address.nodeId());
 
-                if (address.getWeight() == 0) {
+                if (address.weight() == 0) {
                     zeroWeightCount += 1;
                 } else {
-                    nonZeroWeight += address.getWeight();
+                    nonZeroWeight += address.weight();
                 }
             }
         }
@@ -187,7 +173,7 @@ public class Tipset {
     public String toString() {
         final StringBuilder sb = new StringBuilder("(");
         for (int index = 0; index < tips.length; index++) {
-            sb.append(addressBook.getNodeId(index)).append(":").append(tips[index]);
+            sb.append(roster.rosterEntries().get(index).nodeId()).append(":").append(tips[index]);
             if (index < tips.length - 1) {
                 sb.append(", ");
             }

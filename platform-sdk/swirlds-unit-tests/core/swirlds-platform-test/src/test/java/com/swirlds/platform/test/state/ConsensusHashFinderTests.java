@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -88,7 +73,7 @@ class ConsensusHashFinderTests {
                         (averageWeight + random.nextGaussian() * standardDeviationWeight)));
 
                 nodes.add(new NodeToAdd(nextNodeId, nextNodeWeight, partition.hash));
-                nextNodeId = new NodeId(nextNodeId.id() + 1);
+                nextNodeId = NodeId.of(nextNodeId.id() + 1);
                 remainingWeight -= nextNodeWeight;
             }
         }
@@ -111,11 +96,11 @@ class ConsensusHashFinderTests {
             final List<PartitionDescription> partitions) {
 
         final List<NodeToAdd> nodes = new ArrayList<>();
-        NodeId nextNodeId = new NodeId(0);
+        NodeId nextNodeId = NodeId.of(0);
         for (final PartitionDescription partition : partitions) {
             final List<NodeToAdd> partitionNodes =
                     getPartitionNodes(random, averageWeight, standardDeviationWeight, nextNodeId, partition);
-            nextNodeId = new NodeId(nextNodeId.id() + partitionNodes.size());
+            nextNodeId = NodeId.of(nextNodeId.id() + partitionNodes.size());
             nodes.addAll(partitionNodes);
         }
         return nodes;
@@ -137,7 +122,7 @@ class ConsensusHashFinderTests {
         assertEquals(0, hashFinder.getPartitionMap().size(), "there shouldn't be any partitions yet");
 
         // Add weight up until >1/2, but as soon as we meet or exceed 1/2 exit the loop
-        NodeId nextNodeId = new NodeId(0L);
+        NodeId nextNodeId = NodeId.of(0L);
         while (!MAJORITY.isSatisfiedBy(hashFinder.getHashReportedWeight(), totalWeight)) {
             assertEquals(UNDECIDED, hashFinder.getStatus(), "status should not yet be decided");
 
@@ -154,7 +139,7 @@ class ConsensusHashFinderTests {
             hashFinder.addHash(nextNodeId, nextNodeWeight, randomHash(random));
             assertEquals(currentAccumulatedWeight, hashFinder.getHashReportedWeight(), "duplicates should be no-ops");
 
-            nextNodeId = new NodeId(nextNodeId.id() + 1L);
+            nextNodeId = NodeId.of(nextNodeId.id() + 1L);
 
             assertEquals(1, hashFinder.getPartitionMap().size(), "there should only be 1 partition");
             assertTrue(hashFinder.getPartitionMap().containsKey(hash), "invalid partition map");
@@ -163,7 +148,7 @@ class ConsensusHashFinderTests {
                     hashFinder.getPartitionMap().get(hash).getNodes().size(),
                     "incorrect partition size");
             assertTrue(
-                    hashFinder.getPartitionMap().get(hash).getNodes().contains(new NodeId(nextNodeId.id() - 1)),
+                    hashFinder.getPartitionMap().get(hash).getNodes().contains(NodeId.of(nextNodeId.id() - 1)),
                     "could not find node that was just added");
         }
 
@@ -322,14 +307,14 @@ class ConsensusHashFinderTests {
             smallPartitions.add(new PartitionDescription(randomHash(random), partitionWeight));
         }
 
-        NodeId nextNodeId = new NodeId(0);
+        NodeId nextNodeId = NodeId.of(0);
         final List<NodeToAdd> nodes = new ArrayList<>();
 
         // Add the nodes from the small partitions
         for (final PartitionDescription partition : smallPartitions) {
             final List<NodeToAdd> partitionNodes =
                     getPartitionNodes(random, averageWeight, standardDeviationWeight, nextNodeId, partition);
-            nextNodeId = new NodeId(nextNodeId.id() + partitionNodes.size());
+            nextNodeId = NodeId.of(nextNodeId.id() + partitionNodes.size());
             nodes.addAll(partitionNodes);
         }
 
@@ -373,14 +358,14 @@ class ConsensusHashFinderTests {
             smallPartitions.add(new PartitionDescription(randomHash(random), partitionWeight));
         }
 
-        NodeId nextNodeId = new NodeId(0);
+        NodeId nextNodeId = NodeId.of(0);
         final List<NodeToAdd> nodes = new ArrayList<>();
 
         // Add the nodes from the small partitions
         for (final PartitionDescription partition : smallPartitions) {
             final List<NodeToAdd> partitionNodes =
                     getPartitionNodes(random, averageWeight, standardDeviationWeight, nextNodeId, partition);
-            nextNodeId = new NodeId(nextNodeId.id() + partitionNodes.size());
+            nextNodeId = NodeId.of(nextNodeId.id() + partitionNodes.size());
             nodes.addAll(partitionNodes);
         }
 

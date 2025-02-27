@@ -1,5 +1,5 @@
 ##
-# Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+# Copyright (C) 2022-2025 Hedera Hashgraph, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,6 +43,9 @@ on:
         description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -50,8 +53,14 @@ defaults:
 jobs:
   launch-workflow:
     name: Launch Workflow
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-small-scheduler
+    if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Install Github CLI
         env:
           GITHUB_TOKEN: ${{ secrets.access-token }}

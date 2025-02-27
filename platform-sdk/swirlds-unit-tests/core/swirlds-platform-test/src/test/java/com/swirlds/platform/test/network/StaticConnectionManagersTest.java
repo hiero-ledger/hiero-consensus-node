@@ -1,27 +1,12 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.network;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.Utilities;
@@ -32,8 +17,7 @@ import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
 import com.swirlds.platform.network.topology.NetworkTopology;
 import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.List;
 import java.util.Random;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,11 +41,11 @@ class StaticConnectionManagersTest {
     @MethodSource("topologicalVariations")
     void testShouldConnectToMe(final int numNodes) throws Exception {
         final Random r = RandomUtils.getRandomPrintSeed();
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(r).withSize(numNodes).build();
-        final NodeId selfId = addressBook.getNodeId(r.nextInt(numNodes));
+        final Roster roster = RandomRosterBuilder.create(r).withSize(numNodes).build();
+        final NodeId selfId =
+                NodeId.of(roster.rosterEntries().get(r.nextInt(numNodes)).nodeId());
 
-        final List<PeerInfo> peers = Utilities.createPeerInfoList(addressBook, selfId);
+        final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
 
         final StaticConnectionManagers managers = new StaticConnectionManagers(topology, connectionCreator);
@@ -69,8 +53,9 @@ class StaticConnectionManagersTest {
         final NodeId neighbor = neighbors.get(r.nextInt(neighbors.size()));
 
         if (topology.shouldConnectToMe(neighbor)) {
-            final ConnectionManager manager = managers.getManager(neighbor, false);
+            final ConnectionManager manager = managers.getManager(neighbor);
             assertNotNull(manager, "should have a manager for this connection");
+            assertFalse(manager.isOutbound(), "should be inbound connection");
             final Connection c1 = new FakeConnection(selfId, neighbor);
             managers.newConnection(c1);
             assertSame(c1, manager.waitForConnection(), "the manager should have received the connection supplied");
@@ -80,8 +65,9 @@ class StaticConnectionManagersTest {
             assertFalse(c1.connected(), "the new connection should have disconnected the old one");
             assertSame(c2, manager.waitForConnection(), "c2 should have replaced c1");
         } else {
-            final ConnectionManager manager = managers.getManager(neighbor, false);
-            assertNull(manager, "should not have a manager for this connection");
+            final ConnectionManager manager = managers.getManager(neighbor);
+            assertNotNull(manager, "should have a manager for this connection");
+            assertTrue(manager.isOutbound(), "should be outbound connection");
             final Connection c = new FakeConnection(selfId, neighbor);
             managers.newConnection(c);
             assertFalse(
@@ -93,10 +79,10 @@ class StaticConnectionManagersTest {
     @MethodSource("topologicalVariations")
     void testShouldConnectTo(final int numNodes) throws Exception {
         final Random r = RandomUtils.getRandomPrintSeed();
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(r).withSize(numNodes).build();
-        final NodeId selfId = addressBook.getNodeId(r.nextInt(numNodes));
-        final List<PeerInfo> peers = Utilities.createPeerInfoList(addressBook, selfId);
+        final Roster roster = RandomRosterBuilder.create(r).withSize(numNodes).build();
+        final NodeId selfId =
+                NodeId.of(roster.rosterEntries().get(r.nextInt(numNodes)).nodeId());
+        final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
 
         final StaticConnectionManagers managers = new StaticConnectionManagers(topology, connectionCreator);
@@ -108,14 +94,16 @@ class StaticConnectionManagersTest {
                 final NodeId peerId = inv.getArgument(0, NodeId.class);
                 return new FakeConnection(selfId, peerId);
             });
-            final ConnectionManager manager = managers.getManager(neighbor, true);
+            final ConnectionManager manager = managers.getManager(neighbor);
             assertNotNull(manager, "should have a manager for this connection");
+            assertTrue(manager.isOutbound(), "should be outbound connection");
             assertTrue(
                     manager.waitForConnection().connected(),
-                    "outbound connections should be esablished by the manager");
+                    "outbound connections should be established by the manager");
         } else {
-            final ConnectionManager manager = managers.getManager(neighbor, true);
-            assertNull(manager, "should not have a manager for this connection");
+            final ConnectionManager manager = managers.getManager(neighbor);
+            assertNotNull(manager, "should have a manager for this connection");
+            assertFalse(manager.isOutbound(), "should be inbound connection");
         }
     }
 }

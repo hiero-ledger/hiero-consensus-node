@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.updatetokencustomfees;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
@@ -23,12 +8,15 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Fraction;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
@@ -37,6 +25,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesTranslator;
+import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.TokensConfig;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +43,12 @@ class UpdateTokenCustomFeesDecoderTest {
 
     @Mock
     private AddressIdConverter addressIdConverter;
+
+    @Mock
+    Configuration configuration;
+
+    @Mock
+    private TokensConfig tokensConfig;
 
     private UpdateTokenCustomFeesDecoder subject;
 
@@ -122,7 +119,7 @@ class UpdateTokenCustomFeesDecoderTest {
     @BeforeEach
     void setUp() {
         subject = new UpdateTokenCustomFeesDecoder();
-        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        lenient().when(attempt.addressIdConverter()).thenReturn(addressIdConverter);
     }
 
     @Test
@@ -136,6 +133,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateFungibleTokenCustomFees(attempt);
@@ -158,6 +156,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateFungibleTokenCustomFees(attempt);
@@ -185,6 +184,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateFungibleTokenCustomFees(attempt);
@@ -219,6 +219,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateFungibleTokenCustomFees(attempt);
@@ -228,6 +229,35 @@ class UpdateTokenCustomFeesDecoderTest {
         assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
         assertEquals(updateTokenCustomFees.customFees().size(), 10);
         assertTrue(updateTokenCustomFees.customFees().contains(FIXED_HBAR_FEES));
+    }
+
+    @Test
+    void decodeValidUpdateFungibleTokenCustom11FixedFeesRequest() {
+        // Given a valid encoded update token custom fees request
+        final var encoded = Bytes.wrapByteBuffer(
+                        UpdateTokenCustomFeesTranslator.UPDATE_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION.encodeCallWithArgs(
+                                FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
+                                new Tuple[] {
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE,
+                                    FIXED_HBAR_FEE_TUPLE
+                                },
+                                EMPTY_TOKEN_FEES_TUPLE_ARR))
+                .toArray();
+        given(attempt.inputBytes()).willReturn(encoded);
+        setConfiguration();
+
+        final var error =
+                assertThrows(HandleException.class, () -> subject.decodeUpdateFungibleTokenCustomFees(attempt));
+        assertEquals(ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG, error.getStatus());
     }
 
     @Test
@@ -241,6 +271,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateFungibleTokenCustomFees(attempt);
@@ -263,6 +294,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateFungibleTokenCustomFees(attempt);
@@ -285,6 +317,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateFungibleTokenCustomFees(attempt);
@@ -308,6 +341,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateNonFungibleTokenCustomFees(attempt);
@@ -317,6 +351,65 @@ class UpdateTokenCustomFeesDecoderTest {
         assertEquals(updateTokenCustomFees.tokenId(), NON_FUNGIBLE_TOKEN_ID);
         assertEquals(updateTokenCustomFees.customFees().size(), 1);
         assertEquals(updateTokenCustomFees.customFees().get(0), ROYALTY_FEE);
+    }
+
+    @Test
+    void decodeValidUpdateNonFungibleTokenCustom11RoyaltyFeesRequest() {
+        // Given a valid encoded update token custom fees request
+        final var encoded = Bytes.wrapByteBuffer(
+                        UpdateTokenCustomFeesTranslator.UPDATE_NON_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION
+                                .encodeCallWithArgs(
+                                        NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, EMPTY_TOKEN_FEES_TUPLE_ARR, new Tuple[] {
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE
+                                        }))
+                .toArray();
+        given(attempt.inputBytes()).willReturn(encoded);
+        setConfiguration();
+
+        final var error =
+                assertThrows(HandleException.class, () -> subject.decodeUpdateNonFungibleTokenCustomFees(attempt));
+        assertEquals(ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG, error.getStatus());
+    }
+
+    @Test
+    void decodeValidUpdateNonFungibleTokenCustom11MixedFeesRequest() {
+        // Given a valid encoded update token custom fees request
+        final var encoded = Bytes.wrapByteBuffer(
+                        UpdateTokenCustomFeesTranslator.UPDATE_NON_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION
+                                .encodeCallWithArgs(
+                                        NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS,
+                                        new Tuple[] {
+                                            FIXED_HBAR_FEE_TUPLE,
+                                            FIXED_HBAR_FEE_TUPLE,
+                                            FIXED_HBAR_FEE_TUPLE,
+                                            FIXED_HBAR_FEE_TUPLE,
+                                            FIXED_HBAR_FEE_TUPLE
+                                        },
+                                        new Tuple[] {
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE,
+                                            ROYALTY_FEE_TUPLE
+                                        }))
+                .toArray();
+        given(attempt.inputBytes()).willReturn(encoded);
+        setConfiguration();
+
+        final var error =
+                assertThrows(HandleException.class, () -> subject.decodeUpdateNonFungibleTokenCustomFees(attempt));
+        assertEquals(ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG, error.getStatus());
     }
 
     @Test
@@ -331,6 +424,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateNonFungibleTokenCustomFees(attempt);
@@ -354,6 +448,7 @@ class UpdateTokenCustomFeesDecoderTest {
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateNonFungibleTokenCustomFees(attempt);
@@ -375,6 +470,7 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateFungibleTokenCustomFees(attempt);
@@ -396,6 +492,7 @@ class UpdateTokenCustomFeesDecoderTest {
                                         EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        setConfiguration();
 
         // When decoding the request
         final var body = subject.decodeUpdateNonFungibleTokenCustomFees(attempt);
@@ -404,5 +501,11 @@ class UpdateTokenCustomFeesDecoderTest {
         // Then the result should match the expected decoded request
         assertEquals(updateTokenCustomFees.tokenId(), NON_FUNGIBLE_TOKEN_ID);
         assertEquals(updateTokenCustomFees.customFees().size(), 0);
+    }
+
+    private void setConfiguration() {
+        given(attempt.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
+        given(tokensConfig.maxCustomFeesAllowed()).willReturn(10);
     }
 }

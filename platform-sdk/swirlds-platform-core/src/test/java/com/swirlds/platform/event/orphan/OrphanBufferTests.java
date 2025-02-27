@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.orphan;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -129,7 +114,7 @@ class OrphanBufferTests {
     private PlatformEvent createRandomEvent(
             @NonNull final List<PlatformEvent> parentCandidates, @NonNull final Map<NodeId, PlatformEvent> tips) {
 
-        final NodeId eventCreator = new NodeId(random.nextInt(NODE_ID_COUNT));
+        final NodeId eventCreator = NodeId.of(random.nextInt(NODE_ID_COUNT));
 
         final PlatformEvent selfParent =
                 tips.computeIfAbsent(eventCreator, creator -> createBootstrapEvent(creator, parentCandidates));
@@ -283,13 +268,13 @@ class OrphanBufferTests {
         final Random random = Randotron.create();
 
         final PlatformEvent selfParent =
-                new TestingEventBuilder(random).setCreatorId(new NodeId(0)).build();
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
         final PlatformEvent otherParent1 =
-                new TestingEventBuilder(random).setCreatorId(new NodeId(1)).build();
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
         final PlatformEvent otherParent2 =
-                new TestingEventBuilder(random).setCreatorId(new NodeId(2)).build();
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(2)).build();
         final PlatformEvent otherParent3 =
-                new TestingEventBuilder(random).setCreatorId(new NodeId(3)).build();
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(3)).build();
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setSelfParent(selfParent)

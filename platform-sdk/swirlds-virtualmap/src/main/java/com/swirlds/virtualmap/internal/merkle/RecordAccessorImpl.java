@@ -1,33 +1,22 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.VirtualStateAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
+import com.swirlds.virtualmap.serialize.KeySerializer;
+import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
@@ -42,9 +31,12 @@ import java.util.Objects;
  * 		The value
  */
 public class RecordAccessorImpl<K extends VirtualKey, V extends VirtualValue> implements RecordAccessor<K, V> {
+
     private final VirtualStateAccessor state;
     private final VirtualNodeCache<K, V> cache;
-    private final VirtualDataSource<K, V> dataSource;
+    private final KeySerializer<K> keySerializer;
+    private final ValueSerializer<V> valueSerializer;
+    private final VirtualDataSource dataSource;
 
     /**
      * Create a new {@link RecordAccessorImpl}.
@@ -53,13 +45,23 @@ public class RecordAccessorImpl<K extends VirtualKey, V extends VirtualValue> im
      * 		The state. Cannot be null.
      * @param cache
      * 		The cache. Cannot be null.
+     * @param keySerializer
+     *      The key serializer. Can be null.
+     * @param valueSerializer
+     *      The value serializer. Can be null.
      * @param dataSource
      * 		The data source. Can be null.
      */
     public RecordAccessorImpl(
-            VirtualStateAccessor state, VirtualNodeCache<K, V> cache, VirtualDataSource<K, V> dataSource) {
+            final VirtualStateAccessor state,
+            final VirtualNodeCache<K, V> cache,
+            final KeySerializer<K> keySerializer,
+            final ValueSerializer<V> valueSerializer,
+            final VirtualDataSource dataSource) {
         this.state = Objects.requireNonNull(state);
         this.cache = Objects.requireNonNull(cache);
+        this.keySerializer = keySerializer;
+        this.valueSerializer = valueSerializer;
         this.dataSource = dataSource;
     }
 
@@ -83,7 +85,7 @@ public class RecordAccessorImpl<K extends VirtualKey, V extends VirtualValue> im
      * {@inheritDoc}
      */
     @Override
-    public VirtualDataSource<K, V> getDataSource() {
+    public VirtualDataSource getDataSource() {
         return dataSource;
     }
 
@@ -132,11 +134,15 @@ public class RecordAccessorImpl<K extends VirtualKey, V extends VirtualValue> im
         VirtualLeafRecord<K, V> rec = cache.lookupLeafByKey(key, copy);
         if (rec == null) {
             try {
-                rec = dataSource.loadLeafRecord(key);
-                if (rec != null && copy) {
+                final Bytes keyBytes = keySerializer.toBytes(key);
+                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(keyBytes, key.hashCode());
+                if (leafBytes != null) {
+                    rec = leafBytes.toRecord(keySerializer, valueSerializer);
                     assert rec.getKey().equals(key)
                             : "The key we found from the DB does not match the one we were looking for! key=" + key;
-                    cache.putLeaf(rec);
+                    if (copy) {
+                        cache.putLeaf(rec);
+                    }
                 }
             } catch (final IOException ex) {
                 throw new UncheckedIOException("Failed to read a leaf record from the data source by key", ex);
@@ -161,9 +167,12 @@ public class RecordAccessorImpl<K extends VirtualKey, V extends VirtualValue> im
         VirtualLeafRecord<K, V> rec = cache.lookupLeafByPath(path, copy);
         if (rec == null) {
             try {
-                rec = dataSource.loadLeafRecord(path);
-                if (rec != null && copy) {
-                    cache.putLeaf(rec);
+                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(path);
+                if (leafBytes != null) {
+                    rec = leafBytes.toRecord(keySerializer, valueSerializer);
+                    if (copy) {
+                        cache.putLeaf(rec);
+                    }
                 }
             } catch (final IOException ex) {
                 throw new UncheckedIOException("Failed to read a leaf record from the data source by path", ex);
@@ -183,7 +192,8 @@ public class RecordAccessorImpl<K extends VirtualKey, V extends VirtualValue> im
             return rec.getPath();
         }
         try {
-            return dataSource.findKey(key);
+            final Bytes keyBytes = keySerializer.toBytes(key);
+            return dataSource.findKey(keyBytes, key.hashCode());
         } catch (final IOException ex) {
             throw new UncheckedIOException("Failed to find key in the data source", ex);
         }

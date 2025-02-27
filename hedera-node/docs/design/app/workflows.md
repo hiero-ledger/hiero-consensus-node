@@ -118,18 +118,18 @@ All the objects used while handling the transaction belong to one of the followi
 Examples include the `NodeInfo` and `WorkingStateAccessor`.
 - **UserTxnScope** - Objects that are created once for platform transaction.
 Examples include the `Configuration`, `RecordListBuilder` and `TokenContext`.
-Dagger provides all the objects that can be constructed in this scope [here](https://github.com/hashgraph/hedera-services/tree/develop/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/txn/modules)
-and [UserTxnComponent](https://github.com/hashgraph/hedera-services/blob/develop/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/txn/UserTransactionComponent.java)
+Dagger provides all the objects that can be constructed in this scope [here](https://github.com/hashgraph/hedera-services/tree/main/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/txn/modules)
+and [UserTxnComponent](https://github.com/hashgraph/hedera-services/blob/main/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/txn/UserTransactionComponent.java)
 takes all the inputs that are needed to execute the user transaction.
 - **UserDispatchScope** - Objects that are created once for each user transaction that will be dispatched.
 Examples include the `SingleTransactionRecordBuilder` for user transaction and `FeeContext`.
-Dagger provides all the objects that can be constructed in this scope in [UserDispatchModule](https://github.com/hashgraph/hedera-services/blob/develop/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/dispatch/user/modules/UserDispatchModule.java) and `UserDispatchComponent`.
-and [UserDispatchComponent](https://github.com/hashgraph/hedera-services/blob/develop/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/dispatch/user/UserDispatchComponent.java)
+Dagger provides all the objects that can be constructed in this scope in [UserDispatchModule](https://github.com/hashgraph/hedera-services/blob/main/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/dispatch/user/modules/UserDispatchModule.java) and `UserDispatchComponent`.
+and [UserDispatchComponent](https://github.com/hashgraph/hedera-services/blob/main/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/dispatch/user/UserDispatchComponent.java)
 takes all the inputs that are needed to create the user dispatch.
 - **ChildDispatchScope** - Objects that are created once for each child transaction dispatch.
 Examples include the `ReadableStoreFactory` and `ChildFeeContext`.
-Dagger provides all the objects that can be constructed in the [ChildDispatchModule](https://github.com/hashgraph/hedera-services/blob/develop/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/dispatch/child/modules/ChildDispatchModule.java)
-and [ChildDispatchComponent](https://github.com/hashgraph/hedera-services/blob/develop/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/dispatch/child/ChildDispatchComponent.java)
+Dagger provides all the objects that can be constructed in the [ChildDispatchModule](https://github.com/hashgraph/hedera-services/blob/main/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/dispatch/child/modules/ChildDispatchModule.java)
+and [ChildDispatchComponent](https://github.com/hashgraph/hedera-services/blob/main/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/dispatch/child/ChildDispatchComponent.java)
 takes all the inputs that are needed to create the child dispatch.
 
 #### HandleWorkflow overview:
@@ -169,7 +169,7 @@ The overall high level steps are as follows:
 
 The `DispatchProcessor.processDispatch` will be called for user and child dispatches. This avoids duplicating
 any logic between user and child transactions, since both are treated as dispatches.
-For the child transactions, when a service calls one of the [dispatchXXXTransaction](https://github.com/hashgraph/hedera-services/blob/develop/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/DispatchHandleContext.java#L459)
+For the child transactions, when a service calls one of the [dispatchXXXTransaction](https://github.com/hashgraph/hedera-services/blob/main/hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/flow/DispatchHandleContext.java#L459)
 methods in `DispatchHandleContext`, a new child dispatch is created and `DispatchProcessor.processDispatch` is called.
 
 1. **Error Validation:** Checks if there is any error by node or user by re-assessing preHandleResult. It validates the following:

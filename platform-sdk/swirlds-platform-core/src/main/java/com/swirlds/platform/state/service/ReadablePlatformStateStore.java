@@ -1,41 +1,24 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.fromPbjAddressBook;
-import static com.swirlds.platform.state.service.PbjConverter.fromPbjConsensusSnapshot;
 import static com.swirlds.platform.state.service.PbjConverter.fromPbjTimestamp;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -48,11 +31,12 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     };
 
     private final ReadableSingletonState<PlatformState> state;
-    private final Function<SemanticVersion, SoftwareVersion> versionFactory;
+
+    private Function<SemanticVersion, SoftwareVersion> versionFactory;
 
     /**
      * Constructor that supports getting full {@link SoftwareVersion} information from the platform state. Must
-     * be used from within {@link com.swirlds.platform.state.MerkleStateRoot}.
+     * be used from within {@link State}.
      * @param readableStates the readable states
      * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
      */
@@ -69,6 +53,10 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
      */
     public ReadablePlatformStateStore(@NonNull final ReadableStates readableStates) {
         this(readableStates, UNKNOWN_VERSION_FACTORY);
+    }
+
+    public void setVersionFactory(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
+        this.versionFactory = requireNonNull(versionFactory);
     }
 
     /**
@@ -118,7 +106,7 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     @Nullable
     public Hash getLegacyRunningEventHash() {
         final var hash = stateOrThrow().legacyRunningEventHash();
-        return hash.length() == 0 ? null : new Hash(hash.toByteArray());
+        return hash.length() == 0 ? null : new Hash(hash);
     }
 
     /**
@@ -163,7 +151,7 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     @Override
     @Nullable
     public ConsensusSnapshot getSnapshot() {
-        return fromPbjConsensusSnapshot(stateOrThrow().consensusSnapshot());
+        return stateOrThrow().consensusSnapshot();
     }
 
     /**
@@ -208,118 +196,6 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     @Override
     public long getLowestJudgeGenerationBeforeBirthRoundMode() {
         return stateOrThrow().lowestJudgeGenerationBeforeBirthRoundMode();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setCreationSoftwareVersion(@NonNull final SoftwareVersion creationVersion) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setAddressBook(@Nullable AddressBook addressBook) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setPreviousAddressBook(@Nullable AddressBook addressBook) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setRound(long round) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLegacyRunningEventHash(@Nullable Hash legacyRunningEventHash) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setConsensusTimestamp(@NonNull Instant consensusTimestamp) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setRoundsNonAncient(int roundsNonAncient) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setSnapshot(@NonNull ConsensusSnapshot snapshot) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setFreezeTime(@Nullable Instant freezeTime) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLastFrozenTime(@Nullable Instant lastFrozenTime) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setFirstVersionInBirthRoundMode(SoftwareVersion firstVersionInBirthRoundMode) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLastRoundBeforeBirthRoundMode(long lastRoundBeforeBirthRoundMode) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLowestJudgeGenerationBeforeBirthRoundMode(long lowestJudgeGenerationBeforeBirthRoundMode) {
-        throw new MutabilityException("Platform state is read-only");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void bulkUpdate(@NonNull Consumer<PlatformStateAccessor> updater) {
-        throw new MutabilityException("Platform state is read-only");
     }
 
     private @NonNull PlatformState stateOrThrow() {

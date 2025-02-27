@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
 import static com.swirlds.common.merkle.hash.MerkleHashChecker.checkHashAndLog;
 import static com.swirlds.common.merkle.hash.MerkleHashChecker.getNodesWithInvalidHashes;
-import static com.swirlds.common.test.fixtures.junit.tags.TestQualifierTags.TIMING_SENSITIVE;
 import static java.lang.System.identityHashCode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,7 +21,6 @@ import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
-import com.swirlds.common.test.fixtures.junit.tags.TestQualifierTags;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
@@ -58,7 +41,6 @@ import org.junit.jupiter.api.Test;
  * Unit tests for merkle tree hashing
  */
 @DisplayName("Merkle Hash Tests")
-@Tag(TIMING_SENSITIVE)
 class MerkleHashTests {
 
     private static MerkleCryptography cryptography;
@@ -131,7 +113,6 @@ class MerkleHashTests {
 
     @Test
     @Tag(TestComponentTags.MERKLE)
-    @Tag(TestQualifierTags.TIME_CONSUMING)
     @DisplayName("Test Asynchronous Hashing Large Random Tree")
     void testAsynchronousHashingLargeRandomTree() throws InterruptedException, ExecutionException {
         final DummyMerkleNode tree1 = MerkleTestUtils.generateRandomTree(0, 2, 1, 1, 0, 3, 1, 0.08);

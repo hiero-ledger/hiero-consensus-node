@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -44,39 +29,39 @@ public interface TransferContext {
 
     /**
      * Creates an account from the given alias. This is called when the account associated with alias
-     * is not found in the account store
+     * is not found in the account store.
      *
      * @param alias                  the alias of the account
-     * @param reqMaxAutoAssociations
+     * @param reqMaxAutoAssociations the maximum number of auto-associations allowed for the account
      */
     void createFromAlias(Bytes alias, int reqMaxAutoAssociations);
 
     /**
-     * Returns the number of auto-creation of accounts in current transfer
+     * Returns the number of auto-creation of accounts in current transfer.
      * @return the number of auto-creation of accounts
      */
     int numOfAutoCreations();
 
     /**
-     * Returns the number of lazy-creation of accounts in current transfer
+     * Returns the number of lazy-creation of accounts in current transfer.
      * @return the number of lazy-creation of accounts
      */
     int numOfLazyCreations();
 
     /**
-     * Returns the resolved accounts with alias and its account ID
+     * Returns the resolved accounts with alias and its account ID.
      * @return the resolved accounts with alias and its account ID
      */
     Map<Bytes, AccountID> resolutions();
 
     /**
-     * Charges extra fee to the HAPI payer account in the current transfer context with the given amount
+     * Charges extra fee to the HAPI payer account in the current transfer context with the given amount.
      * @param amount the amount to charge
      */
     void chargeExtraFeeToHapiPayer(long amount);
 
     /**
-     * Returns the handle context of the current transfer context
+     * Returns the handle context of the current transfer context.
      * @return the handle context of the current transfer context
      */
     HandleContext getHandleContext();

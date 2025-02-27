@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -63,6 +48,7 @@ import javax.inject.Singleton;
 @Singleton
 public class TransferExecutor extends BaseTokenHandler {
     private final CryptoTransferValidator validator;
+
     /**
      * Default constructor for injection.
      */
@@ -80,19 +66,6 @@ public class TransferExecutor extends BaseTokenHandler {
      */
     protected void preHandle(PreHandleContext context, CryptoTransferTransactionBody op) throws PreCheckException {
         preHandle(context, op, OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED);
-    }
-
-    /**
-     * Pre-handle for airdrop transaction, that ignore receiver sign required check. Because airdrops to
-     * receiver with signature required, should result in a pending airdrop or crypto transfer transaction depending
-     * on association and signature.
-     * @param context handle context
-     * @param op transaction body
-     * @throws PreCheckException if any error occurs during the process
-     */
-    protected void preHandleWithOptionalReceiverSignature(PreHandleContext context, CryptoTransferTransactionBody op)
-            throws PreCheckException {
-        preHandle(context, op, OptionalKeyCheck.RECEIVER_KEY_IS_OPTIONAL);
     }
 
     private void preHandle(
@@ -116,6 +89,19 @@ public class TransferExecutor extends BaseTokenHandler {
     }
 
     /**
+     * Pre-handle for airdrop transaction, that ignore receiver sign required check. Because airdrops to
+     * receiver with signature required, should result in a pending airdrop or crypto transfer transaction depending
+     * on association and signature.
+     * @param context handle context
+     * @param op transaction body
+     * @throws PreCheckException if any error occurs during the process
+     */
+    protected void preHandleWithOptionalReceiverSignature(PreHandleContext context, CryptoTransferTransactionBody op)
+            throws PreCheckException {
+        preHandle(context, op, OptionalKeyCheck.RECEIVER_KEY_IS_OPTIONAL);
+    }
+
+    /**
      * Executes all crypto transfer steps.
      *
      * @param txn transaction body
@@ -129,6 +115,41 @@ public class TransferExecutor extends BaseTokenHandler {
             HandleContext context,
             CryptoTransferStreamBuilder recordBuilder) {
         executeCryptoTransfer(txn, transferContext, context, recordBuilder, false);
+    }
+
+    /**
+     * Execute crypto transfer transaction.
+     *
+     * @param txn transaction body
+     * @param transferContext transfer context
+     * @param context handle context
+     * @param recordBuilder crypto transfer record builder
+     * @param skipCustomFee should execute custom fee steps
+     */
+    protected void executeCryptoTransfer(
+            TransactionBody txn,
+            TransferContextImpl transferContext,
+            HandleContext context,
+            CryptoTransferStreamBuilder recordBuilder,
+            boolean skipCustomFee) {
+        final var topLevelPayer = context.payer();
+        // Use the op with replaced aliases in further steps
+        transferContext.validateHbarAllowances();
+
+        // Replace all aliases in the transaction body with its account ids
+        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, context, validator);
+        // Use the op with replaced aliases in further steps
+        final var steps = decomposeIntoSteps(replacedOp, topLevelPayer, transferContext, skipCustomFee);
+        for (final var step : steps) {
+            // Apply all changes to the handleContext's States
+            step.doIn(transferContext);
+        }
+        if (!transferContext.getAutomaticAssociations().isEmpty()) {
+            transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
+        }
+        if (!transferContext.getAssessedCustomFees().isEmpty()) {
+            recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
+        }
     }
 
     protected void executeAirdropCryptoTransfer(
@@ -200,41 +221,6 @@ public class TransferExecutor extends BaseTokenHandler {
     }
 
     /**
-     * Execute crypto transfer transaction
-     *
-     * @param txn transaction body
-     * @param transferContext transfer context
-     * @param context handle context
-     * @param recordBuilder crypto transfer record builder
-     * @param skipCustomFee should execute custom fee steps
-     */
-    protected void executeCryptoTransfer(
-            TransactionBody txn,
-            TransferContextImpl transferContext,
-            HandleContext context,
-            CryptoTransferStreamBuilder recordBuilder,
-            boolean skipCustomFee) {
-        final var topLevelPayer = context.payer();
-        // Use the op with replaced aliases in further steps
-        transferContext.validateHbarAllowances();
-
-        // Replace all aliases in the transaction body with its account ids
-        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, context, validator);
-        // Use the op with replaced aliases in further steps
-        final var steps = decomposeIntoSteps(replacedOp, topLevelPayer, transferContext, skipCustomFee);
-        for (final var step : steps) {
-            // Apply all changes to the handleContext's States
-            step.doIn(transferContext);
-        }
-        if (!transferContext.getAutomaticAssociations().isEmpty()) {
-            transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
-        }
-        if (!transferContext.getAssessedCustomFees().isEmpty()) {
-            recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
-        }
-    }
-
-    /**
      * Ensures all aliases specified in the transfer exist. If the aliases are in receiver section, and don't exist
      * they will be auto-created. This step populates resolved aliases and number of auto creations in the
      * transferContext, which is used by subsequent steps and throttling.
@@ -292,13 +278,14 @@ public class TransferExecutor extends BaseTokenHandler {
      *     <li>(+)Change NFT owners</li>
      *     <li>(+,c)Pay staking rewards, possibly to previously unmentioned stakee accounts</li>
      * </ol>
-     * LEGEND: '+' = creates new BalanceChange(s) from either the transaction body, custom fee schedule, or staking reward situation
+     * LEGEND: '+' = creates new BalanceChange(s) from either the transaction body, custom fee schedule,
+     * or staking reward situation
      *        'c' = updates an existing BalanceChange
      *        'o' = causes a side effect not represented as BalanceChange
      *
      * @param op              The crypto transfer transaction body
      * @param topLevelPayer   The payer of the transaction
-     * @param transferContext
+     * @param transferContext The transfer context
      * @return A list of steps to execute
      */
     private List<TransferStep> decomposeIntoSteps(
@@ -356,8 +343,10 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param transfers                The transfers to check
      * @param ctx                      The context we gather signing keys into
      * @param accountStore             The account store to use to look up accounts
-     * @param hbarTransfer             Whether this is a hbar transfer. When HIP-583 is implemented, we can remove this argument.
-     * @param receiverKeyCheck Since in airdrops receiver key is optional to sign the transaction, add it to optional keys
+     * @param hbarTransfer             Whether this is a hbar transfer. When HIP-583 is implemented, we can remove
+     *                                 this argument.
+     * @param receiverKeyCheck Since in airdrops receiver key is optional to sign the transaction, add it to
+     *                         optional keys
      * @throws PreCheckException If the transaction is invalid
      */
     private void checkFungibleTokenTransfers(

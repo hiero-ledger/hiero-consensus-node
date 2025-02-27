@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.io.FileManipulation.corruptFile;
@@ -28,8 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.RandomUtils;
@@ -38,8 +21,6 @@ import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileIterator;
 import com.swirlds.platform.event.preconsensus.PcesMutableFile;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.StaticSoftwareVersion;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -49,15 +30,12 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
@@ -74,17 +52,6 @@ class PcesReadWriteTests {
     @TempDir
     Path testDirectory;
 
-    @BeforeAll
-    static void beforeAll() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("");
-        StaticSoftwareVersion.setSoftwareVersion(new BasicSoftwareVersion(1));
-    }
-
-    @AfterAll
-    static void afterAll() {
-        StaticSoftwareVersion.reset();
-    }
-
     @BeforeEach
     void beforeEach() throws IOException {
         FileUtils.deleteDirectory(testDirectory);
@@ -96,14 +63,23 @@ class PcesReadWriteTests {
         FileUtils.deleteDirectory(testDirectory);
     }
 
-    protected static Stream<Arguments> buildArguments() {
+    protected static Stream<Arguments> ancientModeArguments() {
         return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
     }
 
+    protected static Stream<Arguments> ancientAndBoolanArguments() {
+        return Stream.of(
+                Arguments.of(GENERATION_THRESHOLD, false),
+                Arguments.of(BIRTH_ROUND_THRESHOLD, false),
+                Arguments.of(GENERATION_THRESHOLD, true),
+                Arguments.of(BIRTH_ROUND_THRESHOLD, true));
+    }
+
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientAndBoolanArguments")
     @DisplayName("Write Then Read Test")
-    void writeThenReadTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void writeThenReadTest(@NonNull final AncientMode ancientMode, final boolean useFileChannelWriter)
+            throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final int numEvents = 100;
@@ -137,7 +113,7 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(useFileChannelWriter, false);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }
@@ -154,7 +130,7 @@ class PcesReadWriteTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModeArguments")
     @DisplayName("Read Files After Minimum Test")
     void readFilesAfterMinimumTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -204,13 +180,7 @@ class PcesReadWriteTests {
         iterator.forEachRemaining(deserializedEvents::add);
 
         // We don't want any events with an ancient indicator less than the middle
-        final Iterator<PlatformEvent> it = events.iterator();
-        while (it.hasNext()) {
-            final PlatformEvent event = it.next();
-            if (event.getAncientIndicator(ancientMode) < middle) {
-                it.remove();
-            }
-        }
+        events.removeIf(event -> event.getAncientIndicator(ancientMode) < middle);
 
         assertEquals(events.size(), deserializedEvents.size());
         for (int i = 0; i < events.size(); i++) {
@@ -219,7 +189,7 @@ class PcesReadWriteTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModeArguments")
     @DisplayName("Read Empty File Test")
     void readEmptyFileTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -241,77 +211,77 @@ class PcesReadWriteTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientAndBoolanArguments")
     @DisplayName("Truncated Event Test")
-    void truncatedEventTest(@NonNull final AncientMode ancientMode) throws IOException {
-        for (final boolean truncateOnBoundary : List.of(true, false)) {
-            final Random random = RandomUtils.getRandomPrintSeed();
+    void truncatedEventTest(@NonNull final AncientMode ancientMode, final boolean truncateOnBoundary)
+            throws IOException {
+        final Random random = RandomUtils.getRandomPrintSeed();
 
-            final int numEvents = 100;
+        final int numEvents = 100;
 
-            final StandardGraphGenerator generator = new StandardGraphGenerator(
-                    ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
-                    random.nextLong(),
-                    new StandardEventSource(),
-                    new StandardEventSource(),
-                    new StandardEventSource(),
-                    new StandardEventSource());
+        final StandardGraphGenerator generator = new StandardGraphGenerator(
+                ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
+                random.nextLong(),
+                new StandardEventSource(),
+                new StandardEventSource(),
+                new StandardEventSource(),
+                new StandardEventSource());
 
-            final List<PlatformEvent> events = new ArrayList<>();
-            for (int i = 0; i < numEvents; i++) {
-                events.add(generator.generateEvent().getBaseEvent());
-            }
+        final List<PlatformEvent> events = new ArrayList<>();
+        for (int i = 0; i < numEvents; i++) {
+            events.add(generator.generateEvent().getBaseEvent());
+        }
 
-            long upperBound = Long.MIN_VALUE;
-            for (final PlatformEvent event : events) {
-                upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
-            }
+        long upperBound = Long.MIN_VALUE;
+        for (final PlatformEvent event : events) {
+            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+        }
 
-            upperBound += random.nextInt(0, 10);
+        upperBound += random.nextInt(0, 10);
 
-            final PcesFile file = PcesFile.of(
-                    ancientMode,
-                    RandomUtils.randomInstant(random),
-                    random.nextInt(0, 100),
-                    0,
-                    upperBound,
-                    upperBound,
-                    testDirectory);
+        final PcesFile file = PcesFile.of(
+                ancientMode,
+                RandomUtils.randomInstant(random),
+                random.nextInt(0, 100),
+                0,
+                upperBound,
+                upperBound,
+                testDirectory);
 
-            final Map<Integer /* event index */, Integer /* last byte position */> byteBoundaries = new HashMap<>();
+        final Map<Integer /* event index */, Integer /* last byte position */> byteBoundaries = new HashMap<>();
 
-            final PcesMutableFile mutableFile = file.getMutableFile();
-            for (int i = 0; i < events.size(); i++) {
-                final PlatformEvent event = events.get(i);
-                mutableFile.writeEvent(event);
-                byteBoundaries.put(i, (int) mutableFile.fileSize());
-            }
+        final PcesMutableFile mutableFile = file.getMutableFile();
+        for (int i = 0; i < events.size(); i++) {
+            final PlatformEvent event = events.get(i);
+            mutableFile.writeEvent(event);
+            byteBoundaries.put(i, (int) mutableFile.fileSize());
+        }
 
-            mutableFile.close();
+        mutableFile.close();
 
-            final int lastEventIndex =
-                    random.nextInt(0, events.size() - 2 /* make sure we always truncate at least one event */);
+        final int lastEventIndex =
+                random.nextInt(0, events.size() - 2 /* make sure we always truncate at least one event */);
 
-            final int truncationPosition = byteBoundaries.get(lastEventIndex) + (truncateOnBoundary ? 0 : 1);
+        final int truncationPosition = byteBoundaries.get(lastEventIndex) + (truncateOnBoundary ? 0 : 1);
 
-            truncateFile(file.getPath(), truncationPosition);
+        truncateFile(file.getPath(), truncationPosition);
 
-            final PcesFileIterator iterator = file.iterator(Long.MIN_VALUE);
-            final List<PlatformEvent> deserializedEvents = new ArrayList<>();
-            iterator.forEachRemaining(deserializedEvents::add);
+        final PcesFileIterator iterator = file.iterator(Long.MIN_VALUE);
+        final List<PlatformEvent> deserializedEvents = new ArrayList<>();
 
-            assertEquals(truncateOnBoundary, !iterator.hasPartialEvent());
+        iterator.forEachRemaining(deserializedEvents::add);
 
-            assertEquals(lastEventIndex + 1, deserializedEvents.size());
+        assertEquals(truncateOnBoundary, !iterator.hasPartialEvent());
 
-            for (int i = 0; i < deserializedEvents.size(); i++) {
-                assertEquals(events.get(i), deserializedEvents.get(i));
-            }
+        assertEquals(lastEventIndex + 1, deserializedEvents.size());
+
+        for (int i = 0; i < deserializedEvents.size(); i++) {
+            assertEquals(events.get(i), deserializedEvents.get(i));
         }
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModeArguments")
     @DisplayName("Corrupted Events Test")
     void corruptedEventsTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -371,11 +341,11 @@ class PcesReadWriteTests {
             assertEquals(events.get(i), iterator.next());
         }
 
-        assertThrows(IOException.class, iterator::next);
+        assertThrows(Exception.class, iterator::next);
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModeArguments")
     @DisplayName("Write Invalid Event Test")
     void writeInvalidEventTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -438,7 +408,7 @@ class PcesReadWriteTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModeArguments")
     @DisplayName("Span Compression Test")
     void spanCompressionTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed(0);
@@ -504,7 +474,7 @@ class PcesReadWriteTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModeArguments")
     @DisplayName("Partial Span Compression Test")
     void partialSpanCompressionTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed(0);
@@ -573,7 +543,7 @@ class PcesReadWriteTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModeArguments")
     @DisplayName("Empty File Test")
     void emptyFileTest(@NonNull final AncientMode ancientMode) throws IOException {
         final PcesFile file = PcesFile.of(ancientMode, Instant.now(), 0, 0, 100, 0, testDirectory);
@@ -584,8 +554,9 @@ class PcesReadWriteTests {
         assertTrue(path.toFile().createNewFile());
         assertTrue(Files.exists(path));
 
-        final PcesFileIterator iterator = file.iterator(Long.MIN_VALUE);
-        assertFalse(iterator.hasNext());
-        assertThrows(NoSuchElementException.class, iterator::next);
+        try (final PcesFileIterator iterator = file.iterator(Long.MIN_VALUE)) {
+            assertFalse(iterator.hasNext());
+            assertThrows(NoSuchElementException.class, iterator::next);
+        }
     }
 }

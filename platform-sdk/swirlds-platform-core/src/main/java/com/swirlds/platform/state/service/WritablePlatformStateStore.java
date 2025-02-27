@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.toPbjAddressBook;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjConsensusSnapshot;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Objects.requireNonNull;
@@ -27,10 +11,11 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -43,13 +28,13 @@ import java.util.function.Function;
 /**
  * Extends the read-only platform state store to provide write access to the platform state.
  */
-public class WritablePlatformStateStore extends ReadablePlatformStateStore {
+public class WritablePlatformStateStore extends ReadablePlatformStateStore implements PlatformStateModifier {
     private final WritableStates writableStates;
     private final WritableSingletonState<PlatformState> state;
 
     /**
      * Constructor that supports getting full {@link SoftwareVersion} information from the platform state. Must
-     * be used from within {@link com.swirlds.platform.state.MerkleStateRoot}.
+     * be used from within {@link State}.
      * @param writableStates the writable states
      * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
      */
@@ -75,8 +60,8 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore {
     /**
      * Overwrite the current platform state with the provided state.
      */
-    public void setAllFrom(@NonNull final PlatformStateAccessor accessor) {
-        this.update(toPbjPlatformState(accessor));
+    public void setAllFrom(@NonNull final PlatformStateModifier modifier) {
+        this.update(toPbjPlatformState(modifier));
     }
 
     private void setAllFrom(@NonNull final PlatformStateValueAccumulator accumulator) {
@@ -165,10 +150,10 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore {
      * {@inheritDoc}
      */
     @Override
-    public void setSnapshot(@NonNull final com.swirlds.platform.consensus.ConsensusSnapshot snapshot) {
+    public void setSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         requireNonNull(snapshot);
         final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().consensusSnapshot(toPbjConsensusSnapshot(snapshot)));
+        update(previousState.copyBuilder().consensusSnapshot(snapshot));
     }
 
     /**
@@ -229,7 +214,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore {
      * {@inheritDoc}
      */
     @Override
-    public void bulkUpdate(@NonNull final Consumer<PlatformStateAccessor> updater) {
+    public void bulkUpdate(@NonNull final Consumer<PlatformStateModifier> updater) {
         final var accumulator = new PlatformStateValueAccumulator();
         updater.accept(accumulator);
         setAllFrom(accumulator);

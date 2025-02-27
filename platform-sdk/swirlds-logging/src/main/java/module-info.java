@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import com.swirlds.logging.api.extensions.handler.LogHandlerFactory;
 import com.swirlds.logging.api.extensions.provider.LogProviderFactory;
 import com.swirlds.logging.console.ConsoleHandlerFactory;

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON;
@@ -27,10 +12,14 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Fraction;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Token;
@@ -42,7 +31,7 @@ import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,13 +46,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     private final CustomFeesValidator subject = new CustomFeesValidator();
 
-    @Mock
-    private StoreMetricsService storeMetricsService;
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    private ExpiryValidator expiryValidator;
 
     @BeforeEach
     public void commonSetUp() {
         super.setUp();
         refreshWritableStores();
+
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(ResponseCodeEnum.OK);
     }
 
     @Test
@@ -149,7 +140,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void royaltyFeeFailsWithMissingTokenOnFeeScheduleUpdate() {
         writableTokenState = emptyWritableTokenState();
         given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
-        writableTokenStore = new WritableTokenStore(writableStates, configuration, storeMetricsService);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
 
         final List<CustomFee> feeWithRoyalty = new ArrayList<>();
         feeWithRoyalty.add(
@@ -193,7 +184,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
         refreshWritableStores();
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
         given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS)).willReturn(readableTokenRelState);
-        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates);
+        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForFeeScheduleUpdate(
                         nonFungibleToken,
@@ -244,7 +235,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void failsIfTokenRelationIsMissingInFixedFeeOnFeeScheduleUpdate() {
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
         given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS)).willReturn(readableTokenRelState);
-        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates);
+        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForFeeScheduleUpdate(
                         fungibleToken,
@@ -262,7 +253,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void failsIfTokenRelationIsMissingForFractionalFeeOnFeeScheduleUpdate() {
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
         given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS)).willReturn(readableTokenRelState);
-        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates);
+        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForFeeScheduleUpdate(
                         fungibleToken,
@@ -438,7 +429,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(CustomFee.newBuilder()
-                                .feeCollectorAccountId(AccountID.newBuilder().accountNum(accountNum.longValue()))
+                                .feeCollectorAccountId(idFactory.newAccountId(accountNum.longValue()))
                                 .build())))
                 .isInstanceOf(HandleException.class)
                 .hasMessage("CUSTOM_FEE_NOT_FULLY_SPECIFIED");
@@ -448,7 +439,12 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     @DisplayName("Custom fee validation for TokenCreate")
     void validateCustomFeeForCreation() {
         final var requireAutoAssociation = subject.validateForCreation(
-                fungibleToken, readableAccountStore, readableTokenRelStore, writableTokenStore, customFees);
+                fungibleToken,
+                readableAccountStore,
+                readableTokenRelStore,
+                writableTokenStore,
+                customFees,
+                expiryValidator);
         assertThat(requireAutoAssociation).contains(customFractionalFee);
     }
 
@@ -463,7 +459,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                 hbarFixedFee.copyBuilder().denominatingTokenId(fungibleTokenId).build();
         final var fees = List.of(withFixedFee(fixesFeeWithSelfDenomination), withFractionalFee(fractionalFee));
         final var requireAutoAssociation = subject.validateForCreation(
-                fungibleToken, readableAccountStore, readableTokenRelStore, writableTokenStore, fees);
+                fungibleToken, readableAccountStore, readableTokenRelStore, writableTokenStore, fees, expiryValidator);
         assertThat(requireAutoAssociation)
                 .hasSize(2)
                 .contains(withFixedFee(expectedFeeWithNewToken))
@@ -479,7 +475,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        nullCollectorFee))
+                        nullCollectorFee,
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
@@ -494,7 +491,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        missingFeeCollectorFee))
+                        missingFeeCollectorFee,
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
@@ -509,7 +507,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        missingFeeCollectorFee))
+                        missingFeeCollectorFee,
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_CUSTOM_FEE_COLLECTOR));
     }
@@ -519,7 +518,12 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void validateFixedFeeAndFractionalFeesOnTokenCreate() {
         assertThatNoException()
                 .isThrownBy(() -> subject.validateForCreation(
-                        fungibleToken, readableAccountStore, readableTokenRelStore, writableTokenStore, customFees));
+                        fungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        customFees,
+                        expiryValidator));
     }
 
     @Test
@@ -528,7 +532,12 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
         final List<CustomFee> feeWithRoyalty = new ArrayList<>();
         feeWithRoyalty.add(withRoyaltyFee(royaltyFee));
         assertThatThrownBy(() -> subject.validateForCreation(
-                        fungibleToken, readableAccountStore, readableTokenRelStore, writableTokenStore, feeWithRoyalty))
+                        fungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        feeWithRoyalty,
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CUSTOM_ROYALTY_FEE_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE));
     }
@@ -545,7 +554,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        feeWithRoyalty));
+                        feeWithRoyalty,
+                        expiryValidator));
     }
 
     @Test
@@ -553,7 +563,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void royaltyFeeFailsWithMissingTokenOnTokenCreate() {
         writableTokenState = emptyWritableTokenState();
         given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
-        writableTokenStore = new WritableTokenStore(writableStates, configuration, storeMetricsService);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
 
         final List<CustomFee> feeWithRoyalty = new ArrayList<>();
         feeWithRoyalty.add(
@@ -563,7 +573,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        feeWithRoyalty))
+                        feeWithRoyalty,
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_TOKEN_ID_IN_CUSTOM_FEES));
     }
@@ -586,7 +597,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        feeWithRoyalty))
+                        feeWithRoyalty,
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON));
     }
@@ -596,7 +608,7 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
         refreshWritableStores();
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
         given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS)).willReturn(readableTokenRelState);
-        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates);
+        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForCreation(
                         nonFungibleToken,
@@ -606,7 +618,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         List.of(withRoyaltyFee(royaltyFee
                                 .copyBuilder()
                                 .fallbackFee(htsFixedFee)
-                                .build()))))
+                                .build())),
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
     }
@@ -621,7 +634,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        feeWithFractional))
+                        feeWithFractional,
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CUSTOM_FRACTIONAL_FEE_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON));
     }
@@ -638,7 +652,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        feeWithFixed));
+                        feeWithFixed,
+                        expiryValidator));
     }
 
     @Test
@@ -646,14 +661,15 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     void failsIfTokenRelationIsMissingInFixedFeeOnTokenCreate() {
         readableTokenRelState = emptyReadableTokenRelsStateBuilder().build();
         given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS)).willReturn(readableTokenRelState);
-        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates);
+        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
 
         assertThatThrownBy(() -> subject.validateForCreation(
                         fungibleToken,
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        List.of(withFixedFee(htsFixedFee))))
+                        List.of(withFixedFee(htsFixedFee)),
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
     }
@@ -671,7 +687,8 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableAccountStore,
                         readableTokenRelStore,
                         writableTokenStore,
-                        List.of(withFixedFee(newFee))))
+                        List.of(withFixedFee(newFee)),
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON));
     }
@@ -679,19 +696,37 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
     @Test
     void nullParamsThrowOnTokenCreate() {
         assertThatThrownBy(() -> subject.validateForCreation(
-                        null, readableAccountStore, readableTokenRelStore, writableTokenStore, customFees))
+                        null,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        customFees,
+                        expiryValidator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> subject.validateForCreation(
-                        fungibleToken, null, readableTokenRelStore, writableTokenStore, customFees))
+                        fungibleToken, null, readableTokenRelStore, writableTokenStore, customFees, expiryValidator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> subject.validateForCreation(
-                        fungibleToken, readableAccountStore, null, writableTokenStore, customFees))
+                        fungibleToken, readableAccountStore, null, writableTokenStore, customFees, expiryValidator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> subject.validateForCreation(
-                        fungibleToken, readableAccountStore, readableTokenRelStore, null, customFees))
+                        fungibleToken, readableAccountStore, readableTokenRelStore, null, customFees, expiryValidator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> subject.validateForCreation(
-                        fungibleToken, readableAccountStore, readableTokenRelStore, writableTokenStore, null))
+                        fungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        null,
+                        expiryValidator))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> subject.validateForCreation(
+                        fungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        customFees,
+                        null))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -703,8 +738,9 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         readableTokenRelStore,
                         writableTokenStore,
                         List.of(CustomFee.newBuilder()
-                                .feeCollectorAccountId(AccountID.newBuilder().accountNum(accountNum.longValue()))
-                                .build())))
+                                .feeCollectorAccountId(idFactory.newAccountId(accountNum.longValue()))
+                                .build()),
+                        expiryValidator))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CUSTOM_FEE_NOT_FULLY_SPECIFIED));
     }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import com.hedera.hapi.node.state.token.Account;
@@ -38,13 +23,13 @@ public interface StakeRewardCalculator {
      * @param stakingInfoStore The store from which the staking info of the node is to be retrieved.
      * @param rewardsStore The store from which the rewards are to be retrieved.
      * @param consensusNow The consensus time at which the rewards are to be calculated.
-     * @return The pending rewards for the account.
+     * @return The pending rewards for the account
      */
     long computePendingReward(
-            @NonNull final Account account,
-            @NonNull final WritableStakingInfoStore stakingInfoStore,
-            @NonNull final ReadableNetworkStakingRewardsStore rewardsStore,
-            @NonNull final Instant consensusNow);
+            @NonNull Account account,
+            @NonNull WritableStakingInfoStore stakingInfoStore,
+            @NonNull ReadableNetworkStakingRewardsStore rewardsStore,
+            @NonNull Instant consensusNow);
 
     /**
      * Estimate the pending rewards for the given account. This method is called only on
@@ -53,17 +38,17 @@ public interface StakeRewardCalculator {
      * @param account The account for which the pending rewards are to be calculated.
      * @param nodeStakingInfo The staking info of the node to which the account is staked.
      * @param rewardsStore The store from which the rewards are to be retrieved.
-     * @return The pending rewards for the account.
+     * @return The pending rewards for the account
      */
     long estimatePendingRewards(
-            @NonNull final Account account,
-            @Nullable final StakingNodeInfo nodeStakingInfo,
-            @NonNull final ReadableNetworkStakingRewardsStore rewardsStore);
+            @NonNull Account account,
+            @Nullable StakingNodeInfo nodeStakingInfo,
+            @NonNull ReadableNetworkStakingRewardsStore rewardsStore);
 
     /**
      * Gives the epoch second at the start of the given stake period.
      * @param stakePeriod The stake period for which the epoch second is to be calculated.
-     * @return The epoch second at the start of the given stake period.
+     * @return The epoch second at the start of the given stake period
      */
-    long epochSecondAtStartOfPeriod(final long stakePeriod);
+    long epochSecondAtStartOfPeriod(long stakePeriod);
 }

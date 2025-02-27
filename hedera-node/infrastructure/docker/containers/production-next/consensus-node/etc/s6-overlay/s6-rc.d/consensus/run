@@ -1,0 +1,23 @@
+#! /command/with-contenv bash
+
+# Usage:
+# Start: /package/admin/s6/command/s6-svc -o /run/service/consensus
+# Stop:  /package/admin/s6/command/s6-svc -d /run/service/consensus
+
+# Do not restart
+s6-svc -O .
+
+# Kill children on exit
+trap "kill 0" EXIT
+
+if [ "${AUTO_START_CONSENSUS_SERVICE:-true}" == false ]; then
+  # Exit on initial start
+  file=/tmp/consensus/s6-svc/start
+  if ! ps ho lstart 1 | diff ${file} - 2> /dev/null; then
+    mkdir -p $(dirname ${file})
+    ps ho lstart 1 > ${file}
+    exit
+  fi
+fi
+
+exec /opt/hgcapp/services-hedera/HapiApp2.0/entrypoint.sh

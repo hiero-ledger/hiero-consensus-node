@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -29,8 +14,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.FULLY_NONDETERMINISTIC;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.systemAccounts;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
@@ -55,54 +39,45 @@ public class ExtCodeCopyOperationSuite {
         final var codeCopyOf = "codeCopyOf";
         final var account = "account";
 
-        return defaultHapiSpec("VerifiesExistence", FULLY_NONDETERMINISTIC)
-                .given(cryptoCreate(account), uploadInitCode(contract), contractCreate(contract))
-                .when()
-                .then(
-                        contractCall(contract, codeCopyOf, asHeadlongAddress(invalidAddress))
-                                .hasKnownStatus(SUCCESS),
-                        contractCallLocal(contract, codeCopyOf, asHeadlongAddress(invalidAddress))
-                                .hasAnswerOnlyPrecheck(OK),
-                        withOpContext((spec, opLog) -> {
-                            final var accountID = spec.registry().getAccountID(account);
-                            final var contractID = spec.registry().getContractId(contract);
-                            final var accountSolidityAddress = asHexedSolidityAddress(accountID);
-                            final var contractAddress = asHexedSolidityAddress(contractID);
+        return hapiTest(
+                cryptoCreate(account),
+                uploadInitCode(contract),
+                contractCreate(contract),
+                contractCall(contract, codeCopyOf, asHeadlongAddress(invalidAddress))
+                        .hasKnownStatus(SUCCESS),
+                contractCallLocal(contract, codeCopyOf, asHeadlongAddress(invalidAddress))
+                        .hasAnswerOnlyPrecheck(OK),
+                withOpContext((spec, opLog) -> {
+                    final var accountID = spec.registry().getAccountID(account);
+                    final var contractID = spec.registry().getContractId(contract);
+                    final var accountSolidityAddress = asHexedSolidityAddress(accountID);
+                    final var contractAddress = asHexedSolidityAddress(contractID);
 
-                            final var call = contractCall(
-                                            contract, codeCopyOf, asHeadlongAddress(accountSolidityAddress))
-                                    .via("callRecord");
-                            final var callRecord = getTxnRecord("callRecord");
+                    final var call = contractCall(contract, codeCopyOf, asHeadlongAddress(accountSolidityAddress))
+                            .via("callRecord");
+                    final var callRecord = getTxnRecord("callRecord");
 
-                            final var accountCodeCallLocal = contractCallLocal(
-                                            contract, codeCopyOf, asHeadlongAddress(accountSolidityAddress))
-                                    .saveResultTo("accountCode");
+                    final var accountCodeCallLocal = contractCallLocal(
+                                    contract, codeCopyOf, asHeadlongAddress(accountSolidityAddress))
+                            .saveResultTo("accountCode");
 
-                            final var contractCodeCallLocal = contractCallLocal(
-                                            contract, codeCopyOf, asHeadlongAddress(contractAddress))
-                                    .saveResultTo("contractCode");
+                    final var contractCodeCallLocal = contractCallLocal(
+                                    contract, codeCopyOf, asHeadlongAddress(contractAddress))
+                            .saveResultTo("contractCode");
 
-                            final var getBytecodeCall =
-                                    getContractBytecode(contract).saveResultTo("contractGetBytecode");
+                    final var getBytecodeCall = getContractBytecode(contract).saveResultTo("contractGetBytecode");
 
-                            allRunFor(
-                                    spec,
-                                    call,
-                                    callRecord,
-                                    accountCodeCallLocal,
-                                    contractCodeCallLocal,
-                                    getBytecodeCall);
+                    allRunFor(spec, call, callRecord, accountCodeCallLocal, contractCodeCallLocal, getBytecodeCall);
 
-                            final var recordResult =
-                                    callRecord.getResponseRecord().getContractCallResult();
-                            final var accountCode = spec.registry().getBytes("accountCode");
-                            final var contractCode = spec.registry().getBytes("contractCode");
-                            final var getBytecode = spec.registry().getBytes("contractGetBytecode");
+                    final var recordResult = callRecord.getResponseRecord().getContractCallResult();
+                    final var accountCode = spec.registry().getBytes("accountCode");
+                    final var contractCode = spec.registry().getBytes("contractCode");
+                    final var getBytecode = spec.registry().getBytes("contractGetBytecode");
 
-                            Assertions.assertEquals(emptyBytecode, recordResult.getContractCallResult());
-                            Assertions.assertArrayEquals(emptyBytecode.toByteArray(), accountCode);
-                            Assertions.assertArrayEquals(getBytecode, contractCode);
-                        }));
+                    Assertions.assertEquals(emptyBytecode, recordResult.getContractCallResult());
+                    Assertions.assertArrayEquals(emptyBytecode.toByteArray(), accountCode);
+                    Assertions.assertArrayEquals(getBytecode, contractCode);
+                }));
     }
 
     @HapiTest
@@ -133,9 +108,6 @@ public class ExtCodeCopyOperationSuite {
             });
         }
 
-        return defaultHapiSpec("testExtCodeCopyWithSystemAccounts", NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(uploadInitCode(contract), contractCreate(contract), cryptoCreate(account))
-                .when()
-                .then(opsArray);
+        return hapiTest(flattened(uploadInitCode(contract), contractCreate(contract), cryptoCreate(account), opsArray));
     }
 }

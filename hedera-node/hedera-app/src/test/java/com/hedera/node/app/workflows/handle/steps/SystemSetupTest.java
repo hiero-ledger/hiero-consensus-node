@@ -1,22 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.endpointFor;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseFeeSchedules;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
+import static com.hedera.node.app.workflows.handle.record.SystemSetup.NODE_COMPARATOR;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,19 +20,25 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.records.ReadableBlockRecordStore;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.networkadmin.impl.schemas.SyntheticNodeCreator;
 import com.hedera.node.app.service.token.impl.comparator.TokenComparators;
 import com.hedera.node.app.service.token.impl.schemas.SyntheticAccountCreator;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
@@ -65,10 +62,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,9 +76,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
 class SystemSetupTest {
-    private static final AccountID SYS_ADMIN_ID =
-            AccountID.newBuilder().accountNum(50L).build();
-
     private static final AccountID ACCOUNT_ID_1 =
             AccountID.newBuilder().accountNum(1).build();
     private static final AccountID ACCOUNT_ID_2 =
@@ -93,6 +87,23 @@ class SystemSetupTest {
             .build();
     private static final Account ACCOUNT_2 =
             Account.newBuilder().accountId(ACCOUNT_ID_2).build();
+    private static final byte[] gossipCaCertificate = "gossipCaCertificate".getBytes();
+    private static final byte[] grpcCertificateHash = "grpcCertificateHash".getBytes();
+    private static final Key NODE1_ADMIN_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
+            .build();
+
+    private static final Node NODE_1 = Node.newBuilder()
+            .nodeId(1)
+            .accountId(ACCOUNT_ID_1)
+            .description("node1")
+            .gossipEndpoint(List.of(endpointFor("23.45.34.240", 23), endpointFor("127.0.0.2", 123)))
+            .serviceEndpoint(List.of(endpointFor("127.0.0.2", 123)))
+            .gossipCaCertificate(Bytes.wrap(gossipCaCertificate))
+            .grpcCertificateHash(Bytes.wrap(grpcCertificateHash))
+            .adminKey(NODE1_ADMIN_KEY)
+            .build();
+
     private static final Instant CONSENSUS_NOW = Instant.parse("2023-08-10T00:00:00Z");
 
     private static final String EXPECTED_SYSTEM_ACCOUNT_CREATION_MEMO = "Synthetic system creation";
@@ -102,11 +113,11 @@ class SystemSetupTest {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private TokenContext context;
 
-    @Mock(strictness = Mock.Strictness.LENIENT)
-    private ReadableBlockRecordStore blockStore;
-
     @Mock
     private SyntheticAccountCreator syntheticAccountCreator;
+
+    @Mock
+    private SyntheticNodeCreator syntheticNodeCreator;
 
     @Mock
     private FileServiceImpl fileService;
@@ -116,6 +127,9 @@ class SystemSetupTest {
 
     @Mock
     private GenesisAccountStreamBuilder genesisAccountRecordBuilder;
+
+    @Mock
+    private NodeCreateStreamBuilder genesisNodeRecordBuilder;
 
     @Mock
     private StoreFactory storeFactory;
@@ -143,21 +157,20 @@ class SystemSetupTest {
 
     @BeforeEach
     void setup() {
-        given(context.readableStore(ReadableBlockRecordStore.class)).willReturn(blockStore);
         given(context.consensusTime()).willReturn(CONSENSUS_NOW);
-        given(context.addPrecedingChildRecordBuilder(GenesisAccountStreamBuilder.class))
+        given(context.addPrecedingChildRecordBuilder(GenesisAccountStreamBuilder.class, CRYPTO_CREATE))
                 .willReturn(genesisAccountRecordBuilder);
-        given(context.readableStore(ReadableBlockRecordStore.class)).willReturn(blockStore);
+        given(context.addPrecedingChildRecordBuilder(NodeCreateStreamBuilder.class, NODE_CREATE))
+                .willReturn(genesisNodeRecordBuilder);
 
-        given(blockStore.getLastBlockInfo()).willReturn(defaultStartupBlockInfo());
-
-        subject = new SystemSetup(fileService, syntheticAccountCreator);
+        subject = new SystemSetup(fileService, syntheticAccountCreator, syntheticNodeCreator);
     }
 
     @Test
     void successfulAutoUpdatesAreDispatchedWithFilesAvailable() throws IOException {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("networkAdmin.upgradeSysFilesLoc", tempDir.toString())
+                .withValue("nodes.enableDAB", true)
                 .getOrCreateConfig();
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         Files.writeString(tempDir.resolve(adminConfig.upgradePropertyOverridesFile()), validPropertyOverrides());
@@ -168,15 +181,14 @@ class SystemSetupTest {
         given(dispatch.config()).willReturn(config);
         given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
         given(dispatch.handleContext()).willReturn(handleContext);
+        given(handleContext.dispatch(any())).willReturn(streamBuilder);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableNodeStore.class)).willReturn(readableNodeStore);
-        given(handleContext.dispatchPrecedingTransaction(any(), any(), any(), any()))
-                .willReturn(streamBuilder);
 
         subject.doPostUpgradeSetup(dispatch);
 
         final var filesConfig = config.getConfigData(FilesConfig.class);
-        verify(fileService).updateNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
+        verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
         verifyUpdateDispatch(filesConfig.networkProperties(), serializedPropertyOverrides());
         verifyUpdateDispatch(filesConfig.hapiPermissions(), serializedPermissionOverrides());
         verifyUpdateDispatch(filesConfig.throttleDefinitions(), serializedThrottleOverrides());
@@ -185,9 +197,10 @@ class SystemSetupTest {
     }
 
     @Test
-    void onlyNodeDetailsAutoUpdateIsDispatchedWithNoFilesAvailable() {
+    void onlyAddressBookAndNodeDetailsAutoUpdateIsDispatchedWithNoFilesAvailable() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("networkAdmin.upgradeSysFilesLoc", tempDir.toString())
+                .withValue("nodes.enableDAB", true)
                 .getOrCreateConfig();
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.config()).willReturn(config);
@@ -197,21 +210,23 @@ class SystemSetupTest {
 
         subject.doPostUpgradeSetup(dispatch);
 
-        verify(fileService).updateNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
+        verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
         verify(stack, times(1)).commitFullStack();
 
         final var infoLogs = logCaptor.infoLogs();
-        assertThat(infoLogs.size()).isEqualTo(4);
+        assertThat(infoLogs.size()).isEqualTo(5);
         assertThat(infoLogs.getFirst()).startsWith("No post-upgrade file for feeSchedules.json");
         assertThat(infoLogs.get(1)).startsWith("No post-upgrade file for throttles.json");
         assertThat(infoLogs.get(2)).startsWith("No post-upgrade file for application-override.properties");
-        assertThat(infoLogs.getLast()).startsWith("No post-upgrade file for api-permission-override.properties");
+        assertThat(infoLogs.get(3)).startsWith("No post-upgrade file for api-permission-override.properties");
+        assertThat(infoLogs.getLast()).startsWith("No post-upgrade file for node-admin-keys.json");
     }
 
     @Test
-    void onlyNodeDetailsAutoUpdateIsDispatchedWithInvalidFilesAvailable() throws IOException {
+    void onlyAddressBookAndNodeDetailsAutoUpdateIsDispatchedWithInvalidFilesAvailable() throws IOException {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("networkAdmin.upgradeSysFilesLoc", tempDir.toString())
+                .withValue("nodes.enableDAB", true)
                 .getOrCreateConfig();
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         Files.writeString(tempDir.resolve(adminConfig.upgradePropertyOverridesFile()), invalidPropertyOverrides());
@@ -226,16 +241,15 @@ class SystemSetupTest {
 
         subject.doPostUpgradeSetup(dispatch);
 
-        verify(fileService).updateNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
+        verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
         verify(stack, times(1)).commitFullStack();
 
         final var errorLogs = logCaptor.errorLogs();
         assertThat(errorLogs.size()).isEqualTo(4);
-        assertThat(errorLogs.getFirst()).startsWith("Failed to parse upgrade file for feeSchedules.json");
-        assertThat(errorLogs.get(1)).startsWith("Failed to parse upgrade file for throttles.json");
-        assertThat(errorLogs.get(2)).startsWith("Failed to parse upgrade file for application-override.properties");
-        assertThat(errorLogs.getLast())
-                .startsWith("Failed to parse upgrade file for api-permission-override.properties");
+        assertThat(errorLogs.getFirst()).startsWith("Failed to parse update file at");
+        assertThat(errorLogs.get(1)).startsWith("Failed to parse update file at");
+        assertThat(errorLogs.get(2)).startsWith("Failed to parse update file at");
+        assertThat(errorLogs.getLast()).startsWith("Failed to parse update file at");
     }
 
     @Test
@@ -257,6 +271,9 @@ class SystemSetupTest {
         treasuryAccts.add(acct4);
         final var blocklistAccts = new TreeSet<>(TokenComparators.ACCOUNT_COMPARATOR);
         blocklistAccts.add(acct5);
+        final var nodes = new TreeSet<>(NODE_COMPARATOR);
+        nodes.add(NODE_1);
+
         doAnswer(invocationOnMock -> {
                     ((Consumer<SortedSet<Account>>) invocationOnMock.getArgument(1)).accept(sysAccts);
                     ((Consumer<SortedSet<Account>>) invocationOnMock.getArgument(2)).accept(stakingAccts);
@@ -267,9 +284,18 @@ class SystemSetupTest {
                 })
                 .when(syntheticAccountCreator)
                 .generateSyntheticAccounts(any(), any(), any(), any(), any(), any());
+        given(genesisAccountRecordBuilder.accountID(any())).willReturn(genesisAccountRecordBuilder);
+
+        doAnswer(invocationOnMock -> {
+                    ((Consumer<SortedSet<Node>>) invocationOnMock.getArgument(1)).accept(nodes);
+                    return null;
+                })
+                .when(syntheticNodeCreator)
+                .generateSyntheticNodes(any(), any());
+        given(genesisNodeRecordBuilder.nodeID(any(Long.class))).willReturn(genesisNodeRecordBuilder);
 
         // Call the first time to make sure records are generated
-        subject.externalizeInitSideEffects(context);
+        subject.externalizeInitSideEffects(context, ExchangeRateSet.DEFAULT);
 
         verifyBuilderInvoked(ACCOUNT_ID_1, EXPECTED_SYSTEM_ACCOUNT_CREATION_MEMO, ACCT_1_BALANCE);
         verifyBuilderInvoked(ACCOUNT_ID_2, EXPECTED_STAKING_MEMO);
@@ -277,16 +303,35 @@ class SystemSetupTest {
         verifyBuilderInvoked(acctId4, EXPECTED_TREASURY_CLONE_MEMO);
         verifyBuilderInvoked(acctId5, null);
 
+        verify(genesisNodeRecordBuilder).nodeID(NODE_1.nodeId());
+        verify(genesisNodeRecordBuilder)
+                .transaction(transactionWith(TransactionBody.newBuilder()
+                        .nodeCreate(NodeCreateTransactionBody.newBuilder()
+                                .accountId(NODE_1.accountId())
+                                .description(NODE_1.description())
+                                .gossipEndpoint(NODE_1.gossipEndpoint())
+                                .serviceEndpoint(NODE_1.serviceEndpoint())
+                                .gossipCaCertificate(NODE_1.gossipCaCertificate())
+                                .grpcCertificateHash(NODE_1.grpcCertificateHash())
+                                .adminKey(NODE_1.adminKey())
+                                .build())
+                        .build()));
+        verify(genesisNodeRecordBuilder).status(SUCCESS);
+
         // Call externalizeInitSideEffects() a second time to make sure no other records are created
         Mockito.clearInvocations(genesisAccountRecordBuilder);
-        assertThatThrownBy(() -> subject.externalizeInitSideEffects(context)).isInstanceOf(NullPointerException.class);
+        Mockito.clearInvocations(genesisNodeRecordBuilder);
+        assertThatThrownBy(() -> subject.externalizeInitSideEffects(context, ExchangeRateSet.DEFAULT))
+                .isInstanceOf(NullPointerException.class);
         verifyNoInteractions(genesisAccountRecordBuilder);
+        verifyNoInteractions(genesisNodeRecordBuilder);
     }
 
     @Test
     void externalizeInitSideEffectsCreatesNoRecordsWhenEmpty() {
-        subject.externalizeInitSideEffects(context);
+        subject.externalizeInitSideEffects(context, ExchangeRateSet.DEFAULT);
         verifyNoInteractions(genesisAccountRecordBuilder);
+        verifyNoInteractions(genesisNodeRecordBuilder);
     }
 
     private void verifyBuilderInvoked(final AccountID acctId, final String expectedMemo) {
@@ -322,16 +367,11 @@ class SystemSetupTest {
 
     @SuppressWarnings("unchecked")
     private void verifyUpdateDispatch(final long fileNum, final Bytes contents) {
-        verify(handleContext)
-                .dispatchPrecedingTransaction(
-                        argThat(body -> {
-                            final var fileUpdate = body.fileUpdateOrThrow();
-                            return fileUpdate.fileIDOrThrow().fileNum() == fileNum
-                                    && fileUpdate.contents().equals(contents);
-                        }),
-                        eq(StreamBuilder.class),
-                        any(Predicate.class),
-                        eq(SYS_ADMIN_ID));
+        verify(handleContext).dispatch(argThat(options -> {
+            final var fileUpdate = options.body().fileUpdateOrThrow();
+            return fileUpdate.fileIDOrThrow().fileNum() == fileNum
+                    && fileUpdate.contents().equals(contents);
+        }));
     }
 
     private String validPropertyOverrides() {

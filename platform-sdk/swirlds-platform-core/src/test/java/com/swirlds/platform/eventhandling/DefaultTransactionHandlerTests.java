@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,18 +7,23 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.gossip.shadowgraph.Generations;
 import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
+import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import com.swirlds.platform.wiring.components.StateAndRound;
@@ -43,6 +33,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 
 /**
  * Unit tests for {@link DefaultTransactionHandler}.
@@ -50,6 +41,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 class DefaultTransactionHandlerTests {
     private Randotron random;
     private AddressBook addressBook;
+    private Roster roster;
 
     @BeforeEach
     void setUp() {
@@ -58,6 +50,7 @@ class DefaultTransactionHandlerTests {
                 .withRealKeysEnabled(false)
                 .withSize(4)
                 .build();
+        roster = RosterRetriever.buildRoster(addressBook);
     }
 
     /**
@@ -85,15 +78,11 @@ class DefaultTransactionHandlerTests {
                         .setConsensusTimestamp(random.nextInstant())
                         .build());
         events.forEach(PlatformEvent::signalPrehandleCompletion);
-        final PlatformEvent keystone = new TestingEventBuilder(random).build();
-        keystone.signalPrehandleCompletion();
         final ConsensusRound round = new ConsensusRound(
-                addressBook,
+                roster,
                 events,
-                keystone,
-                new Generations(),
                 EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD),
-                SyntheticSnapshot.GENESIS_SNAPSHOT,
+                SyntheticSnapshot.getGenesisSnapshot(AncientMode.GENERATION_THRESHOLD),
                 pcesRound,
                 random.nextInstant());
 
@@ -115,7 +104,12 @@ class DefaultTransactionHandlerTests {
                 handlerOutput.reservedSignedState().get().getReservationCount(),
                 "state should be returned with a reservation");
 
-        assertTrue(tester.getSubmittedActions().isEmpty(), "no status should have been submitted");
+        // only the self event reaching consensus should be reported, no freeze action.
+        assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should not have been submitted");
+        assertEquals(
+                SelfEventReachedConsensusAction.class,
+                tester.getSubmittedActions().getFirst().getClass());
+
         assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
         assertSame(
                 consensusRound,
@@ -133,8 +127,12 @@ class DefaultTransactionHandlerTests {
                 "at least one event with no transactions should have been provided to the app");
         assertNull(tester.getPlatformState().getLastFrozenTime(), "no freeze time should have been set");
 
+        ArgumentCaptor<Hash> hashCaptor = ArgumentCaptor.forClass(Hash.class);
+        verify(tester.getPlatformStateFacade())
+                .setLegacyRunningEventHashTo(same(tester.getConsensusState()), hashCaptor.capture());
+
         assertEquals(
-                tester.getPlatformState().getLegacyRunningEventHash(),
+                hashCaptor.getValue(),
                 consensusRound
                         .getStreamedEvents()
                         .getLast()
@@ -146,8 +144,9 @@ class DefaultTransactionHandlerTests {
                 pcesRound,
                 handlerOutput.reservedSignedState().get().isPcesRound(),
                 "the state should match the PCES boolean");
-        verify(tester.getSwirldStateManager().getConsensusState().getSwirldState())
-                .sealConsensusRound(consensusRound);
+        verify(tester.getStateLifecycles())
+                .onSealConsensusRound(
+                        consensusRound, tester.getSwirldStateManager().getConsensusState());
     }
 
     @Test
@@ -155,7 +154,8 @@ class DefaultTransactionHandlerTests {
     void freezeHandling() throws InterruptedException {
         final TransactionHandlerTester tester = new TransactionHandlerTester(addressBook);
         final ConsensusRound consensusRound = newConsensusRound(false);
-        tester.getPlatformState().setFreezeTime(consensusRound.getConsensusTimestamp());
+        when(tester.getPlatformStateFacade().freezeTimeOf(tester.getConsensusState()))
+                .thenReturn(consensusRound.getConsensusTimestamp());
 
         final StateAndRound handlerOutput = tester.getTransactionHandler().handleConsensusRound(consensusRound);
         assertNotNull(handlerOutput, "new state should have been created");
@@ -163,25 +163,30 @@ class DefaultTransactionHandlerTests {
                 1,
                 handlerOutput.reservedSignedState().get().getReservationCount(),
                 "state should be returned with a reservation");
-
-        assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
+        // In addition to the freeze action, the uptime tracker reports a self event coming to consensus in the round.
+        assertEquals(2, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
+        // The freeze action is the first action submitted.
         assertEquals(
                 FreezePeriodEnteredAction.class,
                 tester.getSubmittedActions().getFirst().getClass());
         assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
         assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
-        assertNotNull(tester.getPlatformState().getLastFrozenTime(), "freeze time should have been set");
+        verify(tester.getPlatformStateFacade()).updateLastFrozenTime(tester.getConsensusState());
 
         final ConsensusRound postFreezeConsensusRound = newConsensusRound(false);
         final StateAndRound postFreezeOutput =
                 tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
         assertNull(postFreezeOutput, "no state should be created after freeze period");
 
-        assertEquals(1, tester.getSubmittedActions().size(), "no new status should have been submitted");
+        assertEquals(2, tester.getSubmittedActions().size(), "no new status should have been submitted");
         assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
         assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
+        ArgumentCaptor<Hash> hashCaptor = ArgumentCaptor.forClass(Hash.class);
+        verify(tester.getPlatformStateFacade())
+                .setLegacyRunningEventHashTo(same(tester.getConsensusState()), hashCaptor.capture());
+
         assertEquals(
-                tester.getPlatformState().getLegacyRunningEventHash(),
+                hashCaptor.getValue(),
                 consensusRound
                         .getStreamedEvents()
                         .getLast()

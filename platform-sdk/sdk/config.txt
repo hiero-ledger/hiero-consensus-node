@@ -62,8 +62,6 @@ swirld, 123
 # address,  37, ], node],     1, 127.0.0.1, 15338, 127.0.0.1, 15338
 # address,  38, <, node<,     1, 127.0.0.1, 15339, 127.0.0.1, 15339
 
-nextNodeId, 4
-
 # The above addresses assume all are running on the same computer.
 # If multiple computers are being used, then the listed IP addresses should be changed.
 

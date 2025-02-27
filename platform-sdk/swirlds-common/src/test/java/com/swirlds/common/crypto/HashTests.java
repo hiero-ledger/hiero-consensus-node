@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -24,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.test.fixtures.RandomUtils;
@@ -58,6 +44,7 @@ public class HashTests {
 
         assertThrows(NullPointerException.class, () -> new Hash((DigestType) null));
         assertThrows(NullPointerException.class, () -> new Hash((byte[]) null));
+        assertThrows(NullPointerException.class, () -> new Hash((Bytes) null));
         assertThrows(IllegalArgumentException.class, () -> new Hash((Hash) null));
 
         assertThrows(NullPointerException.class, () -> new Hash(nonZeroHashValue, null));
@@ -71,7 +58,7 @@ public class HashTests {
         final InputOutputStream ioStream = new InputOutputStream();
         final HashBuilder builder = new HashBuilder(DigestType.SHA_384);
 
-        final Hash original = builder.update(0x0f87da12).mutable();
+        final Hash original = builder.update(0x0f87da12).build();
 
         ioStream.getOutput().writeSerializable(original, true);
         ioStream.startReading();
@@ -84,10 +71,10 @@ public class HashTests {
     public void accessorCorrectness() {
         final HashBuilder builder = new HashBuilder(DigestType.SHA_384);
 
-        final Hash original = builder.update(0x1d88a790).immutable();
+        final Hash original = builder.update(0x1d88a790).build();
         final Hash copy = original.copy();
-        final Hash recalculated = builder.update(0x1d88a790).mutable();
-        final Hash different = builder.update(0x1d112233).mutable();
+        final Hash recalculated = builder.update(0x1d88a790).build();
+        final Hash different = builder.update(0x1d112233).build();
 
         assertNotNull(original.toString());
         assertEquals(96, original.toString().length());
@@ -140,7 +127,7 @@ public class HashTests {
     public void serializeAndDeserializeImmutableHashTest() throws IOException {
         final HashBuilder builder = new HashBuilder(DigestType.SHA_384);
 
-        final Hash original = builder.update(0x1d88a790).immutable();
+        final Hash original = builder.update(0x1d88a790).build();
         SerializationUtils.checkSerializeDeserializeEqual(original);
     }
 

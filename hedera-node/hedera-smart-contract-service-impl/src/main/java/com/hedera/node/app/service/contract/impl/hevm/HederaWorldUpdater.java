@@ -1,28 +1,11 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -31,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -58,6 +42,11 @@ public interface HederaWorldUpdater extends WorldUpdater {
             @NonNull HederaOperations operations,
             @NonNull HederaNativeOperations nativeOperations,
             @NonNull SystemContractOperations systemOperations) {
+        /**
+         * @param operations the enhanced operations
+         * @param nativeOperations the enhanced native operations
+         * @param systemOperations the enhanced system operations
+         */
         public Enhancement {
             requireNonNull(operations);
             requireNonNull(nativeOperations);
@@ -274,13 +263,6 @@ public interface HederaWorldUpdater extends WorldUpdater {
     List<StorageAccesses> pendingStorageUpdates();
 
     /**
-     * Externalizes the results of a system contract call into a record
-     * @param result    The result of the system contract call
-     */
-    void externalizeSystemContractResults(
-            @NonNull final ContractFunctionResult result, @NonNull ResponseCodeEnum responseStatus);
-
-    /**
      * Returns the {@link ExchangeRate} for the current consensus timestamp
      * Delegates to {@link SystemContractOperations#currentExchangeRate()} ()}
      * @return the current exchange rate
@@ -294,4 +276,13 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * This is to improve Ethereum equivalence.
      */
     void setContractNotRequired();
+
+    /**
+     * Returns the {@link EntityIdFactory}
+     *
+     * @return the {@link EntityIdFactory}
+     */
+    default EntityIdFactory entityIdFactory() {
+        return enhancement().nativeOperations().entityIdFactory();
+    }
 }

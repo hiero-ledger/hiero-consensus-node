@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
@@ -49,7 +34,6 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -58,6 +42,7 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
+import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
 import com.hedera.node.app.service.token.impl.validators.TokenUpdateValidator;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
@@ -68,6 +53,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -97,7 +83,9 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn);
         final var op = txn.tokenUpdateOrThrow();
         validateTruePreCheck(op.hasToken(), INVALID_TOKEN_ID);
@@ -165,13 +153,13 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                         newTreasuryAccount.accountIdOrThrow(), token, accountStore, tokenRelStore, config);
                 recordBuilder.addAutomaticTokenAssociation(
                         asTokenAssociation(newRelation.tokenId(), newRelation.accountId()));
-                newTreasuryAccount = requireNonNull(accountStore.getForModify(newTreasury));
+                newTreasuryAccount = requireNonNull(accountStore.get(newTreasury));
             }
             // Treasury can be modified when it owns NFTs when the property "tokens.nfts.useTreasuryWildcards"
             // is enabled.
             if (!tokensConfig.nftsUseTreasuryWildcards() && token.tokenType().equals(NON_FUNGIBLE_UNIQUE)) {
-                final var existingTreasuryRel = tokenRelStore.get(existingTreasury, tokenId);
-                validateTrue(existingTreasuryRel != null, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
+                final var existingTreasuryRel =
+                        TokenHandlerHelper.getIfUsable(existingTreasury, tokenId, tokenRelStore);
                 final var tokenRelBalance = existingTreasuryRel.balance();
                 validateTrue(tokenRelBalance == 0, CURRENT_TREASURY_STILL_OWNS_NFTS);
             }
@@ -489,7 +477,8 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
     }
 
     /**
-     * If the original token has RoleKey, only then updating role key is possible. Otherwise, fail with TOKEN_IS_IMMUTABLE.
+     * If the original token has RoleKey, only then updating role key is possible. Otherwise,
+     * fail with TOKEN_IS_IMMUTABLE.
      * If the original token has AdminKey, then require the admin key to sign the transaction. Otherwise, require the
      * role key to sign the transaction.
      * If the original token has neither AdminKey nor RoleKey, then fail with TOKEN_IS_IMMUTABLE.
@@ -534,7 +523,8 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
     }
 
     /**
-     * Checks if the token update transaction body has any key removals, by using immutable sentinel keys to remove the key.
+     * Checks if the token update transaction body has any key removals, by using immutable sentinel keys
+     * to remove the key.
      * @param op token update transaction body
      * @return true if the token update transaction body has any key removals, false otherwise
      */

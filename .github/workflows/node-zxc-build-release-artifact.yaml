@@ -1,19 +1,4 @@
-##
-# Copyright (C) 2022-2024 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "ZXC: [Node] Deploy Release Artifacts"
 on:
   workflow_call:
@@ -59,7 +44,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21"
+        default: "21.0.6"
       gradle-version:
         description: "Gradle Version:"
         type: string
@@ -99,8 +84,6 @@ on:
         required: true
       jf-access-token:
         required: true
-      jenkins-integration-url:
-        required: false
 
 defaults:
   run:
@@ -119,7 +102,8 @@ permissions:
 jobs:
   validate:
     name: Validate
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
+    if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
       branch-name-lower: ${{ steps.parameters.outputs.branch-name-lower }}
@@ -131,6 +115,11 @@ jobs:
       version-prefix: ${{ steps.effective-version.outputs.prefix }}
       prerelease: ${{ steps.effective-version.outputs.prerelease }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Install Semantic Version Tools
         run: |
           echo "::group::Download SemVer Binary"
@@ -172,32 +161,26 @@ jobs:
           fi
 
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Java
-        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
 
       - name: Gradle Update Version (As Specified)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
         if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: versionAsSpecified -PnewVersion=${{ inputs.new-version }} --scan
+        run: ./gradlew versionAsSpecified -PnewVersion=${{ inputs.new-version }}
 
       - name: Gradle Update Version (Branch Commit)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
         if: ${{ inputs.version-policy != 'specified' && !cancelled() && !failure() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: versionAsPrefixedCommit -PcommitPrefix=${{ steps.parameters.outputs.commit-prefix }} --scan
+        run: ./gradlew versionAsPrefixedCommit -PcommitPrefix=${{ steps.parameters.outputs.commit-prefix }}
 
       - name: Compute Final Effective Version
         id: effective-version
@@ -214,18 +197,24 @@ jobs:
           echo "prefix=${MAJOR_VERSION}.${MINOR_VERSION}" >>"${GITHUB_OUTPUT}"
           echo "prerelease=${PRERELEASE}" >>"${GITHUB_OUTPUT}"
 
-      - name: Cache Build Version
-        uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
+      - name: Upload Build Version
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
+          name: version.txt
           path: version.txt
-          key: node-build-version-${{ steps.effective-version.outputs.number }}-${{ github.sha }}
+          if-no-files-found: error
 
   build-artifact:
     name: Build Artifact
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - validate
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Install Deterministic Zip Tooling
         run: |
           echo "::group::Download Binary"
@@ -267,55 +256,47 @@ jobs:
           echo "::endgroup::"
 
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@55bd3a7c6e2ae7cf1877fd1ccb9d54c0503c457c # v2.1.2
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@98ddc00a17442e89a24bbf282954a3b65ce6d200 # v2.1.0
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
 
       - name: Setup Java
-        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
 
-      - name: Restore Build Version
-        uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
+      - name: Download Build Version
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          fail-on-cache-miss: true
-          path: version.txt
-          key: node-build-version-${{ needs.validate.outputs.version }}-${{ github.sha }}
+          name: version.txt
 
       - name: Cache Build Artifacts
-        uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: ~/artifact-build
           key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ github.sha }}
 
       - name: Gradle Assemble
         id: gradle-build
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: assemble --scan
+        run: ./gradlew assemble
 
       - name: Gradle Version Summary
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: githubVersionSummary --scan
+        run: ./gradlew githubVersionSummary
 
       - name: Stage Artifact Build Folder
         id: artifact-staging
@@ -364,95 +345,68 @@ jobs:
           sha384sum "${ARTIFACT_NAME}.zip" | tee "${ARTIFACT_NAME}.sha384"
 
       - name: Upload Artifacts (DevOps GCP Bucket)
-        uses: google-github-actions/upload-cloud-storage@22121cd842b0d185e042e28d969925b538c33d77 # v2.1.0
+        uses: google-github-actions/upload-cloud-storage@386ab77f37fdf51c0e38b3d229fad286861cc0d0 # v2.2.1
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         with:
           path: ${{ steps.artifact-release.outputs.folder }}
           destination: ${{ secrets.bucket-name }}
           parent: false
+          process_gcloudignore: false
 
       - name: Upload Artifacts (CDN Bucket)
-        uses: google-github-actions/upload-cloud-storage@22121cd842b0d185e042e28d969925b538c33d77 # v2.1.0
-        if: ${{ inputs.dry-run-enabled != true && needs.validate.outputs.prerelease != 'true' && !cancelled() && !failure() }}
+        uses: google-github-actions/upload-cloud-storage@386ab77f37fdf51c0e38b3d229fad286861cc0d0 # v2.2.1
+        if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
         with:
           path: ${{ steps.artifact-release.outputs.folder }}
           destination: ${{ secrets.cdn-bucket-name }}/node/software/v${{ needs.validate.outputs.version-prefix }}/
           parent: false
-
-      - name: Notify Jenkins of Release (Integration)
-        id: jenkins-integration
-        uses: fjogeleit/http-request-action@0bd00a33db6f82063a3c6befd41f232f61d66583 # v1.15.2
-        if: ${{ inputs.dry-run-enabled != true && inputs.trigger-env-deploy == 'integration' && !cancelled() && !failure() }}
-        with:
-          url: ${{ secrets.jenkins-integration-url }}
-          data: ${{ toJSON(github.event) }}
-
-      - name: Display Jenkins Payload
-        env:
-          JSON_RESPONSE: ${{ steps.jenkins-integration.outputs.response || steps.jenkins-preview.outputs.response }}
-        if: ${{ inputs.trigger-env-deploy == 'integration' }}
-        run: |
-          jq '.' <<<"${JSON_RESPONSE}"
-          printf "### Jenkins Response Payload\n\`\`\`json\n%s\n\`\`\`\n" "$(jq '.' <<<"${JSON_RESPONSE}")" >>"${GITHUB_STEP_SUMMARY}"
-
-      - name: Check for Jenkins Failures (Integration)
-        if: ${{ inputs.trigger-env-deploy == 'integration' }}
-        env:
-          JSON_RESPONSE: ${{ steps.jenkins-integration.outputs.response }}
-        run: |
-          INTEGRATION_TRIGGERED="$(jq '.jobs."build-upgrade-integration".triggered' <<<"${JSON_RESPONSE}")"
-          DOCKER_TRIGGERED="$(jq '.jobs."build-upgrade-integration-docker".triggered' <<<"${JSON_RESPONSE}")"
-
-          if [[ "${INTEGRATION_TRIGGERED}" != true ]]; then
-            echo "::error title=Jenkins Trigger Failure::Failed to trigger the 'build-upgrade-integration' job via the Jenkins 'integration' pipeline!"
-            exit 1
-          fi
-
-          if [[ "${DOCKER_TRIGGERED}" != true ]]; then
-            echo "::error title=Jenkins Trigger Failure::Failed to trigger the 'build-upgrade-integration-docker' job via the Jenkins 'integration' pipeline!"
-            exit 1
-          fi
+          process_gcloudignore: false
 
   local-node-images:
     name: Publish Local Node Images
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - validate
       - build-artifact
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@55bd3a7c6e2ae7cf1877fd1ccb9d54c0503c457c # v2.1.2
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         with:
-          token_format: 'access_token'
+          token_format: "access_token"
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
 
       - name: Set Image Registry
         id: set-registry
         run: |
-         DOCKER_REGISTRY="gcr.io"
-         [[ "${{ inputs.version-policy }}" == "branch-commit" ]] && DOCKER_REGISTRY="us-docker.pkg.dev"
-         echo "docker-registry=${DOCKER_REGISTRY}" >>"${GITHUB_OUTPUT}"
+          DOCKER_REGISTRY="gcr.io"
+          [[ "${{ inputs.version-policy }}" == "branch-commit" ]] && DOCKER_REGISTRY="us-docker.pkg.dev"
+          echo "docker-registry=${DOCKER_REGISTRY}" >>"${GITHUB_OUTPUT}"
 
-         DOCKER_TAG_BASE="gcr.io/hedera-registry"
-         if [[ "${{ inputs.version-policy }}" == "branch-commit" && "${{ inputs.dry-run-enabled }}" != true ]]; then
-            DOCKER_TAG_BASE="us-docker.pkg.dev/swirlds-registry/local-node"
-         elif [[ "${{ inputs.dry-run-enabled }}" == true ]]; then
-            DOCKER_TAG_BASE="localhost:5000"
-         fi
+          DOCKER_TAG_BASE="gcr.io/hedera-registry"
+          if [[ "${{ inputs.version-policy }}" == "branch-commit" && "${{ inputs.dry-run-enabled }}" != true ]]; then
+             DOCKER_TAG_BASE="us-docker.pkg.dev/swirlds-registry/local-node"
+          elif [[ "${{ inputs.dry-run-enabled }}" == true ]]; then
+             DOCKER_TAG_BASE="localhost:5000"
+          fi
 
-         echo "docker-tag-base=${DOCKER_TAG_BASE}" >>"${GITHUB_OUTPUT}"
+          echo "docker-tag-base=${DOCKER_TAG_BASE}" >>"${GITHUB_OUTPUT}"
 
       - name: Setup QEmu Support
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
 
       - name: Setup Docker Buildx Support
-        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
         with:
           version: v0.16.2
           driver-opts: network=host
@@ -465,7 +419,7 @@ jobs:
         run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
 
       - name: Docker Login
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         with:
           registry: ${{ steps.set-registry.outputs.docker-registry }}
@@ -473,7 +427,7 @@ jobs:
           password: ${{ steps.google-auth.outputs.access_token }}
 
       - name: Restore Build Artifacts
-        uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           fail-on-cache-miss: true
           path: ~/artifact-build
@@ -485,7 +439,7 @@ jobs:
           cp -rvf ~/artifact-build/* hedera-node/infrastructure/docker/containers/local-node/main-network-node/sdk/
 
       - name: Build Haveged Image
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
         with:
           push: true
           platforms: linux/amd64,linux/arm64
@@ -493,7 +447,7 @@ jobs:
           tags: ${{ steps.set-registry.outputs.docker-tag-base }}/network-node-haveged:${{ needs.validate.outputs.version }}
 
       - name: Build Base Image
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
         with:
           push: true
           platforms: linux/amd64,linux/arm64
@@ -501,13 +455,13 @@ jobs:
           tags: ${{ steps.set-registry.outputs.docker-tag-base }}/network-node-base:${{ needs.validate.outputs.version }}
 
       - name: Build Network Node Image
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
         with:
           push: true
           platforms: linux/amd64,linux/arm64
           build-args: |
-           IMAGE_TAG=${{ needs.validate.outputs.version }}
-           IMAGE_PREFIX=${{ steps.set-registry.outputs.docker-tag-base }}/
+            IMAGE_TAG=${{ needs.validate.outputs.version }}
+            IMAGE_PREFIX=${{ steps.set-registry.outputs.docker-tag-base }}/
           context: hedera-node/infrastructure/docker/containers/local-node/main-network-node
           tags: ${{ steps.set-registry.outputs.docker-tag-base }}/main-network-node:${{ needs.validate.outputs.version }}
 
@@ -584,25 +538,30 @@ jobs:
 
   validate-production-image:
     name: Validate Production Image
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - gcp-production-image
       - jfr-production-image
     if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@55bd3a7c6e2ae7cf1877fd1ccb9d54c0503c457c # v2.1.2
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
         with:
-          token_format: 'access_token'
+          token_format: "access_token"
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
 
       - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@d82fe26823e1f25529250895d5673f65b02af085 # v4.0.1
+        uses: jfrog/setup-jfrog-cli@f748a0599171a192a2668afee8d0497f7c1069df # v4.5.6
         env:
           JF_URL: ${{ secrets.jf-url }}
           JF_ACCESS_TOKEN: ${{ secrets.jf-access-token }}
@@ -614,14 +573,14 @@ jobs:
         run: jfrog rt ping
 
       - name: Docker Login (GCP)
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ${{ needs.gcp-production-image.outputs.docker-registry }}
           username: oauth2accesstoken
           password: ${{ steps.google-auth.outputs.access_token }}
 
       - name: Docker Login (JFrog)
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ${{ needs.jfr-production-image.outputs.docker-registry }}
           username: ${{ secrets.jf-user-name }}
@@ -685,7 +644,7 @@ jobs:
           fi
 
       - name: Upload Manifests
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: ${{ (steps.gcp.outcome == 'success' || steps.jfrog.outcome == 'success') && !cancelled() && always() }}
         with:
           name: Production Image Manifests
@@ -693,13 +652,18 @@ jobs:
 
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - validate
     if: ${{ inputs.release-profile != 'none' }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install GnuPG Tools
         if: ${{ inputs.dry-run-enabled != true }}
@@ -715,7 +679,7 @@ jobs:
 
       - name: Import GPG key
         id: gpg_key
-        uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
+        uses: crazy-max/ghaction-import-gpg@cb9bde2e2525e640591a934b1fd28eef1dcaf5e5 # v6.2.0
         with:
           gpg_private_key: ${{ secrets.sdk-gpg-key-contents }}
           passphrase: ${{ secrets.sdk-gpg-key-passphrase }}
@@ -726,44 +690,36 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@55bd3a7c6e2ae7cf1877fd1ccb9d54c0503c457c # v2.1.2
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
         with:
           workload_identity_provider: "projects/229164983194/locations/global/workloadIdentityPools/registry-identity-pool/providers/gh-provider"
           service_account: "artifact-deployer@swirlds-registry.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@98ddc00a17442e89a24bbf282954a3b65ce6d200 # v2.1.0
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
 
       - name: Setup Java
-        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
 
-      - name: Restore Build Version
-        uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
+      - name: Download Build Version
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          fail-on-cache-miss: true
-          path: version.txt
-          key: node-build-version-${{ needs.validate.outputs.version }}-${{ github.sha }}
+          name: version.txt
 
       - name: Gradle Assemble
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: assemble --scan
+        run: ./gradlew assemble
 
       - name: Gradle Version Summary
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: githubVersionSummary --scan
+        run: ./gradlew githubVersionSummary
 
       - name: Stage SDK Release Archives
         working-directory: platform-sdk
@@ -838,24 +794,18 @@ jobs:
           echo "::endgroup::"
 
       - name: Gradle Publish Platform to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
         if: ${{ inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.sdk-ossrh-username }}
           NEXUS_PASSWORD: ${{ secrets.sdk-ossrh-password }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: "release${{ inputs.release-profile }} -PpublishingPackageGroup=com.swirlds --scan -PpublishSigningEnabled=true --no-configuration-cache"
+        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.swirlds -Ps01SonatypeHost=true -PpublishSigningEnabled=true --no-configuration-cache
 
       - name: Gradle Publish Services to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
-        uses: gradle/gradle-build-action@29c0906b64b8fc82467890bfb7a0a7ef34bda89e # v3.1.0
         if: ${{ inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.svcs-ossrh-username }}
           NEXUS_PASSWORD: ${{ secrets.svcs-ossrh-password }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: "release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera --scan -PpublishSigningEnabled=true --no-configuration-cache"
+        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -867,7 +817,7 @@ jobs:
 
   send-notifications:
     name: Send Release Notifications
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     needs:
       - validate
       - local-node-images
@@ -875,6 +825,11 @@ jobs:
       - publish
     if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Determine Notification Parameters
         id: parameters
         run: |
@@ -893,11 +848,11 @@ jobs:
           echo "artifact-registry=${ARTIFACT_REGISTRY}" >>"${GITHUB_OUTPUT}"
 
       - name: Send Slack Notification (Maven Central)
-        uses: slackapi/slack-github-action@6c661ce58804a1a20f6dc5fbee7f0381b469e001 # v1.25.0
-        env:
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-          SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook-url }}
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
+          webhook: ${{ secrets.slack-webhook-url }}
+          webhook-type: incoming-webhook
+          payload-templated: true
           payload: |
             {
               "attachments": [

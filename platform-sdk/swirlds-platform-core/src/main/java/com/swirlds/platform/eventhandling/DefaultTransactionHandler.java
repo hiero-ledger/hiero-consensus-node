@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -27,18 +12,21 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATIN
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE_RUNNING_HASH;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.RunningEventHashOverride;
-import com.swirlds.common.wiring.schedulers.builders.TaskSchedulerType;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -46,9 +34,11 @@ import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -78,6 +68,11 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * we need to reuse the previous round's hash.
      */
     private Hash previousRoundLegacyRunningEventHash;
+
+    /**
+     * Enables access to the platform state.
+     */
+    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Enables submitting platform status actions.
@@ -110,12 +105,14 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param swirldStateManager    the swirld state manager to send events to
      * @param statusActionSubmitter enables submitting of platform status actions
      * @param softwareVersion       the current version of the software
+     * @param platformStateFacade    enables access to the platform state
      */
     public DefaultTransactionHandler(
             @NonNull final PlatformContext platformContext,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
-            @NonNull final SoftwareVersion softwareVersion) {
+            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.swirldStateManager = Objects.requireNonNull(swirldStateManager);
@@ -129,6 +126,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.handlerMetrics = new RoundHandlingMetrics(platformContext);
 
         previousRoundLegacyRunningEventHash = platformContext.getCryptography().getNullHash();
+        this.platformStateFacade = platformStateFacade;
 
         final PlatformSchedulersConfig schedulersConfig =
                 platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
@@ -198,14 +196,14 @@ public class DefaultTransactionHandler implements TransactionHandler {
             }
 
             handlerMetrics.setPhase(HANDLING_CONSENSUS_ROUND);
-            swirldStateManager.handleConsensusRound(consensusRound);
+            final var systemTransactions = swirldStateManager.handleConsensusRound(consensusRound);
 
             handlerMetrics.setPhase(UPDATING_PLATFORM_STATE_RUNNING_HASH);
             updateRunningEventHash(consensusRound);
 
-            return createSignedState(consensusRound);
+            return createSignedState(consensusRound, systemTransactions);
         } catch (final InterruptedException e) {
-            logger.error(EXCEPTION.getMarker(), "handleConsensusRound interrupted");
+            logger.error(EXCEPTION.getMarker(), "onHandleConsensusRound interrupted");
             Thread.currentThread().interrupt();
 
             return null;
@@ -215,14 +213,12 @@ public class DefaultTransactionHandler implements TransactionHandler {
     }
 
     /**
-     * Populate the {@link PlatformStateAccessor} with all needed data for this round.
+     * Populate the {@link PlatformStateModifier} with all needed data for this round.
      *
      * @param round the consensus round
      */
     private void updatePlatformState(@NonNull final ConsensusRound round) {
-        final PlatformStateAccessor platformState =
-                swirldStateManager.getConsensusState().getPlatformState();
-        platformState.bulkUpdate(v -> {
+        platformStateFacade.bulkUpdateOf(swirldStateManager.getConsensusState(), v -> {
             v.setRound(round.getRoundNum());
             v.setConsensusTimestamp(round.getConsensusTimestamp());
             v.setCreationSoftwareVersion(softwareVersion);
@@ -238,8 +234,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @throws InterruptedException if this thread is interrupted
      */
     private void updateRunningEventHash(@NonNull final ConsensusRound round) throws InterruptedException {
-        final PlatformStateAccessor platformState =
-                swirldStateManager.getConsensusState().getPlatformState();
+        final State consensusState = swirldStateManager.getConsensusState();
 
         if (writeLegacyRunningEventHash) {
             // Update the running hash object. If there are no events, the running hash does not change.
@@ -253,10 +248,10 @@ public class DefaultTransactionHandler implements TransactionHandler {
                         .getAndRethrow();
             }
 
-            platformState.setLegacyRunningEventHash(previousRoundLegacyRunningEventHash);
+            platformStateFacade.setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
         } else {
-            platformState.setLegacyRunningEventHash(
-                    platformContext.getCryptography().getNullHash());
+            platformStateFacade.setLegacyRunningEventHashTo(
+                    consensusState, platformContext.getCryptography().getNullHash());
         }
     }
 
@@ -268,27 +263,37 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @throws InterruptedException if this thread is interrupted
      */
     @NonNull
-    private StateAndRound createSignedState(@NonNull final ConsensusRound consensusRound) throws InterruptedException {
+    private StateAndRound createSignedState(
+            @NonNull final ConsensusRound consensusRound,
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions)
+            throws InterruptedException {
         if (freezeRoundReceived) {
             // Let the swirld state manager know we are about to write the saved state for the freeze period
             swirldStateManager.savedStateInFreezePeriod();
         }
-        swirldStateManager.sealConsensusRound(consensusRound);
 
-        handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
-        final MerkleRoot immutableStateCons = swirldStateManager.getStateForSigning();
+        final boolean isBoundary = swirldStateManager.sealConsensusRound(consensusRound);
+        final ReservedSignedState reservedSignedState;
+        if (isBoundary || freezeRoundReceived) {
+            handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
+            final MerkleNodeState immutableStateCons = swirldStateManager.getStateForSigning();
 
-        handlerMetrics.setPhase(CREATING_SIGNED_STATE);
-        final SignedState signedState = new SignedState(
-                platformContext,
-                CryptoStatic::verifySignature,
-                immutableStateCons,
-                "TransactionHandler.createSignedState()",
-                freezeRoundReceived,
-                true,
-                consensusRound.isPcesRound());
+            handlerMetrics.setPhase(CREATING_SIGNED_STATE);
+            final SignedState signedState = new SignedState(
+                    platformContext.getConfiguration(),
+                    CryptoStatic::verifySignature,
+                    immutableStateCons,
+                    "TransactionHandler.createSignedState()",
+                    freezeRoundReceived,
+                    true,
+                    consensusRound.isPcesRound(),
+                    platformStateFacade);
 
-        final ReservedSignedState reservedSignedState = signedState.reserve("transaction handler output");
-        return new StateAndRound(reservedSignedState, consensusRound);
+            reservedSignedState = signedState.reserve("transaction handler output");
+        } else {
+            reservedSignedState = null;
+        }
+
+        return new StateAndRound(reservedSignedState, consensusRound, systemTransactions);
     }
 }

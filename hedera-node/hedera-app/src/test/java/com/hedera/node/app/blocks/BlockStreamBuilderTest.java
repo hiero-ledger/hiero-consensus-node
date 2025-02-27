@@ -1,39 +1,24 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
-import static com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenAssociation;
-import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -43,8 +28,6 @@ import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.streams.ContractActions;
-import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -72,36 +55,25 @@ public class BlockStreamBuilderTest {
     private @Mock TransactionID transactionID;
     private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
     private @Mock ContractFunctionResult contractCallResult;
-    private @Mock ContractFunctionResult contractCreateResult;
     private @Mock TransferList transferList;
     private @Mock TokenTransferList tokenTransfer;
     private @Mock ScheduleID scheduleRef;
     private @Mock AssessedCustomFee assessedCustomFee;
     private @Mock TokenAssociation tokenAssociation;
-    private @Mock Bytes alias;
-    private @Mock Bytes ethereumHash;
     private @Mock Bytes prngBytes;
     private @Mock AccountAmount accountAmount;
-    private @Mock Bytes evmAddress;
     private @Mock ResponseCodeEnum status;
-    private @Mock AccountID accountID;
-    private @Mock FileID fileID;
-    private @Mock ContractID contractID;
     private @Mock ExchangeRateSet exchangeRate;
-    private @Mock TopicID topicID;
-    private @Mock Bytes topicRunningHash;
-    private @Mock TokenID tokenID;
-    private @Mock ScheduleID scheduleID;
-    private @Mock TransactionID scheduledTransactionID;
     private @Mock ContractStateChanges contractStateChanges;
-    private @Mock ContractActions contractActions;
-    private @Mock ContractBytecode contractBytecode;
+    private @Mock AccountID accountID;
 
     @Test
     void testBlockItemsWithCryptoTransferOutput() {
-        final var itemsBuilder = createBaseBuilder().assessedCustomFees(List.of(assessedCustomFee));
+        final var itemsBuilder = createBaseBuilder()
+                .assessedCustomFees(List.of(assessedCustomFee))
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER);
 
-        List<BlockItem> blockItems = itemsBuilder.build();
+        List<BlockItem> blockItems = itemsBuilder.build().blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -119,8 +91,9 @@ public class BlockStreamBuilderTest {
             return;
         }
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
-            final var itemsBuilder = createBaseBuilder().entropyBytes(prngBytes);
-            List<BlockItem> blockItems = itemsBuilder.build();
+            final var itemsBuilder =
+                    createBaseBuilder().functionality(UTIL_PRNG).entropyBytes(prngBytes);
+            List<BlockItem> blockItems = itemsBuilder.build().blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -130,8 +103,9 @@ public class BlockStreamBuilderTest {
             assertTrue(output.hasUtilPrng());
             assertEquals(prngBytes, output.utilPrng().prngBytes());
         } else {
-            final var itemsBuilder = createBaseBuilder().entropyNumber(ENTROPY_NUMBER);
-            List<BlockItem> blockItems = itemsBuilder.build();
+            final var itemsBuilder =
+                    createBaseBuilder().functionality(UTIL_PRNG).entropyNumber(ENTROPY_NUMBER);
+            List<BlockItem> blockItems = itemsBuilder.build().blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -146,10 +120,11 @@ public class BlockStreamBuilderTest {
     @Test
     void testBlockItemsWithContractCallOutput() {
         final var itemsBuilder = createBaseBuilder()
+                .functionality(CONTRACT_CALL)
                 .contractCallResult(contractCallResult)
                 .addContractStateChanges(contractStateChanges, false);
 
-        List<BlockItem> blockItems = itemsBuilder.build();
+        List<BlockItem> blockItems = itemsBuilder.build().blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -157,6 +132,21 @@ public class BlockStreamBuilderTest {
         assertTrue(outputBlockItem.hasTransactionOutput());
         final var output = outputBlockItem.transactionOutput();
         assertTrue(output.hasContractCall());
+    }
+
+    @Test
+    void testBlockItemsWithCreateAccountOutput() {
+        final var itemsBuilder =
+                createBaseBuilder().functionality(CRYPTO_CREATE).accountID(accountID);
+
+        List<BlockItem> blockItems = itemsBuilder.build().blockItems();
+        validateTransactionBlockItems(blockItems);
+        validateTransactionResult(blockItems);
+
+        final var outputBlockItem = blockItems.get(2);
+        assertTrue(outputBlockItem.hasTransactionOutput());
+        final var output = outputBlockItem.transactionOutput();
+        assertTrue(output.hasAccountCreate());
     }
 
     private void validateTransactionResult(final List<BlockItem> blockItems) {
@@ -167,7 +157,6 @@ public class BlockStreamBuilderTest {
         assertEquals(status, result.status());
         assertEquals(asTimestamp(CONSENSUS_TIME), result.consensusTimestamp());
         assertEquals(asTimestamp(PARENT_CONSENSUS_TIME), result.parentConsensusTimestamp());
-        assertEquals(exchangeRate, result.exchangeRate());
         assertEquals(scheduleRef, result.scheduleRef());
         assertEquals(TRANSACTION_FEE, result.transactionFeeCharged());
         assertEquals(transferList, result.transferList());
@@ -188,7 +177,7 @@ public class BlockStreamBuilderTest {
     private BlockStreamBuilder createBaseBuilder() {
         final List<TokenTransferList> tokenTransferLists = List.of(tokenTransfer);
         final List<AccountAmount> paidStakingRewards = List.of(accountAmount);
-        return new BlockStreamBuilder(REVERSIBLE, NOOP_RECORD_CUSTOMIZER, USER)
+        return new BlockStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER)
                 .status(status)
                 .consensusTimestamp(CONSENSUS_TIME)
                 .parentConsensus(PARENT_CONSENSUS_TIME)

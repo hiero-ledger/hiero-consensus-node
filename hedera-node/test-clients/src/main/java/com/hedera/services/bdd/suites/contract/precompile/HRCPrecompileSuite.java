@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -37,10 +22,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_ETHEREUM_DATA;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_NONCE;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
@@ -55,6 +36,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_RE
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -90,26 +72,25 @@ public class HRCPrecompileSuite {
     final Stream<DynamicTest> hrcCanDissociateFromDeletedToken() {
         final AtomicReference<String> nonfungibleTokenNum = new AtomicReference<>();
 
-        return defaultHapiSpec("hrcCanDissociateFromDeletedToken", NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .name(TOKEN_NAME)
-                                .symbol(TOKEN_SYMBOL)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(nonfungibleTokenNum::set),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("PRICELESS")))
-                                .payingWith(ACCOUNT)
-                                .via("mintTxn"),
-                        uploadInitCode(HRC),
-                        contractCreate(HRC))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .name(TOKEN_NAME)
+                        .symbol(TOKEN_SYMBOL)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(nonfungibleTokenNum::set),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("PRICELESS")))
+                        .payingWith(ACCOUNT)
+                        .via("mintTxn"),
+                uploadInitCode(HRC),
+                contractCreate(HRC),
+                withOpContext((spec, opLog) -> {
                     var nonfungibleTokenAddress = asHexedSolidityAddress(asToken(nonfungibleTokenNum.get()));
                     allRunFor(
                             spec,
@@ -130,8 +111,8 @@ public class HRCPrecompileSuite {
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(DISSOCIATE_TXN_2));
-                }))
-                .then(withOpContext((spec, ignore) -> allRunFor(
+                }),
+                withOpContext((spec, ignore) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 ASSOCIATE_TXN_2,
@@ -156,32 +137,31 @@ public class HRCPrecompileSuite {
         final AtomicReference<String> fungibleTokenNum = new AtomicReference<>();
         final AtomicReference<String> nonfungibleTokenNum = new AtomicReference<>();
 
-        return defaultHapiSpec("hrcNftAndFungibleTokenAssociateFromEOA", NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(5)
-                                .name(TOKEN_NAME)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(fungibleTokenNum::set),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .name(TOKEN_NAME)
-                                .symbol(TOKEN_SYMBOL)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(nonfungibleTokenNum::set),
-                        uploadInitCode(HRC),
-                        contractCreate(HRC))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(5)
+                        .name(TOKEN_NAME)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(fungibleTokenNum::set),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .name(TOKEN_NAME)
+                        .symbol(TOKEN_SYMBOL)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(nonfungibleTokenNum::set),
+                uploadInitCode(HRC),
+                contractCreate(HRC),
+                withOpContext((spec, opLog) -> {
                     var fungibleTokenAddress = asHexedSolidityAddress(asToken(fungibleTokenNum.get()));
                     var nonfungibleTokenAddress = asHexedSolidityAddress(asToken(nonfungibleTokenNum.get()));
                     allRunFor(
@@ -226,8 +206,8 @@ public class HRCPrecompileSuite {
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(DISSOCIATE_TXN_2));
-                }))
-                .then(withOpContext((spec, ignore) -> allRunFor(
+                }),
+                withOpContext((spec, ignore) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 ASSOCIATE_TXN,
@@ -265,34 +245,29 @@ public class HRCPrecompileSuite {
 
     @HapiTest
     final Stream<DynamicTest> hrcNFTAndFungibleTokenAssociateFromContract() {
-        return defaultHapiSpec(
-                        "hrcNFTAndFungibleTokenAssociateFromContract",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(5)
-                                .name(TOKEN_NAME)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(HRC_CONTRACT),
-                        contractCreate(HRC_CONTRACT),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .name(TOKEN_NAME)
-                                .symbol(TOKEN_SYMBOL)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(5)
+                        .name(TOKEN_NAME)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(HRC_CONTRACT),
+                contractCreate(HRC_CONTRACT),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .name(TOKEN_NAME)
+                        .symbol(TOKEN_SYMBOL)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         // Associate fungible token
                         contractCall(
@@ -335,10 +310,8 @@ public class HRCPrecompileSuite {
                                                 asHexedAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
                                 .payingWith(ACCOUNT)
                                 .via(DISSOCIATE_TXN_2)
-                                .gas(4_000_000)
-                                .hasKnownStatus(SUCCESS)
-                                .logged())))
-                .then(withOpContext((spec, ignore) -> allRunFor(
+                                .gas(4_000_000))),
+                withOpContext((spec, ignore) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 ASSOCIATE_TXN,
@@ -378,27 +351,23 @@ public class HRCPrecompileSuite {
     final Stream<DynamicTest> hrcTokenAssociateFromSameEOATwiceShouldFail() {
         final AtomicReference<String> fungibleTokenNum = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "hrcTokenAssociateFromSameEOATwiceShouldFail",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        newKeyNamed(RANDOM_KEY),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(5)
-                                .name(TOKEN_NAME)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(fungibleTokenNum::set),
-                        uploadInitCode(HRC),
-                        contractCreate(HRC))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(RANDOM_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(5)
+                        .name(TOKEN_NAME)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(fungibleTokenNum::set),
+                uploadInitCode(HRC),
+                contractCreate(HRC),
+                withOpContext((spec, opLog) -> {
                     var fungibleTokenAddress = asHexedSolidityAddress(asToken(fungibleTokenNum.get()));
                     allRunFor(
                             spec,
@@ -422,8 +391,8 @@ public class HRCPrecompileSuite {
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(ASSOCIATE_TXN_2));
-                }))
-                .then(withOpContext((spec, ignore) -> allRunFor(
+                }),
+                withOpContext((spec, ignore) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 ASSOCIATE_TXN,
@@ -447,24 +416,23 @@ public class HRCPrecompileSuite {
     final Stream<DynamicTest> hrcTokenDissociateWhenNotAssociatedShouldFail() {
         final AtomicReference<String> fungibleTokenNum = new AtomicReference<>();
 
-        return defaultHapiSpec("hrcTokenDissociateWhenNotAssociatedShouldFail", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        newKeyNamed(RANDOM_KEY),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(5)
-                                .name(TOKEN_NAME)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(fungibleTokenNum::set),
-                        uploadInitCode(HRC),
-                        contractCreate(HRC))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(RANDOM_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(5)
+                        .name(TOKEN_NAME)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(fungibleTokenNum::set),
+                uploadInitCode(HRC),
+                contractCreate(HRC),
+                withOpContext((spec, opLog) -> {
                     var fungibleTokenAddress = asHexedSolidityAddress(asToken(fungibleTokenNum.get()));
                     allRunFor(
                             spec,
@@ -478,8 +446,8 @@ public class HRCPrecompileSuite {
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(ASSOCIATE_TXN));
-                }))
-                .then(withOpContext((spec, ignore) -> allRunFor(
+                }),
+                withOpContext((spec, ignore) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 ASSOCIATE_TXN,
@@ -495,27 +463,23 @@ public class HRCPrecompileSuite {
     final Stream<DynamicTest> hrcTokenDissociateWhenBalanceNotZeroShouldFail() {
         final AtomicReference<String> fungibleTokenNum = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "hrcTokenDissociateWhenBalanceNotZeroShouldFail",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_ETHEREUM_DATA)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        newKeyNamed(RANDOM_KEY),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(5)
-                                .name(TOKEN_NAME)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(fungibleTokenNum::set),
-                        uploadInitCode(HRC),
-                        contractCreate(HRC))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(RANDOM_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(5)
+                        .name(TOKEN_NAME)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(fungibleTokenNum::set),
+                uploadInitCode(HRC),
+                contractCreate(HRC),
+                withOpContext((spec, opLog) -> {
                     var fungibleTokenAddress = asHexedSolidityAddress(asToken(fungibleTokenNum.get()));
                     allRunFor(
                             spec,
@@ -541,8 +505,8 @@ public class HRCPrecompileSuite {
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(ASSOCIATE_TXN_2));
-                }))
-                .then(withOpContext((spec, ignore) -> allRunFor(
+                }),
+                withOpContext((spec, ignore) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 ASSOCIATE_TXN,
@@ -562,53 +526,49 @@ public class HRCPrecompileSuite {
                                                         .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))))));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"tokens.maxPerAccount", "entities.limitTokenAssociations"})
     final Stream<DynamicTest> hrcTooManyTokenAssociateShouldFail() {
         final AtomicReference<String> fungibleTokenNum1 = new AtomicReference<>();
         final AtomicReference<String> fungibleTokenNum2 = new AtomicReference<>();
         final AtomicReference<String> fungibleTokenNum3 = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "hrcTooManyTokenAssociateShouldFail",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        overriding("tokens.maxPerAccount", "2"),
-                        overriding("entities.limitTokenAssociations", "true"),
-                        newKeyNamed(MULTI_KEY),
-                        newKeyNamed(RANDOM_KEY),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(1)
-                                .name(TOKEN_NAME)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(fungibleTokenNum1::set),
-                        tokenCreate(FUNGIBLE_TOKEN_2)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(1)
-                                .name(TOKEN_NAME)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(fungibleTokenNum2::set),
-                        tokenCreate(FUNGIBLE_TOKEN_3)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .name(TOKEN_NAME)
-                                .treasury(ACCOUNT)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(fungibleTokenNum3::set),
-                        uploadInitCode(HRC),
-                        contractCreate(HRC))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                overriding("tokens.maxPerAccount", "2"),
+                overriding("entities.limitTokenAssociations", "true"),
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(RANDOM_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(1)
+                        .name(TOKEN_NAME)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(fungibleTokenNum1::set),
+                tokenCreate(FUNGIBLE_TOKEN_2)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(1)
+                        .name(TOKEN_NAME)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(fungibleTokenNum2::set),
+                tokenCreate(FUNGIBLE_TOKEN_3)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .name(TOKEN_NAME)
+                        .treasury(ACCOUNT)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(fungibleTokenNum3::set),
+                uploadInitCode(HRC),
+                contractCreate(HRC),
+                withOpContext((spec, opLog) -> {
                     var fungibleTokenAddress1 = asHexedSolidityAddress(asToken(fungibleTokenNum1.get()));
                     var fungibleTokenAddress2 = asHexedSolidityAddress(asToken(fungibleTokenNum2.get()));
                     var fungibleTokenAddress3 = asHexedSolidityAddress(asToken(fungibleTokenNum3.get()));
@@ -642,35 +602,32 @@ public class HRCPrecompileSuite {
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(ASSOCIATE_TXN_3));
-                }))
-                .then(
-                        overriding("tokens.maxPerAccount", "1000"),
-                        overriding("entities.limitTokenAssociations", "false"),
-                        withOpContext((spec, ignore) -> allRunFor(
-                                spec,
-                                childRecordsCheck(
-                                        ASSOCIATE_TXN,
-                                        SUCCESS,
-                                        recordWith()
-                                                .status(SUCCESS)
-                                                .contractCallResult(resultWith()
-                                                        .contractCallResult(htsPrecompileResult()
-                                                                .withStatus(SUCCESS)))),
-                                childRecordsCheck(
-                                        ASSOCIATE_TXN_2,
-                                        SUCCESS,
-                                        recordWith()
-                                                .status(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)
-                                                .contractCallResult(resultWith()
-                                                        .contractCallResult(htsPrecompileResult()
-                                                                .withStatus(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)))),
-                                childRecordsCheck(
-                                        ASSOCIATE_TXN_3,
-                                        SUCCESS,
-                                        recordWith()
-                                                .status(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)
-                                                .contractCallResult(resultWith()
-                                                        .contractCallResult(htsPrecompileResult()
-                                                                .withStatus(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)))))));
+                }),
+                withOpContext((spec, ignore) -> allRunFor(
+                        spec,
+                        childRecordsCheck(
+                                ASSOCIATE_TXN,
+                                SUCCESS,
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith()
+                                                .contractCallResult(
+                                                        htsPrecompileResult().withStatus(SUCCESS)))),
+                        childRecordsCheck(
+                                ASSOCIATE_TXN_2,
+                                SUCCESS,
+                                recordWith()
+                                        .status(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)
+                                        .contractCallResult(resultWith()
+                                                .contractCallResult(htsPrecompileResult()
+                                                        .withStatus(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)))),
+                        childRecordsCheck(
+                                ASSOCIATE_TXN_3,
+                                SUCCESS,
+                                recordWith()
+                                        .status(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)
+                                        .contractCallResult(resultWith()
+                                                .contractCallResult(htsPrecompileResult()
+                                                        .withStatus(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)))))));
     }
 }

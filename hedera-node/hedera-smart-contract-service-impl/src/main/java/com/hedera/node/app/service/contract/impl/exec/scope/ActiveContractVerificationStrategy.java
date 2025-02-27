@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -32,11 +17,26 @@ public class ActiveContractVerificationStrategy implements VerificationStrategy 
     private final boolean requiresDelegatePermission;
     private final UseTopLevelSigs useTopLevelSigs;
 
+    /**
+     * Enum whether to use the top level signature
+     */
     public enum UseTopLevelSigs {
+        /**
+         * Use top level signature
+         */
         YES,
+        /**
+         * Do not use top level signature
+         */
         NO
     }
 
+    /**
+     * @param activeContractID the active contract id
+     * @param activeAddress the active address
+     * @param requiresDelegatePermission if delegate permission is required
+     * @param useTopLevelSigs whether to use the top level signature
+     */
     public ActiveContractVerificationStrategy(
             final ContractID activeContractID,
             @NonNull final Bytes activeAddress,
@@ -69,14 +69,23 @@ public class ActiveContractVerificationStrategy implements VerificationStrategy 
         }
     }
 
+    /**
+     * @return the active contract id
+     */
     public ContractID getActiveContractID() {
         return activeContractID;
     }
 
+    /**
+     * @return the active address
+     */
     public Bytes getActiveAddress() {
         return activeAddress;
     }
 
+    /**
+     * @return if delegate permission is required
+     */
     public boolean requiresDelegatePermission() {
         return requiresDelegatePermission;
     }

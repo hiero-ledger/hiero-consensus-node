@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers;
 
 import static java.util.Objects.requireNonNull;
@@ -27,7 +12,6 @@ import com.hedera.node.app.annotations.CommonExecutor;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.info.SelfNodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -85,20 +69,19 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
     /**
      * Construct {@link StreamFileProducerConcurrent}
      *
-     * @param nodeInfo the current node information
-     * @param format The format to use for the record stream
-     * @param writerFactory the factory used to create new {@link BlockRecordWriter} instances
+     * @param format          The format to use for the record stream
+     * @param writerFactory   the factory used to create new {@link BlockRecordWriter} instances
      * @param executorService The executor service to use for background threads
      */
     @Inject
     public StreamFileProducerConcurrent(
-            @NonNull final SelfNodeInfo nodeInfo,
             @NonNull final BlockRecordFormat format,
             @NonNull final BlockRecordWriterFactory writerFactory,
-            @CommonExecutor @NonNull final ExecutorService executorService) {
+            @CommonExecutor @NonNull final ExecutorService executorService,
+            @NonNull final SemanticVersion hapiVersion) {
         this.writerFactory = requireNonNull(writerFactory);
         this.format = requireNonNull(format);
-        hapiVersion = nodeInfo.hapiVersion();
+        this.hapiVersion = requireNonNull(hapiVersion);
         this.executorService = requireNonNull(executorService);
     }
 
@@ -170,7 +153,11 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
                 currentRecordFileWriter = lastRecordHashingResult.thenApply(lastRunningHash -> createBlockRecordWriter(
                         lastRunningHash, newBlockFirstTransactionConsensusTime, newBlockNumber));
             } else {
-                // wait for all background threads to finish, then in new background task finish the current block
+                // Reassign our fileWriter future to a future that will complete once:
+                //   (1) The running hash of the last record in the current block is available; and,
+                //   (2) We have finished writing and closed the current block's record file.
+                // The VALUE of this future, when it completes, will be the writer for the file of
+                // the new block we are just starting.
                 currentRecordFileWriter = currentRecordFileWriter
                         .thenCombine(lastRecordHashingResult, TwoResults::new)
                         .thenApplyAsync(

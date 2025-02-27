@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.subprocess;
 
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.REACHED;
@@ -38,6 +23,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -60,11 +46,10 @@ public class ProcessUtils {
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
     public static final String SAVED_STATES_DIR = "saved";
     public static final String RECORD_STREAMS_DIR = "recordStreams";
-    public static final String BLOCK_STREAMS_DIR = "block-streams";
+    public static final String BLOCK_STREAMS_DIR = "blockStreams";
     private static final long WAIT_SLEEP_MILLIS = 100L;
 
     public static final Executor EXECUTOR = Executors.newCachedThreadPool();
-    public static final Duration STOP_TIMEOUT = Duration.ofSeconds(10);
 
     private ProcessUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -96,16 +81,6 @@ public class ProcessUtils {
     }
 
     /**
-     * Returns true if the given error is a bind exception that is correlated with a node starting.
-     *
-     * @param error the error to check
-     * @return true if the error is a correlated bind exception
-     */
-    public static boolean hadCorrelatedBindException(@NonNull final AssertionError error) {
-        return error.getMessage().contains("bindExceptionSeen=YES");
-    }
-
-    /**
      * Destroys any process that appears to be a node started from the given metadata, based on the
      * process command being {@code java} and having a last argument matching the node ID.
      *
@@ -126,12 +101,30 @@ public class ProcessUtils {
      * @return the {@link ProcessHandle} of the started node
      */
     public static ProcessHandle startSubProcessNodeFrom(@NonNull final NodeMetadata metadata, final int configVersion) {
+        return startSubProcessNodeFrom(metadata, configVersion, Map.of());
+    }
+
+    /**
+     * Starts a sub-process node from the given metadata and main class reference with the requested environment
+     * overrides, and returns its {@link ProcessHandle}.
+     *
+     * @param metadata the metadata of the node to start
+     * @param configVersion the version of the configuration to use
+     * @param envOverrides the environment variables to override
+     * @return the {@link ProcessHandle} of the started node
+     */
+    public static ProcessHandle startSubProcessNodeFrom(
+            @NonNull final NodeMetadata metadata,
+            final int configVersion,
+            @NonNull final Map<String, String> envOverrides) {
         final var builder = new ProcessBuilder();
         final var environment = builder.environment();
         environment.put("LC_ALL", "en.UTF-8");
         environment.put("LANG", "en_US.UTF-8");
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
+        environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
+        environment.putAll(envOverrides);
         try {
             final var redirectFile = guaranteedExtantFile(
                     metadata.workingDirOrThrow().resolve(OUTPUT_DIR).resolve(ERROR_REDIRECT_FILE));
@@ -167,7 +160,6 @@ public class ProcessUtils {
                 "-Dprometheus.endpointPortNumber=" + metadata.prometheusPort(),
                 "-Dhedera.recordStream.logDir=" + DATA_DIR + "/" + RECORD_STREAMS_DIR,
                 "-Dhedera.profiles.active=DEV",
-                "-Dhedera.workflows.enabled=true",
                 "com.hedera.node.app.ServicesMain",
                 "-local",
                 Long.toString(metadata.nodeId())));
@@ -190,7 +182,7 @@ public class ProcessUtils {
      *
      * @param condition the condition to wait for
      * @param checkBackoffMs the supplier of the number of milliseconds to back off between checks
-     * @return
+     * @return a future that resolves when the condition is true or the timeout is reached
      */
     public static CompletableFuture<Void> conditionFuture(
             @NonNull final BooleanSupplier condition, @NonNull final LongSupplier checkBackoffMs) {
@@ -251,6 +243,7 @@ public class ProcessUtils {
             throw new IllegalStateException("Cannot discover the classpath. Was --module-path used instead?");
         }
         return Arrays.stream(classpath.split(":"))
+                .map(String::trim) // may have picked up a '\n' in the original classpath String
                 .filter(s -> !s.contains("test-clients"))
                 .collect(Collectors.joining(":"));
     }

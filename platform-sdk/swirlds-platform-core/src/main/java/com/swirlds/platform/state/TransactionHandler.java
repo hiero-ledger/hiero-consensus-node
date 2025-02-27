@@ -1,29 +1,18 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.metrics.SwirldStateMetrics;
+import com.swirlds.platform.metrics.StateMetrics;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -35,28 +24,33 @@ public class TransactionHandler {
     /** The id of this node. */
     private final NodeId selfId;
 
-    /** Stats relevant to SwirldState operations. */
-    private final SwirldStateMetrics stats;
+    /** Stats relevant to the state operations. */
+    private final StateMetrics stats;
 
-    public TransactionHandler(final NodeId selfId, final SwirldStateMetrics stats) {
+    public TransactionHandler(final NodeId selfId, final StateMetrics stats) {
         this.selfId = selfId;
         this.stats = stats;
     }
 
     /**
-     * Applies a consensus round to SwirldState, handles any exceptions gracefully, and updates relevant statistics.
+     * Applies a consensus round to the state, handles any exceptions gracefully, and updates relevant statistics.
      *
      * @param round
      * 		the round to apply
-     * @param state
-     * 		the state to apply {@code round} to
+     * @param stateLifecycles
+     * 		the stateLifecycles to apply {@code round} to
+     * @param stateRoot the state root to apply {@code round} to
      */
-    public void handleRound(final ConsensusRound round, final MerkleRoot state) {
+    public <T extends MerkleNodeState> Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleRound(
+            final ConsensusRound round, final StateLifecycles<MerkleNodeState> stateLifecycles, final T stateRoot) {
+        final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
+                new ConcurrentLinkedQueue<>();
+
         try {
             final Instant timeOfHandle = Instant.now();
             final long startTime = System.nanoTime();
 
-            state.getSwirldState().handleConsensusRound(round, state.getPlatformState());
+            stateLifecycles.onHandleConsensusRound(round, stateRoot, scopedSystemTransactions::add);
 
             final double secondsElapsed = (System.nanoTime() - startTime) * NANOSECONDS_TO_SECONDS;
 
@@ -72,10 +66,11 @@ public class TransactionHandler {
         } catch (final Throwable t) {
             logger.error(
                     EXCEPTION.getMarker(),
-                    "error invoking SwirldState.handleConsensusRound() [ nodeId = {} ] with round {}",
+                    "error invoking StateLifecycles.onHandleConsensusRound() [ nodeId = {} ] with round {}",
                     selfId,
                     round.getRoundNum(),
                     t);
         }
+        return scopedSystemTransactions;
     }
 }

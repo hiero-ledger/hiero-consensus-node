@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
-import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.LEGACY_ETHEREUM;
+import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.SECP256K1_EC_COMPRESSED;
-import static com.hedera.node.app.service.evm.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1.CONTEXT;
 import static org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1.secp256k1_ecdsa_recover;
 import static org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact;
@@ -37,18 +21,17 @@ import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 public record EthTxSigs(byte[] publicKey, byte[] address) {
 
     public static EthTxSigs extractSignatures(EthTxData ethTx) {
-        byte[] message = calculateSignableMessage(ethTx);
-        var pubKey = extractSig(ethTx.recId(), ethTx.r(), ethTx.s(), message);
-        byte[] address = recoverAddressFromPubKey(pubKey);
-        byte[] compressedKey = recoverCompressedPubKey(pubKey);
-
+        final var message = calculateSignableMessage(ethTx);
+        final var pubKey = extractSig(ethTx.recId(), ethTx.r(), ethTx.s(), message);
+        final var address = recoverAddressFromPubKey(pubKey);
+        final var compressedKey = recoverCompressedPubKey(pubKey);
         return new EthTxSigs(compressedKey, address);
     }
 
     public static byte[] calculateSignableMessage(EthTxData ethTx) {
         return switch (ethTx.type()) {
             case LEGACY_ETHEREUM -> (ethTx.chainId() != null && ethTx.chainId().length > 0)
-                    ? RLPEncoder.encodeAsList(
+                    ? RLPEncoder.list(
                             Integers.toBytes(ethTx.nonce()),
                             ethTx.gasPrice(),
                             Integers.toBytes(ethTx.gasLimit()),
@@ -58,14 +41,14 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
                             ethTx.chainId(),
                             Integers.toBytes(0),
                             Integers.toBytes(0))
-                    : RLPEncoder.encodeAsList(
+                    : RLPEncoder.list(
                             Integers.toBytes(ethTx.nonce()),
                             ethTx.gasPrice(),
                             Integers.toBytes(ethTx.gasLimit()),
                             ethTx.to(),
                             Integers.toBytesUnsigned(ethTx.value()),
                             ethTx.callData());
-            case EIP1559 -> RLPEncoder.encodeSequentially(Integers.toBytes(2), new Object[] {
+            case EIP1559 -> RLPEncoder.sequence(Integers.toBytes(2), new Object[] {
                 ethTx.chainId(),
                 Integers.toBytes(ethTx.nonce()),
                 ethTx.maxPriorityGas(),
@@ -76,7 +59,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
                 ethTx.callData(),
                 new Object[0]
             });
-            case EIP2930 -> RLPEncoder.encodeSequentially(Integers.toBytes(1), new Object[] {
+            case EIP2930 -> RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
                 ethTx.chainId(),
                 Integers.toBytes(ethTx.nonce()),
                 ethTx.gasPrice(),

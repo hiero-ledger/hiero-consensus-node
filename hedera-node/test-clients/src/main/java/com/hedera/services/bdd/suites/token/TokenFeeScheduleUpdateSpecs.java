@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
@@ -36,12 +21,10 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fractionalFeeInSchedule;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_MUST_BE_POSITIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_NOT_FULLY_SPECIFIED;
@@ -54,9 +37,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_F
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode;
 import com.hederahashgraph.api.proto.java.TokenType;
-import java.time.Instant;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
@@ -65,32 +46,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
 public class TokenFeeScheduleUpdateSpecs {
-    @HapiTest
-    final Stream<DynamicTest> baseOperationIsChargedExpectedFee() {
-        final var htsAmount = 2_345L;
-        final var targetToken = "immutableToken";
-        final var feeDenom = "denom";
-        final var htsCollector = "denomFee";
-        final var feeScheduleKey = "feeSchedule";
-        final var expectedBasePriceUsd = 0.001;
-
-        return defaultHapiSpec("BaseOperationIsChargedExpectedFee", SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(feeScheduleKey),
-                        cryptoCreate("civilian").key(feeScheduleKey),
-                        cryptoCreate(htsCollector),
-                        tokenCreate(feeDenom).treasury(htsCollector),
-                        tokenCreate(targetToken)
-                                .expiry(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS)
-                                .feeScheduleKey(feeScheduleKey))
-                .when(tokenFeeScheduleUpdate(targetToken)
-                        .signedBy(feeScheduleKey)
-                        .payingWith("civilian")
-                        .blankMemo()
-                        .withCustom(fixedHtsFee(htsAmount, feeDenom, htsCollector))
-                        .via("baseFeeSchUpd"))
-                .then(validateChargedUsdWithin("baseFeeSchUpd", expectedBasePriceUsd, 1.0));
-    }
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {

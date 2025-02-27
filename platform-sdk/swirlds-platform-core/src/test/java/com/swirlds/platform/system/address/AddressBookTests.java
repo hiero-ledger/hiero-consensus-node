@@ -1,27 +1,12 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -34,10 +19,12 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBuilder;
+import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.cert.X509Certificate;
 import java.text.ParseException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -95,7 +82,9 @@ class AddressBookTests {
 
         if (!addressBook.isEmpty()) {
             final Address lastAddress = addressBook.getAddress(addressBook.getNodeId(addressBook.getSize() - 1));
-            assertTrue(lastAddress.getNodeId().compareTo(addressBook.getNextNodeId()) < 0, "incorrect next node ID");
+            assertTrue(
+                    lastAddress.getNodeId().compareTo(addressBook.getNextAvailableNodeId()) < 0,
+                    "incorrect next node ID");
         } else {
             assertEquals(0, size, "address book expected to be empty");
         }
@@ -146,7 +135,7 @@ class AddressBookTests {
                 "should not be able to set negative weight");
         assertThrows(
                 NoSuchElementException.class,
-                () -> addressBook.updateWeight(addressBook.getNextNodeId(), 1),
+                () -> addressBook.updateWeight(addressBook.getNextAvailableNodeId(), 1),
                 "should not be able to set weight for non-existent node");
     }
 
@@ -160,7 +149,7 @@ class AddressBookTests {
     @NonNull
     private static Address buildNextAddress(@NonNull final Random random, @NonNull final AddressBook addressBook) {
         return RandomAddressBuilder.create(random)
-                .withNodeId(new NodeId(addressBook.getNextNodeId().id() + random.nextInt(0, 3)))
+                .withNodeId(NodeId.of(addressBook.getNextAvailableNodeId().id() + random.nextInt(0, 3)))
                 .build();
     }
 
@@ -281,8 +270,8 @@ class AddressBookTests {
                         "this.is.a.really.long.host.name.that.should.be.able.to.fit.in.the.address.book"));
 
         // make sure that certs are part of the round trip test.
-        assertNotNull(original.getAddress(new NodeId(0)).getSigCert());
-        assertNotNull(original.getAddress(new NodeId(0)).getAgreeCert());
+        assertNotNull(original.getAddress(NodeId.of(0)).getSigCert());
+        assertNotNull(original.getAddress(NodeId.of(0)).getAgreeCert());
 
         validateAddressBookConsistency(original);
 
@@ -352,11 +341,11 @@ class AddressBookTests {
         final AddressBook addressBook = generator.build();
 
         // The address book has gaps. Make sure we can't insert anything into those gaps.
-        for (int i = 0; i < addressBook.getNextNodeId().id(); i++) {
+        for (int i = 0; i < addressBook.getNextAvailableNodeId().id(); i++) {
 
-            final Address address = buildNextAddress(randotron, addressBook).copySetNodeId(new NodeId(i));
+            final Address address = buildNextAddress(randotron, addressBook).copySetNodeId(NodeId.of(i));
 
-            if (addressBook.contains(new NodeId(i))) {
+            if (addressBook.contains(NodeId.of(i))) {
                 // It's ok to update an existing address
                 addressBook.add(address);
             } else {
@@ -388,24 +377,6 @@ class AddressBookTests {
                 IllegalStateException.class,
                 () -> addressBook.add(buildNextAddress(randotron, addressBook)),
                 "shouldn't be able to exceed max address book size");
-    }
-
-    @Test
-    @DisplayName("setNextNodeId() Test")
-    void setNextNodeIdTest() {
-        final RandomAddressBookBuilder generator = RandomAddressBookBuilder.create(getRandomPrintSeed());
-        final AddressBook addressBook = generator.build();
-
-        final NodeId nextId = addressBook.getNextNodeId();
-        addressBook.setNextNodeId(nextId.getOffset(10));
-
-        assertEquals(nextId.getOffset(10), addressBook.getNextNodeId(), "node ID should have been updated");
-
-        final NodeId lastNodeId = addressBook.getNodeId(addressBook.getSize() - 1);
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> addressBook.setNextNodeId(lastNodeId.getOffset(-1)),
-                "the next node ID should not be able to be set to a value less than or equal to the last node id in the address book");
     }
 
     @Test
@@ -483,42 +454,20 @@ class AddressBookTests {
     }
 
     @Test
-    @DisplayName("Reconnect Address Book Comparison Test")
-    public void reconnectAddressBookComparisonTest() {
-        final Randotron randotron = Randotron.create();
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(10).build();
+    void testMalformedAndMissingCertificate() {
+        final Address base = new Address();
+        // establish baseline behavior.
+        final X509Certificate goodCert = PreGeneratedX509Certs.getSigCert(0).getCertificate();
+        final Address withCert = base.copySetSigCert(goodCert);
+        assertEquals(goodCert, withCert.getSigCert());
+        assertEquals(goodCert.getPublicKey(), withCert.getSigCert().getPublicKey());
 
-        assertDoesNotThrow(() -> AddressBookUtils.verifyReconnectAddressBooks(addressBook, addressBook.copy()));
-        // test exception on size mismatch
-        assertThrows(
-                IllegalStateException.class,
-                () -> AddressBookUtils.verifyReconnectAddressBooks(
-                        addressBook, addressBook.copy().remove(addressBook.getNodeId(0))));
-        // test exception on nextNodeId mismatch
-        assertThrows(
-                IllegalStateException.class,
-                () -> AddressBookUtils.verifyReconnectAddressBooks(
-                        addressBook,
-                        addressBook
-                                .copy()
-                                .setNextNodeId(addressBook.getNextNodeId().getOffset(5))));
+        // test null certificate
+        final Address nullCert = base.copySetSigCert(null);
+        assertNull(nullCert.getSigCert());
 
-        // test exception on node id mismatch
-        final AddressBook addressBook2 = addressBook.copy();
-        final Address address = addressBook2.getAddress(addressBook2.getNodeId(0));
-        addressBook2.remove(address.getNodeId());
-        addressBook2.add(address.copySetNodeId(addressBook.getNextNodeId()));
-        addressBook.setNextNodeId(addressBook2.getNextNodeId());
-        assertThrows(
-                IllegalStateException.class,
-                () -> AddressBookUtils.verifyReconnectAddressBooks(addressBook, addressBook2));
-
-        // test exception on address mismatch
-        final AddressBook addressBook3 = addressBook.copy();
-        addressBook3.updateWeight(addressBook3.getNodeId(0), 100);
-        assertThrows(
-                IllegalStateException.class,
-                () -> AddressBookUtils.verifyReconnectAddressBooks(addressBook, addressBook3));
+        // test malformed certificate
+        final Address badCert = base.copySetSigCert(PreGeneratedX509Certs.createBadCertificate());
+        assertNull(badCert.getSigCert());
     }
 }

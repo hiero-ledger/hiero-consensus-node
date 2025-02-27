@@ -1,31 +1,16 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import com.swirlds.platform.state.MerkleStateRoot;
-import com.swirlds.state.spi.Schema;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.lifecycle.Schema;
 
 /**
  * Enumerates the ways the {@link MerkleSchemaRegistry} may apply a {@link Schema}
- * to the {@link MerkleStateRoot}.
+ * to the {@link MerkleNodeState}.
  */
 public enum SchemaApplicationType {
     /**
-     * A schema may contribute state definitions to the {@link MerkleStateRoot}
+     * A schema may contribute state definitions to the {@link MerkleNodeState}
      * no matter if it was first registered before or after the version of the
      * deserialized state. The only two conditions under which a schema {@code X}
      * need not be used for state definitions are:

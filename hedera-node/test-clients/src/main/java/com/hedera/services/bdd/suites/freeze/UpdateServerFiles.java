@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.freeze;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.suites.utils.ZipUtil.createZip;
@@ -75,13 +60,12 @@ public class UpdateServerFiles extends HapiSuite {
     }
 
     private List<Stream<DynamicTest>> postiveTests() {
-        return Arrays.asList(uploadGivenDirectory());
+        return Arrays.asList(performsFreezeUpgrade());
     }
 
     // Zip all files under target directory and add an unzip and launch script to it
     // then send to server to update server
-    final Stream<DynamicTest> uploadGivenDirectory() {
-
+    final Stream<DynamicTest> performsFreezeUpgrade() {
         log.info("Creating zip file from {}", uploadPath);
         // create directory if uploadPath doesn't exist
         if (!new File(uploadPath).exists()) {
@@ -95,9 +79,7 @@ public class UpdateServerFiles extends HapiSuite {
             final File directory = new File(temp_dir);
             if (directory.exists()) {
                 // delete everything in it recursively
-
                 FileUtils.cleanDirectory(directory);
-
             } else {
                 directory.mkdir();
             }
@@ -115,18 +97,16 @@ public class UpdateServerFiles extends HapiSuite {
             Assertions.fail("Directory creation failed");
         }
         final byte[] hash = CommonUtils.noThrowSha384HashOf(data);
-        return defaultHapiSpec("uploadFileAndUpdate")
-                .given(
-                        fileUpdate(APP_PROPERTIES)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of("maxFileSize", "2048000")),
-                        UtilVerbs.updateLargeFile(GENESIS, fileIDString, ByteString.copyFrom(data)))
-                .when(freezeUpgrade()
+        return hapiTest(
+                fileUpdate(APP_PROPERTIES)
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .overridingProps(Map.of("maxFileSize", "2048000")),
+                UtilVerbs.updateLargeFile(GENESIS, fileIDString, ByteString.copyFrom(data)),
+                freezeUpgrade()
                         .withUpdateFile(fileIDString)
                         .havingHash(hash)
                         .payingWith(GENESIS)
                         .startingIn(60)
-                        .seconds())
-                .then();
+                        .seconds());
     }
 }

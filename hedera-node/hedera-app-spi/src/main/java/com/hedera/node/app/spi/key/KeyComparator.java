@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.key;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -30,10 +15,10 @@ import java.util.List;
  * <br>These include maps, sets, lists, arrays, etc...
  * <br>The methods in this class are used in hot spot code, so allocation must be kept to a bare
  * minimum, and anything likely to have performance questions should be avoided.
- * <br>Note that comparing keys is unavoidably costly.  We try to exit as early as possible throughout
- * this class, but worst case we're comparing every simple key byte-by-byte for the entire tree, which
- * may be up to 15 levels deep with any number of keys per level.  We haven't seen a key with
- * several million "simple" keys included, but that does not mean nobody will create one.
+ * <br>Note that comparing keys can be fairly costly, as in principle a key structure can have a
+ * serialized size up to about {@code TransactionConfig#transactionMaxBytes()}. We try to exit as
+ * early as possible throughout this class, but worst case we're comparing every simple key
+ * byte-by-byte for the entire tree.
  */
 public class KeyComparator implements Comparator<Key> {
     @Override

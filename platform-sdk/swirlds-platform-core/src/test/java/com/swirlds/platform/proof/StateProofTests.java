@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -378,7 +363,7 @@ class StateProofTests {
         final List<MerkleLeaf> payloads = leafNodes.subList(0, payloadCount);
         final Map<NodeId, Signature> signatures = new HashMap<>();
         for (int i = 0; i < signatureCount; i++) {
-            final NodeId nodeId = new NodeId(random.nextLong(1, 1000));
+            final NodeId nodeId = NodeId.of(random.nextLong(1, 1000));
             final Signature signature = randomSignature(random);
             signatures.put(nodeId, signature);
         }
@@ -426,7 +411,7 @@ class StateProofTests {
         final List<MerkleLeaf> payloads = leafNodes.subList(0, payloadCount);
         final Map<NodeId, Signature> signatures = new HashMap<>();
         for (int i = 0; i < signatureCount; i++) {
-            final NodeId nodeId = new NodeId(random.nextLong(1, 1000));
+            final NodeId nodeId = NodeId.of(random.nextLong(1, 1000));
             final Signature signature = randomSignature(random);
             signatures.put(nodeId, signature);
         }
@@ -549,7 +534,7 @@ class StateProofTests {
         assertFalse(stateProofA.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding a signature for a node not in the address book should not change the result.
-        final NodeId nodeId = new NodeId(10000000);
+        final NodeId nodeId = NodeId.of(10000000);
         assertFalse(addressBook.contains(nodeId));
         final Signature signature = randomSignature(random);
         signatures.put(nodeId, signature);

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
@@ -44,10 +29,12 @@ import com.hedera.hapi.node.base.Fraction;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
@@ -77,6 +64,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerifi
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.TokenKeyType;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
@@ -88,6 +76,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.key.KeyUtils;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -129,6 +118,9 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContrac
 
 public class TestHelpers {
     public static final String LEDGER_ID = "01";
+    public static final long shard = 0;
+    public static final long realm = 0;
+    public static final FakeEntityIdFactoryImpl entityIdFactory = new FakeEntityIdFactoryImpl(shard, realm);
     public static final Bytes ETH_WITH_CALL_DATA = Bytes.fromHex(
             "f864012f83018000947e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc18180827653820277a0f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2fa00c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
     public static final Bytes ETH_WITH_TO_ADDRESS = Bytes.fromHex(
@@ -205,6 +197,8 @@ public class TestHelpers {
             ContractID.newBuilder().contractNum(777).build();
     public static final AccountID CALLED_EOA_ID =
             AccountID.newBuilder().accountNum(666).build();
+    public static final ScheduleID CALLED_SCHEDULE_ID =
+            ScheduleID.newBuilder().scheduleNum(666).build();
     public static final ContractID INVALID_CONTRACT_ADDRESS =
             ContractID.newBuilder().evmAddress(Bytes.wrap("abcdefg")).build();
     public static final ContractID VALID_CONTRACT_ADDRESS = ContractID.newBuilder()
@@ -223,12 +217,12 @@ public class TestHelpers {
     public static final TokenID FUNGIBLE_TOKEN_ID =
             TokenID.newBuilder().tokenNum(9876L).build();
     public static final com.esaulpaugh.headlong.abi.Address FUNGIBLE_TOKEN_HEADLONG_ADDRESS =
-            asHeadlongAddress(asEvmAddress(FUNGIBLE_TOKEN_ID.tokenNum()));
+            asHeadlongAddress(asEvmAddress(shard, realm, FUNGIBLE_TOKEN_ID.tokenNum()));
     public static final TokenID NON_FUNGIBLE_TOKEN_ID =
             TokenID.newBuilder().tokenNum(9898L).build();
 
     public static final com.esaulpaugh.headlong.abi.Address NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS =
-            asHeadlongAddress(asEvmAddress(NON_FUNGIBLE_TOKEN_ID.tokenNum()));
+            asHeadlongAddress(asEvmAddress(shard, realm, NON_FUNGIBLE_TOKEN_ID.tokenNum()));
 
     public static final Account A_DELETED_CONTRACT = Account.newBuilder()
             .deleted(true)
@@ -236,6 +230,18 @@ public class TestHelpers {
             .accountId(AccountID.newBuilder()
                     .accountNum(CALLED_CONTRACT_ID.contractNumOrThrow())
                     .build())
+            .build();
+
+    public static final Account CONTRACT_ACCOUNT = Account.newBuilder()
+            .smartContract(true)
+            .accountId(AccountID.newBuilder()
+                    .accountNum(CALLED_CONTRACT_ID.contractNumOrThrow())
+                    .build())
+            .build();
+
+    public static final TransactionID TRANSACTION_ID = TransactionID.newBuilder()
+            .accountID(SENDER_ID)
+            .transactionValidStart(Timestamp.newBuilder().seconds(1_234_567L).build())
             .build();
 
     public static final Token FUNGIBLE_TOKEN = Token.newBuilder()
@@ -313,6 +319,9 @@ public class TestHelpers {
     public static final Key PAUSE_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("0505050505050505050505050505050505050505050505050505050505050505"))
             .build();
+    public static final Key METADATA_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("0606060606060606060606060606060606060606060606060606060606060606"))
+            .build();
     public static final Token FUNGIBLE_EVERYTHING_TOKEN = Token.newBuilder()
             .tokenId(FUNGIBLE_TOKEN_ID)
             .name("Fungible Everything Token")
@@ -339,6 +348,35 @@ public class TestHelpers {
             .feeScheduleKey(FEE_SCHEDULE_KEY)
             .pauseKey(PAUSE_KEY)
             .build();
+
+    public static final Token FUNGIBLE_EVERYTHING_TOKEN_V2 = Token.newBuilder()
+            .tokenId(FUNGIBLE_TOKEN_ID)
+            .name("Fungible Everything Token")
+            .symbol("FET")
+            .memo("The memo")
+            .treasuryAccountId(SENDER_ID)
+            .decimals(6)
+            .totalSupply(7777777L)
+            .maxSupply(88888888L)
+            .supplyType(TokenSupplyType.FINITE)
+            .tokenType(TokenType.FUNGIBLE_COMMON)
+            .accountsFrozenByDefault(true)
+            .accountsKycGrantedByDefault(true)
+            .paused(true)
+            .expirationSecond(100)
+            .autoRenewAccountId(SENDER_ID)
+            .autoRenewSeconds(200)
+            .metadata(Bytes.wrap("SOLD"))
+            .customFees(CUSTOM_FEES)
+            .adminKey(ADMIN_KEY)
+            .kycKey(KYC_KEY)
+            .freezeKey(FREEZE_KEY)
+            .wipeKey(WIPE_KEY)
+            .supplyKey(SUPPLY_KEY)
+            .feeScheduleKey(FEE_SCHEDULE_KEY)
+            .pauseKey(PAUSE_KEY)
+            .metadataKey(METADATA_KEY)
+            .build();
     public static final List<Tuple> EXPECTED_FIXED_CUSTOM_FEES = List.of(
             Tuple.of(2L, headlongAddressOf(ZERO_TOKEN_ID), true, false, headlongAddressOf(SENDER_ID)),
             Tuple.of(3L, headlongAddressOf(FUNGIBLE_TOKEN_ID), false, false, headlongAddressOf(SENDER_ID)));
@@ -356,6 +394,16 @@ public class TestHelpers {
             typedKeyTupleFor(TokenKeyType.SUPPLY_KEY.bigIntegerValue(), SUPPLY_KEY),
             typedKeyTupleFor(TokenKeyType.FEE_SCHEDULE_KEY.bigIntegerValue(), FEE_SCHEDULE_KEY),
             typedKeyTupleFor(TokenKeyType.PAUSE_KEY.bigIntegerValue(), PAUSE_KEY));
+
+    public static final List<Tuple> EXPECTED_KEYLIST_V2 = List.of(
+            typedKeyTupleFor(TokenKeyType.ADMIN_KEY.bigIntegerValue(), ADMIN_KEY),
+            typedKeyTupleFor(TokenKeyType.KYC_KEY.bigIntegerValue(), KYC_KEY),
+            typedKeyTupleFor(TokenKeyType.FREEZE_KEY.bigIntegerValue(), FREEZE_KEY),
+            typedKeyTupleFor(TokenKeyType.WIPE_KEY.bigIntegerValue(), WIPE_KEY),
+            typedKeyTupleFor(TokenKeyType.SUPPLY_KEY.bigIntegerValue(), SUPPLY_KEY),
+            typedKeyTupleFor(TokenKeyType.FEE_SCHEDULE_KEY.bigIntegerValue(), FEE_SCHEDULE_KEY),
+            typedKeyTupleFor(TokenKeyType.PAUSE_KEY.bigIntegerValue(), PAUSE_KEY),
+            typedKeyTupleFor(TokenKeyType.METADATA_KEY.bigIntegerValue(), METADATA_KEY));
 
     public static final List<Tuple> EXPECTE_DEFAULT_KEYLIST = List.of(
             typedKeyTupleFor(TokenKeyType.ADMIN_KEY.bigIntegerValue(), Key.DEFAULT),
@@ -421,7 +469,7 @@ public class TestHelpers {
             org.apache.tuweni.bytes.Bytes.wrap("I prefer not to".getBytes());
     public static final Address EIP_1014_ADDRESS = Address.fromHexString("0x89abcdef89abcdef89abcdef89abcdef89abcdef");
     public static final Address PERMITTED_ADDRESS_CALLER =
-            Address.wrap((org.apache.tuweni.bytes.Bytes.wrap(asEvmAddress(1062787L))));
+            Address.wrap((org.apache.tuweni.bytes.Bytes.wrap(asEvmAddress(shard, realm, 1062787L))));
     public static final Account OPERATOR =
             Account.newBuilder().accountId(B_NEW_ACCOUNT_ID).build();
 
@@ -453,6 +501,8 @@ public class TestHelpers {
             .key(AN_ED25519_KEY)
             .alias(tuweniToPbjBytes(EIP_1014_ADDRESS))
             .build();
+    public static final Account B_CONTRACT =
+            Account.newBuilder().accountId(B_NEW_ACCOUNT_ID).smartContract(true).build();
     public static final TokenRelation A_FUNGIBLE_RELATION = TokenRelation.newBuilder()
             .tokenId(FUNGIBLE_TOKEN_ID)
             .accountId(A_NEW_ACCOUNT_ID)
@@ -628,6 +678,8 @@ public class TestHelpers {
             AccountID.newBuilder().accountNum(OWNER_ACCOUNT_NUM).build();
     public static final Account OWNER_ACCOUNT =
             Account.newBuilder().accountId(OWNER_ID).build();
+    public static final com.esaulpaugh.headlong.abi.Address OWNER_ACCOUNT_AS_ADDRESS = asHeadlongAddress(
+            asEvmAddress(shard, realm, OWNER_ACCOUNT.accountIdOrThrow().accountNumOrThrow()));
     public static final Bytes OWNER_ADDRESS = Bytes.fromHex("a213624b8b83a724438159ba7c0d333a2b6b3990");
     public static final com.esaulpaugh.headlong.abi.Address OWNER_HEADLONG_ADDRESS =
             asHeadlongAddress(OWNER_ADDRESS.toByteArray());
@@ -648,11 +700,13 @@ public class TestHelpers {
             asHeadlongAddress(APPROVED_ADDRESS.toByteArray());
 
     public static final AccountID RECEIVER_ID =
-            AccountID.newBuilder().accountNum(7773777L).build();
+            AccountID.newBuilder().accountNum(7773777L).build(); // 7773777L == 0x769e51
     public static final Bytes RECEIVER_ADDRESS = Bytes.fromHex("3b1ef340808e37344e8150037c0deee33060e123");
     public static final AccountID ALIASED_RECEIVER_ID =
             AccountID.newBuilder().alias(RECEIVER_ADDRESS).build();
 
+    public static final Account UNALIASED_RECEIVER =
+            Account.newBuilder().accountId(RECEIVER_ID).build();
     public static final Account ALIASED_RECEIVER =
             Account.newBuilder().accountId(RECEIVER_ID).alias(RECEIVER_ADDRESS).build();
 
@@ -661,6 +715,7 @@ public class TestHelpers {
             "6080604052348015600f57600080fd5b50600061016a905077e4cbd3a7fefefefefefefefefefefefefefefefefefefefe600052366000602037600080366018016008845af43d806000803e8160008114605857816000f35b816000fdfea2646970667358221220d8378feed472ba49a0005514ef7087017f707b45fb9bf56bb81bb93ff19a238b64736f6c634300080b0033";
 
     public static byte[] messageHash = unhex("47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad");
+    public static byte[] message = "This is a message".getBytes();
 
     public static byte[] signature = unhex(
             "aca7da997ad177f040240cdccf6905b71ab16b74434388c3a72f34fd25d6439346b2bac274ff29b48b3ea6e2d04c1336eaceafda3c53ab483fc3ff12fac3ebf200");
@@ -815,7 +870,7 @@ public class TestHelpers {
     }
 
     public static com.esaulpaugh.headlong.abi.Address asHeadlongAddress(final long entityNum) {
-        final var addressBytes = org.apache.tuweni.bytes.Bytes.wrap(asLongZeroAddress(entityNum));
+        final var addressBytes = org.apache.tuweni.bytes.Bytes.wrap(asLongZeroAddress(entityIdFactory, entityNum));
         final var addressAsInteger = addressBytes.toUnsignedBigInteger();
         return com.esaulpaugh.headlong.abi.Address.wrap(
                 com.esaulpaugh.headlong.abi.Address.toChecksumAddress(addressAsInteger));
@@ -838,7 +893,7 @@ public class TestHelpers {
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirect(
             final ByteBuffer encodedErcCall, final TokenID tokenId) {
-        return bytesForRedirect(encodedErcCall.array(), asLongZeroAddress(tokenId.tokenNum()));
+        return bytesForRedirect(encodedErcCall.array(), asLongZeroAddress(entityIdFactory, tokenId.tokenNum()));
     }
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirect(final byte[] subSelector, final Address tokenAddress) {
@@ -852,7 +907,7 @@ public class TestHelpers {
     // Largely, this is used to encode the call to redirectToAccount() proxy contract for testing purposes.
     public static org.apache.tuweni.bytes.Bytes bytesForRedirectAccount(
             final ByteBuffer encodedCall, final AccountID accountID) {
-        return bytesForRedirectAccount(encodedCall.array(), asLongZeroAddress(accountID.accountNum()));
+        return bytesForRedirectAccount(encodedCall.array(), asLongZeroAddress(entityIdFactory, accountID.accountNum()));
     }
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirectAccount(
@@ -860,6 +915,14 @@ public class TestHelpers {
         return org.apache.tuweni.bytes.Bytes.concatenate(
                 org.apache.tuweni.bytes.Bytes.wrap(HasCallAttempt.REDIRECT_FOR_ACCOUNT.selector()),
                 accountAddress,
+                org.apache.tuweni.bytes.Bytes.of(subSelector));
+    }
+
+    public static org.apache.tuweni.bytes.Bytes bytesForRedirectScheduleTxn(
+            final byte[] subSelector, final Address scheduleAddress) {
+        return org.apache.tuweni.bytes.Bytes.concatenate(
+                org.apache.tuweni.bytes.Bytes.wrap(HssCallAttempt.REDIRECT_FOR_SCHEDULE_TXN.selector()),
+                scheduleAddress,
                 org.apache.tuweni.bytes.Bytes.of(subSelector));
     }
 
@@ -884,12 +947,84 @@ public class TestHelpers {
         given(frame.getMessageFrameStack()).willReturn(stack);
     }
 
-    /** Returns the test (mock) processor for all current EVM modules.
-     *
+    /**
+     * Returns the test (mock) processor for all current EVM modules.
+     * <p>
      * Needs to be updated when a new EVM module is created.
      */
     public static Map<HederaEvmVersion, TransactionProcessor> processorsForAllCurrentEvmVersions(
             @NonNull final TransactionProcessor processor) {
-        return Map.of(HederaEvmVersion.VERSION_046, processor, HederaEvmVersion.VERSION_050, processor);
+        return Map.of(
+                HederaEvmVersion.VERSION_046,
+                processor,
+                HederaEvmVersion.VERSION_050,
+                processor,
+                HederaEvmVersion.VERSION_051,
+                processor);
+    }
+
+    /**
+     * Helpful builder for creating a hbar transfer list
+     */
+    public static class TransferListBuilder {
+        private Tuple transferList;
+
+        public TransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
+            this.transferList = Tuple.singleton(accountAmounts);
+            return this;
+        }
+
+        public Tuple build() {
+            return transferList;
+        }
+    }
+
+    public static TransferListBuilder transferList() {
+        return new TransferListBuilder();
+    }
+
+    public static class TokenTransferListsBuilder {
+        private Tuple[] tokenTransferLists;
+
+        public TokenTransferListsBuilder withTokenTransferList(final Tuple... tokenTransferLists) {
+            this.tokenTransferLists = tokenTransferLists;
+            return this;
+        }
+
+        public Object build() {
+            return tokenTransferLists;
+        }
+    }
+
+    public static TokenTransferListsBuilder tokenTransferLists() {
+        return new TokenTransferListsBuilder();
+    }
+
+    public static class TokenTransferListBuilder {
+        private Tuple tokenTransferList;
+        private com.esaulpaugh.headlong.abi.Address token;
+
+        public TokenTransferListBuilder forToken(final com.esaulpaugh.headlong.abi.Address token) {
+            this.token = token;
+            return this;
+        }
+
+        public TokenTransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
+            this.tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
+            return this;
+        }
+
+        public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
+            this.tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
+            return this;
+        }
+
+        public Tuple build() {
+            return tokenTransferList;
+        }
+    }
+
+    public static TokenTransferListBuilder tokenTransferList() {
+        return new TokenTransferListBuilder();
     }
 }

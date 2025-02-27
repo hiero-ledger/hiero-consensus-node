@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEE_MUST_BE_POSITIVE;
@@ -44,8 +29,9 @@ import javax.inject.Singleton;
  * All fractional fees, that are not netOfTransfers will manipulate the given transaction body.
  * If netOfTransfers flag is set to false, the custom fee si reclaimed from the credits in
  * given transaction body.
- * If netOfTransfers flag is set to true the sender will pay the custom fees.Else the receivers will pay custom fees This means that the fee will be charged from the sender account. This is done to avoid
- * manipulate the given transaction
+ * If netOfTransfers flag is set to true the sender will pay the custom fees, else the receivers will pay custom fees.
+ * This means that the fee will be charged from the sender account. This is done to avoid
+ * manipulation of the given transaction.
  */
 @Singleton
 public class CustomFractionalFeeAssessor {
@@ -146,7 +132,7 @@ public class CustomFractionalFeeAssessor {
 
     /**
      * For a given input token transfers from transaction body, if the fractional fee has to be
-     * adjusted from credits, adjusts the given transaction body with the adjustments
+     * adjusted from credits, adjusts the given transaction body with the adjustments.
      *
      * @param mutableInputTokenAdjustments the input token adjustments from given transaction body
      * @param denom the token id
@@ -195,7 +181,7 @@ public class CustomFractionalFeeAssessor {
     }
 
     /**
-     * Calculates the amount owned to be paid as fractional custom fee
+     * Calculates the amount owned to be paid as fractional custom fee.
      * @param givenUnits  units transferred in the transaction
      * @param fractionalFee the fractional fee
      * @return the amount owned to be paid as fractional custom fee

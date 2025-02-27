@@ -1,24 +1,24 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
+import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.node.base.Fraction;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.hapi.node.transaction.NodeStake;
+import com.hedera.hapi.node.transaction.NodeStakeUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
+import com.hedera.node.config.data.StakingConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -34,7 +34,7 @@ public final class EndOfStakingPeriodUtils {
     }
 
     /**
-     * Creates a human-readable string summary of the given reward sums history, omitting any trailing zeros
+     * Creates a human-readable string summary of the given reward sums history, omitting any trailing zeros.
      *
      * @param rewardSumHistory the rewards sum history to summarize
      * @return the summary
@@ -47,7 +47,6 @@ public final class EndOfStakingPeriodUtils {
                 break;
             }
         }
-
         return (firstZero == -1)
                 ? rewardSumHistory.toString()
                 : IntStream.range(0, firstZero)
@@ -57,7 +56,126 @@ public final class EndOfStakingPeriodUtils {
     }
 
     /**
-     * Stores both the new reward sum history and the new per-hbar reward rate for a node
+     * Returns a {@link NodeStake} object from the given {@link StakingNodeInfo} object and latest reward rate
+     * pre-calculated for convenience.
+     * @param rewardRate the latest reward rate
+     * @param stakingNodeInfo the staking node info
+     * @return the {@link NodeStake} object
+     */
+    public static NodeStake fromStakingInfo(final long rewardRate, @NonNull final StakingNodeInfo stakingNodeInfo) {
+        requireNonNull(stakingNodeInfo);
+        return NodeStake.newBuilder()
+                .nodeId(stakingNodeInfo.nodeNumber())
+                .stake(stakingNodeInfo.stake())
+                .rewardRate(rewardRate)
+                .minStake(stakingNodeInfo.minStake())
+                .maxStake(stakingNodeInfo.maxStake())
+                .stakeRewarded(stakingNodeInfo.stakeToReward())
+                .stakeNotRewarded(stakingNodeInfo.stakeToNotReward())
+                .build();
+    }
+
+    /**
+     * Given a {@link ReadableNetworkStakingRewardsStore} instance, returns a new {@link NetworkStakingRewards.Builder}
+     * instance with the same values as the given store.
+     * @param networkRewardsStore the store to copy values from
+     * @return the new builder instance
+     */
+    public static NetworkStakingRewards.Builder asStakingRewardBuilder(
+            @NonNull final ReadableNetworkStakingRewardsStore networkRewardsStore) {
+        requireNonNull(networkRewardsStore);
+        return NetworkStakingRewards.newBuilder()
+                .pendingRewards(networkRewardsStore.pendingRewards())
+                .stakingRewardsActivated(networkRewardsStore.isStakingRewardsActivated())
+                .totalStakedRewardStart(networkRewardsStore.totalStakeRewardStart())
+                .totalStakedStart(networkRewardsStore.totalStakedStart());
+    }
+
+    /**
+     * Given information about node stakes and staking reward rates for an ending period, initializes a
+     * transaction builder with a {@link NodeStakeUpdateTransactionBody} that summarizes this information.
+     *
+     * @param stakingPeriodEnd the last nanosecond of the staking period being described
+     * @param nodeStakes the stakes of each node at the end of the just-ending period
+     * @param stakingConfig the staking configuration of the network at period end
+     * @param totalStakedRewardStart the total staked reward at the start of the period
+     * @param maxPerHbarRewardRate the maximum reward rate per hbar for the period (per HIP-782)
+     * @param reservedStakingRewards the total amount of staking rewards reserved in the 0.0.800 balance
+     * @param unreservedStakingRewardBalance the remaining "unreserved" part of the 0.0.800 balance
+     * @param rewardBalanceThreshold the 0.0.800 balance threshold at which the max reward rate is attainable
+     * @param maxStakeRewarded the maximum stake that can be rewarded at the max reward rate
+     * @param memo the memo to include in the transaction
+     * @return the transaction builder with the {@code NodeStakeUpdateTransactionBody} set
+     */
+    public static TransactionBody.Builder newNodeStakeUpdateBuilder(
+            @NonNull final Timestamp stakingPeriodEnd,
+            @NonNull final List<NodeStake> nodeStakes,
+            @NonNull final StakingConfig stakingConfig,
+            final long totalStakedRewardStart,
+            final long maxPerHbarRewardRate,
+            final long reservedStakingRewards,
+            final long unreservedStakingRewardBalance,
+            final long rewardBalanceThreshold,
+            final long maxStakeRewarded,
+            @NonNull final String memo) {
+        requireNonNull(stakingPeriodEnd);
+        requireNonNull(nodeStakes);
+        requireNonNull(stakingConfig);
+        requireNonNull(memo);
+        final var threshold = stakingConfig.startThreshold();
+        final var stakingPeriod = stakingConfig.periodMins();
+        final var stakingPeriodsStored = stakingConfig.rewardHistoryNumStoredPeriods();
+
+        final var nodeRewardFeeFraction = Fraction.newBuilder()
+                .numerator(stakingConfig.feesNodeRewardPercentage())
+                .denominator(100L)
+                .build();
+        final var stakingRewardFeeFraction = Fraction.newBuilder()
+                .numerator(stakingConfig.feesStakingRewardPercentage())
+                .denominator(100L)
+                .build();
+
+        final var hbarsStakedToReward = (totalStakedRewardStart / HBARS_TO_TINYBARS);
+        final var maxTotalReward = maxPerHbarRewardRate * hbarsStakedToReward;
+        final var txnBody = NodeStakeUpdateTransactionBody.newBuilder()
+                .endOfStakingPeriod(stakingPeriodEnd)
+                .nodeStake(nodeStakes)
+                .maxStakingRewardRatePerHbar(maxPerHbarRewardRate)
+                .nodeRewardFeeFraction(nodeRewardFeeFraction)
+                .stakingPeriodsStored(stakingPeriodsStored)
+                .stakingPeriod(stakingPeriod)
+                .stakingRewardFeeFraction(stakingRewardFeeFraction)
+                .stakingStartThreshold(threshold)
+                // Deprecated field but keep it for backward compatibility at the moment
+                .stakingRewardRate(maxTotalReward)
+                .maxTotalReward(maxTotalReward)
+                .reservedStakingRewards(reservedStakingRewards)
+                .unreservedStakingRewardBalance(unreservedStakingRewardBalance)
+                .rewardBalanceThreshold(rewardBalanceThreshold)
+                .maxStakeRewarded(maxStakeRewarded)
+                .build();
+
+        return TransactionBody.newBuilder().memo(memo).nodeStakeUpdate(txnBody);
+    }
+
+    /**
+     * Returns the timestamp that is just before midnight of the day of the given consensus time.
+     *
+     * @param consensusTime the consensus time
+     * @return the timestamp that is just before midnight of the day of the given consensus time
+     */
+    public static Timestamp lastInstantOfPreviousPeriodFor(@NonNull final Instant consensusTime) {
+        final var justBeforeMidNightTime = LocalDate.ofInstant(consensusTime, ZoneId.of("UTC"))
+                .atStartOfDay()
+                .minusNanos(1); // give out the timestamp that is just before midnight
+        return Timestamp.newBuilder()
+                .seconds(justBeforeMidNightTime.toEpochSecond(ZoneOffset.UTC))
+                .nanos(justBeforeMidNightTime.getNano())
+                .build();
+    }
+
+    /**
+     * Stores both the new reward sum history and the new per-hbar reward rate for a node.
      */
     public record RewardSumHistory(List<Long> rewardSumHistory, long pendingRewardRate) {}
 
@@ -69,21 +187,22 @@ public final class EndOfStakingPeriodUtils {
      * @param currentInfo the node's current staking info
      * @param perHbarRate the current per-hbar reward rate for this node
      * @param maxPerHbarRate the maximum per-hbar reward rate for this node
-     * @param requireMinStakeToReward if true, will require the node's stake to meet a certain threshold in order to receive rewards
+     * @param requireMinStakeToReward if true, will require the node's stake to meet a threshold
+     *                                in order to receive rewards
      * @return the calculated {@link RewardSumHistory}
      */
-    public static RewardSumHistory calculateRewardSumHistory(
+    public static RewardSumHistory computeExtendedRewardSumHistory(
             @NonNull final StakingNodeInfo currentInfo,
             final long perHbarRate,
             final long maxPerHbarRate,
             final boolean requireMinStakeToReward) {
         final var currRewardSumHistory = currentInfo.rewardSumHistory();
         final var newRewardSumHistory = new ArrayList<>(currRewardSumHistory);
-        final var droppedRewardSum = currRewardSumHistory.get(currRewardSumHistory.size() - 1);
+        final var droppedRewardSum = currRewardSumHistory.getLast();
         for (int i = currRewardSumHistory.size() - 1; i > 0; i--) {
             newRewardSumHistory.set(i, currRewardSumHistory.get(i - 1) - droppedRewardSum);
         }
-        newRewardSumHistory.set(0, currRewardSumHistory.get(0) - droppedRewardSum);
+        newRewardSumHistory.set(0, currRewardSumHistory.getFirst() - droppedRewardSum);
 
         long perHbarRateThisNode = 0;
         // If this node was "active"---i.e., node.numRoundsWithJudge / numRoundsInPeriod >= activeThreshold---and it had
@@ -107,13 +226,12 @@ public final class EndOfStakingPeriodUtils {
             }
         }
         perHbarRateThisNode = Math.min(perHbarRateThisNode, maxPerHbarRate);
-        newRewardSumHistory.set(0, newRewardSumHistory.get(0) + perHbarRateThisNode);
-
+        newRewardSumHistory.set(0, newRewardSumHistory.getFirst() + perHbarRateThisNode);
         return new RewardSumHistory(newRewardSumHistory, perHbarRateThisNode);
     }
 
     /**
-     * Stores both the new stake and the new stakeRewardStart for a node
+     * Stores both the new stake and the new stakeRewardStart for a node.
      */
     public record StakeResult(long stake, long stakeRewardStart) {}
 
@@ -122,15 +240,21 @@ public final class EndOfStakingPeriodUtils {
      * current staking info. The new {@code stakeRewardStart} value is also computed
      *
      * @param stakingInfo the node's current staking info
+     * @param stakingConfig the staking configuration of the network
      * @return the calculated {@link StakeResult}
      */
     @NonNull
-    public static StakeResult computeNextStake(@NonNull final StakingNodeInfo stakingInfo) {
+    public static StakeResult computeNewStakes(
+            @NonNull final StakingNodeInfo stakingInfo, @NonNull final StakingConfig stakingConfig) {
+        requireNonNull(stakingInfo);
+        requireNonNull(stakingConfig);
         final var totalStake = stakingInfo.stakeToReward() + stakingInfo.stakeToNotReward();
         final long newStake;
-        if (totalStake > stakingInfo.maxStake()) {
-            newStake = stakingInfo.maxStake();
-        } else if (totalStake < stakingInfo.minStake()) {
+        final long effectiveMax = Math.min(stakingInfo.maxStake(), stakingConfig.maxStake());
+        final long effectiveMin = Math.min(effectiveMax, Math.max(stakingInfo.minStake(), stakingConfig.minStake()));
+        if (totalStake > effectiveMax) {
+            newStake = effectiveMax;
+        } else if (totalStake < effectiveMin) {
             newStake = 0;
         } else {
             newStake = totalStake;

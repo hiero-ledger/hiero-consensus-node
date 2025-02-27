@@ -22,6 +22,9 @@ Implementation of the Platform and the
 
 ## Getting Started
 
+Refer to the [Hedera Architecture and Design](hedera-node/docs/design/design.md) for an architectural overview of the
+Hedera Services project.
+
 Refer to the [Quickstart Guide](docs/README.md) for how to work with this project.
 
 ## Solidity

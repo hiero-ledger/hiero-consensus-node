@@ -1,24 +1,12 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees;
+
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Fraction;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.token.TokenFeeScheduleUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
@@ -29,6 +17,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -93,6 +82,7 @@ public class UpdateTokenCustomFeesDecoder {
             throws IllegalArgumentException {
         final var call = UpdateTokenCustomFeesTranslator.UPDATE_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION.decodeCall(
                 attempt.inputBytes());
+        validateCustomFeesLength(attempt, call);
         return TransactionBody.newBuilder()
                 .tokenFeeScheduleUpdate(
                         updateTokenCustomFees(call, attempt.addressIdConverter(), this::customFungibleFees))
@@ -110,6 +100,7 @@ public class UpdateTokenCustomFeesDecoder {
             throws IllegalArgumentException {
         final var call = UpdateTokenCustomFeesTranslator.UPDATE_NON_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION.decodeCall(
                 attempt.inputBytes());
+        validateCustomFeesLength(attempt, call);
         return TransactionBody.newBuilder()
                 .tokenFeeScheduleUpdate(
                         updateTokenCustomFees(call, attempt.addressIdConverter(), this::customNonFungibleFees))
@@ -218,5 +209,17 @@ public class UpdateTokenCustomFeesDecoder {
                         .denominatingTokenId(getDenominationTokenIdOrNull(
                                 tokenAddress, fee.get(ROYALTY_FALLBACK_FEE_USE_HBARS_FOR_PAYMENT)))
                         .build();
+    }
+
+    private void validateCustomFeesLength(@NonNull final HtsCallAttempt attempt, @NonNull final Tuple call) {
+        final var maxAllowedCustomFees =
+                attempt.configuration().getConfigData(TokensConfig.class).maxCustomFeesAllowed();
+        final var fixedFee = (Tuple[]) call.get(FIXED_FEE);
+        final var fractionalOrRoyaltyFee = (Tuple[]) call.get(ROYALTY_FEE);
+        validateFalse(fixedFee.length > maxAllowedCustomFees, ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG);
+        validateFalse(fractionalOrRoyaltyFee.length > maxAllowedCustomFees, ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG);
+        validateFalse(
+                fixedFee.length + fractionalOrRoyaltyFee.length > maxAllowedCustomFees,
+                ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG);
     }
 }

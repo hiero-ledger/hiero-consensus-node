@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -26,6 +12,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
@@ -34,6 +21,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.swirlds.common.utility.CommonUtils;
 import java.lang.reflect.Field;
@@ -63,13 +51,19 @@ class ClassicTransfersTranslatorTest extends CallTestBase {
     @Mock
     private VerificationStrategy strategy;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
     private ClassicTransfersTranslator subject;
 
-    private List<CallTranslator> callTranslators;
+    private List<CallTranslator<HtsCallAttempt>> callTranslators;
 
     @BeforeEach
     void setUp() {
-        callTranslators = List.of(new ClassicTransfersTranslator(classicTransfersDecoder));
+        callTranslators = List.of(
+                new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics));
     }
 
     @Test
@@ -81,7 +75,8 @@ class ClassicTransfersTranslatorTest extends CallTestBase {
                         NON_SYSTEM_LONG_ZERO_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
 
-        subject = new ClassicTransfersTranslator(classicTransfersDecoder);
+        subject =
+                new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics);
         final var call = subject.callFrom(givenV2SubjectWithV2Enabled(ABI_ID_TRANSFER_TOKEN));
         Field senderIdField = ClassicTransfersCall.class.getDeclaredField("senderId");
         senderIdField.setAccessible(true);
@@ -97,7 +92,8 @@ class ClassicTransfersTranslatorTest extends CallTestBase {
                         NON_SYSTEM_LONG_ZERO_ADDRESS, true, nativeOperations))
                 .willReturn(strategy);
 
-        subject = new ClassicTransfersTranslator(classicTransfersDecoder);
+        subject =
+                new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics);
         final var call = subject.callFrom(givenV2SubjectWithV2Enabled(ABI_ID_CRYPTO_TRANSFER_V2));
         Field senderIdField = ClassicTransfersCall.class.getDeclaredField("senderId");
         senderIdField.setAccessible(true);
@@ -109,6 +105,7 @@ class ClassicTransfersTranslatorTest extends CallTestBase {
         final var input = Bytes.wrap(CommonUtils.unhex(functionSelector));
 
         return new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -119,6 +116,7 @@ class ClassicTransfersTranslatorTest extends CallTestBase {
                 verificationStrategies,
                 gasCalculator,
                 callTranslators,
+                systemContractMethodRegistry,
                 false);
     }
 }

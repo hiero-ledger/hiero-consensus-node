@@ -1,29 +1,14 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.verification.traceability;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
-import static com.hedera.services.bdd.junit.support.RecordStreamAccess.RECORD_STREAM_ACCESS;
+import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.triggerAndCloseAtLeastOneFileIfNotInterrupted;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.services.bdd.junit.support.RecordStreamAccess;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
+import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,7 +28,7 @@ import org.junit.jupiter.api.Assertions;
  * A class that simultaneously,
  * <ol>
  *     <li>Listens for the actual sidecars written at the given location via
- *     the {@link RecordStreamAccess#RECORD_STREAM_ACCESS} utility; and,</li>
+ *     the {@link StreamFileAccess#STREAM_FILE_ACCESS} utility; and,</li>
  *     <li>Registers expected sidecars.</li>
  * </ol>
  * When a client has registered all its expectations with a {@link SidecarWatcher}
@@ -71,7 +56,7 @@ public class SidecarWatcher {
     private record ConstructionDetails(String creatingThread, String stackTrace) {}
 
     public SidecarWatcher(@NonNull final Path path) {
-        this.unsubscribe = RECORD_STREAM_ACCESS.subscribe(guaranteedExtantDir(path), new StreamDataListener() {
+        this.unsubscribe = STREAM_FILE_ACCESS.subscribe(guaranteedExtantDir(path), new StreamDataListener() {
             @Override
             public void onNewSidecar(@NonNull final TransactionSidecarRecord sidecar) {
                 actualSidecars.add(sidecar);

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
 import static com.swirlds.common.utility.CommonUtils.hex;
@@ -48,17 +33,31 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
     }
 
     /**
-     * Same as {@link #Hash(byte[], DigestType)} but with an empty byte array.
+     * Same as {@link #Hash(Bytes, DigestType)} but with an empty byte array.
      */
     public Hash(@NonNull final DigestType digestType) {
-        this(new byte[digestType.digestLength()], digestType);
+        this(Bytes.wrap(new byte[digestType.digestLength()]), digestType);
     }
 
     /**
-     * Same as {@link #Hash(byte[], DigestType)} but with a digest type ({@link DigestType#SHA_384})
+     * Same as {@link #Hash(Bytes, DigestType)} but with a digest type ({@link DigestType#SHA_384}) and wrapping the byte array.
      */
     public Hash(@NonNull final byte[] value) {
+        this(Bytes.wrap(value), DigestType.SHA_384);
+    }
+
+    /**
+     * Same as {@link #Hash(Bytes, DigestType)} but with a digest type ({@link DigestType#SHA_384})
+     */
+    public Hash(@NonNull final Bytes value) {
         this(value, DigestType.SHA_384);
+    }
+
+    /**
+     * Same as {@link #Hash(Bytes, DigestType)} but with wrapping the byte array.
+     */
+    public Hash(@NonNull final byte[] value, @NonNull final DigestType digestType) {
+        this(Bytes.wrap(value), digestType);
     }
 
     /**
@@ -70,16 +69,16 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
      * @param digestType
      * 		the digest type
      */
-    public Hash(@NonNull final byte[] value, @NonNull final DigestType digestType) {
+    public Hash(@NonNull final Bytes value, @NonNull final DigestType digestType) {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(digestType, "digestType");
 
-        if (value.length != digestType.digestLength()) {
-            throw new IllegalArgumentException("value: " + value.length);
+        if ((int) value.length() != digestType.digestLength()) {
+            throw new IllegalArgumentException("value: " + value.length());
         }
 
         this.digestType = digestType;
-        this.bytes = Bytes.wrap(value);
+        this.bytes = value;
     }
 
     /**

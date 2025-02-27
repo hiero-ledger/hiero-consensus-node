@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -51,12 +36,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.HIGHLY_NON_DETERMINISTIC_FEES;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_CONTRACT_CALL_RESULTS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_NONCE;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -95,8 +74,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -105,7 +82,6 @@ public class ContractKeysHTSSuite {
 
     private static final long GAS_TO_OFFER = 1_500_000L;
 
-    private static final Logger log = LogManager.getLogger(ContractKeysHTSSuite.class);
     private static final String TOKEN_TREASURY = "treasury";
     private static final long TOTAL_SUPPLY = 1_000;
     private static final String NFT = "nft";
@@ -159,91 +135,79 @@ public class ContractKeysHTSSuite {
         final var delegateContractKeyShape = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var contractKeyShape = KeyShape.threshOf(1, SIMPLE, KeyShape.CONTRACT);
 
-        return defaultHapiSpec(
-                        "burnWithKeyAsPartOf1OfXThreshold",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN_USAGE)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(MULTI_KEY)
-                                .adminKey(MULTI_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(BURN_TOKEN),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                contractCreate(
-                                                BURN_TOKEN,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(TOKEN_USAGE))))
-                                        .via(CREATION_TX))))
-                .when(
-                        newKeyNamed(DELEGATE_KEY).shape(delegateContractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
-                        tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
-                        contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                                .via("burn with delegate contract key")
-                                .gas(GAS_TO_OFFER),
-                        childRecordsCheck(
-                                "burn with delegate contract key",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(49)))
-                                        .tokenTransfers(
-                                                changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))
-                                        .newTotalSupply(49)),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49))
-                .then(
-                        newKeyNamed(CONTRACT_KEY).shape(contractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
-                        tokenUpdate(TOKEN_USAGE).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
-                        contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                                .via(BURN_WITH_CONTRACT_KEY)
-                                .gas(GAS_TO_OFFER),
-                        childRecordsCheck(
-                                BURN_WITH_CONTRACT_KEY,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(48)))
-                                        .tokenTransfers(changingFungibleBalances()
-                                                .including(TOKEN_USAGE, TOKEN_TREASURY, -1))));
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN_USAGE)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                        BURN_TOKEN,
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
+                                .via(CREATION_TX))),
+                newKeyNamed(DELEGATE_KEY).shape(delegateContractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
+                tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
+                contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
+                        .via("burn with delegate contract key")
+                        .gas(GAS_TO_OFFER),
+                childRecordsCheck(
+                        "burn with delegate contract key",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(49)))
+                                .tokenTransfers(changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))
+                                .newTotalSupply(49)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49),
+                newKeyNamed(CONTRACT_KEY).shape(contractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
+                tokenUpdate(TOKEN_USAGE).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
+                contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
+                        .via(BURN_WITH_CONTRACT_KEY)
+                        .gas(GAS_TO_OFFER),
+                childRecordsCheck(
+                        BURN_WITH_CONTRACT_KEY,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(48)))
+                                .tokenTransfers(
+                                        changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))));
     }
 
     @HapiTest
     final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "delegateCallForBurnWithContractKey",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0L)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
-                        uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0L)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
+                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 OUTER_CONTRACT, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -258,42 +222,36 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                 .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_BURN)
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 2));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_BURN)
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 2));
     }
 
     @HapiTest
     final Stream<DynamicTest> delegateCallForMintWithContractKey() {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "delegateCallForMintWithContractKey",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(50L)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(50L)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 OUTER_CONTRACT, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -307,19 +265,18 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                 .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_MINT)
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                                        .withSerialNumbers()))),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 50));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_MINT)
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                                .withSerialNumbers()))),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 50));
     }
 
     @HapiTest
@@ -329,21 +286,16 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "StaticCallForDissociatePrecompileFails",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(outerContract, nestedContract),
-                        contractCreate(nestedContract))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(outerContract, nestedContract),
+                contractCreate(nestedContract),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                         contractCreate(
@@ -356,10 +308,9 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("staticDissociateCallTxn")
                                 .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        emptyChildRecordsCheck("staticDissociateCallTxn", CONTRACT_REVERT_EXECUTED),
-                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
+                                .gas(GAS_TO_OFFER))),
+                emptyChildRecordsCheck("staticDissociateCallTxn", CONTRACT_REVERT_EXECUTED),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
@@ -369,33 +320,28 @@ public class ContractKeysHTSSuite {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> receiverID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "staticCallForTransferWithContractKey",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
-                        uploadInitCode(outerContract, NESTED_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        contractCreate(NESTED_CONTRACT).refusingEthConversion(),
-                        tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        tokenAssociate(RECEIVER, VANILLA_TOKEN),
-                        cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
-                                .payingWith(GENESIS))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
+                uploadInitCode(outerContract, NESTED_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(NESTED_CONTRACT).refusingEthConversion(),
+                tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                tokenAssociate(RECEIVER, VANILLA_TOKEN),
+                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
+                        .payingWith(GENESIS),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                         outerContract,
@@ -417,8 +363,8 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("staticTransferCallWithContractKeyTxn")
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(emptyChildRecordsCheck("staticTransferCallWithContractKeyTxn", CONTRACT_REVERT_EXECUTED));
+                                .gas(GAS_TO_OFFER))),
+                emptyChildRecordsCheck("staticTransferCallWithContractKeyTxn", CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
@@ -426,26 +372,21 @@ public class ContractKeysHTSSuite {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "staticCallForBurnWithContractKey",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0L)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
-                        uploadInitCode(outerContract, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0L)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
+                uploadInitCode(outerContract, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -460,8 +401,8 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
+                                .gas(GAS_TO_OFFER))),
+                emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
@@ -469,24 +410,19 @@ public class ContractKeysHTSSuite {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "staticCallForMintWithContractKey",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(50L)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(outerContract, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(50L)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(outerContract, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -500,8 +436,8 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
+                                .gas(GAS_TO_OFFER))),
+                emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
@@ -511,33 +447,28 @@ public class ContractKeysHTSSuite {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> receiverID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "staticCallForTransferWithDelegateContractKey",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
-                        uploadInitCode(outerContract, NESTED_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        contractCreate(NESTED_CONTRACT).refusingEthConversion(),
-                        tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        tokenAssociate(RECEIVER, VANILLA_TOKEN),
-                        cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
-                                .payingWith(GENESIS))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
+                uploadInitCode(outerContract, NESTED_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(NESTED_CONTRACT).refusingEthConversion(),
+                tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                tokenAssociate(RECEIVER, VANILLA_TOKEN),
+                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
+                        .payingWith(GENESIS),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                         outerContract,
@@ -560,8 +491,8 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("staticTransferCallWithDelegateContractKeyTxn")
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(emptyChildRecordsCheck("staticTransferCallWithDelegateContractKeyTxn", CONTRACT_REVERT_EXECUTED));
+                                .gas(GAS_TO_OFFER))),
+                emptyChildRecordsCheck("staticTransferCallWithDelegateContractKeyTxn", CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
@@ -569,27 +500,21 @@ public class ContractKeysHTSSuite {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "staticCallForBurnWithDelegateContractKey",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0L)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
-                        uploadInitCode(outerContract, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0L)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
+                uploadInitCode(outerContract, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -605,9 +530,8 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(emptyChildRecordsCheck(
-                        STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
+                                .gas(GAS_TO_OFFER))),
+                emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
@@ -615,24 +539,19 @@ public class ContractKeysHTSSuite {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "staticCallForMintWithDelegateContractKey",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(50L)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(outerContract, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(50L)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(outerContract, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -647,9 +566,8 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(emptyChildRecordsCheck(
-                        STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
+                                .gas(GAS_TO_OFFER))),
+                emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
@@ -659,24 +577,19 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "StaticCallForAssociatePrecompileFails",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        cryptoCreate(ACCOUNT)
-                                .balance(ONE_MILLION_HBARS)
-                                .payingWith(GENESIS)
-                                .exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(outerContract, nestedContract),
-                        contractCreate(nestedContract))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT)
+                        .balance(ONE_MILLION_HBARS)
+                        .payingWith(GENESIS)
+                        .exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(outerContract, nestedContract),
+                contractCreate(nestedContract),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
@@ -688,10 +601,9 @@ public class ContractKeysHTSSuite {
                                 .payingWith(ACCOUNT)
                                 .via("staticAssociateCallTxn")
                                 .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        emptyChildRecordsCheck("staticAssociateCallTxn", CONTRACT_REVERT_EXECUTED),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
+                                .gas(GAS_TO_OFFER))),
+                emptyChildRecordsCheck("staticAssociateCallTxn", CONTRACT_REVERT_EXECUTED),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
@@ -701,21 +613,20 @@ public class ContractKeysHTSSuite {
 
         final AtomicLong fungibleNum = new AtomicLong();
 
-        return defaultHapiSpec("callForMintWithContractKey", NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TYPE_OF_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
-                        uploadInitCode(ORDINARY_CALLS_CONTRACT),
-                        contractCreate(ORDINARY_CALLS_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TYPE_OF_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
+                uploadInitCode(ORDINARY_CALLS_CONTRACT),
+                contractCreate(ORDINARY_CALLS_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
@@ -728,24 +639,22 @@ public class ContractKeysHTSSuite {
                                         BigInteger.valueOf(amount),
                                         new byte[][] {})
                                 .via(firstMintTxn)
-                                .payingWith(ACCOUNT_NAME))))
-                .then(
-                        childRecordsCheck(
-                                firstMintTxn,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_MINT)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(10)
-                                                        .withSerialNumbers()))
-                                        .tokenTransfers(
-                                                changingFungibleBalances().including(TYPE_OF_TOKEN, TOKEN_TREASURY, 10))
-                                        .newTotalSupply(10)),
-                        getTokenInfo(TYPE_OF_TOKEN).hasTotalSupply(amount),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TYPE_OF_TOKEN, amount));
+                                .payingWith(ACCOUNT_NAME))),
+                childRecordsCheck(
+                        firstMintTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_MINT)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(10)
+                                                .withSerialNumbers()))
+                                .tokenTransfers(changingFungibleBalances().including(TYPE_OF_TOKEN, TOKEN_TREASURY, 10))
+                                .newTotalSupply(10)),
+                getTokenInfo(TYPE_OF_TOKEN).hasTotalSupply(amount),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TYPE_OF_TOKEN, amount));
     }
 
     @HapiTest
@@ -755,24 +664,20 @@ public class ContractKeysHTSSuite {
 
         final AtomicLong fungibleNum = new AtomicLong();
 
-        return defaultHapiSpec(
-                        "callForMintWithDelegateContractKey",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TYPE_OF_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
-                        uploadInitCode(ORDINARY_CALLS_CONTRACT),
-                        contractCreate(ORDINARY_CALLS_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TYPE_OF_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
+                uploadInitCode(ORDINARY_CALLS_CONTRACT),
+                contractCreate(ORDINARY_CALLS_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
@@ -785,53 +690,47 @@ public class ContractKeysHTSSuite {
                                         BigInteger.valueOf(amount),
                                         new byte[][] {})
                                 .via(firstMintTxn)
-                                .payingWith(ACCOUNT_NAME))))
-                .then(
-                        childRecordsCheck(
-                                firstMintTxn,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_MINT)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(10)
-                                                        .withSerialNumbers()))
-                                        .tokenTransfers(
-                                                changingFungibleBalances().including(TYPE_OF_TOKEN, TOKEN_TREASURY, 10))
-                                        .newTotalSupply(10)),
-                        getTokenInfo(TYPE_OF_TOKEN).hasTotalSupply(amount),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TYPE_OF_TOKEN, amount));
+                                .payingWith(ACCOUNT_NAME))),
+                childRecordsCheck(
+                        firstMintTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_MINT)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(10)
+                                                .withSerialNumbers()))
+                                .tokenTransfers(changingFungibleBalances().including(TYPE_OF_TOKEN, TOKEN_TREASURY, 10))
+                                .newTotalSupply(10)),
+                getTokenInfo(TYPE_OF_TOKEN).hasTotalSupply(amount),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TYPE_OF_TOKEN, amount));
     }
 
     @HapiTest
     final Stream<DynamicTest> callForTransferWithContractKey() {
-        return defaultHapiSpec(
-                        "callForTransferWithContractKey",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(UNIVERSAL_KEY),
-                        cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(RECEIVER),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NFT)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(UNIVERSAL_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY),
-                        tokenAssociate(ACCOUNT, NFT),
-                        mintToken(NFT, List.of(metadata("firstMemo"), metadata("secondMemo"))),
-                        uploadInitCode(ORDINARY_CALLS_CONTRACT),
-                        contractCreate(ORDINARY_CALLS_CONTRACT)
-                                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon
-                                // tokenAssociate,
-                                // since we have CONTRACT_ID key
-                                .refusingEthConversion()
-                                .via(CREATION_TX))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(UNIVERSAL_KEY),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(UNIVERSAL_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(ACCOUNT, NFT),
+                mintToken(NFT, List.of(metadata("firstMemo"), metadata("secondMemo"))),
+                uploadInitCode(ORDINARY_CALLS_CONTRACT),
+                contractCreate(ORDINARY_CALLS_CONTRACT)
+                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon
+                        // tokenAssociate,
+                        // since we have CONTRACT_ID key
+                        .refusingEthConversion()
+                        .via(CREATION_TX),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
@@ -853,49 +752,44 @@ public class ContractKeysHTSSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .payingWith(GENESIS)
                                 .gas(GAS_TO_OFFER)
-                                .via(DISTRIBUTE_TX))))
-                .then(
-                        getTokenInfo(NFT).hasTotalSupply(2),
-                        getAccountInfo(RECEIVER).hasOwnedNfts(1),
-                        getAccountBalance(RECEIVER).hasTokenBalance(NFT, 1),
-                        getAccountInfo(ACCOUNT).hasOwnedNfts(0),
-                        getAccountBalance(ACCOUNT).hasTokenBalance(NFT, 0),
-                        childRecordsCheck(
-                                DISTRIBUTE_TX,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))
-                                        .tokenTransfers(NonFungibleTransfers.changingNFTBalances()
-                                                .including(NFT, ACCOUNT, RECEIVER, 1L))));
+                                .via(DISTRIBUTE_TX))),
+                getTokenInfo(NFT).hasTotalSupply(2),
+                getAccountInfo(RECEIVER).hasOwnedNfts(1),
+                getAccountBalance(RECEIVER).hasTokenBalance(NFT, 1),
+                getAccountInfo(ACCOUNT).hasOwnedNfts(0),
+                getAccountBalance(ACCOUNT).hasTokenBalance(NFT, 0),
+                childRecordsCheck(
+                        DISTRIBUTE_TX,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))
+                                .tokenTransfers(NonFungibleTransfers.changingNFTBalances()
+                                        .including(NFT, ACCOUNT, RECEIVER, 1L))));
     }
 
     @HapiTest
     final Stream<DynamicTest> callForTransferWithDelegateContractKey() {
-        return defaultHapiSpec(
-                        "callForTransferWithDelegateContractKey",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(UNIVERSAL_KEY),
-                        cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(RECEIVER),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NFT)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(UNIVERSAL_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY),
-                        tokenAssociate(ACCOUNT, NFT),
-                        mintToken(NFT, List.of(metadata("firstMemo"), metadata("secondMemo"))),
-                        uploadInitCode(ORDINARY_CALLS_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        contractCreate(ORDINARY_CALLS_CONTRACT).refusingEthConversion())
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(UNIVERSAL_KEY),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(UNIVERSAL_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(ACCOUNT, NFT),
+                mintToken(NFT, List.of(metadata("firstMemo"), metadata("secondMemo"))),
+                uploadInitCode(ORDINARY_CALLS_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(ORDINARY_CALLS_CONTRACT).refusingEthConversion(),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
@@ -917,23 +811,22 @@ public class ContractKeysHTSSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .payingWith(GENESIS)
                                 .gas(GAS_TO_OFFER)
-                                .via(DISTRIBUTE_TX))))
-                .then(
-                        getTokenInfo(NFT).hasTotalSupply(2),
-                        getAccountInfo(RECEIVER).hasOwnedNfts(1),
-                        getAccountBalance(RECEIVER).hasTokenBalance(NFT, 1),
-                        getAccountInfo(ACCOUNT).hasOwnedNfts(0),
-                        getAccountBalance(ACCOUNT).hasTokenBalance(NFT, 0),
-                        childRecordsCheck(
-                                DISTRIBUTE_TX,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))
-                                        .tokenTransfers(NonFungibleTransfers.changingNFTBalances()
-                                                .including(NFT, ACCOUNT, RECEIVER, 1L))));
+                                .via(DISTRIBUTE_TX))),
+                getTokenInfo(NFT).hasTotalSupply(2),
+                getAccountInfo(RECEIVER).hasOwnedNfts(1),
+                getAccountBalance(RECEIVER).hasTokenBalance(NFT, 1),
+                getAccountInfo(ACCOUNT).hasOwnedNfts(0),
+                getAccountBalance(ACCOUNT).hasTokenBalance(NFT, 0),
+                childRecordsCheck(
+                        DISTRIBUTE_TX,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))
+                                .tokenTransfers(NonFungibleTransfers.changingNFTBalances()
+                                        .including(NFT, ACCOUNT, RECEIVER, 1L))));
     }
 
     @HapiTest
@@ -941,20 +834,16 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "callForAssociateWithDelegateContractKey",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -967,17 +856,16 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(VANILLA_TOKEN_ASSOCIATE_TXN)
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                VANILLA_TOKEN_ASSOCIATE_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        VANILLA_TOKEN_ASSOCIATE_TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
@@ -985,21 +873,16 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "callForAssociateWithContractKey",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1012,17 +895,16 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(VANILLA_TOKEN_ASSOCIATE_TXN)
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                VANILLA_TOKEN_ASSOCIATE_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        VANILLA_TOKEN_ASSOCIATE_TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
@@ -1032,22 +914,17 @@ public class ContractKeysHTSSuite {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final var totalSupply = 1_000;
 
-        return defaultHapiSpec(
-                        "callForDissociateWithDelegateContractKey",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(totalSupply)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(totalSupply)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1073,25 +950,24 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN)
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))),
-                        childRecordsCheck(
-                                TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))),
+                childRecordsCheck(
+                        TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
@@ -1101,22 +977,17 @@ public class ContractKeysHTSSuite {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final var totalSupply = 1_000;
 
-        return defaultHapiSpec(
-                        "callForDissociateWithContractKey",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(totalSupply)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(totalSupply)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1142,71 +1013,63 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("tokenDissociateWithContractKeyHappyTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                "nonZeroTokenBalanceDissociateWithContractKeyFailedTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))),
-                        childRecordsCheck(
-                                "tokenDissociateWithContractKeyHappyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        "nonZeroTokenBalanceDissociateWithContractKeyFailedTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))),
+                childRecordsCheck(
+                        "tokenDissociateWithContractKeyHappyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
     final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
-        return defaultHapiSpec(
-                        "callForBurnWithDelegateContractKey",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN_USAGE)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(MULTI_KEY)
-                                .adminKey(MULTI_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(BURN_TOKEN),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                contractCreate(
-                                                BURN_TOKEN,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(TOKEN_USAGE))))
-                                        .via(CREATION_TX))))
-                .when(
-                        newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
-                        tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
-                        contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                                .via(BURN_WITH_CONTRACT_KEY)
-                                .gas(GAS_TO_OFFER),
-                        childRecordsCheck(
-                                BURN_WITH_CONTRACT_KEY,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(49)))
-                                        .tokenTransfers(
-                                                changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))
-                                        .newTotalSupply(49)))
-                .then(getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49));
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN_USAGE)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                        BURN_TOKEN,
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
+                                .via(CREATION_TX))),
+                newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
+                tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
+                contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
+                        .via(BURN_WITH_CONTRACT_KEY)
+                        .gas(GAS_TO_OFFER),
+                childRecordsCheck(
+                        BURN_WITH_CONTRACT_KEY,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(49)))
+                                .tokenTransfers(changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))
+                                .newTotalSupply(49)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49));
     }
 
     @HapiTest
@@ -1216,21 +1079,16 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DelegateCallForAssociatePrecompileSignedWithDelegateContractKeyWorks",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(outerContract, nestedContract),
-                        contractCreate(nestedContract))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(outerContract, nestedContract),
+                contractCreate(nestedContract),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
@@ -1245,17 +1103,16 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("delegateAssociateCallWithDelegateContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "delegateAssociateCallWithDelegateContractKeyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "delegateAssociateCallWithDelegateContractKeyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
@@ -1265,21 +1122,16 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "delegateCallForDissociatePrecompileSignedWithDelegateContractKeyWorks",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(outerContract, nestedContract),
-                        contractCreate(nestedContract))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(outerContract, nestedContract),
+                contractCreate(nestedContract),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
@@ -1295,17 +1147,16 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("delegateDissociateCallWithDelegateContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "delegateDissociateCallWithDelegateContractKeyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "delegateDissociateCallWithDelegateContractKeyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
@@ -1313,24 +1164,20 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "AssociatePrecompileWithDelegateContractKeyForNonFungibleWithKYC",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(KYC_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(KYC_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .supplyKey(GENESIS)
-                                .kycKey(KYC_KEY)
-                                .exposingCreatedIdTo(id -> kycTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(KYC_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(KYC_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .supplyKey(GENESIS)
+                        .kycKey(KYC_KEY)
+                        .exposingCreatedIdTo(id -> kycTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -1361,34 +1208,32 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("kycNFTSecondAssociateFailsTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(
-                        childRecordsCheck(
-                                "kycNFTAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "kycNFTAssociateTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "kycNFTSecondAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
-                        getAccountInfo(ACCOUNT)
-                                .hasToken(relationshipWith(KYC_TOKEN).kyc(Revoked)));
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "kycNFTAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "kycNFTAssociateTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "kycNFTSecondAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(KYC_TOKEN).kyc(Revoked)));
     }
 
     @HapiTest
@@ -1397,21 +1242,17 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DissociatePrecompileWithDelegateContractKeyForFungibleVanilla",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(TOTAL_SUPPLY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1455,41 +1296,40 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via(TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN)
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                "tokenDissociateFromTreasuryFailedTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(ACCOUNT_IS_TREASURY)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(ACCOUNT_IS_TREASURY)))),
-                        childRecordsCheck(
-                                "tokenDissociateWithDelegateContractKeyFailedTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)))),
-                        childRecordsCheck(
-                                NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))),
-                        childRecordsCheck(
-                                TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        "tokenDissociateFromTreasuryFailedTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(ACCOUNT_IS_TREASURY)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(ACCOUNT_IS_TREASURY)))),
+                childRecordsCheck(
+                        "tokenDissociateWithDelegateContractKeyFailedTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)))),
+                childRecordsCheck(
+                        NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))),
+                childRecordsCheck(
+                        TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
@@ -1498,24 +1338,19 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DissociatePrecompileWithDelegateContractKeyForFungibleFrozen",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        newKeyNamed(FREEZE_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(FROZEN_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .freezeDefault(true)
-                                .freezeKey(FREEZE_KEY)
-                                .exposingCreatedIdTo(id -> frozenTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(FREEZE_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(FROZEN_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .freezeDefault(true)
+                        .freezeKey(FREEZE_KEY)
+                        .exposingCreatedIdTo(id -> frozenTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1539,25 +1374,24 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("UnfrozenTokenAssociateWithDelegateContractKeyTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                "frozenTokenAssociateWithDelegateContractKeyTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(ACCOUNT_FROZEN_FOR_TOKEN)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(ACCOUNT_FROZEN_FOR_TOKEN)))),
-                        childRecordsCheck(
-                                "UnfrozenTokenAssociateWithDelegateContractKeyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(FROZEN_TOKEN));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        "frozenTokenAssociateWithDelegateContractKeyTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(ACCOUNT_FROZEN_FOR_TOKEN)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(ACCOUNT_FROZEN_FOR_TOKEN)))),
+                childRecordsCheck(
+                        "UnfrozenTokenAssociateWithDelegateContractKeyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(FROZEN_TOKEN));
     }
 
     @HapiTest
@@ -1566,22 +1400,18 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DissociatePrecompileWithDelegateContractKeyForFungibleWithKYC",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        newKeyNamed(KYC_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(KYC_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .kycKey(KYC_KEY)
-                                .exposingCreatedIdTo(id -> kycTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(KYC_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(KYC_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .kycKey(KYC_KEY)
+                        .exposingCreatedIdTo(id -> kycTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1604,25 +1434,24 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("kycTokenDissociateWithDelegateContractKeyHappyTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                "kycTokenDissociateWithDelegateContractKeyFailedTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)))),
-                        childRecordsCheck(
-                                "kycTokenDissociateWithDelegateContractKeyHappyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(KYC_TOKEN));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        "kycTokenDissociateWithDelegateContractKeyFailedTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)))),
+                childRecordsCheck(
+                        "kycTokenDissociateWithDelegateContractKeyHappyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(KYC_TOKEN));
     }
 
     @HapiTest
@@ -1631,25 +1460,20 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DissociatePrecompileWithDelegateContractKeyForNonFungibleVanilla",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(metadata("memo"))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).balance(0L).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(metadata("memo"))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1693,41 +1517,40 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("NFTDissociateWithDelegateContractKeyHappyTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                "NFTDissociateFromTreasuryFailedTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(ACCOUNT_IS_TREASURY)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(ACCOUNT_IS_TREASURY)))),
-                        childRecordsCheck(
-                                "NFTDissociateWithDelegateContractKeyFailedTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)))),
-                        childRecordsCheck(
-                                "nonZeroNFTBalanceDissociateWithDelegateContractKeyFailedTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(ACCOUNT_STILL_OWNS_NFTS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(ACCOUNT_STILL_OWNS_NFTS)))),
-                        childRecordsCheck(
-                                "NFTDissociateWithDelegateContractKeyHappyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        "NFTDissociateFromTreasuryFailedTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(ACCOUNT_IS_TREASURY)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(ACCOUNT_IS_TREASURY)))),
+                childRecordsCheck(
+                        "NFTDissociateWithDelegateContractKeyFailedTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)))),
+                childRecordsCheck(
+                        "nonZeroNFTBalanceDissociateWithDelegateContractKeyFailedTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(ACCOUNT_STILL_OWNS_NFTS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(ACCOUNT_STILL_OWNS_NFTS)))),
+                childRecordsCheck(
+                        "NFTDissociateWithDelegateContractKeyHappyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
@@ -1736,26 +1559,21 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DissociatePrecompileWithDelegateContractKeyForNonFungibleFrozen",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(FREEZE_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(FROZEN_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(GENESIS)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .freezeDefault(true)
-                                .freezeKey(FREEZE_KEY)
-                                .exposingCreatedIdTo(id -> frozenTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(FREEZE_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(FROZEN_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .freezeDefault(true)
+                        .freezeKey(FREEZE_KEY)
+                        .exposingCreatedIdTo(id -> frozenTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1779,25 +1597,24 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("UnfrozenNFTAssociateWithDelegateContractKeyTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                "frozenNFTAssociateWithDelegateContractKeyTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(ACCOUNT_FROZEN_FOR_TOKEN)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(ACCOUNT_FROZEN_FOR_TOKEN)))),
-                        childRecordsCheck(
-                                "UnfrozenNFTAssociateWithDelegateContractKeyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(FROZEN_TOKEN));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        "frozenNFTAssociateWithDelegateContractKeyTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(ACCOUNT_FROZEN_FOR_TOKEN)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(ACCOUNT_FROZEN_FOR_TOKEN)))),
+                childRecordsCheck(
+                        "UnfrozenNFTAssociateWithDelegateContractKeyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(FROZEN_TOKEN));
     }
 
     @HapiTest
@@ -1806,24 +1623,20 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DissociatePrecompileWithDelegateContractKeyForNonFungibleWithKYC",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(KYC_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(KYC_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .supplyKey(GENESIS)
-                                .initialSupply(0)
-                                .kycKey(KYC_KEY)
-                                .exposingCreatedIdTo(id -> kycTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(KYC_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(KYC_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0)
+                        .kycKey(KYC_KEY)
+                        .exposingCreatedIdTo(id -> kycTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1846,25 +1659,24 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("kycNFTDissociateWithDelegateContractKeyHappyTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                "kycNFTDissociateWithDelegateContractKeyFailedTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)))),
-                        childRecordsCheck(
-                                "kycNFTDissociateWithDelegateContractKeyHappyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(KYC_TOKEN));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        "kycNFTDissociateWithDelegateContractKeyFailedTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)))),
+                childRecordsCheck(
+                        "kycNFTDissociateWithDelegateContractKeyHappyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(KYC_TOKEN));
     }
 
     @HapiTest
@@ -1872,26 +1684,21 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "AssociatePrecompileWithDelegateContractKeyForNonFungibleFrozen",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        newKeyNamed(FREEZE_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FROZEN_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(GENESIS)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(true)
-                                .exposingCreatedIdTo(id -> frozenTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(FREEZE_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FROZEN_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .freezeKey(FREEZE_KEY)
+                        .freezeDefault(true)
+                        .exposingCreatedIdTo(id -> frozenTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -1922,34 +1729,32 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("frozenNFTSecondAssociateFailsTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(
-                        childRecordsCheck(
-                                "frozenNFTAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "frozenNFTAssociateTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "frozenNFTSecondAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
-                        getAccountInfo(ACCOUNT)
-                                .hasToken(relationshipWith(FROZEN_TOKEN).freeze(Frozen)));
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "frozenNFTAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "frozenNFTAssociateTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "frozenNFTSecondAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(FROZEN_TOKEN).freeze(Frozen)));
     }
 
     @HapiTest
@@ -1957,23 +1762,18 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "AssociatePrecompileWithDelegateContractKeyForNonFungibleVanilla",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .supplyKey(GENESIS)
-                                .initialSupply(0)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -2004,33 +1804,32 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("vanillaNFTSecondAssociateFailsTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(
-                        childRecordsCheck(
-                                "vanillaNFTAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "vanillaNFTAssociateTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "vanillaNFTSecondAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
-                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "vanillaNFTAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "vanillaNFTAssociateTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "vanillaNFTSecondAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
@@ -2038,23 +1837,18 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "AssociatePrecompileWithDelegateContractKeyForFungibleWithKYC",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        newKeyNamed(KYC_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(KYC_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .kycKey(KYC_KEY)
-                                .exposingCreatedIdTo(id -> kycTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(KYC_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(KYC_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .kycKey(KYC_KEY)
+                        .exposingCreatedIdTo(id -> kycTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -2085,34 +1879,32 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("kycTokenSecondAssociateFailsTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(
-                        childRecordsCheck(
-                                "kycTokenAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "kycTokenAssociateTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "kycTokenSecondAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
-                        getAccountInfo(ACCOUNT)
-                                .hasToken(relationshipWith(KYC_TOKEN).kyc(Revoked)));
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "kycTokenAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "kycTokenAssociateTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "kycTokenSecondAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(KYC_TOKEN).kyc(Revoked)));
     }
 
     @HapiTest
@@ -2120,24 +1912,20 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "AssociatePrecompileWithDelegateContractKeyForFungibleFrozen",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(FREEZE_KEY),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FROZEN_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(TOTAL_SUPPLY)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(true)
-                                .exposingCreatedIdTo(id -> frozenTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(FREEZE_KEY),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FROZEN_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .freezeKey(FREEZE_KEY)
+                        .freezeDefault(true)
+                        .exposingCreatedIdTo(id -> frozenTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -2168,34 +1956,32 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("frozenTokenSecondAssociateFailsTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(
-                        childRecordsCheck(
-                                "frozenTokenAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "frozenTokenAssociateTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "frozenTokenSecondAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
-                        getAccountInfo(ACCOUNT)
-                                .hasToken(relationshipWith(FROZEN_TOKEN).freeze(Frozen)));
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "frozenTokenAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "frozenTokenAssociateTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "frozenTokenSecondAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(FROZEN_TOKEN).freeze(Frozen)));
     }
 
     @HapiTest
@@ -2203,20 +1989,16 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "AssociatePrecompileWithDelegateContractKeyForFungibleVanilla",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -2247,33 +2029,32 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("vanillaTokenSecondAssociateFailsTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(
-                        childRecordsCheck(
-                                "vanillaTokenAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                VANILLA_TOKEN_ASSOCIATE_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "vanillaTokenSecondAssociateFailsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
-                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "vanillaTokenAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        VANILLA_TOKEN_ASSOCIATE_TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "vanillaTokenSecondAssociateFailsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
@@ -2283,21 +2064,16 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DelegateCallForAssociatePrecompileSignedWithContractKeyFails",
-                        HIGHLY_NON_DETERMINISTIC_FEES,
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(outerContract, nestedContract),
-                        contractCreate(nestedContract))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(outerContract, nestedContract),
+                contractCreate(nestedContract),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
@@ -2311,17 +2087,16 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("delegateAssociateCallWithContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "delegateAssociateCallWithContractKeyTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "delegateAssociateCallWithContractKeyTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
@@ -2331,21 +2106,16 @@ public class ContractKeysHTSSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "DelegateCallForDissociatePrecompileSignedWithContractKeyFails",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(outerContract, nestedContract),
-                        contractCreate(nestedContract))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(outerContract, nestedContract),
+                contractCreate(nestedContract),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
@@ -2360,62 +2130,54 @@ public class ContractKeysHTSSuite {
                                 .payingWith(GENESIS)
                                 .via("delegateDissociateCallWithContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "delegateDissociateCallWithContractKeyTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "delegateDissociateCallWithContractKeyTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
     final Stream<DynamicTest> callForBurnWithContractKey() {
-        return defaultHapiSpec(
-                        "callForBurnWithContractKey",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN_USAGE)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(MULTI_KEY)
-                                .adminKey(MULTI_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(BURN_TOKEN),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                contractCreate(
-                                                BURN_TOKEN,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(TOKEN_USAGE))))
-                                        .via(CREATION_TX))))
-                .when(
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
-                        tokenUpdate(TOKEN_USAGE).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
-                        contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                                .via(BURN_WITH_CONTRACT_KEY)
-                                .gas(GAS_TO_OFFER),
-                        childRecordsCheck(
-                                BURN_WITH_CONTRACT_KEY,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(49)))
-                                        .tokenTransfers(
-                                                changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))
-                                        .newTotalSupply(49)))
-                .then(getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49));
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN_USAGE)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                        BURN_TOKEN,
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
+                                .via(CREATION_TX))),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
+                tokenUpdate(TOKEN_USAGE).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
+                contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
+                        .via(BURN_WITH_CONTRACT_KEY)
+                        .gas(GAS_TO_OFFER),
+                childRecordsCheck(
+                        BURN_WITH_CONTRACT_KEY,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(49)))
+                                .tokenTransfers(changingFungibleBalances().including(TOKEN_USAGE, TOKEN_TREASURY, -1))
+                                .newTotalSupply(49)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49));
     }
 }

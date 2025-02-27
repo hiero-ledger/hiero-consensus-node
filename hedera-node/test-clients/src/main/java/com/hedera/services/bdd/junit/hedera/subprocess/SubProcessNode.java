@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.subprocess;
 
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
@@ -29,23 +14,26 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.condi
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeWithId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.startSubProcessNodeFrom;
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.recreateWorkingDir;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OUTPUT_DIR;
 import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.Hedera;
 import com.hedera.services.bdd.junit.hedera.AbstractLocalNode;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.BindExceptionSeen;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
-import com.swirlds.base.function.BooleanFunction;
 import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -103,13 +91,6 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
     }
 
     @Override
-    public SubProcessNode initWorkingDir(@NonNull final String configTxt) {
-        recreateWorkingDir(requireNonNull(metadata.workingDir()), configTxt);
-        workingDirInitialized = true;
-        return this;
-    }
-
-    @Override
     public SubProcessNode start() {
         return startWithConfigVersion(LifecycleTest.CURRENT_CONFIG_VERSION.get());
     }
@@ -160,13 +141,37 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         if (processHandle == null) {
             return CompletableFuture.completedFuture(null);
         }
-        if (!processHandle.destroy()) {
-            log.warn("May have failed to stop node '{}' with PID '{}'", metadata.nodeId(), processHandle.pid());
-        }
-        return processHandle.onExit().thenAccept(handle -> {
+        final var stopFuture = processHandle.onExit().thenAccept(handle -> {
             log.info("Destroyed PID {}", handle.pid());
             this.processHandle = null;
         });
+        log.info(
+                "Destroying node{} with PID '{}' (Alive? {})",
+                metadata.nodeId(),
+                processHandle.pid(),
+                processHandle.isAlive() ? "Yes" : "No");
+        if (!processHandle.destroyForcibly()) {
+            log.warn("May have failed to stop node{} with PID '{}'", metadata.nodeId(), processHandle.pid());
+        }
+        return stopFuture;
+    }
+
+    @Override
+    public boolean dumpThreads() {
+        requireNonNull(processHandle);
+        try {
+            triggerThreadDump();
+            return true;
+        } catch (Exception e) {
+            log.warn(
+                    "Unable to dump threads for node{} with PID '{}' (Alive? {}), assuming it was stopped",
+                    metadata.nodeId(),
+                    processHandle.pid(),
+                    processHandle.isAlive() ? "Yes" : "No",
+                    e);
+            processHandle = null;
+            return false;
+        }
     }
 
     @Override
@@ -179,11 +184,27 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         return this;
     }
 
+    /**
+     * Starts the node with the given config version.
+     * @param configVersion the config version to use
+     * @return this node
+     */
     public SubProcessNode startWithConfigVersion(final int configVersion) {
+        return startWithConfigVersion(configVersion, Map.of());
+    }
+
+    /**
+     * Starts the node with the given config version.
+     * @param configVersion the config version to use
+     * @param envOverrides the environment overrides to use
+     * @return this node
+     */
+    public SubProcessNode startWithConfigVersion(
+            final int configVersion, @NonNull final Map<String, String> envOverrides) {
         assertStopped();
         assertWorkingDirInitialized();
         destroyAnySubProcessNodeWithId(metadata.nodeId());
-        processHandle = startSubProcessNodeFrom(metadata, configVersion);
+        processHandle = startSubProcessNodeFrom(metadata, configVersion, envOverrides);
         return this;
     }
 
@@ -191,13 +212,27 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
      * Reassigns the ports used by this node.
      *
      * @param grpcPort the new gRPC port
+     * @param grpcNodeOperatorPort the new gRPC node operator port
      * @param gossipPort the new gossip port
      * @param tlsGossipPort the new TLS gossip port
      * @param prometheusPort the new Prometheus port
      */
     public void reassignPorts(
-            final int grpcPort, final int gossipPort, final int tlsGossipPort, final int prometheusPort) {
-        metadata = metadata.withNewPorts(grpcPort, gossipPort, tlsGossipPort, prometheusPort);
+            final int grpcPort,
+            final int grpcNodeOperatorPort,
+            final int gossipPort,
+            final int tlsGossipPort,
+            final int prometheusPort) {
+        metadata = metadata.withNewPorts(grpcPort, grpcNodeOperatorPort, gossipPort, tlsGossipPort, prometheusPort);
+    }
+
+    /**
+     * Reassigns the account ID used by this node.
+     *
+     * @param accountId the new account ID
+     */
+    public void reassignNodeAccountIdFrom(@NonNull final AccountID accountId) {
+        metadata = metadata.withNewAccountId(accountId);
     }
 
     private boolean swirldsLogContains(@NonNull final String text) {
@@ -206,15 +241,6 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    private boolean stopWith(@NonNull final BooleanFunction<ProcessHandle> stop) {
-        if (processHandle == null) {
-            return false;
-        }
-        final var result = stop.apply(processHandle);
-        processHandle = null;
-        return result;
     }
 
     private void assertStopped() {
@@ -230,6 +256,36 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
             return newLogAttempt(status.get(), status.get() == null ? "No status line in log" : null);
         } catch (IOException e) {
             return newLogAttempt(null, e.getMessage());
+        }
+    }
+
+    public enum ReassignPorts {
+        YES,
+        NO
+    }
+
+    private void triggerThreadDump() throws IOException {
+        final var javaHome = System.getProperty("java.home");
+        var jcmdPath = javaHome + File.separator + "bin" + File.separator + "jcmd";
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            jcmdPath += ".exe";
+        }
+        final long pid = requireNonNull(processHandle).pid();
+        final var errorRedirectPath =
+                metadata.workingDirOrThrow().resolve(OUTPUT_DIR).resolve(ERROR_REDIRECT_FILE);
+        final var processBuilder = new ProcessBuilder(jcmdPath, Long.toString(pid), "Thread.print")
+                .redirectOutput(errorRedirectPath.toFile())
+                .redirectErrorStream(true);
+        final var jcmd = processBuilder.start();
+        final int exitCode;
+        try {
+            exitCode = jcmd.waitFor();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException(e);
+        }
+        if (exitCode != 0) {
+            throw new IOException("jcmd exited with code " + exitCode);
         }
     }
 }

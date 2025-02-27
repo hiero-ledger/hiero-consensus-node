@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -44,67 +29,65 @@ public class Issue2098Spec {
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> txnApiPermissionsChangeImmediately() {
-        return defaultHapiSpec("TxnApiPermissionsChangeImmediately")
-                .given(cryptoCreate(CIVILIAN))
-                .when(fileUpdate(API_PERMISSIONS)
+        return hapiTest(
+                cryptoCreate(CIVILIAN),
+                fileUpdate(API_PERMISSIONS)
                         .payingWith(ADDRESS_BOOK_CONTROL)
-                        .overridingProps(Map.of(CRYPTO_TRANSFER, "0-1")))
-                .then(
-                        cryptoTransfer(tinyBarsFromTo(CIVILIAN, FUNDING, 1L))
-                                .payingWith(CIVILIAN)
-                                .hasPrecheckFrom(NOT_SUPPORTED, OK)
-                                .hasKnownStatus(UNAUTHORIZED),
-                        fileUpdate(API_PERMISSIONS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of(CRYPTO_TRANSFER, "0-*")),
-                        cryptoTransfer(tinyBarsFromTo(CIVILIAN, FUNDING, 1L)).payingWith(CIVILIAN));
+                        .overridingProps(Map.of(CRYPTO_TRANSFER, "0-1")),
+                cryptoTransfer(tinyBarsFromTo(CIVILIAN, FUNDING, 1L))
+                        .payingWith(CIVILIAN)
+                        .hasPrecheckFrom(NOT_SUPPORTED, OK)
+                        .hasKnownStatus(UNAUTHORIZED),
+                fileUpdate(API_PERMISSIONS)
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .overridingProps(Map.of(CRYPTO_TRANSFER, "0-*")),
+                cryptoTransfer(tinyBarsFromTo(CIVILIAN, FUNDING, 1L)).payingWith(CIVILIAN));
     }
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> queryApiPermissionsChangeImmediately() {
-        return defaultHapiSpec("QueryApiPermissionsChangeImmediately")
-                .given(cryptoCreate(CIVILIAN), createTopic("misc"))
-                .when(fileUpdate(API_PERMISSIONS)
+        return hapiTest(
+                cryptoCreate(CIVILIAN),
+                createTopic("misc"),
+                fileUpdate(API_PERMISSIONS)
                         .payingWith(ADDRESS_BOOK_CONTROL)
-                        .overridingProps(Map.of(GET_TOPIC_INFO, "0-1")))
-                .then(
-                        getTopicInfo("misc").payingWith(CIVILIAN).hasAnswerOnlyPrecheck(NOT_SUPPORTED),
-                        fileUpdate(API_PERMISSIONS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of(GET_TOPIC_INFO, "0-*")),
-                        getTopicInfo("misc").payingWith(CIVILIAN));
+                        .overridingProps(Map.of(GET_TOPIC_INFO, "0-1")),
+                getTopicInfo("misc").payingWith(CIVILIAN).hasAnswerOnlyPrecheck(NOT_SUPPORTED),
+                fileUpdate(API_PERMISSIONS)
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .overridingProps(Map.of(GET_TOPIC_INFO, "0-*")),
+                getTopicInfo("misc").payingWith(CIVILIAN));
     }
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> adminsCanQueryNoMatterPermissions() {
-        return defaultHapiSpec("AdminsCanQueryNoMatterPermissions")
-                .given(cryptoCreate(CIVILIAN), createTopic("misc"))
-                .when(fileUpdate(API_PERMISSIONS)
+        return hapiTest(
+                cryptoCreate(CIVILIAN),
+                createTopic("misc"),
+                fileUpdate(API_PERMISSIONS)
                         .payingWith(ADDRESS_BOOK_CONTROL)
-                        .overridingProps(Map.of(GET_TOPIC_INFO, "0-1")))
-                .then(
-                        getTopicInfo("misc").payingWith(CIVILIAN).hasAnswerOnlyPrecheck(NOT_SUPPORTED),
-                        getTopicInfo("misc"),
-                        fileUpdate(API_PERMISSIONS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of(GET_TOPIC_INFO, "0-*")));
+                        .overridingProps(Map.of(GET_TOPIC_INFO, "0-1")),
+                getTopicInfo("misc").payingWith(CIVILIAN).hasAnswerOnlyPrecheck(NOT_SUPPORTED),
+                getTopicInfo("misc"),
+                fileUpdate(API_PERMISSIONS)
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .overridingProps(Map.of(GET_TOPIC_INFO, "0-*")));
     }
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> adminsCanTransactNoMatterPermissions() {
-        return defaultHapiSpec("AdminsCanTransactNoMatterPermissions")
-                .given(cryptoCreate(CIVILIAN))
-                .when(fileUpdate(API_PERMISSIONS)
+        return hapiTest(
+                cryptoCreate(CIVILIAN),
+                fileUpdate(API_PERMISSIONS)
                         .payingWith(ADDRESS_BOOK_CONTROL)
-                        .overridingProps(Map.of(CRYPTO_TRANSFER, "0-1")))
-                .then(
-                        cryptoTransfer(tinyBarsFromTo(CIVILIAN, FUNDING, 1L))
-                                .payingWith(CIVILIAN)
-                                .hasPrecheckFrom(NOT_SUPPORTED, OK)
-                                .hasKnownStatus(UNAUTHORIZED),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
-                        fileUpdate(API_PERMISSIONS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of(CRYPTO_TRANSFER, "0-*")));
+                        .overridingProps(Map.of(CRYPTO_TRANSFER, "0-1")),
+                cryptoTransfer(tinyBarsFromTo(CIVILIAN, FUNDING, 1L))
+                        .payingWith(CIVILIAN)
+                        .hasPrecheckFrom(NOT_SUPPORTED, OK)
+                        .hasKnownStatus(UNAUTHORIZED),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                fileUpdate(API_PERMISSIONS)
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .overridingProps(Map.of(CRYPTO_TRANSFER, "0-*")));
     }
 }

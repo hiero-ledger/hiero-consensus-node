@@ -1,22 +1,6 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
@@ -29,7 +13,6 @@ import static com.hedera.node.app.service.token.impl.comparator.TokenComparators
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.hasAccountNumOrAlias;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -40,7 +23,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.token.TokenAssociateUsage;
@@ -50,13 +32,16 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
+import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenListChecks;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -102,7 +87,14 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
         final var accountStore = storeFactory.writableStore(WritableAccountStore.class);
         final var tokenRelStore = storeFactory.writableStore(WritableTokenRelationStore.class);
         final var validated = validateSemantics(
-                tokenIds, op.accountOrThrow(), tokensConfig, entitiesConfig, accountStore, tokenStore, tokenRelStore);
+                tokenIds,
+                op.accountOrThrow(),
+                tokensConfig,
+                entitiesConfig,
+                accountStore,
+                tokenStore,
+                tokenRelStore,
+                context.expiryValidator());
 
         // Now that we've validated we can link all the new token IDs to the account,
         // create the corresponding token relations and update the account
@@ -110,10 +102,12 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
     }
 
     /**
-     * Performs checks independent of state or context
+     * Performs checks independent of state or context.
      */
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         final var op = txn.tokenAssociateOrThrow();
 
         validateTruePreCheck(hasAccountNumOrAlias(op.account()), INVALID_ACCOUNT_ID);
@@ -123,7 +117,7 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
     }
 
     /**
-     * Performs checks that require state and context
+     * Performs checks that require state and context.
      */
     @NonNull
     private Validated validateSemantics(
@@ -133,7 +127,8 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
             @NonNull final EntitiesConfig entitiesConfig,
             @NonNull final WritableAccountStore accountStore,
             @NonNull final ReadableTokenStore tokenStore,
-            @NonNull final WritableTokenRelationStore tokenRelStore) {
+            @NonNull final WritableTokenRelationStore tokenRelStore,
+            @NonNull final ExpiryValidator expiryValidator) {
         requireNonNull(tokenConfig);
         requireNonNull(entitiesConfig);
 
@@ -142,10 +137,9 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
                 isTotalNumTokenRelsWithinMax(tokenIds.size(), tokenRelStore, tokenConfig.maxAggregateRels()),
                 MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
-        // Check that the account exists
-        final var account = accountStore.get(accountId);
-        validateTrue(account != null, INVALID_ACCOUNT_ID);
-        validateFalse(account.deleted(), ACCOUNT_DELETED);
+        // Check that the account is usable
+        final var account =
+                TokenHandlerHelper.getIfUsable(accountId, accountStore, expiryValidator, INVALID_ACCOUNT_ID);
 
         // Check that the given tokens exist and are usable
         final var tokens = new ArrayList<Token>();
@@ -176,7 +170,7 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
 
     /**
      * Method that checks if the number of token associations for the given account is within the
-     * allowable limit set by the config (if the limit is enabled)
+     * allowable limit set by the config (if the limit is enabled).
      *
      * @return true if tokenAssociationsLimited is false or if the number of token associations is
      * within the allowed maxTokensPerAccount

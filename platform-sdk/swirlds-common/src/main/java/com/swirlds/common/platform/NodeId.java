@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2019-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.platform;
 
 import com.swirlds.common.io.SelfSerializable;
@@ -48,10 +33,22 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
     public static final long LOWEST_NODE_NUMBER = 0L;
 
     /** The first NodeId. */
-    public static final NodeId FIRST_NODE_ID = new NodeId(LOWEST_NODE_NUMBER);
+    public static final NodeId FIRST_NODE_ID = NodeId.of(LOWEST_NODE_NUMBER);
 
     /** The ID number. */
     private long id;
+
+    /**
+     * Return a potentially cached NodeId instance for a given node id value.
+     * The caller MUST NOT mutate the returned object even though the NodeId class is technically mutable.
+     * If the caller needs to mutate the instance, then it must use the regular NodeId(long) constructor instead.
+     *
+     * @param id a node id value
+     * @return a NodeId instance
+     */
+    public static NodeId of(final long id) {
+        return NodeIdCache.getOrCreate(id);
+    }
 
     /**
      * Constructs an empty NodeId objects, used in deserialization only.
@@ -64,7 +61,7 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
      * @param id the ID number
      * @throws IllegalArgumentException if the ID number is negative
      */
-    public NodeId(final long id) {
+    protected NodeId(final long id) {
         if (id < LOWEST_NODE_NUMBER) {
             throw new IllegalArgumentException("id must be non-negative");
         }
@@ -116,7 +113,7 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
             throw new IllegalArgumentException("the new NodeId, %d, must not be below the minimum value of %d."
                     .formatted(newValue, LOWEST_NODE_NUMBER));
         }
-        return new NodeId(newValue);
+        return NodeId.of(newValue);
     }
 
     /**
@@ -168,7 +165,7 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
             }
             throw new IOException("id must be non-negative");
         }
-        return new NodeId(longValue);
+        return NodeId.of(longValue);
     }
 
     /**

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
@@ -126,7 +111,7 @@ public abstract class CryptoBench extends VirtualMapBench {
 
         logger.info(RUN_DELIMITER);
 
-        if (getConfig().enableSnapshots()) {
+        if (getBenchmarkConfig().enableSnapshots()) {
             enableSnapshots();
         }
 
@@ -147,29 +132,31 @@ public abstract class CryptoBench extends VirtualMapBench {
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
                 BenchmarkKey key1 = new BenchmarkKey(keyId1);
                 BenchmarkKey key2 = new BenchmarkKey(keyId2);
-                BenchmarkValue value1 = virtualMap.getForModify(key1);
-                BenchmarkValue value2 = virtualMap.getForModify(key2);
+                BenchmarkValue value1 = virtualMap.get(key1);
+                BenchmarkValue value2 = virtualMap.get(key2);
 
                 long amount = Utils.randomLong(MAX_AMOUNT);
                 if (value1 == null) {
                     value1 = new BenchmarkValue(amount);
-                    virtualMap.put(key1, value1);
                 } else {
                     value1.update(l -> l + amount);
                 }
+                virtualMap.put(key1, value1);
 
                 if (value2 == null) {
                     value2 = new BenchmarkValue(-amount);
-                    virtualMap.put(key2, value2);
                 } else {
                     value2.update(l -> l - amount);
                 }
+                virtualMap.put(key2, value2);
 
                 // Model fees
-                value1 = virtualMap.getForModify(fixedKey1);
+                value1 = virtualMap.get(fixedKey1);
                 value1.update(l -> l + 1);
-                value2 = virtualMap.getForModify(fixedKey2);
+                virtualMap.put(fixedKey1, value1);
+                value2 = virtualMap.get(fixedKey2);
                 value2.update(l -> l + 1);
+                virtualMap.put(fixedKey2, value2);
 
                 if (verify) {
                     map[keyId1] += amount;
@@ -204,7 +191,7 @@ public abstract class CryptoBench extends VirtualMapBench {
 
         logger.info(RUN_DELIMITER);
 
-        if (getConfig().enableSnapshots()) {
+        if (getBenchmarkConfig().enableSnapshots()) {
             enableSnapshots();
         }
 
@@ -256,29 +243,31 @@ public abstract class CryptoBench extends VirtualMapBench {
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
                 BenchmarkKey key1 = new BenchmarkKey(keyId1);
                 BenchmarkKey key2 = new BenchmarkKey(keyId2);
-                BenchmarkValue value1 = virtualMap.getForModify(key1);
-                BenchmarkValue value2 = virtualMap.getForModify(key2);
+                BenchmarkValue value1 = virtualMap.get(key1);
+                BenchmarkValue value2 = virtualMap.get(key2);
 
                 long amount = Utils.randomLong(MAX_AMOUNT);
                 if (value1 == null) {
                     value1 = new BenchmarkValue(amount);
-                    virtualMap.put(key1, value1);
                 } else {
                     value1.update(l -> l + amount);
                 }
+                virtualMap.put(key1, value1);
 
                 if (value2 == null) {
                     value2 = new BenchmarkValue(-amount);
-                    virtualMap.put(key2, value2);
                 } else {
                     value2.update(l -> l - amount);
                 }
+                virtualMap.put(key2, value2);
 
                 // Model fees
-                value1 = virtualMap.getForModify(fixedKey1);
+                value1 = virtualMap.get(fixedKey1);
                 value1.update(l -> l + 1);
-                value2 = virtualMap.getForModify(fixedKey2);
+                virtualMap.put(fixedKey1, value1);
+                value2 = virtualMap.get(fixedKey2);
                 value2.update(l -> l + 1);
+                virtualMap.put(fixedKey2, value2);
 
                 if (verify) {
                     map[keyId1] += amount;
@@ -320,7 +309,7 @@ public abstract class CryptoBench extends VirtualMapBench {
 
         logger.info(RUN_DELIMITER);
 
-        if (getConfig().enableSnapshots()) {
+        if (getBenchmarkConfig().enableSnapshots()) {
             enableSnapshots();
         }
 
@@ -390,10 +379,12 @@ public abstract class CryptoBench extends VirtualMapBench {
                 currentMap.put(new BenchmarkKey(keyId2), value2);
 
                 // Model fees
-                value1 = currentMap.getForModify(fixedKey1);
+                value1 = currentMap.get(fixedKey1);
                 value1.update(l -> l + 1);
-                value2 = currentMap.getForModify(fixedKey2);
+                virtualMap.put(fixedKey1, value1);
+                value2 = currentMap.get(fixedKey2);
                 value2.update(l -> l + 1);
+                virtualMap.put(fixedKey2, value2);
 
                 if (verify) {
                     map[keyId1] += amount;

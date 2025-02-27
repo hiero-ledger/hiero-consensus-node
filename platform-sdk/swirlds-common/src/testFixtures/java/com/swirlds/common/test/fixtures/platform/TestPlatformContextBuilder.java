@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
@@ -27,6 +12,7 @@ import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
@@ -54,6 +40,7 @@ public final class TestPlatformContextBuilder {
     private Time time = Time.getCurrent();
     private FileSystemManager fileSystemManager;
     private RecycleBin recycleBin;
+    private MerkleCryptography merkleCryptography;
 
     private TestPlatformContextBuilder() {}
 
@@ -130,6 +117,12 @@ public final class TestPlatformContextBuilder {
         return this;
     }
 
+    @NonNull
+    public TestPlatformContextBuilder withMerkleCryptography(@NonNull final MerkleCryptography merkleCryptography) {
+        this.merkleCryptography = merkleCryptography;
+        return this;
+    }
+
     /**
      * Returns a new {@link PlatformContext} based on this builder
      *
@@ -201,6 +194,12 @@ public final class TestPlatformContextBuilder {
             @Override
             public RecycleBin getRecycleBin() {
                 return recycleBin;
+            }
+
+            @NonNull
+            @Override
+            public MerkleCryptography getMerkleCryptography() {
+                return merkleCryptography;
             }
         };
     }

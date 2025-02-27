@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
@@ -40,7 +25,9 @@ import static java.util.stream.Collectors.toList;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
+import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.SystemFunctionalityTarget;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -52,7 +39,9 @@ import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
+import com.hedera.services.bdd.spec.verification.Condition;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
@@ -63,6 +52,7 @@ import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionGetReceiptResponse;
 import com.hederahashgraph.api.proto.java.TransactionReceipt;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -73,10 +63,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -98,6 +90,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     private boolean ensureResolvedStatusIsntFromDuplicate = false;
     private final TupleType LONG_TUPLE = TupleType.parse("(int64)");
 
+    protected boolean fireAndForget = false;
     protected boolean deferStatusResolution = false;
     protected boolean unavailableStatusIsOk = false;
     protected boolean acceptAnyStatus = false;
@@ -118,6 +111,21 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected Optional<EnumSet<ResponseCodeEnum>> permissiblePrechecks = Optional.empty();
     /** if response code in the set then allow to resubmit transaction */
     protected Optional<EnumSet<ResponseCodeEnum>> retryPrechecks = Optional.empty();
+
+    protected List<Condition> conditions = new ArrayList<>();
+
+    public T satisfies(@NonNull final Condition condition) {
+        conditions.add(condition);
+        return self();
+    }
+
+    public T satisfies(@NonNull final BooleanSupplier condition, @NonNull final Supplier<String> errorMessage) {
+        return satisfies(new Condition(condition, errorMessage));
+    }
+
+    public T satisfies(@NonNull final BooleanSupplier condition, @NonNull final String errorMessage) {
+        return satisfies(new Condition(condition, () -> errorMessage));
+    }
 
     /**
      * A strategy for submitting a transaction of the given function and type to a network node with the given id.
@@ -198,11 +206,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                     if (spec.setup().suppressUnrecoverableNetworkFailures()) {
                         return false;
                     }
-                    log.error(
-                            "{} Status resolution failed due to unrecoverable runtime exception, "
-                                    + "possibly network connection lost.",
-                            TxnUtils.toReadableString(txn),
-                            e);
                     if (unavailableStatusIsOk) {
                         // If we expect the status to be unavailable (because e.g. the
                         // submitted transaction exceeds 6144 bytes and will have its
@@ -211,7 +214,18 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                         // lifecycle has ended
                         return true;
                     } else {
-                        throw new HapiTxnCheckStateException("Unable to resolve txn status!");
+                        log.error(
+                                "{} Status resolution failed due to unrecoverable runtime exception, "
+                                        + "possibly network connection lost.",
+                                TxnUtils.toReadableString(txn),
+                                e);
+                        if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                            log.error(
+                                    "gRPC ports mappings were {}",
+                                    subProcessNetwork.nodes().stream()
+                                            .collect(Collectors.toMap(HederaNode::getNodeId, HederaNode::getGrpcPort)));
+                        }
+                        throw new HapiTxnCheckStateException("Unable to resolve txn status");
                     }
                 }
             }
@@ -285,11 +299,17 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         }
         spec.adhocIncrement();
 
-        if (!deferStatusResolution) {
+        if (!deferStatusResolution && !fireAndForget) {
             resolveStatus(spec);
         }
         if (requiresFinalization(spec)) {
             spec.offerFinisher(new DelegatingOpFinisher(this));
+        }
+
+        for (final var condition : conditions) {
+            if (!condition.condition().getAsBoolean()) {
+                throw new HapiTxnCheckStateException("Condition failed: " + condition.errorMessage());
+            }
         }
 
         return !deferStatusResolution;
@@ -406,7 +426,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     @Override
     public boolean requiresFinalization(HapiSpec spec) {
-        return actualPrecheck == OK && deferStatusResolution;
+        return !fireAndForget && actualPrecheck == OK && deferStatusResolution;
     }
 
     @Override
@@ -544,7 +564,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     }
 
     protected byte[] gasLongToBytes(final Long gas) {
-        return Bytes.wrap(LONG_TUPLE.encode(Tuple.of(gas)).array()).toArray();
+        return Bytes.wrap(LONG_TUPLE.encode(Tuple.singleton(gas)).array()).toArray();
     }
 
     /* Fluent builder methods to chain. */
@@ -599,6 +619,11 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T feeUsd(double price) {
         usdFee = OptionalDouble.of(price);
+        return self();
+    }
+
+    public T maxCustomFee(Function<HapiSpec, CustomFeeLimit> f) {
+        maxCustomFeeList.add(f);
         return self();
     }
 
@@ -700,6 +725,14 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T hasAnyStatusAtAll() {
         acceptAnyStatus = true;
+        return self();
+    }
+
+    public T fireAndForget() {
+        hasAnyPrecheck();
+        hasAnyStatusAtAll();
+        orUnavailableStatus();
+        fireAndForget = true;
         return self();
     }
 
@@ -823,5 +856,20 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public ResponseCodeEnum getActualStatus() {
         return lastReceipt.getStatus();
+    }
+
+    public void updateStateFromRecord(TransactionRecord record, HapiSpec spec) throws Throwable {
+        this.actualStatus = record.getReceipt().getStatus();
+        this.lastReceipt = record.getReceipt();
+        updateStateOf(spec);
+    }
+
+    public T batchKey(String key) {
+        batchKey = Optional.of(spec -> spec.registry().getKey(key));
+        return self();
+    }
+
+    public Optional<AccountID> getNode() {
+        return node;
     }
 }

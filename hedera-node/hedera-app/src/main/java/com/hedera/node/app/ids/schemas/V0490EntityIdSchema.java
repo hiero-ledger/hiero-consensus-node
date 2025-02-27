@@ -1,28 +1,13 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids.schemas;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.state.spi.MigrationContext;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.spi.Schema;
-import com.swirlds.state.spi.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -68,7 +53,7 @@ public class V0490EntityIdSchema extends Schema {
     public void migrate(@NonNull MigrationContext ctx) {
         final var entityIdState = ctx.newStates().getSingleton(ENTITY_ID_STATE_KEY);
         if (entityIdState.get() == null) {
-            final var config = ctx.configuration().getConfigData(HederaConfig.class);
+            final var config = ctx.appConfig().getConfigData(HederaConfig.class);
             final var entityNum = config.firstUserEntity() - 1;
             log.info("Setting initial entity id to {}", entityNum);
             entityIdState.put(new EntityNumber(entityNum));

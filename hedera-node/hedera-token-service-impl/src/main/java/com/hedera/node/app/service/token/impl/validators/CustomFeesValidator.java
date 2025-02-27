@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON;
@@ -39,6 +24,8 @@ import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
+import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
+import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -70,24 +57,27 @@ public class CustomFeesValidator {
      * for fixed fees with denominating token id set to sentinel value of 0.0.0.
      * NOTE: This logic is subject to change in future PR for TokenCreate
      *
-     * @param createdToken The token being created.
-     * @param accountStore The account store.
+     * @param createdToken       The token being created.
+     * @param accountStore       The account store.
      * @param tokenRelationStore The token relation store.
-     * @param tokenStore The token store.
-     * @param customFees The custom fees to validate.
-     * @return The set of custom fees that need to auto associate collector accounts.
+     * @param tokenStore         The token store.
+     * @param customFees         The custom fees to validate.
+     * @param expiryValidator    The expiry validator to use (for fee collector accounts)
+     * @return The set of custom fees that need to auto associate collector accounts
      */
     public List<CustomFee> validateForCreation(
             @NonNull final Token createdToken,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ReadableTokenRelationStore tokenRelationStore,
             @NonNull final WritableTokenStore tokenStore,
-            @NonNull final List<CustomFee> customFees) {
+            @NonNull final List<CustomFee> customFees,
+            @NonNull final ExpiryValidator expiryValidator) {
         requireNonNull(createdToken);
         requireNonNull(accountStore);
         requireNonNull(tokenRelationStore);
         requireNonNull(tokenStore);
         requireNonNull(customFees);
+        requireNonNull(expiryValidator);
 
         // It is possible that denominating tokenId is set to sentinel value of 0.0.0.
         // In that scenario, the created token should be used as the denominating token.
@@ -97,8 +87,14 @@ public class CustomFeesValidator {
         final var tokenType = createdToken.tokenType();
         final var createdTokenId = createdToken.tokenId();
         for (final var fee : customFees) {
-            final var collector = accountStore.getAccountById(fee.feeCollectorAccountIdOrElse(AccountID.DEFAULT));
-            validateTrue(collector != null, INVALID_CUSTOM_FEE_COLLECTOR);
+            // Validate the fee collector account is in a usable state
+            TokenHandlerHelper.getIfUsable(
+                    fee.feeCollectorAccountIdOrElse(AccountID.DEFAULT),
+                    accountStore,
+                    expiryValidator,
+                    INVALID_CUSTOM_FEE_COLLECTOR,
+                    INVALID_CUSTOM_FEE_COLLECTOR,
+                    TokenHandlerHelper.AccountIDType.NOT_ALIASED_ID);
 
             final var isSpecified = fee.hasFixedFee() || fee.hasFractionalFee() || fee.hasRoyaltyFee();
             validateTrue(isSpecified, CUSTOM_FEE_NOT_FULLY_SPECIFIED);
@@ -190,7 +186,7 @@ public class CustomFeesValidator {
     /**
      * Validates that the given token type is fungible common.
      * @param tokenType The token type to validate.
-     * @return {@code true} if the token type is fungible common, otherwise {@code false}.
+     * @return {@code true} if the token type is fungible common, otherwise {@code false}
      */
     private boolean isFungibleCommon(@NonNull final TokenType tokenType) {
         return tokenType.equals(TokenType.FUNGIBLE_COMMON);
@@ -199,7 +195,7 @@ public class CustomFeesValidator {
     /**
      * Validates that the given token type is non-fungible unique.
      * @param tokenType The token type to validate.
-     * @return {@code true} if the token type is non-fungible unique, otherwise {@code false}.
+     * @return {@code true} if the token type is non-fungible unique, otherwise {@code false}
      */
     private boolean isNonFungibleUnique(@NonNull final TokenType tokenType) {
         return tokenType.equals(TokenType.NON_FUNGIBLE_UNIQUE);

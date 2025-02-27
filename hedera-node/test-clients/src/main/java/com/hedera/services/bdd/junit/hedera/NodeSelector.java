@@ -1,23 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera;
+
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.function.Predicate;
 
 /**
@@ -78,17 +66,18 @@ public interface NodeSelector extends Predicate<HederaNode> {
         };
     }
 
-    /** Gets a {@link NodeSelector} that selects nodes by nodeId in a case-insensitive way */
-    static NodeSelector exceptNodeId(final long nodeId) {
+    /** Gets a {@link NodeSelector} that excludes nodes by nodeId in a case-insensitive way */
+    static NodeSelector exceptNodeIds(@NonNull final long... nodeIds) {
+        requireNonNull(nodeIds);
         return new NodeSelector() {
             @Override
             public boolean test(@NonNull final HederaNode node) {
-                return node.getNodeId() != nodeId;
+                return Arrays.stream(nodeIds).noneMatch(l -> l == node.getNodeId());
             }
 
             @Override
             public String toString() {
-                return "by nodeId '" + nodeId + "'";
+                return "excluding nodeIds '" + Arrays.toString(nodeIds) + "'";
             }
         };
     }

@@ -1,28 +1,15 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.GENESIS_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.NODE_ADMIN_KEYS_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.UPGRADE_ARTIFACTS_DIR;
-import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork.EMBEDDED_WORKING_DIR;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork.CONCURRENT_WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork.REPEATABLE_WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateUpgradeArtifactsProperty;
@@ -70,8 +57,23 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         System.setProperty(
                 "blockStream.blockFileDir",
                 getExternalPath(BLOCK_STREAMS_DIR).getParent().toString());
+        System.setProperty(
+                "networkAdmin.upgradeSysFilesLoc",
+                getExternalPath(DATA_CONFIG_DIR).toAbsolutePath().toString());
+        System.setProperty(
+                "bootstrap.nodeAdminKeys.path",
+                getExternalPath(NODE_ADMIN_KEYS_JSON).toAbsolutePath().toString());
         System.setProperty("hedera.profiles.active", "DEV");
-        if (isSharedNetwork()) {
+
+        // We get the shard/realm from the metadata account which is coming from the property file
+        var shard = metadata().accountId().shardNum();
+        var realm = metadata().accountId().realmNum();
+        System.setProperty("hedera.shard", String.valueOf(shard));
+        System.setProperty("hedera.realm", String.valueOf(realm));
+
+        final var log4j2ConfigLoc = getExternalPath(LOG4J2_XML).toString();
+        if (isForShared(log4j2ConfigLoc)) {
+            System.setProperty("log4j.configurationFile", log4j2ConfigLoc);
             try (var ignored = Configurator.initialize(null, "")) {
                 // Only initialize logging for the shared embedded network
             }
@@ -80,7 +82,7 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
     }
 
     @Override
-    public EmbeddedNode initWorkingDir(@NonNull String configTxt) {
+    public @NonNull EmbeddedNode initWorkingDir(@NonNull final String configTxt) {
         super.initWorkingDir(configTxt);
         updateUpgradeArtifactsProperty(getExternalPath(APPLICATION_PROPERTIES), getExternalPath(UPGRADE_ARTIFACTS_DIR));
         return this;
@@ -102,8 +104,7 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         return this;
     }
 
-    private boolean isSharedNetwork() {
-        final var log4j2ConfigLoc = getExternalPath(LOG4J2_XML).toString();
-        return log4j2ConfigLoc.contains(EMBEDDED_WORKING_DIR) || log4j2ConfigLoc.contains(REPEATABLE_WORKING_DIR);
+    private boolean isForShared(@NonNull final String log4jConfigLoc) {
+        return log4jConfigLoc.contains(CONCURRENT_WORKING_DIR) || log4jConfigLoc.contains(REPEATABLE_WORKING_DIR);
     }
 }

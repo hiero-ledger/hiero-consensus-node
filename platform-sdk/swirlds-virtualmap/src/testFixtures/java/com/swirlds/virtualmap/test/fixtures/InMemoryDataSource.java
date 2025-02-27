@@ -1,29 +1,14 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.test.fixtures;
 
-import com.swirlds.common.crypto.DigestType;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.serialize.KeySerializer;
+import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -33,20 +18,15 @@ import java.util.stream.Stream;
 
 /**
  * In memory implementation of VirtualDataSource for use in testing.
- *
- * @param <K>
- * 		the type for keys
- * @param <V>
- * 		the type for values
  */
-public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> implements VirtualDataSource<K, V> {
+public class InMemoryDataSource implements VirtualDataSource {
 
     private static final String NEGATIVE_PATH_MESSAGE = "path is less than 0";
 
     private final String name;
     private final ConcurrentHashMap<Long, Hash> hashes = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Long, VirtualLeafRecord<K, V>> leafRecords = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<K, Long> keyToPathMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, VirtualLeafBytes> leafRecords = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Bytes, Long> keyToPathMap = new ConcurrentHashMap<>();
     private volatile long firstLeafPath = -1;
     private volatile long lastLeafPath = -1;
     private volatile boolean closed = false;
@@ -65,7 +45,7 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
         this.name = name;
     }
 
-    public InMemoryDataSource(InMemoryDataSource<K, V> copy) {
+    public InMemoryDataSource(InMemoryDataSource copy) {
         this.name = copy.name;
         this.firstLeafPath = copy.firstLeafPath;
         this.lastLeafPath = copy.lastLeafPath;
@@ -82,10 +62,12 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
      * Close the data source
      */
     @Override
-    public void close() {
-        hashes.clear();
-        leafRecords.clear();
-        keyToPathMap.clear();
+    public void close(final boolean keepData) {
+        if (!keepData) {
+            hashes.clear();
+            leafRecords.clear();
+            keyToPathMap.clear();
+        }
         closed = true;
     }
 
@@ -98,8 +80,8 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
             final long firstLeafPath,
             final long lastLeafPath,
             @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-            @NonNull final Stream<VirtualLeafRecord<K, V>> leafRecordsToAddOrUpdate,
-            @NonNull final Stream<VirtualLeafRecord<K, V>> leafRecordsToDelete,
+            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
             final boolean isReconnectContext)
             throws IOException {
         if (failureOnSave) {
@@ -140,20 +122,14 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
      * 		If there was a problem reading the leaf record
      */
     @Override
-    public VirtualLeafRecord<K, V> loadLeafRecord(K key) throws IOException {
+    public VirtualLeafBytes loadLeafRecord(final Bytes key, final int keyHashCode) throws IOException {
         Objects.requireNonNull(key, "Key cannot be null");
         final Long path = keyToPathMap.get(key);
         if (path == null) {
             return null;
         }
         assert path >= firstLeafPath && path <= lastLeafPath : "Found an illegal path in keyToPathMap!";
-        final VirtualLeafRecord<K, V> leafRecord = loadLeafRecord(path);
-
-        if (!leafRecord.getKey().equals(key)) {
-            throw new RuntimeException("record has invalid key");
-        }
-
-        return leafRecord;
+        return loadLeafRecord(path);
     }
 
     /**
@@ -166,7 +142,7 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
      * 		If there was a problem reading the leaf record
      */
     @Override
-    public VirtualLeafRecord<K, V> loadLeafRecord(long path) throws IOException {
+    public VirtualLeafBytes loadLeafRecord(final long path) throws IOException {
         if (path < 0) {
             throw new IllegalArgumentException(NEGATIVE_PATH_MESSAGE);
         }
@@ -185,22 +161,22 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
                     "path[" + path + "] is larger than the lastLeafPath[" + lastLeafPath + "]");
         }
 
-        final var rec = leafRecords.get(path);
+        final VirtualLeafBytes rec = leafRecords.get(path);
         assert rec != null
                 : "When looking up leaves, we should never be asked to look up a leaf that doesn't exist. path=" + path;
-        return new VirtualLeafRecord<>(rec.getPath(), rec.getKey(), rec.getValue());
+        return rec;
     }
 
     /**
      * Find the path of the given key
-     * @param key
-     * 		the key for a path
+     * @param key the key for a path
+     * @param keyHashCode the key hash code
      * @return the path or INVALID_PATH if not stored
      * @throws IOException
      * 		If there was a problem locating the key
      */
     @Override
-    public long findKey(final K key) throws IOException {
+    public long findKey(final Bytes key, final int keyHashCode) throws IOException {
         final Long path = keyToPathMap.get(key);
         return (path == null) ? INVALID_PATH : path;
     }
@@ -229,8 +205,6 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
 
     /**
      * This is a no-op implementation.
-     *
-     * {@inheritDoc}
      */
     @Override
     public void snapshot(final Path snapshotDirectory) {
@@ -238,19 +212,19 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
     }
 
     /**
-     * {@inheritDoc}
+     * This database has no statistics.
      */
     @Override
-    public void copyStatisticsFrom(final VirtualDataSource<K, V> that) {
-        // this database has no statistics
+    public void copyStatisticsFrom(final VirtualDataSource that) {
+        // nop
     }
 
     /**
-     * {@inheritDoc}
+     * This database has no statistics.
      */
     @Override
     public void registerMetrics(final Metrics metrics) {
-        // this database has no statistics
+        // nop
     }
 
     // =================================================================================================================
@@ -278,26 +252,26 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
     }
 
     private void saveLeafRecords(
-            final long firstLeafPath, final long lastLeafPath, final Stream<VirtualLeafRecord<K, V>> leafRecords)
+            final long firstLeafPath, final long lastLeafPath, final Stream<VirtualLeafBytes> leafRecords)
             throws IOException {
         final var itr = leafRecords.iterator();
         while (itr.hasNext()) {
             final var rec = itr.next();
-            final var path = rec.getPath();
-            final var key = Objects.requireNonNull(rec.getKey(), "Key cannot be null");
-            final var value = rec.getValue(); // Not sure if this can be null or not.
+            final var path = rec.path();
+            final var key = Objects.requireNonNull(rec.keyBytes(), "Key cannot be null");
+            final var keyHashCode = rec.keyHashCode();
+            final var value = rec.valueBytes(); // Not sure if this can be null or not.
 
             if (path < firstLeafPath) {
                 throw new IOException(
                         "Leaf record for " + path + " is bogus. It cannot be < first leaf path " + firstLeafPath);
             }
-
             if (path > lastLeafPath) {
                 throw new IOException(
                         "Leaf record for " + path + " is bogus. It cannot be > last leaf path " + lastLeafPath);
             }
 
-            this.leafRecords.put(path, new VirtualLeafRecord<>(path, key, value));
+            this.leafRecords.put(path, new VirtualLeafBytes(path, key, keyHashCode, value));
             this.keyToPathMap.put(key, path);
         }
     }
@@ -309,24 +283,21 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
     }
 
     private void deleteLeafRecords(
-            final Stream<VirtualLeafRecord<K, V>> leafRecordsToDelete, final boolean isReconnectContext) {
+            final Stream<VirtualLeafBytes> leafRecordsToDelete, final boolean isReconnectContext) {
         final var itr = leafRecordsToDelete.iterator();
         while (itr.hasNext()) {
             final var rec = itr.next();
-            final long path = rec.getPath();
-            final K key = rec.getKey();
-            final long oldPath = keyToPathMap.get(key);
+            final long path = rec.path();
+            final Bytes key = rec.keyBytes();
+            final Long oldPath = keyToPathMap.get(key);
+            if (oldPath == null) {
+                continue;
+            }
             if (!isReconnectContext || path == oldPath) {
                 this.keyToPathMap.remove(key);
                 this.leafRecords.remove(path);
             }
         }
-    }
-
-    @Override
-    public long estimatedSize(final long dirtyInternals, final long dirtyLeaves) {
-        // It doesn't have to be very precise as this data source is used for testing purposed only
-        return dirtyInternals * (Long.BYTES + DigestType.SHA_384.digestLength()) + dirtyLeaves * 1024;
     }
 
     @Override
@@ -359,5 +330,17 @@ public class InMemoryDataSource<K extends VirtualKey, V extends VirtualValue> im
     @Override
     public void stopAndDisableBackgroundCompaction() {
         // no op
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    public KeySerializer getKeySerializer() {
+        throw new UnsupportedOperationException("This method should never be called");
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    public ValueSerializer getValueSerializer() {
+        throw new UnsupportedOperationException("This method should never be called");
     }
 }

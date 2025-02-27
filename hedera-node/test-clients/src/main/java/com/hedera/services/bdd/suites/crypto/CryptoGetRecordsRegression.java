@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.including;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -53,13 +38,14 @@ public class CryptoGetRecordsRegression {
     final Stream<DynamicTest> succeedsNormally() {
         String memo = "Dim galleries, dusky corridors got past...";
 
-        return defaultHapiSpec("SucceedsNormally")
-                .given(cryptoCreate("misc"), cryptoCreate(LOW_THRESH_PAYER).sendThreshold(1L))
-                .when(cryptoTransfer(tinyBarsFromTo(GENESIS, "misc", 1))
+        return hapiTest(
+                cryptoCreate("misc"),
+                cryptoCreate(LOW_THRESH_PAYER).sendThreshold(1L),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "misc", 1))
                         .payingWith(LOW_THRESH_PAYER)
                         .memo(memo)
-                        .via("txn"))
-                .then(getAccountRecords(LOW_THRESH_PAYER)
+                        .via("txn"),
+                getAccountRecords(LOW_THRESH_PAYER)
                         .has(AssertUtils.inOrder(recordWith()
                                 .txnId("txn")
                                 .memo(memo)
@@ -70,29 +56,24 @@ public class CryptoGetRecordsRegression {
 
     @HapiTest
     final Stream<DynamicTest> failsForMissingAccount() {
-        return defaultHapiSpec("FailsForMissingAccount")
-                .given()
-                .when()
-                .then(
-                        getAccountRecords("1.2.3").hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
-                        getAccountRecords("1.2.3").nodePayment(123L).hasAnswerOnlyPrecheck(INVALID_ACCOUNT_ID));
+        return hapiTest(
+                getAccountRecords("5.5.3").hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
+                getAccountRecords("5.5.3").nodePayment(123L).hasAnswerOnlyPrecheck(INVALID_ACCOUNT_ID));
     }
 
     @HapiTest
     final Stream<DynamicTest> failsForMalformedPayment() {
-        return defaultHapiSpec("FailsForMalformedPayment")
-                .given(newKeyNamed("wrong").shape(SIMPLE))
-                .when()
-                .then(getAccountRecords(GENESIS).signedBy("wrong").hasAnswerOnlyPrecheck(INVALID_SIGNATURE));
+        return hapiTest(
+                newKeyNamed("wrong").shape(SIMPLE),
+                getAccountRecords(GENESIS).signedBy("wrong").hasAnswerOnlyPrecheck(INVALID_SIGNATURE));
     }
 
     @HapiTest
     final Stream<DynamicTest> failsForUnfundablePayment() {
         long everything = 1_234L;
-        return defaultHapiSpec("FailsForUnfundablePayment")
-                .given(cryptoCreate("brokePayer").balance(everything))
-                .when()
-                .then(getAccountRecords(GENESIS)
+        return hapiTest(
+                cryptoCreate("brokePayer").balance(everything),
+                getAccountRecords(GENESIS)
                         .payingWith("brokePayer")
                         .nodePayment(everything)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
@@ -100,10 +81,9 @@ public class CryptoGetRecordsRegression {
 
     @HapiTest
     final Stream<DynamicTest> failsForInsufficientPayment() {
-        return defaultHapiSpec("FailsForInsufficientPayment")
-                .given(cryptoCreate(PAYER))
-                .when()
-                .then(getAccountRecords(GENESIS)
+        return hapiTest(
+                cryptoCreate(PAYER),
+                getAccountRecords(GENESIS)
                         .payingWith(PAYER)
                         .nodePayment(1L)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE));
@@ -111,35 +91,28 @@ public class CryptoGetRecordsRegression {
 
     @HapiTest
     final Stream<DynamicTest> failsForInvalidTrxBody() {
-        return defaultHapiSpec("failsForInvalidTrxBody")
-                .given()
-                .when()
-                .then(getAccountRecords(GENESIS)
-                        .useEmptyTxnAsAnswerPayment()
-                        .hasAnswerOnlyPrecheck(INVALID_TRANSACTION_BODY));
+        return hapiTest(getAccountRecords(GENESIS)
+                .useEmptyTxnAsAnswerPayment()
+                .hasAnswerOnlyPrecheck(INVALID_TRANSACTION_BODY));
     }
 
     @HapiTest
     final Stream<DynamicTest> failsForDeletedAccount() {
-        return defaultHapiSpec("FailsForDeletedAccount")
-                .given(cryptoCreate(ACCOUNT_TO_BE_DELETED))
-                .when(cryptoDelete(ACCOUNT_TO_BE_DELETED).transfer(GENESIS))
-                .then(
-                        getAccountRecords(ACCOUNT_TO_BE_DELETED).hasCostAnswerPrecheck(ACCOUNT_DELETED),
-                        getAccountRecords(ACCOUNT_TO_BE_DELETED)
-                                .nodePayment(123L)
-                                .hasAnswerOnlyPrecheck(ACCOUNT_DELETED));
+        return hapiTest(
+                cryptoCreate(ACCOUNT_TO_BE_DELETED),
+                cryptoDelete(ACCOUNT_TO_BE_DELETED).transfer(GENESIS),
+                getAccountRecords(ACCOUNT_TO_BE_DELETED).hasCostAnswerPrecheck(ACCOUNT_DELETED),
+                getAccountRecords(ACCOUNT_TO_BE_DELETED).nodePayment(123L).hasAnswerOnlyPrecheck(ACCOUNT_DELETED));
     }
 
     @HapiTest
     final Stream<DynamicTest> getAccountRecords_testForDuplicates() {
-        return defaultHapiSpec("testForDuplicateAccountRecords")
-                .given(
-                        cryptoCreate(ACCOUNT_1).balance(5000000000000L).sendThreshold(1L),
-                        cryptoCreate("account2").balance(5000000000000L).sendThreshold(1L))
-                .when(cryptoTransfer(tinyBarsFromTo(ACCOUNT_1, "account2", 10L))
+        return hapiTest(
+                cryptoCreate(ACCOUNT_1).balance(5000000000000L).sendThreshold(1L),
+                cryptoCreate("account2").balance(5000000000000L).sendThreshold(1L),
+                cryptoTransfer(tinyBarsFromTo(ACCOUNT_1, "account2", 10L))
                         .payingWith(ACCOUNT_1)
-                        .via("thresholdTxn"))
-                .then(getAccountRecords(ACCOUNT_1).logged());
+                        .via("thresholdTxn"),
+                getAccountRecords(ACCOUNT_1).logged());
     }
 }

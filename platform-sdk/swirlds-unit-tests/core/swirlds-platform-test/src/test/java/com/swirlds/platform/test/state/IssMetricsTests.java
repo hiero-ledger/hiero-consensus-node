@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -21,14 +6,15 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.metrics.IssMetrics;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,16 +26,16 @@ class IssMetricsTests {
     @DisplayName("Update Non-Existent Node")
     void updateNonExistentNode() {
         final Randotron randotron = Randotron.create();
-
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(randotron).withSize(100).build();
-
-        final IssMetrics issMetrics = new IssMetrics(new NoOpMetrics(), addressBook);
+        final Roster roster =
+                RandomRosterBuilder.create(randotron).withSize(100).build();
+        final IssMetrics issMetrics = new IssMetrics(new NoOpMetrics(), roster);
+        final Hash hashA = randomHash();
+        final Hash hashB = randomHash();
+        final NodeId nodeId = NodeId.of(Integer.MAX_VALUE);
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> issMetrics.stateHashValidityObserver(
-                        0L, new NodeId(Integer.MAX_VALUE), randomHash(), randomHash()),
+                () -> issMetrics.stateHashValidityObserver(0L, nodeId, hashA, hashB),
                 "should not be able to update stats for non-existent node");
     }
 
@@ -61,10 +47,9 @@ class IssMetricsTests {
         final Hash hashA = randomHash(random);
         final Hash hashB = randomHash(random);
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(100).build();
+        final Roster roster = RandomRosterBuilder.create(random).withSize(100).build();
 
-        final IssMetrics issMetrics = new IssMetrics(new NoOpMetrics(), addressBook);
+        final IssMetrics issMetrics = new IssMetrics(new NoOpMetrics(), roster);
 
         assertEquals(0, issMetrics.getIssCount(), "there shouldn't be any nodes in an ISS state");
         assertEquals(0, issMetrics.getIssWeight(), "there shouldn't be any weight in an ISS state");
@@ -74,13 +59,14 @@ class IssMetricsTests {
         long expectedIssweight = 0;
 
         // Change even numbered nodes to have an ISS
-        for (final Address address : addressBook) {
-            if (address.getNodeId().id() % 2 == 0) {
-                issMetrics.stateHashValidityObserver(round, address.getNodeId(), hashA, hashB);
+        for (final RosterEntry node : roster.rosterEntries()) {
+            final NodeId nodeId = NodeId.of(node.nodeId());
+            if (node.nodeId() % 2 == 0) {
+                issMetrics.stateHashValidityObserver(round, nodeId, hashA, hashB);
                 expectedIssCount++;
-                expectedIssweight += address.getWeight();
+                expectedIssweight += node.weight();
             } else {
-                issMetrics.stateHashValidityObserver(round, address.getNodeId(), hashA, hashA);
+                issMetrics.stateHashValidityObserver(round, nodeId, hashA, hashA);
             }
             assertEquals(expectedIssCount, issMetrics.getIssCount(), "unexpected ISS count");
             assertEquals(expectedIssweight, issMetrics.getIssWeight(), "unexpected ISS weight");
@@ -88,38 +74,39 @@ class IssMetricsTests {
 
         // For the next round, report the same statuses. No change is expected.
         round++;
-        for (final Address address : addressBook) {
-            final Hash hash = address.getNodeId().id() % 2 != 0 ? hashA : hashB;
-            issMetrics.stateHashValidityObserver(round, address.getNodeId(), hashA, hash);
+        for (final RosterEntry node : roster.rosterEntries()) {
+            final Hash hash = node.nodeId() % 2 != 0 ? hashA : hashB;
+            issMetrics.stateHashValidityObserver(round, NodeId.of(node.nodeId()), hashA, hash);
             assertEquals(expectedIssCount, issMetrics.getIssCount(), "unexpected ISS count");
             assertEquals(expectedIssweight, issMetrics.getIssWeight(), "unexpected ISS weight");
         }
 
         // Report data from the same round number. This is expected to be ignored.
-        for (final Address address : addressBook) {
-            issMetrics.stateHashValidityObserver(round, address.getNodeId(), hashA, hashA);
+        for (final RosterEntry node : roster.rosterEntries()) {
+            issMetrics.stateHashValidityObserver(round, NodeId.of(node.nodeId()), hashA, hashA);
             assertEquals(expectedIssCount, issMetrics.getIssCount(), "unexpected ISS count");
             assertEquals(expectedIssweight, issMetrics.getIssWeight(), "unexpected ISS weight");
         }
 
         // Report data from a lower round number. This is expected to be ignored.
-        for (final Address address : addressBook) {
-            issMetrics.stateHashValidityObserver(round - 1, address.getNodeId(), hashA, hashA);
+        for (final RosterEntry node : roster.rosterEntries()) {
+            issMetrics.stateHashValidityObserver(round - 1, NodeId.of(node.nodeId()), hashA, hashA);
             assertEquals(expectedIssCount, issMetrics.getIssCount(), "unexpected ISS count");
             assertEquals(expectedIssweight, issMetrics.getIssWeight(), "unexpected ISS weight");
         }
 
         // Switch the status of each node.
         round++;
-        for (final Address address : addressBook) {
-            if (address.getNodeId().id() % 2 == 0) {
-                issMetrics.stateHashValidityObserver(round, address.getNodeId(), hashA, hashA);
+        for (final RosterEntry node : roster.rosterEntries()) {
+            final NodeId nodeId = NodeId.of(node.nodeId());
+            if (node.nodeId() % 2 == 0) {
+                issMetrics.stateHashValidityObserver(round, nodeId, hashA, hashA);
                 expectedIssCount--;
-                expectedIssweight -= address.getWeight();
+                expectedIssweight -= node.weight();
             } else {
-                issMetrics.stateHashValidityObserver(round, address.getNodeId(), hashA, hashB);
+                issMetrics.stateHashValidityObserver(round, nodeId, hashA, hashB);
                 expectedIssCount++;
-                expectedIssweight += address.getWeight();
+                expectedIssweight += node.weight();
             }
             assertEquals(expectedIssCount, issMetrics.getIssCount(), "unexpected ISS count");
             assertEquals(expectedIssweight, issMetrics.getIssWeight(), "unexpected ISS weight");
@@ -133,17 +120,17 @@ class IssMetricsTests {
         // Report a catastrophic ISS.
         round++;
         issMetrics.catastrophicIssObserver(round);
-        expectedIssCount = addressBook.getSize();
-        expectedIssweight = addressBook.getTotalWeight();
+        expectedIssCount = roster.rosterEntries().size();
+        expectedIssweight = RosterUtils.computeTotalWeight(roster);
         assertEquals(expectedIssCount, issMetrics.getIssCount(), "unexpected ISS count");
         assertEquals(expectedIssweight, issMetrics.getIssWeight(), "unexpected ISS weight");
 
         // Heal all nodes.
         round++;
-        for (final Address address : addressBook) {
-            issMetrics.stateHashValidityObserver(round, address.getNodeId(), hashA, hashA);
+        for (final RosterEntry node : roster.rosterEntries()) {
+            issMetrics.stateHashValidityObserver(round, NodeId.of(node.nodeId()), hashA, hashA);
             expectedIssCount--;
-            expectedIssweight -= address.getWeight();
+            expectedIssweight -= node.weight();
             assertEquals(expectedIssCount, issMetrics.getIssCount(), "unexpected ISS count");
             assertEquals(expectedIssweight, issMetrics.getIssWeight(), "unexpected ISS weight");
         }

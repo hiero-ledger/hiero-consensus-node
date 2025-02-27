@@ -1,22 +1,6 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle.disk;
 
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -31,7 +15,10 @@ import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.disk.OnDiskKey;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
@@ -39,10 +26,10 @@ import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskValue;
 import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
-import com.swirlds.state.spi.Schema;
-import com.swirlds.state.spi.StateDefinition;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.serialize.KeySerializer;
+import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -67,7 +54,7 @@ class OnDiskTest extends MerkleTestBase {
     @BeforeEach
     void setUp() throws IOException {
         setupConstructableRegistry();
-        final Path storageDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory();
+        final Path storageDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         def = StateDefinition.onDisk(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, 100);
 
@@ -80,27 +67,32 @@ class OnDiskTest extends MerkleTestBase {
             }
         };
 
-        final var tableConfig = new MerkleDbTableConfig<>(
+        final KeySerializer<OnDiskKey<AccountID>> keySerializer = new OnDiskKeySerializer<>(
+                onDiskKeySerializerClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
+                onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
+                AccountID.PROTOBUF);
+        final ValueSerializer<OnDiskValue<Account>> valueSerializer = new OnDiskValueSerializer<>(
+                onDiskValueSerializerClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
+                onDiskValueClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
+                Account.PROTOBUF);
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final var tableConfig = new MerkleDbTableConfig(
                 (short) 1,
                 DigestType.SHA_384,
-                (short) 1,
-                new OnDiskKeySerializer<>(
-                        onDiskKeySerializerClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                        onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                        AccountID.PROTOBUF),
-                (short) 1,
-                new OnDiskValueSerializer<>(
-                        onDiskValueSerializerClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                        onDiskValueClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                        Account.PROTOBUF));
+                merkleDbConfig.maxNumOfKeys(),
+                merkleDbConfig.hashesRamToDiskThreshold());
         // Force all hashes to disk, to make sure we're going through all the
         // serialization paths we can
         tableConfig.hashesRamToDiskThreshold(0);
         tableConfig.maxNumberOfKeys(100);
-        tableConfig.preferDiskIndices(true);
 
-        final var builder = new MerkleDbDataSourceBuilder<>(storageDir, tableConfig);
-        virtualMap = new VirtualMap<>(StateUtils.computeLabel(SERVICE_NAME, ACCOUNT_STATE_KEY), builder);
+        final var builder = new MerkleDbDataSourceBuilder(storageDir, tableConfig, CONFIGURATION);
+        virtualMap = new VirtualMap<>(
+                StateUtils.computeLabel(SERVICE_NAME, ACCOUNT_STATE_KEY),
+                keySerializer,
+                valueSerializer,
+                builder,
+                CONFIGURATION);
 
         Configuration config = mock(Configuration.class);
         final var hederaConfig = mock(HederaConfig.class);
@@ -158,12 +150,12 @@ class OnDiskTest extends MerkleTestBase {
         virtualMap.copy(); // throw away the copy, we won't use it
         CRYPTO.digestTreeSync(virtualMap);
 
-        final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot");
+        final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
         final byte[] serializedBytes = writeTree(virtualMap, snapshotDir);
 
         // Before we can read the data back, we need to register the data types
         // I plan to deserialize.
-        final var r = new MerkleSchemaRegistry(registry, SERVICE_NAME, DEFAULT_CONFIG, new SchemaApplications());
+        final var r = new MerkleSchemaRegistry(registry, SERVICE_NAME, CONFIGURATION, new SchemaApplications());
         r.register(schema);
 
         // read it back now as our map and validate the data come back fine

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.internal;
 
 import com.swirlds.common.crypto.Hash;
@@ -21,8 +6,10 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Clearable;
 import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.ConsensusConstants;
+import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -530,6 +517,20 @@ public class EventImpl implements Clearable {
     }
 
     /**
+     * Get the age value of this event based on the ancient mode. The age value is either the generation or the birth
+     * round of this event.
+     *
+     * @param ancientMode the ancient mode
+     * @return the age value of this event
+     */
+    public long getAgeValue(@NonNull final AncientMode ancientMode) {
+        return switch (ancientMode) {
+            case GENERATION_THRESHOLD -> getGeneration();
+            case BIRTH_ROUND_THRESHOLD -> getBirthRound();
+        };
+    }
+
+    /**
      * Same as {@link PlatformEvent#getCreatorId()}
      */
     @NonNull
@@ -563,6 +564,20 @@ public class EventImpl implements Clearable {
 
     @Override
     public String toString() {
-        return baseEvent.toString();
+        final StringBuilder sb = new StringBuilder();
+        baseEvent.getDescriptor().shortString(sb);
+        final List<EventDescriptorWrapper> allParents = baseEvent.getAllParents();
+        for (final EventDescriptorWrapper parent : allParents) {
+            parent.shortString(sb);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Create a short string representation of this event without any parent information.
+     * @return a short string
+     */
+    public String shortString() {
+        return baseEvent.getDescriptor().shortString();
     }
 }

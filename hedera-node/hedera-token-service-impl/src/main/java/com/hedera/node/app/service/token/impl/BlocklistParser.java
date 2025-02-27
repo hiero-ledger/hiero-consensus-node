@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.service.evm.utils.EthSigsUtils;
+import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
@@ -35,13 +20,14 @@ import org.bouncycastle.crypto.params.ECDomainParameters;
 import org.bouncycastle.crypto.params.ECPublicKeyParameters;
 
 /**
- * Encapsulates the logic for reading blocked accounts from file
+ * Encapsulates the logic for reading blocked accounts from file.
  */
 public class BlocklistParser {
     private static final Logger log = LogManager.getLogger(BlocklistParser.class);
 
     /**
-     * Makes sure that all blocked accounts contained in the blocklist resource are present in state, and creates their definitions (if necessary).
+     * Makes sure that all blocked accounts contained in the blocklist resource are present in state,
+     * and creates their definitions (if necessary).
      *
      * <p><b>Note: this method assumes that blocklists are enabled</b> – it does not check that config property
      * @param blocklistResourceName the blocklist resource
@@ -143,6 +129,7 @@ public class BlocklistParser {
     }
 
     /**
+     * Encapsulates the information about a blocked account.
      * @param evmAddress the EVM address of the blocked account
      * @param memo      the memo of the blocked account
      */

@@ -1,31 +1,13 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.core.jmh;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.EventHasher;
-import com.swirlds.platform.event.hashing.PbjBytesHasher;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.StaticSoftwareVersion;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.io.IOException;
 import java.io.PipedInputStream;
@@ -60,7 +42,7 @@ public class EventBenchmarks {
     @Param({"10"})
     public int numSys;
 
-    @Param({"PBJ_BYTES_DIGEST", "PBJ_STREAM_DIGEST"})
+    @Param({"PBJ_STREAM_DIGEST"})
     public HasherType hasherType;
 
     private PlatformEvent event;
@@ -78,9 +60,6 @@ public class EventBenchmarks {
                 .setSelfParent(new TestingEventBuilder(random).build())
                 .setOtherParent(new TestingEventBuilder(random).build())
                 .build();
-        StaticSoftwareVersion.setSoftwareVersion(
-                new BasicSoftwareVersion(event.getSoftwareVersion().major()));
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.platform.system");
         final PipedInputStream inputStream = new PipedInputStream();
         final PipedOutputStream outputStream = new PipedOutputStream(inputStream);
         outStream = new MerkleDataOutputStream(outputStream);
@@ -96,8 +75,8 @@ public class EventBenchmarks {
         //
         // Benchmark                                (seed)   Mode  Cnt    Score    Error   Units
         // EventSerialization.serializeDeserialize       0  thrpt    3  962.486 ± 29.252  ops/ms
-        outStream.writeSerializable(event, false);
-        bh.consume(inStream.readSerializable(false, PlatformEvent::new));
+        outStream.writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
+        bh.consume(inStream.readPbjRecord(GossipEvent.PROTOBUF));
     }
 
     /*
@@ -116,12 +95,10 @@ public class EventBenchmarks {
     }
 
     public enum HasherType {
-        PBJ_BYTES_DIGEST,
         PBJ_STREAM_DIGEST;
 
         public EventHasher newHasher() {
             return switch (this) {
-                case PBJ_BYTES_DIGEST -> new PbjBytesHasher();
                 case PBJ_STREAM_DIGEST -> new PbjStreamHasher();
             };
         }

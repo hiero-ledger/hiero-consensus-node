@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
@@ -63,8 +49,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.HIGHLY_NON_DETERMINISTIC_FEES;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -103,7 +87,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
-import com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -122,6 +105,7 @@ public class TokenManagementSpecs {
     private static final String WIPE_TXN = "wipeTxn";
     private static final String ONE_KYC = "oneKyc";
     private static final String RIGID = "rigid";
+    public static final String INVALID_ACCOUNT = "999.999.999";
 
     @HapiTest
     final Stream<DynamicTest> aliasFormFailsForAllTokenOps() {
@@ -306,99 +290,91 @@ public class TokenManagementSpecs {
         final var adminKey = "adminKey";
         final var fungible = "fungible";
         final var nft = "non-fungible";
-        return defaultHapiSpec("zeroUnitTokenOperationsWorkAsExpected", SnapshotMatchMode.FULLY_NONDETERMINISTIC)
-                .given(
-                        newKeyNamed(adminKey),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L),
-                        cryptoCreate(civilian).balance(0L))
-                .when(
-                        tokenCreate(fungible)
-                                .supplyKey(adminKey)
-                                .adminKey(adminKey)
-                                .wipeKey(adminKey)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .maxSupply(100)
-                                .initialSupply(10)
-                                .treasury(TOKEN_TREASURY),
-                        tokenCreate(nft)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .supplyKey(adminKey)
-                                .adminKey(adminKey)
-                                .wipeKey(adminKey)
-                                .maxSupply(10)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY),
-                        tokenAssociate(civilian, fungible, nft),
-                        mintToken(nft, List.of(copyFromUtf8("Please mind the vase."))),
-                        cryptoTransfer(moving(2, fungible).between(TOKEN_TREASURY, civilian))
-                                .logged(),
-                        cryptoTransfer(movingUnique(nft, 1L).between(TOKEN_TREASURY, civilian))
-                                .logged(),
-                        getAccountInfo(civilian)
-                                .hasToken(relationshipWith(fungible).balance(2))
-                                .hasOwnedNfts(1)
-                                .logged())
-                .then(
-                        cryptoTransfer(moving(0, fungible).between(TOKEN_TREASURY, civilian))
-                                .logged(),
-                        mintToken(fungible, 0),
-                        mintToken(nft, List.of()).hasKnownStatus(INVALID_TOKEN_MINT_METADATA),
-                        burnToken(fungible, 0),
-                        burnToken(nft, List.of()).hasKnownStatus(INVALID_TOKEN_BURN_METADATA),
-                        wipeTokenAccount(fungible, civilian, 0),
-                        wipeTokenAccount(nft, civilian, List.of()).hasKnownStatus(INVALID_WIPING_AMOUNT),
-                        getAccountInfo(TOKEN_TREASURY)
-                                .hasToken(relationshipWith(fungible).balance(8))
-                                .hasOwnedNfts(0)
-                                .logged(),
-                        getAccountInfo(civilian)
-                                .hasToken(relationshipWith(fungible).balance(2))
-                                .hasOwnedNfts(1)
-                                .logged());
+        return hapiTest(
+                newKeyNamed(adminKey),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(civilian).balance(0L),
+                tokenCreate(fungible)
+                        .supplyKey(adminKey)
+                        .adminKey(adminKey)
+                        .wipeKey(adminKey)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(100)
+                        .initialSupply(10)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(nft)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey(adminKey)
+                        .adminKey(adminKey)
+                        .wipeKey(adminKey)
+                        .maxSupply(10)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(civilian, fungible, nft),
+                mintToken(nft, List.of(copyFromUtf8("Please mind the vase."))),
+                cryptoTransfer(moving(2, fungible).between(TOKEN_TREASURY, civilian))
+                        .logged(),
+                cryptoTransfer(movingUnique(nft, 1L).between(TOKEN_TREASURY, civilian))
+                        .logged(),
+                getAccountInfo(civilian)
+                        .hasToken(relationshipWith(fungible).balance(2))
+                        .hasOwnedNfts(1)
+                        .logged(),
+                cryptoTransfer(moving(0, fungible).between(TOKEN_TREASURY, civilian))
+                        .logged(),
+                mintToken(fungible, 0),
+                mintToken(nft, List.of()).hasKnownStatus(INVALID_TOKEN_MINT_METADATA),
+                burnToken(fungible, 0),
+                burnToken(nft, List.of()).hasKnownStatus(INVALID_TOKEN_BURN_METADATA),
+                wipeTokenAccount(fungible, civilian, 0),
+                wipeTokenAccount(nft, civilian, List.of()).hasKnownStatus(INVALID_WIPING_AMOUNT),
+                getAccountInfo(TOKEN_TREASURY)
+                        .hasToken(relationshipWith(fungible).balance(8))
+                        .hasOwnedNfts(0)
+                        .logged(),
+                getAccountInfo(civilian)
+                        .hasToken(relationshipWith(fungible).balance(2))
+                        .hasOwnedNfts(1)
+                        .logged());
     }
 
     @HapiTest
     final Stream<DynamicTest> frozenTreasuryCannotBeMintedOrBurned() {
-        return defaultHapiSpec("FrozenTreasuryCannotBeMintedOrBurned", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed("freezeKey"),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L))
-                .when(tokenCreate(SUPPLE)
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed("freezeKey"),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                tokenCreate(SUPPLE)
                         .freezeKey("freezeKey")
                         .supplyKey(SUPPLY_KEY)
                         .initialSupply(1)
-                        .treasury(TOKEN_TREASURY))
-                .then(
-                        tokenFreeze(SUPPLE, TOKEN_TREASURY),
-                        mintToken(SUPPLE, 1).hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN),
-                        burnToken(SUPPLE, 1).hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN),
-                        getTokenInfo(SUPPLE).hasTotalSupply(1),
-                        getAccountInfo(TOKEN_TREASURY)
-                                .hasToken(relationshipWith(SUPPLE).balance(1).freeze(Frozen)));
+                        .treasury(TOKEN_TREASURY),
+                tokenFreeze(SUPPLE, TOKEN_TREASURY),
+                mintToken(SUPPLE, 1).hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN),
+                burnToken(SUPPLE, 1).hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN),
+                getTokenInfo(SUPPLE).hasTotalSupply(1),
+                getAccountInfo(TOKEN_TREASURY)
+                        .hasToken(relationshipWith(SUPPLE).balance(1).freeze(Frozen)));
     }
 
     @HapiTest
     final Stream<DynamicTest> revokedKYCTreasuryCannotBeMintedOrBurned() {
-        return defaultHapiSpec(
-                        "RevokedKYCTreasuryCannotBeMintedOrBurned", SnapshotMatchMode.EXPECT_STREAMLINED_INGEST_RECORDS)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed("kycKey"),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L))
-                .when(tokenCreate(SUPPLE)
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed("kycKey"),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                tokenCreate(SUPPLE)
                         .kycKey("kycKey")
                         .supplyKey(SUPPLY_KEY)
                         .initialSupply(1)
-                        .treasury(TOKEN_TREASURY))
-                .then(
-                        revokeTokenKyc(SUPPLE, TOKEN_TREASURY),
-                        mintToken(SUPPLE, 1).hasKnownStatus(ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN),
-                        burnToken(SUPPLE, 1).hasKnownStatus(ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN),
-                        getTokenInfo(SUPPLE).hasTotalSupply(1),
-                        getAccountInfo(TOKEN_TREASURY)
-                                .hasToken(relationshipWith(SUPPLE).balance(1).kyc(Revoked)));
+                        .treasury(TOKEN_TREASURY),
+                revokeTokenKyc(SUPPLE, TOKEN_TREASURY),
+                mintToken(SUPPLE, 1).hasKnownStatus(ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN),
+                burnToken(SUPPLE, 1).hasKnownStatus(ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN),
+                getTokenInfo(SUPPLE).hasTotalSupply(1),
+                getAccountInfo(TOKEN_TREASURY)
+                        .hasToken(relationshipWith(SUPPLE).balance(1).kyc(Revoked)));
     }
 
     @HapiTest
@@ -408,30 +384,27 @@ public class TokenManagementSpecs {
         final int TRANSFER_AMOUNT = 50;
         final int BURN_AMOUNT = 60;
 
-        return defaultHapiSpec("BurnTokenFailsDueToInsufficientTreasuryBalance", HIGHLY_NON_DETERMINISTIC_FEES)
-                .given(
-                        newKeyNamed("burnKey"),
-                        cryptoCreate("misc").balance(0L),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L))
-                .when(
-                        tokenCreate(BURN_TOKEN)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(TOTAL_SUPPLY)
-                                .supplyKey("burnKey"),
-                        tokenAssociate("misc", BURN_TOKEN),
-                        cryptoTransfer(moving(TRANSFER_AMOUNT, BURN_TOKEN).between(TOKEN_TREASURY, "misc")),
-                        getAccountBalance("misc").hasTokenBalance(BURN_TOKEN, TRANSFER_AMOUNT),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(BURN_TOKEN, TRANSFER_AMOUNT),
-                        getAccountInfo("misc").logged(),
-                        burnToken(BURN_TOKEN, BURN_AMOUNT)
-                                .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE)
-                                .via(WIPE_TXN),
-                        getTokenInfo(BURN_TOKEN).logged(),
-                        getAccountInfo("misc").logged())
-                .then(
-                        getTokenInfo(BURN_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(BURN_TOKEN, TRANSFER_AMOUNT),
-                        getTxnRecord(WIPE_TXN).logged());
+        return hapiTest(
+                newKeyNamed("burnKey"),
+                cryptoCreate("misc").balance(0L),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                tokenCreate(BURN_TOKEN)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .supplyKey("burnKey"),
+                tokenAssociate("misc", BURN_TOKEN),
+                cryptoTransfer(moving(TRANSFER_AMOUNT, BURN_TOKEN).between(TOKEN_TREASURY, "misc")),
+                getAccountBalance("misc").hasTokenBalance(BURN_TOKEN, TRANSFER_AMOUNT),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(BURN_TOKEN, TRANSFER_AMOUNT),
+                getAccountInfo("misc").logged(),
+                burnToken(BURN_TOKEN, BURN_AMOUNT)
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE)
+                        .via(WIPE_TXN),
+                getTokenInfo(BURN_TOKEN),
+                getAccountInfo("misc"),
+                getTokenInfo(BURN_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(BURN_TOKEN, TRANSFER_AMOUNT),
+                getTxnRecord(WIPE_TXN).logged());
     }
 
     @HapiTest
@@ -520,51 +493,47 @@ public class TokenManagementSpecs {
         var multiKey = "wipeAndSupplyKey";
         var someMeta = ByteString.copyFromUtf8("HEY");
 
-        return defaultHapiSpec("WipeAccountFailureCasesWork", SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(multiKey),
-                        newKeyNamed("alias").type(KeyFactory.KeyType.SIMPLE),
-                        cryptoCreate("misc").balance(0L),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L))
-                .when(
-                        tokenCreate(unwipeableToken).treasury(TOKEN_TREASURY),
-                        tokenCreate(wipeableToken).treasury(TOKEN_TREASURY).wipeKey(multiKey),
-                        tokenCreate(wipeableUniqueToken)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(multiKey)
-                                .initialSupply(0L)
-                                .treasury(TOKEN_TREASURY)
-                                .wipeKey(multiKey),
-                        mintToken(wipeableUniqueToken, List.of(someMeta)),
-                        tokenCreate(anotherWipeableToken)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(1_000)
-                                .wipeKey(multiKey),
-                        tokenAssociate("misc", anotherWipeableToken),
-                        cryptoTransfer(moving(500, anotherWipeableToken).between(TOKEN_TREASURY, "misc")))
-                .then(
-                        wipeTokenAccount(wipeableUniqueToken, TOKEN_TREASURY, List.of(1L))
-                                .hasKnownStatus(CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT),
-                        wipeTokenAccount(unwipeableToken, TOKEN_TREASURY, 1)
-                                .signedBy(GENESIS)
-                                .hasKnownStatus(TOKEN_HAS_NO_WIPE_KEY),
-                        wipeTokenAccount(wipeableToken, "misc", 1).hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
-                        wipeTokenAccount(wipeableToken, TOKEN_TREASURY, 1)
-                                .signedBy(GENESIS)
-                                .hasKnownStatus(INVALID_SIGNATURE),
-                        wipeTokenAccount(wipeableToken, TOKEN_TREASURY, 1)
-                                .hasKnownStatus(CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT),
-                        wipeTokenAccount(anotherWipeableToken, "misc", 501).hasKnownStatus(INVALID_WIPING_AMOUNT),
-                        wipeTokenAccount(anotherWipeableToken, "misc", -1).hasPrecheck(INVALID_WIPING_AMOUNT),
-                        withOpContext((spec, opLog) -> {
-                            final var key = spec.registry().getKey("alias");
-                            final var alias = key.hasECDSASecp256K1() ? key.getECDSASecp256K1() : key.getEd25519();
-                            allRunFor(
-                                    spec,
-                                    wipeTokenAccountWithAlias(unwipeableToken, "alias", 1)
-                                            .signedBy(GENESIS)
-                                            .hasKnownStatus(INVALID_ACCOUNT_ID));
-                        }));
+        return hapiTest(
+                newKeyNamed(multiKey),
+                newKeyNamed("alias").type(KeyFactory.KeyType.SIMPLE),
+                cryptoCreate("misc").balance(0L),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                tokenCreate(unwipeableToken).treasury(TOKEN_TREASURY),
+                tokenCreate(wipeableToken).treasury(TOKEN_TREASURY).wipeKey(multiKey),
+                tokenCreate(wipeableUniqueToken)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(multiKey)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .wipeKey(multiKey),
+                mintToken(wipeableUniqueToken, List.of(someMeta)),
+                tokenCreate(anotherWipeableToken)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(1_000)
+                        .wipeKey(multiKey),
+                tokenAssociate("misc", anotherWipeableToken),
+                cryptoTransfer(moving(500, anotherWipeableToken).between(TOKEN_TREASURY, "misc")),
+                wipeTokenAccount(wipeableUniqueToken, TOKEN_TREASURY, List.of(1L))
+                        .hasKnownStatus(CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT),
+                wipeTokenAccount(unwipeableToken, TOKEN_TREASURY, 1)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(TOKEN_HAS_NO_WIPE_KEY),
+                wipeTokenAccount(wipeableToken, "misc", 1).hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                wipeTokenAccount(wipeableToken, TOKEN_TREASURY, 1)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                wipeTokenAccount(wipeableToken, TOKEN_TREASURY, 1).hasKnownStatus(CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT),
+                wipeTokenAccount(anotherWipeableToken, "misc", 501).hasKnownStatus(INVALID_WIPING_AMOUNT),
+                wipeTokenAccount(anotherWipeableToken, "misc", -1).hasPrecheck(INVALID_WIPING_AMOUNT),
+                withOpContext((spec, opLog) -> {
+                    final var key = spec.registry().getKey("alias");
+                    final var alias = key.hasECDSASecp256K1() ? key.getECDSASecp256K1() : key.getEd25519();
+                    allRunFor(
+                            spec,
+                            wipeTokenAccountWithAlias(unwipeableToken, "alias", 1)
+                                    .signedBy(GENESIS)
+                                    .hasKnownStatus(INVALID_ACCOUNT_ID));
+                }));
     }
 
     @HapiTest
@@ -572,28 +541,18 @@ public class TokenManagementSpecs {
         var withoutKycKey = "withoutKycKey";
         var withKycKey = "withKycKey";
 
-        return defaultHapiSpec("KycMgmtFailureCasesWork", SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        newKeyNamed(ONE_KYC),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L),
-                        tokenCreate(withoutKycKey).treasury(TOKEN_TREASURY),
-                        tokenCreate(withKycKey).kycKey(ONE_KYC).treasury(TOKEN_TREASURY))
-                .when(
-                        grantTokenKyc(withoutKycKey, TOKEN_TREASURY)
-                                .signedBy(GENESIS)
-                                .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
-                        grantTokenKyc(withKycKey, "1.2.3").hasKnownStatus(INVALID_ACCOUNT_ID),
-                        grantTokenKyc(withKycKey, TOKEN_TREASURY)
-                                .signedBy(GENESIS)
-                                .hasKnownStatus(INVALID_SIGNATURE),
-                        grantTokenKyc(withoutKycKey, TOKEN_TREASURY)
-                                .signedBy(GENESIS)
-                                .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
-                        revokeTokenKyc(withKycKey, "1.2.3").hasKnownStatus(INVALID_ACCOUNT_ID),
-                        revokeTokenKyc(withKycKey, TOKEN_TREASURY)
-                                .signedBy(GENESIS)
-                                .hasKnownStatus(INVALID_SIGNATURE))
-                .then(getTokenInfo(withoutKycKey).hasRegisteredId(withoutKycKey).logged());
+        return hapiTest(
+                newKeyNamed(ONE_KYC),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                tokenCreate(withoutKycKey).treasury(TOKEN_TREASURY),
+                tokenCreate(withKycKey).kycKey(ONE_KYC).treasury(TOKEN_TREASURY),
+                grantTokenKyc(withoutKycKey, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
+                grantTokenKyc(withKycKey, INVALID_ACCOUNT).hasKnownStatus(INVALID_ACCOUNT_ID),
+                grantTokenKyc(withKycKey, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                grantTokenKyc(withoutKycKey, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
+                revokeTokenKyc(withKycKey, INVALID_ACCOUNT).hasKnownStatus(INVALID_ACCOUNT_ID),
+                revokeTokenKyc(withKycKey, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                getTokenInfo(withoutKycKey).hasRegisteredId(withoutKycKey).logged());
     }
 
     @HapiTest

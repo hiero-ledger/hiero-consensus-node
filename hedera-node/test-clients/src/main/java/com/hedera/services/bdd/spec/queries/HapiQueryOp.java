@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries;
 
 import static com.hedera.services.bdd.spec.queries.QueryUtils.reflectForCost;
@@ -86,6 +71,8 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
     private Optional<EnumSet<ResponseCodeEnum>> permissibleCostAnswerPrechecks = Optional.empty();
     /** if response code in the set then allow to resubmit transaction */
     protected Optional<EnumSet<ResponseCodeEnum>> answerOnlyRetryPrechecks = Optional.empty();
+
+    private boolean asNodeOperator = false;
 
     private ResponseCodeEnum expectedCostAnswerPrecheck() {
         return costAnswerPrecheck.orElse(OK);
@@ -203,12 +190,19 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             }
 
             if (needsPayment() && !loggingOff) {
-                String message = String.format("%sPaying for %s with %s", spec.logPrefix(), this, txnToString(payment));
+                String message;
+                if (asNodeOperator) {
+                    message = String.format(
+                            "%sNode operator sending %s with %s", spec.logPrefix(), this, txnToString(payment));
+                } else {
+                    message = String.format("%sPaying for %s with %s", spec.logPrefix(), this, txnToString(payment));
+                }
+
                 log.info(message);
             }
             query = maybeModified(queryFor(spec, payment, ResponseType.ANSWER_ONLY), spec);
             beforeAnswerOnlyQuery();
-            response = spec.targetNetworkOrThrow().send(query, type(), targetNodeFor(spec));
+            response = spec.targetNetworkOrThrow().send(query, type(), targetNodeFor(spec), asNodeOperator);
             processAnswerOnlyResponse(spec);
 
             actualPrecheck = reflectForPrecheck(response);
@@ -275,12 +269,19 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             long initNodePayment = costOnlyNodePayment(spec);
             Transaction payment = finalizedTxn(spec, opDef(spec, initNodePayment), true);
             if (!loggingOff) {
-                final String message = String.format(
-                        "%sPaying for COST_ANSWER of %s with %s", spec.logPrefix(), this, txnToString(payment));
+                String message;
+                if (asNodeOperator) {
+                    message = String.format(
+                            "%sNode operator sending COST_ANSWER query for %s with %s",
+                            spec.logPrefix(), this, txnToString(payment));
+                } else {
+                    message = String.format(
+                            "%sPaying for COST_ANSWER of %s with %s", spec.logPrefix(), this, txnToString(payment));
+                }
                 log.info(message);
             }
             query = maybeModified(queryFor(spec, payment, ResponseType.COST_ANSWER), spec);
-            response = spec.targetNetworkOrThrow().send(query, type(), targetNodeFor(spec));
+            response = spec.targetNetworkOrThrow().send(query, type(), targetNodeFor(spec), asNodeOperator);
             final var realNodePayment = costFrom(response);
             Optional.ofNullable(nodePaymentObserver).ifPresent(observer -> observer.accept(realNodePayment));
             if (expectedCostAnswerPrecheck() != OK) {
@@ -447,6 +448,11 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
 
     public T exposingNodePaymentTo(@NonNull final LongConsumer observer) {
         nodePaymentObserver = requireNonNull(observer);
+        return self();
+    }
+
+    public T asNodeOperator() {
+        asNodeOperator = true;
         return self();
     }
 }

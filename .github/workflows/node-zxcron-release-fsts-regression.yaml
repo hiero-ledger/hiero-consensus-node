@@ -1,5 +1,5 @@
 ##
-# Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+# Copyright (C) 2022-2025 Hedera Hashgraph, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 name: "ZXCron: [Node] Release JRS Tests"
 on:
-  schedule:
-    - cron: '30 10 * * *'
   workflow_dispatch:
 
 defaults:
@@ -27,13 +25,21 @@ defaults:
 env:
   BRANCH_LIST_FILE: "${{ github.workspace }}/branches.lst"
 
+permissions:
+  contents: read
+
 jobs:
   cron:
     name: Cron / Launch Workflows
-    runs-on: network-node-linux-small-scheduler
+    runs-on: hiero-network-node-linux-small-scheduler
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -51,7 +57,7 @@ jobs:
             major="${BASH_REMATCH[1]}"
             minor="${BASH_REMATCH[2]}"
 
-            if [[ "${major}" -eq 0 && "${minor}" -lt 52 ]]; then
+            if [[ "${major}" -eq 0 && "${minor}" -lt 58 ]]; then
               continue
             fi
 

@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.stream;
 
 import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.ImmutableHash;
+import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.common.stream.Signer;
@@ -57,7 +42,7 @@ public final class StreamUtils {
                         signer,
                         false,
                         EventStreamType.getInstance()));
-        stream.setRunningHash(new ImmutableHash(new byte[DigestType.SHA_384.digestLength()]));
+        stream.setRunningHash(new Hash(new byte[DigestType.SHA_384.digestLength()]));
         rounds.stream().flatMap(r -> r.getStreamedEvents().stream()).forEach(stream::addObject);
         stream.close();
     }

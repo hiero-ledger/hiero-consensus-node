@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.processors;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
@@ -57,6 +42,13 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
     private static final Optional<ExceptionalHaltReason> CHILD_RECORDS_LIMIT_HALT_REASON =
             Optional.of(CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS);
 
+    /**
+     * @param evm the EVM to use
+     * @param gasCalculator the gas calculator to use
+     * @param requireCodeDepositToSucceed whether to require the deposit to succeed
+     * @param contractValidationRules the rules against which the contract will be validated
+     * @param initialContractNonce the initial contract nonce to use for the creation
+     */
     public CustomContractCreationProcessor(
             @NonNull final EVM evm,
             @NonNull final GasCalculator gasCalculator,

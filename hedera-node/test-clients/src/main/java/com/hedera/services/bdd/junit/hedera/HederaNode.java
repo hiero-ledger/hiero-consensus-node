@@ -1,28 +1,15 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -40,6 +27,13 @@ public interface HederaNode {
      * @return the port number of the gRPC service
      */
     int getGrpcPort();
+
+    /**
+     * Gets the port number of the node operator gRPC service.
+     *
+     * @return the port number of the node operator gRPC service
+     */
+    int getGrpcNodeOperatorPort();
 
     /**
      * Gets the node ID, such as 0, 1, 2, or 3.
@@ -73,7 +67,8 @@ public interface HederaNode {
      * @param configTxt the address book the node should start with
      * @return this
      */
-    HederaNode initWorkingDir(String configTxt);
+    @NonNull
+    HederaNode initWorkingDir(@NonNull String configTxt);
 
     /**
      * Starts the node software.
@@ -129,4 +124,19 @@ public interface HederaNode {
      * @return the metadata for this node
      */
     NodeMetadata metadata();
+
+    /**
+     * Dumps the threads of the node, if applicable. Returns whether threads were dumped.
+     */
+    default boolean dumpThreads() {
+        return false;
+    }
+
+    /**
+     * If this node's startup assets included a genesis or override address book, returns it.
+     * @return the node's startup address book, if available
+     */
+    default Optional<Network> startupNetwork() {
+        return Optional.empty();
+    }
 }

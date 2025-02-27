@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -43,9 +28,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
@@ -90,33 +72,28 @@ public class DelegatePrecompileSuite {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> receiverID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "delegateCallForTransfer",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
-                        uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        contractCreate(NESTED_CONTRACT).refusingEthConversion(),
-                        tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        tokenAssociate(RECEIVER, VANILLA_TOKEN),
-                        cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
-                                .payingWith(GENESIS))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
+                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(NESTED_CONTRACT).refusingEthConversion(),
+                tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                tokenAssociate(RECEIVER, VANILLA_TOKEN),
+                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
+                        .payingWith(GENESIS),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                         OUTER_CONTRACT,
@@ -138,44 +115,38 @@ public class DelegatePrecompileSuite {
                                         1L)
                                 .payingWith(GENESIS)
                                 .via("delegateTransferCallWithDelegateContractKeyTxn")
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "delegateTransferCallWithDelegateContractKeyTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 0),
-                        getAccountBalance(RECEIVER).hasTokenBalance(VANILLA_TOKEN, 1));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "delegateTransferCallWithDelegateContractKeyTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 0),
+                getAccountBalance(RECEIVER).hasTokenBalance(VANILLA_TOKEN, 1));
     }
 
     @HapiTest
     final Stream<DynamicTest> delegateCallForBurn() {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "delegateCallForBurn",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0L)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("Second!"))),
-                        uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0L)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("Second!"))),
+                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 OUTER_CONTRACT, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -189,44 +160,38 @@ public class DelegatePrecompileSuite {
                                         new long[] {1L})
                                 .payingWith(GENESIS)
                                 .via(DELEGATE_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                DELEGATE_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(1)))
-                                        .newTotalSupply(1)),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 1));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        DELEGATE_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(1)))
+                                .newTotalSupply(1)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 1));
     }
 
     @HapiTest
     final Stream<DynamicTest> delegateCallForMint() {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "delegateCallForMint",
-                        NONDETERMINISTIC_CONSTRUCTOR_PARAMETERS,
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS)
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(50L)
-                                .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
-                        uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(50L)
+                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(asToken(id))),
+                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 OUTER_CONTRACT, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -239,22 +204,20 @@ public class DelegatePrecompileSuite {
                                         BigInteger.ONE)
                                 .payingWith(GENESIS)
                                 .via(DELEGATE_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                DELEGATE_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(FunctionType.HAPI_MINT)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(51)
-                                                        .withSerialNumbers()))
-                                        .tokenTransfers(
-                                                changingFungibleBalances().including(VANILLA_TOKEN, TOKEN_TREASURY, 1))
-                                        .newTotalSupply(51)),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 51));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        DELEGATE_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.HAPI_MINT)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(51)
+                                                .withSerialNumbers()))
+                                .tokenTransfers(changingFungibleBalances().including(VANILLA_TOKEN, TOKEN_TREASURY, 1))
+                                .newTotalSupply(51)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 51));
     }
 }

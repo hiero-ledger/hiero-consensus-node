@@ -1,5 +1,5 @@
 ##
-# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+# Copyright (C) 2023-2025 Hedera Hashgraph, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,30 +43,45 @@ permissions:
 jobs:
   title-check:
     name: Title Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Check PR Title
-        uses: step-security/conventional-pr-title-action@0eae74515f5a79f8773fa04142dd746df76666ac # v1.0.0
+        uses: step-security/conventional-pr-title-action@19fb561b33015fd2184055a05ce5a3bcf2ba3f54 # v3.2.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   milestone-check:
     name: Milestone Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Check Milestone
         if: ${{ github.event.pull_request.milestone == null }}
         run: |
-            echo "Milestone is not set. Failing the workflow."
-            exit 1
+          echo "Milestone is not set. Failing the workflow."
+          exit 1
 
   assignee-check:
     name: Assignee Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Check Assignee
         if: ${{ github.event.pull_request.assignees == null || github.event.pull_request.assignees[0] == null }}
         run: |
-            echo "Assignee is not set. Failing the workflow."
-            exit 1
+          echo "Assignee is not set. Failing the workflow."
+          exit 1

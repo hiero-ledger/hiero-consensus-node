@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.stream;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_MILLISECONDS;
@@ -26,7 +11,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.ImmutableHash;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.EventStreamType;
@@ -83,7 +67,7 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
     /**
      * initialHash loaded from signed state
      */
-    private Hash initialHash = new ImmutableHash(new byte[DigestType.SHA_384.digestLength()]);
+    private Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
     /**
      * When we freeze the platform, the last event to be written to EventStream file is the last event in the freeze
      * round. The freeze round is defined as the first round with a consensus timestamp after the start of the freeze

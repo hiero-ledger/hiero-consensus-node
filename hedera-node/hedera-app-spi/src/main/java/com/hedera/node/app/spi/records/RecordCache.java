@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.records;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
@@ -21,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
 import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -53,7 +39,8 @@ public interface RecordCache {
      * For mono-service fidelity, records with these statuses do not prevent valid transactions with
      * the same id from reaching consensus and being handled.
      */
-    Set<ResponseCodeEnum> DUE_DILIGENCE_FAILURES = EnumSet.of(INVALID_NODE_ACCOUNT, INVALID_PAYER_SIGNATURE);
+    Set<ResponseCodeEnum> NODE_FAILURES = EnumSet.of(INVALID_NODE_ACCOUNT, INVALID_PAYER_SIGNATURE);
+
     /**
      * And when ordering records for queries, we treat records with unclassifiable statuses as the
      * lowest "priority"; so that e.g. if a transaction with id {@code X} resolves to {@link ResponseCodeEnum#SUCCESS}
@@ -65,10 +52,81 @@ public interface RecordCache {
     @SuppressWarnings("java:S3358")
     Comparator<TransactionRecord> RECORD_COMPARATOR = Comparator.<TransactionRecord, ResponseCodeEnum>comparing(
                     rec -> rec.receiptOrThrow().status(),
-                    (a, b) -> DUE_DILIGENCE_FAILURES.contains(a) == DUE_DILIGENCE_FAILURES.contains(b)
+                    (a, b) -> NODE_FAILURES.contains(a) == NODE_FAILURES.contains(b)
                             ? 0
-                            : (DUE_DILIGENCE_FAILURES.contains(b) ? -1 : 1))
+                            : (NODE_FAILURES.contains(b) ? -1 : 1))
             .thenComparing(rec -> rec.consensusTimestampOrElse(Timestamp.DEFAULT), TIMESTAMP_COMPARATOR);
+
+    /**
+     * Returns true if the two transaction IDs are equal in all fields except for the nonce.
+     * @param aTxnId the first transaction ID
+     * @param bTxnId the second transaction ID
+     * @return true if the two transaction IDs are equal in all fields except for the nonce
+     */
+    static boolean matchesExceptNonce(@NonNull final TransactionID aTxnId, @NonNull final TransactionID bTxnId) {
+        requireNonNull(aTxnId);
+        requireNonNull(bTxnId);
+        return aTxnId.accountIDOrElse(AccountID.DEFAULT).equals(bTxnId.accountIDOrElse(AccountID.DEFAULT))
+                && aTxnId.transactionValidStartOrElse(Timestamp.DEFAULT)
+                        .equals(bTxnId.transactionValidStartOrElse(Timestamp.DEFAULT))
+                && aTxnId.scheduled() == bTxnId.scheduled();
+    }
+
+    /**
+     * Returns true if the second transaction ID is a child of the first.
+     * @param aTxnId the first transaction ID
+     * @param bTxnId the second transaction ID
+     * @return true if the second transaction ID is a child of the first
+     */
+    static boolean isChild(@NonNull final TransactionID aTxnId, @NonNull final TransactionID bTxnId) {
+        requireNonNull(aTxnId);
+        requireNonNull(bTxnId);
+        return aTxnId.nonce() == 0 && bTxnId.nonce() != 0 && matchesExceptNonce(aTxnId, bTxnId);
+    }
+
+    /**
+     * Just the receipts for a source of one or more {@link TransactionID}s instead of the full records.
+     */
+    interface ReceiptSource {
+        /**
+         * This receipt is returned whenever we know there is a transaction pending (i.e. we have a history for a
+         * transaction ID), but we do not yet have a record for it.
+         */
+        TransactionReceipt PENDING_RECEIPT =
+                TransactionReceipt.newBuilder().status(UNKNOWN).build();
+
+        /**
+         * The "priority" receipt for the transaction id, if known; or {@link ReceiptSource#PENDING_RECEIPT} if there are no
+         * consensus receipts with this id. (The priority receipt is the first receipt in the id's history that had a
+         * status not in {@link RecordCache#NODE_FAILURES}; or if all its receipts have such statuses, the first
+         * one to have reached consensus.)
+         * @return the priority receipt, if known
+         */
+        @NonNull
+        TransactionReceipt priorityReceipt(@NonNull TransactionID txnId);
+
+        /**
+         * The child receipt with this transaction id, if any; or null otherwise.
+         * @return the child receipt, if known
+         */
+        @Nullable
+        TransactionReceipt childReceipt(@NonNull TransactionID txnId);
+
+        /**
+         * All the duplicate receipts for the transaction id, if any, with the statuses in
+         * {@link RecordCache#NODE_FAILURES} coming last. The list is otherwise ordered by consensus timestamp.
+         * @return the duplicate receipts, if any
+         */
+        @NonNull
+        List<TransactionReceipt> duplicateReceipts(@NonNull TransactionID txnId);
+
+        /**
+         * All the child receipts for the transaction id, if any. The list is ordered by consensus timestamp.
+         * @return the child receipts, if any
+         */
+        @NonNull
+        List<TransactionReceipt> childReceipts(@NonNull TransactionID txnId);
+    }
 
     /**
      * An item stored in the cache.
@@ -93,13 +151,6 @@ public interface RecordCache {
             @NonNull List<TransactionRecord> childRecords) {
 
         /**
-         * This receipt is returned whenever we know there is a transaction pending (i.e. we have a history for a
-         * transaction ID), but we do not yet have a record for it.
-         */
-        private static final TransactionReceipt PENDING_RECEIPT =
-                TransactionReceipt.newBuilder().status(UNKNOWN).build();
-
-        /**
          * Create a new {@link History} instance with empty lists.
          */
         public History() {
@@ -117,17 +168,10 @@ public interface RecordCache {
             return records.isEmpty() ? null : sortedRecords().getFirst();
         }
 
-        /**
-         * Gets the primary receipt, that is, the receipt associated with the user transaction itself. This receipt will
-         * be null if there is no such record.
-         *
-         * @return The primary receipt, if there is one.
-         */
-        @Nullable
-        public TransactionReceipt userTransactionReceipt() {
+        public @NonNull TransactionReceipt priorityReceipt() {
             return records.isEmpty()
-                    ? PENDING_RECEIPT
-                    : sortedRecords().getFirst().receipt();
+                    ? ReceiptSource.PENDING_RECEIPT
+                    : sortedRecords().getFirst().receiptOrThrow();
         }
 
         /**
@@ -180,6 +224,14 @@ public interface RecordCache {
      */
     @Nullable
     History getHistory(@NonNull TransactionID transactionID);
+
+    /**
+     * Gets the receipts for the given {@link TransactionID}, if known.
+     * @param transactionID The transaction ID to look up
+     * @return the receipts, if any, stored in this cache for the given transaction ID
+     */
+    @Nullable
+    ReceiptSource getReceipts(@NonNull TransactionID transactionID);
 
     /**
      * Gets a list of all records for the given {@link AccountID}. The {@link AccountID} is the account of the Payer of

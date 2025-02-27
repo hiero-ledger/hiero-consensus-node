@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stats.signing;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -30,14 +15,15 @@ import java.util.Map;
  * The core transaction encoder and decoder implementation. See below for the binary transaction format specification.
  * <p>
  * Transaction Structure:
- * ------------------------------------------------------------------------------------------------------------
- * | 8 bytes | 1 byte | 1 byte   | 4 bytes   | pklen bytes | 4 bytes | siglen bytes | 4 bytes | datalen bytes |
- * |---------|--------|----------|-----------|-------------|---------|--------------|---------|---------------|
- * | id      | signed | sigAlgId | pklen     | pk          |  siglen | sig          | datalen | data          |
- * ------------------------------------------------------------------------------------------------------------
+ * ---------------------------------------------------------------------------------------------------------------------
+ * | 1 byte | 8 bytes | 1 byte | 1 byte   | 4 bytes   | pklen bytes | 4 bytes | siglen bytes | 4 bytes | datalen bytes |
+ * |--------|---------|--------|----------|-----------|-------------|---------|--------------|---------|---------------|
+ * | marker | id      | signed | sigAlgId | pklen     | pk          |  siglen | sig          | datalen | data          |
+ * ---------------------------------------------------------------------------------------------------------------------
  */
 final class TransactionCodec {
 
+    public static final byte APPLICATION_TRANSACTION_MARKER = 1;
     public static final byte NO_ALGORITHM_PRESENT = -1;
 
     private static final int PREAMBLE_SIZE = Long.BYTES + (Byte.BYTES * 2);
@@ -78,11 +64,14 @@ final class TransactionCodec {
 
     public static byte[] encode(
             final SigningAlgorithm algorithm, final long transactionId, final byte[] signature, final byte[] data) {
-        final ByteBuffer buffer = ByteBuffer.allocate(bufferSize(algorithm, (data != null) ? data.length : 0));
+        final ByteBuffer buffer = ByteBuffer.allocate(1 + bufferSize(algorithm, (data != null) ? data.length : 0));
         final boolean signed =
                 algorithm != null && algorithm.isAvailable() && signature != null && signature.length > 0;
 
-        buffer.putLong(transactionId)
+        // Add a marker byte in the very beginning to indicate the start of an application transaction. This is used
+        // to later differentiate between application transactions and system transactions.
+        buffer.put(APPLICATION_TRANSACTION_MARKER)
+                .putLong(transactionId)
                 .put((signed) ? (byte) 1 : 0)
                 .put((signed) ? algorithm.getId() : NO_ALGORITHM_PRESENT)
                 .putInt((signed) ? algorithm.getPublicKeyLength() : 0);

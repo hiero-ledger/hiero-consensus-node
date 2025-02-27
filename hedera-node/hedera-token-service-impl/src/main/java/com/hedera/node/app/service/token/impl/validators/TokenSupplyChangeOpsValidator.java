@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
@@ -38,7 +23,7 @@ import javax.inject.Inject;
 
 /**
  * This class contains validations to be done in handle for Token Mint and
- * Token Burn operations in handle
+ * Token Burn operations in handle.
  */
 public class TokenSupplyChangeOpsValidator {
     /**
@@ -50,7 +35,7 @@ public class TokenSupplyChangeOpsValidator {
     }
 
     /**
-     * Validate the transaction data for a token mint operation
+     * Validate the transaction data for a token mint operation.
      *
      * @param fungibleCount the number of fungible tokens to mint
      * @param metaDataList the list of metadata for the NFTs to mint
@@ -69,7 +54,7 @@ public class TokenSupplyChangeOpsValidator {
     }
 
     /**
-     * Validate the transaction data for a token mint operation
+     * Validate the transaction data for a token mint operation.
      *
      * @param fungibleCount the number of fungible tokens to burn
      * @param nftSerialNums the list of NFT serial numbers to burn
@@ -119,7 +104,7 @@ public class TokenSupplyChangeOpsValidator {
     }
 
     /**
-     * Validate the transaction data for a token mint operation
+     * Validate the transaction data for a token mint operation.
      *
      * @param fungibleCount the number of fungible tokens to wipe
      * @param nftSerialNums the list of NFT serial numbers to wipe
@@ -134,7 +119,8 @@ public class TokenSupplyChangeOpsValidator {
     }
 
     /**
-     * Perform common validation checks for token operations mint, wipe, and burn given the attributes of the transaction.
+     * Perform common validation checks for token operations mint, wipe, and burn given the attributes
+     * of the transaction.
      *
      * @param fungibleCount The number of fungible common token to mint/wipe/burn.
      * @param nftCount the number of NFTs the operation will be performed on.

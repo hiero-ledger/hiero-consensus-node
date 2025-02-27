@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
@@ -28,10 +14,12 @@ import static com.hedera.node.app.workflows.prehandle.PreHandleResult.unknownFai
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
@@ -45,15 +33,19 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.transaction.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -99,10 +91,10 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     /**
      * Creates a new instance of {@code PreHandleWorkflowImpl}.
      *
-     * @param dispatcher the {@link TransactionDispatcher} for invoking the {@link TransactionHandler} for each
-     * transaction.
+     * @param dispatcher         the {@link TransactionDispatcher} for invoking the {@link TransactionHandler} for each
+     *                           transaction.
      * @param transactionChecker the {@link TransactionChecker} for parsing and verifying the transaction
-     * @param signatureVerifier the {@link SignatureVerifier} to verify signatures
+     * @param signatureVerifier  the {@link SignatureVerifier} to verify signatures
      * @throws NullPointerException if any of the parameters is {@code null}
      */
     @Inject
@@ -128,26 +120,33 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     public void preHandle(
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final AccountID creator,
-            @NonNull final Stream<Transaction> transactions) {
+            @NonNull final Stream<Transaction> transactions,
+            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
 
         requireNonNull(readableStoreFactory);
         requireNonNull(creator);
         requireNonNull(transactions);
+        requireNonNull(stateSignatureTxnCallback);
 
         // Used for looking up payer account information.
         final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
 
         // In parallel, we will pre-handle each transaction.
         transactions.parallel().forEach(tx -> {
-            if (tx.isSystem()) return;
             try {
-                tx.setMetadata(preHandleTransaction(creator, readableStoreFactory, accountStore, tx));
+                final var result = preHandleAllTransactions(
+                        creator,
+                        readableStoreFactory,
+                        accountStore,
+                        tx.getApplicationTransaction(),
+                        null,
+                        stateSignatureTxnCallback);
+                tx.setMetadata(result);
             } catch (final Exception unexpectedException) {
                 // If some random exception happened, then we should not charge the node for it. Instead,
                 // we will just record the exception and try again during handle. Then if we fail again
                 // at handle, then we will throw away the transaction (hopefully, deterministically!)
-                logger.error(
-                        "Possibly CATASTROPHIC failure while running the pre-handle workflow", unexpectedException);
+                logger.error("Unexpected Exception while running the pre-handle workflow", unexpectedException);
                 tx.setMetadata(unknownFailure());
             }
         });
@@ -162,8 +161,10 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final AccountID creator,
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final ReadableAccountStore accountStore,
-            @NonNull final Transaction platformTx,
-            @Nullable PreHandleResult previousResult) {
+            @NonNull final Bytes applicationTxBytes,
+            @Nullable PreHandleResult previousResult,
+            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
+            @NonNull final InnerTransaction innerTransaction) {
         // 0. Ignore the previous result if it was computed using different node configuration
         if (!wasComputedWithCurrentNodeConfiguration(previousResult)) {
             previousResult = null;
@@ -175,18 +176,27 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             // Transaction info is a pure function of the transaction, so we can
             // always reuse it from a prior result
             txInfo = previousResult == null
-                    ? transactionChecker.parseAndCheck(platformTx.getApplicationTransaction())
+                    ? transactionChecker.parseAndCheck(applicationTxBytes)
                     : previousResult.txInfo();
             if (txInfo == null) {
                 // In particular, a null transaction info means we already know the transaction's final failure status
                 return previousResult;
             }
+
+            if (txInfo.functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
+                stateSignatureTransactionCallback.accept(txInfo.txBody().stateSignatureTransaction());
+                return PreHandleResult.stateSignatureTransactionEncountered(txInfo);
+            }
+
             // But we still re-check for node diligence failures
             transactionChecker.checkParsed(txInfo);
+
             // The transaction account ID MUST have matched the creator!
-            if (!creator.equals(txInfo.txBody().nodeAccountID())) {
+            if (innerTransaction == InnerTransaction.NO
+                    && !creator.equals(txInfo.txBody().nodeAccountID())) {
                 throw new DueDiligenceException(INVALID_NODE_ACCOUNT, txInfo);
             }
+
         } catch (DueDiligenceException e) {
             // The node SHOULD have verified the transaction before it was submitted to the network.
             // Since it didn't, it has failed in its due diligence and will be charged accordingly.
@@ -236,16 +246,16 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         }
 
         // 3. Expand and verify signatures
-        return expandAndVerifySignatures(txInfo, payer, payerAccount, storeFactory, previousResult);
+        return expandAndVerifySignatures(txInfo, payer, payerAccount, storeFactory, previousResult, innerTransaction);
     }
 
     /**
      * Expands and verifies the payer signature and other require signatures for the transaction.
      *
-     * @param txInfo the transaction info
-     * @param payer the payer account ID
-     * @param payerAccount the payer account
-     * @param storeFactory the store factory
+     * @param txInfo         the transaction info
+     * @param payer          the payer account ID
+     * @param payerAccount   the payer account
+     * @param storeFactory   the store factory
      * @param previousResult the reusable result
      * @return the pre-handle result
      */
@@ -254,7 +264,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             final AccountID payer,
             final Account payerAccount,
             final ReadableStoreFactory storeFactory,
-            @Nullable final PreHandleResult previousResult) {
+            @Nullable final PreHandleResult previousResult,
+            @NonNull final InnerTransaction innerTransaction) {
         // 1a. Create the PreHandleContext. This will get reused across several calls to the transaction handlers
         final PreHandleContext context;
         final VersionedConfiguration configuration = configProvider.getConfiguration();
@@ -264,7 +275,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             // implementation pair, with the implementation in `hedera-app`, then we will change the constructor,
             // so I can pass the payer account in directly, since I've already looked it up. But I don't really want
             // that as a public API in the SPI, so for now, we do a double lookup. Boo.
-            context = new PreHandleContextImpl(storeFactory, txBody, configuration, dispatcher);
+            context = new PreHandleContextImpl(storeFactory, txBody, configuration, dispatcher, transactionChecker);
         } catch (PreCheckException preCheck) {
             // This should NEVER happen. The only way an exception is thrown from the PreHandleContext constructor
             // is if the payer account doesn't exist, but by the time we reach this line of code, we already know
@@ -290,8 +301,13 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
         // 2b. Call Pre-Transaction Handlers
         try {
+            // Check batch key on non-inner transactions,
+            if (innerTransaction == InnerTransaction.NO && txInfo.txBody().hasBatchKey()) {
+                throw new PreCheckException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+            }
             // First, perform semantic checks on the transaction
-            dispatcher.dispatchPureChecks(txBody);
+            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
+            dispatcher.dispatchPureChecks(pureChecksContext);
             // Then gather the signatures from the transaction handler
             dispatcher.dispatchPreHandle(context);
         } catch (PreCheckException preCheck) {
@@ -319,8 +335,17 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 context.optionalNonPayerKeys(),
                 context.requiredHollowAccounts(),
                 results,
-                null,
+                isAtomicBatch(txInfo) ? new ArrayList<>() : null,
                 configuration.getVersion());
+    }
+
+    /**
+     * Checks if the transaction is an atomic batch transaction.
+     * @param txInfo the transaction info
+     * @return {@code true} if the transaction is an atomic batch transaction, {@code false} otherwise
+     */
+    static boolean isAtomicBatch(final TransactionInfo txInfo) {
+        return txInfo.functionality().equals(HederaFunctionality.ATOMIC_BATCH);
     }
 
     /**
@@ -369,11 +394,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         return signatureVerifier.verify(txInfo.signedBytes(), expanded);
     }
 
-    // too many parameters
     private boolean wasComputedWithCurrentNodeConfiguration(@Nullable PreHandleResult previousResult) {
-        // (FUTURE) IMPORTANT: Given a completely dynamic address book, we will also need to check
-        // whether this node's account id has changed since we computed the previous result; c.f.,
-        // https://github.com/hashgraph/hedera-services/issues/10514
+        // Notice that preHandleTransaction() always re-checks the node account ID, as it is not part of configuration
         return previousResult == null
                 || previousResult.configVersion()
                         == configProvider.getConfiguration().getVersion();

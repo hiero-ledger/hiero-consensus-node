@@ -38,8 +38,6 @@ app,		HederaNode.jar
 # address,  K, Kent,     1, 10.0.0.10, 50210, 10.0.0.10, 50210
 # address,  L, Lucy,     1, 10.0.1.37, 50211, 10.0.1.37, 50211
 
-nextNodeId, 1
-
 # The above addresses assume all are running on the same computer.
 # If multiple computers are being used, then the listed IP addresses should be changed.
 

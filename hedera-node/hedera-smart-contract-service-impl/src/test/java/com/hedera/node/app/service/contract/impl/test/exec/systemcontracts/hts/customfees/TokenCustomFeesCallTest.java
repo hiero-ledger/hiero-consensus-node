@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -47,12 +32,12 @@ class TokenCustomFeesCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
                                 EXPECTED_FIXED_CUSTOM_FEES.toArray(new Tuple[EXPECTED_FIXED_CUSTOM_FEES.size()]),
                                 EXPECTED_FRACTIONAL_CUSTOM_FEES.toArray(
                                         new Tuple[EXPECTED_FRACTIONAL_CUSTOM_FEES.size()]),
-                                EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[EXPECTED_ROYALTY_CUSTOM_FEES.size()]))
+                                EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[EXPECTED_ROYALTY_CUSTOM_FEES.size()])))
                         .array()),
                 result.getOutput());
     }
@@ -67,11 +52,11 @@ class TokenCustomFeesCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 INVALID_TOKEN_ID.protoOrdinal(),
                                 Collections.emptyList().toArray(new Tuple[0]),
                                 Collections.emptyList().toArray(new Tuple[0]),
-                                Collections.emptyList().toArray(new Tuple[0]))
+                                Collections.emptyList().toArray(new Tuple[0])))
                         .array()),
                 result.getOutput());
     }
@@ -86,11 +71,11 @@ class TokenCustomFeesCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
                                 Collections.emptyList().toArray(new Tuple[0]),
                                 Collections.emptyList().toArray(new Tuple[0]),
-                                Collections.emptyList().toArray(new Tuple[0]))
+                                Collections.emptyList().toArray(new Tuple[0])))
                         .array()),
                 result.getOutput());
     }

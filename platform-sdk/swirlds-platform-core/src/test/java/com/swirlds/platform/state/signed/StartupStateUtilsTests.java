@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
-import static com.swirlds.platform.test.fixtures.state.FakeMerkleStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.constructable.ClassConstructorPair;
@@ -33,21 +19,24 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.MerkleStateRoot;
-import com.swirlds.platform.state.RandomSignedStateGenerator;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.BasicSoftwareVersion;
+import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -56,6 +45,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,9 +66,11 @@ public class StartupStateUtilsTests {
 
     private SignedStateFilePath signedStateFilePath;
 
-    private final NodeId selfId = new NodeId(0);
+    private final NodeId selfId = NodeId.of(0);
     private final String mainClassName = "mainClassName";
     private final String swirldName = "swirldName";
+    private BasicSoftwareVersion currentSoftwareVersion;
+    private PlatformStateFacade platformStateFacade;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -87,21 +79,21 @@ public class StartupStateUtilsTests {
                 .withValue("state.savedStateDirectory", testDirectory.toString())
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
+        currentSoftwareVersion = new BasicSoftwareVersion(1);
+        platformStateFacade = new PlatformStateFacade(v -> currentSoftwareVersion);
     }
 
     @AfterEach
     void afterEach() throws IOException {
         FileUtils.deleteDirectory(testDirectory);
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
     }
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
         ConstructableRegistry.getInstance()
-                .registerConstructable(new ClassConstructorPair(
-                        MerkleStateRoot.class,
-                        () -> new MerkleStateRoot(
-                                FAKE_MERKLE_STATE_LIFECYCLES, version -> new BasicSoftwareVersion(version.major()))));
+                .registerConstructable(new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
     }
 
     @NonNull
@@ -130,17 +122,26 @@ public class StartupStateUtilsTests {
             @Nullable final Hash epoch,
             final boolean corrupted)
             throws IOException {
+        MerkleDb.resetDefaultInstancePath();
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRound(round)
                 .setEpoch(epoch)
                 .build();
 
+        // make the state immutable
+        signedState.getState().copy();
+
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
 
         writeSignedStateToDisk(
-                platformContext, selfId, savedStateDirectory, signedState, StateToDiskReason.PERIODIC_SNAPSHOT);
+                platformContext,
+                selfId,
+                savedStateDirectory,
+                signedState,
+                StateToDiskReason.PERIODIC_SNAPSHOT,
+                platformStateFacade);
 
         if (corrupted) {
             final Path stateFilePath = savedStateDirectory.resolve("SignedState.swh");
@@ -158,13 +159,16 @@ public class StartupStateUtilsTests {
     void genesisTest() throws SignedStateLoadingException {
         final PlatformContext platformContext = buildContext(false, TestRecycleBin.getInstance());
 
+        final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
+
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext,
+                        platformContext.getConfiguration(),
+                        recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        new BasicSoftwareVersion(1),
-                        SignedStateFileUtils::readState)
+                        currentSoftwareVersion,
+                        platformStateFacade)
                 .getNullable();
 
         assertNull(loadedState);
@@ -185,13 +189,16 @@ public class StartupStateUtilsTests {
             latestState = writeState(random, platformContext, latestRound, null, false);
         }
 
+        final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
+        MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext,
+                        platformContext.getConfiguration(),
+                        recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        new BasicSoftwareVersion(1),
-                        SignedStateFileUtils::readState)
+                        currentSoftwareVersion,
+                        platformStateFacade)
                 .get();
 
         loadedState.getState().throwIfImmutable();
@@ -199,6 +206,7 @@ public class StartupStateUtilsTests {
 
         assertEquals(latestState.getRound(), loadedState.getRound());
         assertEquals(latestState.getState().getHash(), loadedState.getState().getHash());
+        RandomSignedStateGenerator.releaseReservable(loadedState.getState().getRoot());
     }
 
     @Test
@@ -215,14 +223,16 @@ public class StartupStateUtilsTests {
             final boolean corrupted = i == stateCount - 1;
             writeState(random, platformContext, latestRound, null, corrupted);
         }
+        final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
         assertThrows(SignedStateLoadingException.class, () -> StartupStateUtils.loadStateFile(
-                        platformContext,
+                        platformContext.getConfiguration(),
+                        recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        new BasicSoftwareVersion(1),
-                        SignedStateFileUtils::readState)
+                        currentSoftwareVersion,
+                        platformStateFacade)
                 .get());
     }
 
@@ -258,14 +268,17 @@ public class StartupStateUtilsTests {
                 latestUncorruptedState = state;
             }
         }
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
 
+        MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext,
+                        platformContext.getConfiguration(),
+                        recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        new BasicSoftwareVersion(1),
-                        SignedStateFileUtils::readState)
+                        currentSoftwareVersion,
+                        platformStateFacade)
                 .getNullable();
 
         if (latestUncorruptedState != null) {
@@ -280,11 +293,26 @@ public class StartupStateUtilsTests {
             assertNull(loadedState);
         }
 
+        if (loadedState != null) {
+            RandomSignedStateGenerator.releaseReservable(loadedState.getState().getRoot());
+        }
+
         final Path savedStateDirectory = signedStateFilePath
                 .getSignedStateDirectory(mainClassName, selfId, swirldName, latestRound)
                 .getParent();
-
-        assertEquals(5 - invalidStateCount, Files.list(savedStateDirectory).count());
+        int filesCount;
+        try (Stream<Path> list = Files.list(savedStateDirectory)) {
+            filesCount = (int) list.count();
+        }
+        assertEquals(5 - invalidStateCount, filesCount, "Unexpected number of files " + filesCount);
         assertEquals(invalidStateCount, recycleCount.get());
+    }
+
+    private RecycleBin initializeRecycleBin(PlatformContext platformContext, NodeId selfId) {
+        final var metrics = new NoOpMetrics();
+        final var configuration = platformContext.getConfiguration();
+        final var fileSystemManager = FileSystemManager.create(configuration);
+        final var time = Time.getCurrent();
+        return RecycleBin.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, selfId);
     }
 }

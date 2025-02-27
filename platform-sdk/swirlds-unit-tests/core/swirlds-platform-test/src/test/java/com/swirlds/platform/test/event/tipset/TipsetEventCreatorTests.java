@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.event.tipset;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -29,9 +14,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType;
-import com.hedera.pbj.runtime.OneOf;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
@@ -52,13 +36,11 @@ import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.UnsignedEvent;
-import com.swirlds.platform.system.transaction.Transaction;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.system.transaction.TransactionWrapper;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -101,7 +83,7 @@ class TipsetEventCreatorTests {
     private EventCreator buildEventCreator(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final AddressBook addressBook,
+            @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
             @NonNull final TransactionSupplier transactionSupplier) {
 
@@ -114,7 +96,7 @@ class TipsetEventCreatorTests {
         final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
 
         return new TipsetEventCreator(
-                platformContext, random, signer, addressBook, nodeId, softwareVersion, transactionSupplier);
+                platformContext, random, signer, roster, nodeId, softwareVersion, transactionSupplier);
     }
 
     /**
@@ -124,7 +106,7 @@ class TipsetEventCreatorTests {
     private Map<NodeId, SimulatedNode> buildSimulatedNodes(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final AddressBook addressBook,
+            @NonNull final Roster roster,
             @NonNull final TransactionSupplier transactionSupplier,
             @NonNull final AncientMode ancientMode) {
 
@@ -132,20 +114,21 @@ class TipsetEventCreatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().withTime(time).build();
 
-        for (final Address address : addressBook) {
+        for (final RosterEntry address : roster.rosterEntries()) {
 
             final EventCreator eventCreator =
-                    buildEventCreator(random, time, addressBook, address.getNodeId(), transactionSupplier);
+                    buildEventCreator(random, time, roster, NodeId.of(address.nodeId()), transactionSupplier);
 
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, addressBook, ancientMode);
+            final TipsetTracker tipsetTracker = new TipsetTracker(time, roster, ancientMode);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    platformContext, addressBook, address.getNodeId(), tipsetTracker, childlessEventTracker);
+                    platformContext, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
 
             eventCreators.put(
-                    address.getNodeId(),
-                    new SimulatedNode(address.getNodeId(), tipsetTracker, eventCreator, tipsetWeightCalculator));
+                    NodeId.of(address.nodeId()),
+                    new SimulatedNode(
+                            NodeId.of(address.nodeId()), tipsetTracker, eventCreator, tipsetWeightCalculator));
         }
 
         return eventCreators;
@@ -154,14 +137,17 @@ class TipsetEventCreatorTests {
     private void validateNewEvent(
             @NonNull final Map<Hash, EventImpl> events,
             @NonNull final UnsignedEvent newEvent,
-            @NonNull final List<EventTransaction> expectedTransactions,
+            @NonNull final List<Bytes> expectedTransactions,
             @NonNull final SimulatedNode simulatedNode,
             final boolean slowNode) {
 
-        final EventImpl selfParent = events.get(newEvent.getSelfParentHash());
+        final EventImpl selfParent = events.get(newEvent.getMetadata().getSelfParentHash());
         final long selfParentGeneration =
                 selfParent == null ? EventConstants.GENERATION_UNDEFINED : selfParent.getGeneration();
-        final EventImpl otherParent = events.get(newEvent.getOtherParentHash());
+        final EventImpl otherParent = events.get(newEvent.getMetadata().getOtherParents().stream()
+                .findFirst()
+                .map(EventDescriptorWrapper::hash)
+                .orElse(null));
         final long otherParentGeneration =
                 otherParent == null ? EventConstants.GENERATION_UNDEFINED : otherParent.getGeneration();
 
@@ -172,7 +158,8 @@ class TipsetEventCreatorTests {
                     // comparing to self
                     continue;
                 }
-                Assertions.assertNotEquals(event.getCreatorId(), newEvent.getCreatorId());
+                Assertions.assertNotEquals(
+                        event.getCreatorId().id(), newEvent.getEventCore().creatorNodeId());
             }
         }
 
@@ -190,7 +177,7 @@ class TipsetEventCreatorTests {
 
         // Generation should be max of parents plus one
         final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
-        assertEquals(expectedGeneration, newEvent.getGeneration());
+        assertEquals(expectedGeneration, newEvent.getMetadata().getGeneration());
 
         // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
         // with nanosecond precision for transaction.
@@ -212,17 +199,14 @@ class TipsetEventCreatorTests {
             simulatedNode.tipsetWeightCalculator.addEventAndGetAdvancementWeight(descriptor);
         }
 
-        final List<EventTransaction> convertedTransactions = newEvent.getTransactions().stream()
-                .map(Transaction::getTransaction)
+        final List<Bytes> convertedTransactions = newEvent.getTransactions().stream()
+                .map(TransactionWrapper::getApplicationTransaction)
                 .toList();
         // We should see the expected transactions
         IntStream.range(0, expectedTransactions.size()).forEach(i -> {
-            final OneOf<TransactionOneOfType> expected =
-                    expectedTransactions.get(i).transaction();
-            final OneOf<TransactionOneOfType> actual =
-                    convertedTransactions.get(i).transaction();
-            assertEquals(expected.kind(), actual.kind(), "Transaction kind " + i + " mismatch");
-            assertEquals(expected.value(), actual.value(), "Transaction payload " + i + " mismatch");
+            final Bytes expected = expectedTransactions.get(i);
+            final Bytes actual = convertedTransactions.get(i);
+            assertEquals(expected, actual, "Transaction " + i + " mismatch");
         });
 
         assertDoesNotThrow(simulatedNode.eventCreator::toString);
@@ -248,10 +232,16 @@ class TipsetEventCreatorTests {
             @NonNull final Map<Hash, EventImpl> events,
             @NonNull final UnsignedEvent event) {
 
-        eventCreators.get(event.getCreatorId()).tipsetTracker.addEvent(event.getDescriptor(), event.getAllParents());
+        eventCreators
+                .get(NodeId.of(event.getEventCore().creatorNodeId()))
+                .tipsetTracker
+                .addEvent(event.getDescriptor(), event.getMetadata().getAllParents());
 
-        final EventImpl selfParent = events.get(event.getSelfParentHash());
-        final EventImpl otherParent = events.get(event.getOtherParentHash());
+        final EventImpl selfParent = events.get(event.getMetadata().getSelfParentHash());
+        final EventImpl otherParent = events.get(event.getMetadata().getOtherParents().stream()
+                .findFirst()
+                .map(EventDescriptorWrapper::hash)
+                .orElse(null));
 
         final EventImpl eventImpl = new EventImpl(new PlatformEvent(event, new byte[0]), selfParent, otherParent);
         events.put(event.getHash(), eventImpl);
@@ -277,16 +267,14 @@ class TipsetEventCreatorTests {
      * Generate a small number of random transactions.
      */
     @NonNull
-    private List<EventTransaction> generateRandomTransactions(@NonNull final Random random) {
+    private List<Bytes> generateRandomTransactions(@NonNull final Random random) {
         final int transactionCount = random.nextInt(0, 10);
-        final List<EventTransaction> transactions = new ArrayList<>();
+        final List<Bytes> transactions = new ArrayList<>();
 
         for (int i = 0; i < transactionCount; i++) {
             final byte[] bytes = new byte[32];
             random.nextBytes(bytes);
-            final OneOf<TransactionOneOfType> oneOf =
-                    new OneOf<>(TransactionOneOfType.APPLICATION_TRANSACTION, Bytes.wrap(bytes));
-            transactions.add(new EventTransaction(oneOf));
+            transactions.add(Bytes.wrap(bytes));
         }
 
         return transactions;
@@ -303,31 +291,31 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(networkSize).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
                 time,
-                addressBook,
+                roster,
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
         final Map<Hash, EventImpl> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
-            for (final Address address : addressBook) {
+            for (final RosterEntry address : roster.rosterEntries()) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = address.getNodeId();
+                final NodeId nodeId = NodeId.of(address.nodeId());
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
 
                 final UnsignedEvent event = eventCreator.maybeCreateEvent();
@@ -357,17 +345,17 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(networkSize).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
                 time,
-                addressBook,
+                roster,
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
@@ -375,20 +363,19 @@ class TipsetEventCreatorTests {
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
-            final List<Address> addresses = new ArrayList<>();
-            addressBook.iterator().forEachRemaining(addresses::add);
+            final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
             Collections.shuffle(addresses, random);
 
             boolean atLeastOneEventCreated = false;
 
-            for (final Address address : addresses) {
+            for (final RosterEntry address : addresses) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = address.getNodeId();
+                final NodeId nodeId = NodeId.of(address.nodeId());
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
 
                 final UnsignedEvent event = eventCreator.maybeCreateEvent();
@@ -425,35 +412,34 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(networkSize).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random, time, addressBook, transactionSupplier::get, AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes =
+                buildSimulatedNodes(random, time, roster, transactionSupplier::get, AncientMode.GENERATION_THRESHOLD);
 
         for (int i = 0; i < 5; i++) {
             final Map<Hash, EventImpl> events = new HashMap<>();
 
             for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
-                final List<Address> addresses = new ArrayList<>();
-                addressBook.iterator().forEachRemaining(addresses::add);
+                final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
                 Collections.shuffle(addresses, random);
 
                 boolean atLeastOneEventCreated = false;
 
-                for (final Address address : addresses) {
+                for (final RosterEntry address : addresses) {
                     if (advancingClock) {
                         time.tick(Duration.ofMillis(10));
                     }
 
                     transactionSupplier.set(generateRandomTransactions(random));
 
-                    final NodeId nodeId = address.getNodeId();
+                    final NodeId nodeId = NodeId.of(address.nodeId());
                     final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
 
                     final UnsignedEvent event = eventCreator.maybeCreateEvent();
@@ -500,24 +486,24 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(networkSize).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
                 time,
-                addressBook,
+                roster,
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
         final Map<Hash, EventImpl> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
-            for (final Address address : addressBook) {
+            for (final RosterEntry address : roster.rosterEntries()) {
 
                 int count = 0;
                 while (true) {
@@ -527,7 +513,7 @@ class TipsetEventCreatorTests {
 
                     transactionSupplier.set(generateRandomTransactions(random));
 
-                    final NodeId nodeId = address.getNodeId();
+                    final NodeId nodeId = NodeId.of(address.nodeId());
                     final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
 
                     final UnsignedEvent event = eventCreator.maybeCreateEvent();
@@ -568,27 +554,30 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(networkSize).build();
+        Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
 
-        final NodeId zeroWeightNode = addressBook.getNodeId(0);
+        final NodeId zeroWeightNode = NodeId.of(roster.rosterEntries().get(0).nodeId());
 
-        for (final Address address : addressBook) {
-            if (address.getNodeId().equals(zeroWeightNode)) {
-                addressBook.add(address.copySetWeight(0));
-            } else {
-                addressBook.add(address.copySetWeight(1));
-            }
-        }
+        roster = Roster.newBuilder()
+                .rosterEntries(roster.rosterEntries().stream()
+                        .map(entry -> {
+                            if (entry.nodeId() == zeroWeightNode.id()) {
+                                return entry.copyBuilder().weight(0).build();
+                            } else {
+                                return entry.copyBuilder().weight(1).build();
+                            }
+                        })
+                        .toList())
+                .build();
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
                 time,
-                addressBook,
+                roster,
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
@@ -598,20 +587,19 @@ class TipsetEventCreatorTests {
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
-            final List<Address> addresses = new ArrayList<>();
-            addressBook.iterator().forEachRemaining(addresses::add);
+            final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
             Collections.shuffle(addresses, random);
 
             boolean atLeastOneEventCreated = false;
 
-            for (final Address address : addresses) {
+            for (final RosterEntry address : addresses) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = address.getNodeId();
+                final NodeId nodeId = NodeId.of(address.nodeId());
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
 
                 final UnsignedEvent event = eventCreator.maybeCreateEvent();
@@ -624,8 +612,8 @@ class TipsetEventCreatorTests {
                 atLeastOneEventCreated = true;
 
                 final NodeId otherId;
-                if (event.hasOtherParent()) {
-                    otherId = event.getOtherParents().getFirst().creator();
+                if (event.getMetadata().hasOtherParent()) {
+                    otherId = event.getMetadata().getOtherParents().getFirst().creator();
                 } else {
                     otherId = null;
                 }
@@ -665,27 +653,30 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(networkSize).build();
+        Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
 
-        final NodeId zeroWeightNode = addressBook.getNodeId(0);
+        final NodeId zeroWeightNode = NodeId.of(roster.rosterEntries().get(0).nodeId());
 
-        for (final Address address : addressBook) {
-            if (address.getNodeId().equals(zeroWeightNode)) {
-                addressBook.add(address.copySetWeight(0));
-            } else {
-                addressBook.add(address.copySetWeight(1));
-            }
-        }
+        roster = Roster.newBuilder()
+                .rosterEntries(roster.rosterEntries().stream()
+                        .map(entry -> {
+                            if (entry.nodeId() == zeroWeightNode.id()) {
+                                return entry.copyBuilder().weight(0).build();
+                            } else {
+                                return entry.copyBuilder().weight(1).build();
+                            }
+                        })
+                        .toList())
+                .build();
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
                 time,
-                addressBook,
+                roster,
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
@@ -695,20 +686,19 @@ class TipsetEventCreatorTests {
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
-            final List<Address> addresses = new ArrayList<>();
-            addressBook.iterator().forEachRemaining(addresses::add);
+            final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
             Collections.shuffle(addresses, random);
 
             boolean atLeastOneEventCreated = false;
 
-            for (final Address address : addresses) {
+            for (final RosterEntry address : addresses) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = address.getNodeId();
+                final NodeId nodeId = NodeId.of(address.nodeId());
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
 
                 final UnsignedEvent event = eventCreator.maybeCreateEvent();
@@ -721,8 +711,8 @@ class TipsetEventCreatorTests {
                 atLeastOneEventCreated = true;
 
                 final NodeId otherId;
-                if (event.hasOtherParent()) {
-                    otherId = event.getOtherParents().getFirst().creator();
+                if (event.getMetadata().hasOtherParent()) {
+                    otherId = event.getMetadata().getOtherParents().getFirst().creator();
                 } else {
                     otherId = null;
                 }
@@ -773,23 +763,23 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 1;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(networkSize).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
                 time,
-                addressBook,
+                roster,
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
         final Map<Hash, EventImpl> events = new HashMap<>();
 
-        final Address address = addressBook.getAddress(addressBook.getNodeId(0));
+        final RosterEntry address = roster.rosterEntries().get(0);
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
             if (advancingClock) {
@@ -798,7 +788,7 @@ class TipsetEventCreatorTests {
 
             transactionSupplier.set(generateRandomTransactions(random));
 
-            final NodeId nodeId = address.getNodeId();
+            final NodeId nodeId = NodeId.of(address.nodeId());
             final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
 
             final UnsignedEvent event = eventCreator.maybeCreateEvent();
@@ -852,7 +842,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withMinimumWeight(1)
                 .withMaximumWeight(1)
                 .withSize(networkSize)
@@ -860,13 +850,13 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = addressBook.getNodeId(0); // self
-        final NodeId nodeB = addressBook.getNodeId(1);
-        final NodeId nodeC = addressBook.getNodeId(2);
-        final NodeId nodeD = addressBook.getNodeId(3);
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
         // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
-        final EventCreator eventCreator = buildEventCreator(random, time, addressBook, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
 
         // Create some genesis events
         final UnsignedEvent eventA1 = eventCreator.maybeCreateEvent();
@@ -905,8 +895,8 @@ class TipsetEventCreatorTests {
         // but has not been updated in the current snapshot.
 
         final NodeId otherParentId;
-        if (eventA2.hasOtherParent()) {
-            otherParentId = eventA2.getOtherParents().getFirst().creator();
+        if (eventA2.getMetadata().hasOtherParent()) {
+            otherParentId = eventA2.getMetadata().getOtherParents().getFirst().creator();
         } else {
             otherParentId = null;
         }
@@ -929,7 +919,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withMinimumWeight(1)
                 .withMaximumWeight(1)
                 .withSize(networkSize)
@@ -937,15 +927,15 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = addressBook.getNodeId(0); // self
-        final NodeId nodeB = addressBook.getNodeId(1);
-        final NodeId nodeC = addressBook.getNodeId(2);
-        final NodeId nodeD = addressBook.getNodeId(3);
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
         // Node 4 (E) is not in the address book.
-        final NodeId nodeE = new NodeId(nodeD.id() + 1);
+        final NodeId nodeE = NodeId.of(nodeD.id() + 1);
 
         // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
-        final EventCreator eventCreator = buildEventCreator(random, time, addressBook, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
 
         // Create some genesis events
         final UnsignedEvent eventA1 = eventCreator.maybeCreateEvent();
@@ -998,7 +988,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withMinimumWeight(1)
                 .withMaximumWeight(1)
                 .withSize(networkSize)
@@ -1006,9 +996,9 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = addressBook.getNodeId(0); // self
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
 
-        final EventCreator eventCreator = buildEventCreator(random, time, addressBook, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
 
         eventCreator.setEventWindow(new EventWindow(
                 1,
@@ -1034,31 +1024,31 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(networkSize).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<EventTransaction>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
                 time,
-                addressBook,
+                roster,
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
         final Map<Hash, EventImpl> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
-            for (final Address address : addressBook) {
+            for (final RosterEntry address : roster.rosterEntries()) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = address.getNodeId();
+                final NodeId nodeId = NodeId.of(address.nodeId());
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
 
                 final long pendingConsensusRound = eventIndex + 2;
@@ -1093,10 +1083,10 @@ class TipsetEventCreatorTests {
                 }
 
                 if (eventIndex == 0) {
-                    final long birthRound = event.getBirthRound();
+                    final long birthRound = event.getEventCore().birthRound();
                     assertEquals(ROUND_FIRST, birthRound);
                 } else {
-                    final long birthRound = event.getBirthRound();
+                    final long birthRound = event.getEventCore().birthRound();
                     if (useBirthRoundForAncient) {
                         assertEquals(pendingConsensusRound, birthRound);
                     } else {

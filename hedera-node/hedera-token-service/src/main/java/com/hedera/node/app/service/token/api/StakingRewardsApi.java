@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.api;
 
 import static com.hedera.node.app.service.token.Units.HBARS_TO_TINYBARS;
@@ -38,23 +23,23 @@ import org.apache.logging.log4j.Logger;
  */
 public interface StakingRewardsApi {
     /**
-     * Logger for this interface
+     * Logger for this interface.
      */
     Logger log = LogManager.getLogger(StakingRewardsApi.class);
     /**
-     * Constant for time conversion from minutes to seconds
+     * Constant for time conversion from minutes to seconds.
      */
     int MINUTES_TO_SECONDS = 60;
     /**
-     * Constant for time conversion from minutes to milliseconds
+     * Constant for time conversion from minutes to milliseconds.
      */
     long MINUTES_TO_MILLISECONDS = 60_000L;
     /**
-     * Constant for daily staking period in minutes
+     * Constant for daily staking period in minutes.
      */
     long DAILY_STAKING_PERIOD_MINS = 1440L;
     /**
-     * Constant for UTC time zone
+     * Constant for UTC time zone.
      */
     ZoneId ZONE_UTC = ZoneId.of("UTC");
 
@@ -190,7 +175,7 @@ public interface StakingRewardsApi {
     static long clampedStakePeriodStart(
             final long stakePeriodStart, final long currentStakePeriod, final int numStoredPeriods) {
         if (stakePeriodStart > -1 && stakePeriodStart < currentStakePeriod - numStoredPeriods) {
-            return currentStakePeriod - numStoredPeriods;
+            return currentStakePeriod - numStoredPeriods - 1;
         }
         return stakePeriodStart;
     }
@@ -205,7 +190,7 @@ public interface StakingRewardsApi {
             return 0;
         }
 
-        final var firstRewardSum = rewardSumHistory.get(0);
+        final var firstRewardSum = rewardSumHistory.getFirst();
         final var rewardFromSum = rewardSumHistory.get(rewardFrom);
         if (account.stakeAtStartOfLastRewardedPeriod() != -1) {
             final var rewardFromMinus1Sum = rewardSumHistory.get(rewardFrom - 1);

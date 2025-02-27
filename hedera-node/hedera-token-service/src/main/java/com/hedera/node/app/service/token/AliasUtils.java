@@ -1,29 +1,17 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token;
 
 import static com.hedera.node.app.spi.key.KeyUtils.isValid;
+import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.service.evm.utils.EthSigsUtils;
+import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -35,24 +23,14 @@ import java.util.HexFormat;
  * A collection of static utility methods for working with aliases on {@link Account}s.
  */
 public final class AliasUtils {
-    /**
-     * The first 12 bytes of an "entity num alias". See {@link #isEntityNumAlias(Bytes)}.
-     *
-     * <p>FUTURE: The actual shard and realm are defined in config, and we should use that. However, the config can only
-     * be read dynamically, not statically. But, the shard and realm *cannot change* once a node has been started with
-     * a given state. So we really could have some static way to get the shard and realm, based on bootstrap config,
-     * or based on state as it has been loaded. This detail has not been worked out, and on all networks today shard
-     * and realm are 0, so we just let this byte array be all zeros for now.
-     */
-    private static final byte[] ENTITY_NUM_ALIAS_PREFIX = new byte[12];
     /** All EVM addresses are 20 bytes long, and key-encoded keys are not. */
     private static final int EVM_ADDRESS_SIZE = 20;
-    /** All valid ECDSA protobuf encoded keys have this prefix */
+    /** All valid ECDSA protobuf encoded keys have this prefix. */
     private static final Bytes ECDSA_KEY_ALIAS_PREFIX =
             Bytes.wrap(HexFormat.of().parseHex("3a21"));
-    /** All valid ECDSA protobuf encoded keys are 33 bytes long */
+    /** All valid ECDSA protobuf encoded keys are 33 bytes long. */
     private static final int ECDSA_SECP256K1_ALIAS_SIZE = 33;
-    /** All valid ED25519 protobuf encoded keys are 32 bytes long */
+    /** All valid ED25519 protobuf encoded keys are 32 bytes long. */
     private static final int ED25519_ALIAS_SIZE = 32;
 
     private AliasUtils() {
@@ -63,7 +41,7 @@ public final class AliasUtils {
      * Gets whether the given alias is the right length to be an EVM address. Today, this number is 20 bytes.
      *
      * @param alias The alias to check
-     * @return {@code true} if the alias is the right length to be an EVM address.
+     * @return {@code true} if the alias is the right length to be an EVM address
      */
     public static boolean isOfEvmAddressSize(@NonNull final Bytes alias) {
         return alias.length() == EVM_ADDRESS_SIZE;
@@ -75,7 +53,7 @@ public final class AliasUtils {
      * public key. Otherwise, return null.
      *
      * @param alias The alias to extract an EVM address from.
-     * @return The EVM address, or null if the alias is not an EVM address or an ECDSA_SECP256K1 key alias.
+     * @return The EVM address, or null if the alias is not an EVM address or an ECDSA_SECP256K1 key alias
      */
     @Nullable
     public static Bytes extractEvmAddress(@NonNull final Bytes alias) {
@@ -91,7 +69,7 @@ public final class AliasUtils {
      * Given a key, attempts to extract from it an EVM address. If the key is an ECDSA_SECP256K1 key, return the EVM
      * address derived from the public key. Otherwise, return null.
      * @param key The key to extract an EVM address from.
-     * @return The EVM address, or null if the key is not an ECDSA_SECP256K1 key.
+     * @return The EVM address, or null if the key is not an ECDSA_SECP256K1 key
      */
     @Nullable
     public static Bytes extractEvmAddress(@Nullable final Key key) {
@@ -100,25 +78,30 @@ public final class AliasUtils {
 
     /**
      * Given some alias, determine whether it is an "entity num alias". If the alias is exactly 20 bytes long, and
-     * if its initial bytes match the {@link #ENTITY_NUM_ALIAS_PREFIX}, then it is an entity num alias.
+     * if its initial bytes match the entity prefix, then it is an entity num alias.
      *
      * <p>Every entity in the system (accounts, tokens, etc.) may be represented within ethereum with a 20-byte EVM
      * address. This address can be explicit (as part of the alias), or it can be based on the entity ID number. When
-     * based on the entity number, the first 20 bytes represent the shard and alias, while the last 8 bytes represent
+     * based on the entity number, the first 12 bytes represent the shard and alias, while the last 8 bytes represent
      * the entity number. When shard and realm are zero, this prefix is all zeros, which is why it is sometimes known as
      * the "long-zero" alias.
      *
      * @param alias The alias to check
      * @return True if the alias is an entity num alias
      */
-    public static boolean isEntityNumAlias(final Bytes alias) {
-        return isOfEvmAddressSize(alias) && alias.matchesPrefix(ENTITY_NUM_ALIAS_PREFIX);
+    public static boolean isEntityNumAlias(final Bytes alias, final long shard, final long realm) {
+        final byte[] entityNumAliasPrefix = new byte[12];
+
+        arraycopy(Ints.toByteArray((int) shard), 0, entityNumAliasPrefix, 0, 4);
+        arraycopy(Longs.toByteArray(realm), 0, entityNumAliasPrefix, 4, 8);
+
+        return isOfEvmAddressSize(alias) && alias.matchesPrefix(entityNumAliasPrefix);
     }
 
     /**
      * Given some alias, determine whether it is a key alias. If the alias is a valid protobuf-encoded key, then it is a
-     * key alias. This method does not check whether the key is valid, only whether the alias is a valid protobuf-encoded
-     * key.
+     * key alias. This method does not check whether the key is valid, only whether the alias is a valid
+     * protobuf-encoded key.
      * @param alias The alias to check
      * @return True if the alias is a key alias
      */
@@ -177,17 +160,36 @@ public final class AliasUtils {
     }
 
     /**
+     * A utility method that, given an address alias, extracts the shard (skipping shard and ID number).
+     *
+     * @param addressAlias The address alias, where the 0.0.1234 style address has been encoded into 20 bytes
+     * @return The shard of the account or contract.
+     */
+    public static Integer extractShardFromAddressAlias(final Bytes addressAlias) {
+        return addressAlias.getInt(0);
+    }
+
+    /**
+     * A utility method that, given an address alias, extracts the realm (skipping shard and ID number).
+     * @param addressAlias The address alias, where the 0.0.1234 style address has been encoded into 20 bytes
+     * @return The realm of the account or contract
+     */
+    public static Long extractRealmFromAddressAlias(final Bytes addressAlias) {
+        return addressAlias.getLong(4);
+    }
+
+    /**
      * A utility method that, given an address alias, extracts the account or contract ID number (skipping shard
      * and realm).
      * @param addressAlias The address alias, where the 0.0.1234 style address has been encoded into 20 bytes
-     * @return
+     * @return The ID number of the account or contract
      */
     public static Long extractIdFromAddressAlias(final Bytes addressAlias) {
         return addressAlias.getLong(12);
     }
 
     /**
-     * A utility method that checks if account is in aliased form
+     * A utility method that checks if account is in aliased form.
      * @param idOrAlias account id or alias
      * @return true if account is in aliased form
      */

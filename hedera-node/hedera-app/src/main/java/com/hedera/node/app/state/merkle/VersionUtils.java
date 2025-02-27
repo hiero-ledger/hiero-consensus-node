@@ -1,24 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.state.spi.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
@@ -39,6 +26,24 @@ public class VersionUtils {
      */
     public static boolean isSameVersion(@Nullable final SemanticVersion a, @Nullable final SemanticVersion b) {
         return (a == null && b == null) || (a != null && b != null && SEMANTIC_VERSION_COMPARATOR.compare(a, b) == 0);
+    }
+
+    /**
+     * Returns true only if the given schema's state definitions will have been already incorporated in a
+     * deserialized state of the given version. This ignores any pre-release or build metadata in the version.
+     * @param stateVersion The version of the state, or null at genesis.
+     * @param schemaVersion The version of the schema.
+     * @return True if the  schema's state definitions are already included in the state.
+     */
+    public static boolean alreadyIncludesStateDefs(
+            @Nullable final SemanticVersion stateVersion, @NonNull final SemanticVersion schemaVersion) {
+        requireNonNull(schemaVersion);
+        if (stateVersion == null) {
+            return false;
+        }
+        final var coreStateVersion =
+                stateVersion.copyBuilder().pre("").build("").build();
+        return SEMANTIC_VERSION_COMPARATOR.compare(coreStateVersion, schemaVersion) >= 0;
     }
 
     /**

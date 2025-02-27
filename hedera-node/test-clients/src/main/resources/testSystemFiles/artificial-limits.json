@@ -36,7 +36,8 @@
 			"ContractGetRecords",
 			"ContractCallLocal",
 			"TransactionGetRecord",
-			"GetVersionInfo"
+			"GetVersionInfo",
+			"AtomicBatch"
 		  ]
 		},
 		{
@@ -125,8 +126,19 @@
 		{
 		  "opsPerSec": 100,
 		  "operations": [
-			"CryptoGetAccountBalance",
 			"TransactionGetReceipt"
+		  ]
+		}
+	  ]
+	},
+    {
+	  "name": "BalanceQueryLimits",
+	  "burstPeriod": 1,
+	  "throttleGroups": [
+		{
+		  "opsPerSec": 10,
+		  "operations": [
+			"CryptoGetAccountBalance"
 		  ]
 		}
 	  ]

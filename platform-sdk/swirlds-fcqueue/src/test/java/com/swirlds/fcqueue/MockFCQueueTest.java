@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2019-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.fcqueue;
 
 import static com.swirlds.common.test.fixtures.junit.tags.TestComponentTags.FCQUEUE;
-import static com.swirlds.common.test.fixtures.junit.tags.TestQualifierTags.TIME_CONSUMING;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -389,7 +373,6 @@ class MockFCQueueTest {
     @MethodSource("buildArguments")
     @Tag(FCQUEUE)
     @DisplayName("Mock Hash Test 7")
-    @Tag(TIME_CONSUMING)
     void hashTest7(final int queueSize, final Supplier<FCQueue<FCInt>> supplier) {
         final FCQueue<FCInt> fcq = new FCQueue<>();
         final FCQueue<FCInt> mfcq = supplier.get();
@@ -565,7 +548,6 @@ class MockFCQueueTest {
     @MethodSource("buildArguments")
     @Tag(FCQUEUE)
     @DisplayName("Mock multithread Hash Test 1")
-    @Tag(TIME_CONSUMING)
     void multithreadHashTest(int writeThreadsNum, final Supplier<FCQueue<FCInt>> supplier) {
         final int QUEUE_SIZE = 10_000;
 
@@ -784,7 +766,6 @@ class MockFCQueueTest {
     @ParameterizedTest
     @MethodSource("buildArguments")
     @Tag(FCQUEUE)
-    @Tag(TIME_CONSUMING)
     @DisplayName("toArray Test")
     void toArrayTest(final int targetSize, final Supplier<FCQueue<FCInt>> supplier) {
         final FCQueue<FCInt> fcq = supplier.get();

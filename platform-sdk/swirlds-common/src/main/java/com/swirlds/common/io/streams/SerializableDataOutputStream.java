@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.streams;
 
 import static com.swirlds.common.io.streams.SerializableStreamConstants.BOOLEAN_BYTES;
@@ -24,10 +9,14 @@ import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_VER
 import static com.swirlds.common.io.streams.SerializableStreamConstants.SERIALIZATION_PROTOCOL_VERSION;
 import static com.swirlds.common.io.streams.SerializableStreamConstants.VERSION_BYTES;
 
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.io.FunctionalSerialize;
 import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.SerializableDet;
 import com.swirlds.common.io.SerializableWithKnownLength;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,6 +29,8 @@ import java.util.List;
  * It is designed for use with the SerializableDet interface, and its use is described there.
  */
 public class SerializableDataOutputStream extends AugmentedDataOutputStream {
+    /** A stream used to write PBJ objects */
+    private final WritableSequentialData writableSequentialData;
 
     /**
      * Creates a new data output stream to write data to the specified
@@ -53,6 +44,7 @@ public class SerializableDataOutputStream extends AugmentedDataOutputStream {
      */
     public SerializableDataOutputStream(OutputStream out) {
         super(out);
+        writableSequentialData = new WritableStreamingData(out);
     }
 
     /**
@@ -278,5 +270,22 @@ public class SerializableDataOutputStream extends AugmentedDataOutputStream {
             this.writeLong(serializable.getClassId());
         }
         this.writeInt(serializable.getVersion());
+    }
+
+    /**
+     * Write a PBJ record to the stream
+     *
+     * @param record
+     * 		the record to write
+     * @param codec
+     * 		the codec to use to write the record
+     * @param <T>
+     * 		the type of the record
+     * @throws IOException
+     * 		thrown if any IO problems occur
+     */
+    public <T> void writePbjRecord(@NonNull final T record, @NonNull final Codec<T> codec) throws IOException {
+        writeInt(codec.measureRecord(record));
+        codec.write(record, writableSequentialData);
     }
 }

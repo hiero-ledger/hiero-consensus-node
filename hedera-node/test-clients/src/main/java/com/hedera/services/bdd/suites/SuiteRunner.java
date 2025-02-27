@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites;
 
 import static com.hedera.services.bdd.spec.HapiSpecSetup.NodeSelection.FIXED;
@@ -34,6 +19,7 @@ import com.hedera.services.bdd.suites.freeze.FreezeUpgrade;
 import com.hedera.services.bdd.suites.freeze.PrepareUpgrade;
 import com.hedera.services.bdd.suites.freeze.SimpleFreezeOnly;
 import com.hedera.services.bdd.suites.freeze.UpdateFileForUpgrade;
+import com.hedera.services.bdd.suites.jrs.NodeOpsForUpgrade;
 import com.hedera.services.bdd.suites.meta.VersionInfoSpec;
 import com.hedera.services.bdd.suites.perf.AdjustFeeScheduleSuite;
 import com.hedera.services.bdd.suites.perf.crypto.*;
@@ -72,7 +58,7 @@ public class SuiteRunner {
     private static final HapiSpecSetup.TxnProtoStructure DEFAULT_TXN_CONFIG = HapiSpecSetup.TxnProtoStructure.ALTERNATE;
     private static final HapiSpecSetup.NodeSelection DEFAULT_NODE_SELECTOR = FIXED;
     private static final int EXPECTED_CI_NETWORK_SIZE = 4;
-    private static final String DEFAULT_PAYER_ID = "0.0.2";
+    private static final String DEFAULT_PAYER_ID = "2";
 
     private static final List<HapiSuite> SUITES_TO_DETAIL = new ArrayList<>();
 
@@ -91,6 +77,7 @@ public class SuiteRunner {
             put("CreateFilesBeforeReconnect", aof(CreateFilesBeforeReconnect::new));
             put("SubmitMessageLoadTest", aof(SubmitMessageLoadTest::new));
             put("AdjustFeeSchedule", aof(AdjustFeeScheduleSuite::new));
+            put("NodeOpsForUpgrade", aof(NodeOpsForUpgrade::new));
         }
     };
 

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
@@ -22,9 +7,11 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -141,5 +128,18 @@ public final class SystemContractUtils {
         return ContractID.newBuilder()
                 .contractNum(Longs.fromByteArray(Arrays.copyOfRange(bytes, 12, 20)))
                 .build();
+    }
+
+    /**
+     * compute the message as the concatenation of the realm, shard, and schedule numbers
+     * @param scheduleId the schedule id
+     * @return the message as defined above encoded as Bytes
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes messageFromScheduleId(final ScheduleID scheduleId) {
+        final ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES * 3);
+        buffer.putLong(scheduleId.shardNum());
+        buffer.putLong(scheduleId.realmNum());
+        buffer.putLong(scheduleId.scheduleNum());
+        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(buffer.array());
     }
 }

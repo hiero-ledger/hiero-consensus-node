@@ -2,17 +2,18 @@
 
 ## Hedera Logging API
 
-> [!WARNING]  
+> [!WARNING]
 > The API is currently in develpment and is not optimized for production use.
- It is subject to change without notice.
-
+> It is subject to change without notice.
 
 ### Introduction
+
 The Hedera Logging API is a custom logging API which is crafted to meet our unique requirements, ensuring compatibility with various software integrations.
 In addition, it acts as a bridge, redirecting log events from e.g. [SLF4J](https://www.slf4j.org) to our library, providing flexibility for all dependencies used in the project.
 Our goal was to create a logging library that is lightweight, efficient, and easy to use, while also being highly performant and flexible.
 
 ### Architecture
+
 As any project from the base team, the logging library is split into a public API and a private implementation which provides the basics for logging.
 In addition, we enhanced the functionality of the library by introducing extension points, allowing for the creation of e.g. custom logging handlers.
 Also, we aimed not to reinvent the wheel, so we decided to use common standards for using the API as you probably know from other logging libraries.
@@ -21,6 +22,7 @@ The architecture does not dictate the format of logging output, allowing for a w
 This flexibility permits various configurations, from console outputs to integrations with systems like Graylog or Kibana.
 
 #### Features of the Logging Facade
+
 The library goes beyond mere message logging, encapsulating rich information within each logging event.
 Key features include:
 
@@ -50,7 +52,6 @@ Here’s how you can set it up:
    ```java
    import com.swirlds.logging.api.Loggers;
    ```
-
 2. **Create a Logger Instance**:
    In your class, declare a `private static final` logger instance. Use the `Loggers.getLogger()` method, passing your class (`MyClass.class`) as a parameter.
 
@@ -74,9 +75,8 @@ Here’s how to use it:
    ```java
    logger.info("Hello, world!");
    ```
-
 2. **Logging with Placeholders**:
-   The API supports placeholder syntax for dynamic message composition. 
+   The API supports placeholder syntax for dynamic message composition.
    Use curly braces `{}` as placeholders and pass the dynamic values as additional arguments.
 
    ```java
@@ -95,7 +95,9 @@ For practicality, the `logging.properties` file will reload every second, ensuri
 The default search path for the properties file is the current working directory. It can be modified by setting the `LOG_CONFIG_PATH` environment variable.
 
 The format of the logging configuration is user-friendly and self-explanatory.
+
 ### Levels
+
 Here's an example representation of the syntax for setting logging levels:
 
 ```properties
@@ -108,10 +110,10 @@ logging.level.com.swirlds.common.crypto.Signature = WARN
 logging.level.com.hashgraph = WARN
 ```
 
-This configuration demonstrates how to set a global default logging level (`INFO`). 
-It also illustrates how to specify logging levels for packages and classes. 
-For example, everything under `com.swirlds.common.crypto` is set to `DEBUG`, except for `com.swirlds.common.crypto.Signature`, which is explicitly set to `WARN`. 
-Similarly, all loggers within `com.hashgraph` default to `WARN`. 
+This configuration demonstrates how to set a global default logging level (`INFO`).
+It also illustrates how to specify logging levels for packages and classes.
+For example, everything under `com.swirlds.common.crypto` is set to `DEBUG`, except for `com.swirlds.common.crypto.Signature`, which is explicitly set to `WARN`.
+Similarly, all loggers within `com.hashgraph` default to `WARN`.
 This approach ensures that loggers inherit the most specific level defined in the configuration, providing both flexibility and precision in logging management.
 
 ### Markers
@@ -127,7 +129,7 @@ logging.marker.CRYPTO = DISABLED
 logging.marker.OTHER = DEFAULT
 ```
 
-In this configuration, the `logging.marker.NAME` pattern is used, where `NAME` represents the marker's name, and the value can be set to `ENABLED`, `DISABLED`, or `DEFAULT`. 
+In this configuration, the `logging.marker.NAME` pattern is used, where `NAME` represents the marker's name, and the value can be set to `ENABLED`, `DISABLED`, or `DEFAULT`.
 For example, `logging.marker.CONFIG = ENABLED` would ensure that all log messages tagged with the `CONFIG` marker are displayed, irrespective of their log level.
 
 ### Example Configuration
@@ -145,19 +147,25 @@ logging.level.com.hashgraph = WARN
 logging.marker.CONFIG = ENABLED
 ```
 
+### Update the configuration at runtime
+
+The logging framework will automatically reload the configuration file periodically.
+By default, the configuration file is reloaded every 10 seconds.
+This can be changed by setting the `logging.reloadConfigPeriod` property in the configuration file.
+A reload will only update levels and markers, all other properties (like new handlers) will be ignored today.
+
 ## Handlers
 
 ### Introduction
 
-To further refine our logging system, we have incorporated handlers for more granular control over logging behavior. 
+To further refine our logging system, we have incorporated handlers for more granular control over logging behavior.
 Each handler can be distinctly named and configured using the prefix `logging.handler.NAME`, where `NAME` serves as a unique identifier.
 Two fields are required: `logging.handler.NAME.type`, to specify the type of the handler, and `logging.handler.NAME.enabled` must be set to `true` to activate the handler. The default value for all `logging.handler.NAME.enabled` properties is `false`.
-This structure allows for the application of handler-specific settings. 
-For instance, `logging.handler.NAME.level` is used to set the logging level for a specific handler, ensuring that all previously discussed features such as marker filters and log level settings are compatible. 
-This setup is instrumental in creating dedicated log files or outputs for specific types of log messages, offering a focused view that is particularly useful in complex systems or during targeted analyses. 
+This structure allows for the application of handler-specific settings.
+For instance, `logging.handler.NAME.level` is used to set the logging level for a specific handler, ensuring that all previously discussed features such as marker filters and log level settings are compatible.
+This setup is instrumental in creating dedicated log files or outputs for specific types of log messages, offering a focused view that is particularly useful in complex systems or during targeted analyses.
 
 A key aspect of the Logging System design is its performance, emphasizing maximum efficiency with as low an impact as possible on the running system.
-
 
 A particularly useful feature of handlers is the `inheritLevels` property.
 This boolean property determines whether the handler should inherit the default level configurations set globally.
@@ -174,8 +182,7 @@ logging.handler.CRYPTO_FILE.level = OFF
 logging.handler.CRYPTO_FILE.marker.CRYPTO = ENABLED
 ```
 
-In this configuration, the `CRYPTO_FILE` handler is set to ignore the global log level settings (`level = OFF`) but is specifically enabled to log messages tagged with the `CRYPTO` marker (`marker.CRYPTO = ENABLED`). 
-
+In this configuration, the `CRYPTO_FILE` handler is set to ignore the global log level settings (`level = OFF`) but is specifically enabled to log messages tagged with the `CRYPTO` marker (`marker.CRYPTO = ENABLED`).
 
 ### File Handler
 
@@ -185,11 +192,13 @@ Configure your file handlers with these properties to control logging behavior:
 - **Append Mode (`logging.handler.NAME.append`)**: If `true` (default), logs are appended to the file; if `false`, the file is overwritten on new logs.
 
 **Examples:**
+
 ```yaml
 logging.handler.NAME.file: /path/to/logfile.log
 logging.handler.NAME.append: true
 ```
-> [!NOTE]  
+
+> [!NOTE]
 > Adjust `NAME` to your handler's name. The default settings are optimized for general use.
 
 ---

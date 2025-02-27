@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
@@ -151,7 +136,7 @@ public class AdjustmentUtils {
     }
 
     /**
-     * Given a list of changes for a specific token, filters all credits and returns them
+     * Given a list of changes for a specific token, filters all credits and returns them.
      * @param tokenIdChanges The list of changes for a specific token
      * @return The list of credits
      */
@@ -169,7 +154,7 @@ public class AdjustmentUtils {
 
     /**
      * Given a list of changes for a specific token, filters all fungible credits including hbar or
-     * fungible token balances for a given beneficiary and returns them
+     * fungible token balances for a given beneficiary and returns them.
      * @param result The {@link AssessmentResult} object
      * @param sender The sender of the nft
      * @return The list of credits
@@ -200,7 +185,7 @@ public class AdjustmentUtils {
      * Represents the exchanged value between accounts. It can be hbar or fungible token adjustments.
      * It is used to track the credits that can be used to deduct the custom royalty fees for an NFT transfer.
      * If there are no fungible units to the receiver, and if there is a fallback fee on NFT then receiver
-     * should pay the fallback fee
+     * should pay the fallback fee.
      * @param account The account ID of the receiver
      * @param tokenId The token ID of the fungible token
      * @param amount The amount exchanged
@@ -227,25 +212,25 @@ public class AdjustmentUtils {
 
     /**
      * Adds two longs and throws an exception if the result overflows.
-     * @param a The first long
-     * @param b The second long
+     * @param addendA The first long
+     * @param addendB The second long
      * @return The sum of the two longs
      */
-    public static long addExactOrThrow(final long a, final long b) {
-        return addExactOrThrowReason(a, b, INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
+    public static long addExactOrThrow(final long addendA, final long addendB) {
+        return addExactOrThrowReason(addendA, addendB, INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
     }
 
     /**
      * Adds two longs and throws an exception if the result overflows.
-     * @param a The first long
-     * @param b The second long
+     * @param addendA The first long
+     * @param addendB The second long
      * @param failureReason The reason for the failure
      * @return The sum of the two longs
      */
     public static long addExactOrThrowReason(
-            final long a, final long b, @NonNull final ResponseCodeEnum failureReason) {
+            final long addendA, final long addendB, @NonNull final ResponseCodeEnum failureReason) {
         try {
-            return Math.addExact(a, b);
+            return Math.addExact(addendA, addendB);
         } catch (final ArithmeticException ignore) {
             throw new HandleException(failureReason);
         }

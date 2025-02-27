@@ -1,30 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.gossip;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -185,7 +165,8 @@ public class SimulatedNetwork {
                     final Instant deliveryTime = now.plusNanos(
                             (long) (averageDelayNanos + random.nextGaussian() * standardDeviationDelayNanos));
 
-                    final PlatformEvent eventToDeliver = deepCopyEvent(event);
+                    // create a copy so that nodes don't modify each other's events
+                    final PlatformEvent eventToDeliver = event.copyGossipedData();
                     eventToDeliver.setSenderId(sender);
                     eventToDeliver.setTimeReceived(deliveryTime);
                     final EventInTransit eventInTransit = new EventInTransit(eventToDeliver, sender, deliveryTime);
@@ -193,29 +174,6 @@ public class SimulatedNetwork {
                 }
             }
             events.clear();
-        }
-    }
-
-    /**
-     * Create a deep copy of an event. Until events become entirely immutable, this is necessary to prevent nodes from
-     * modifying each other's events.
-     *
-     * @param event the event to copy
-     * @return a deep copy of the event
-     */
-    @NonNull
-    private PlatformEvent deepCopyEvent(@NonNull final PlatformEvent event) {
-        try {
-            final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            final SerializableDataOutputStream outputStream = new SerializableDataOutputStream(byteArrayOutputStream);
-            outputStream.writeSerializable(event, false);
-            final SerializableDataInputStream inputStream =
-                    new SerializableDataInputStream(new ByteArrayInputStream(byteArrayOutputStream.toByteArray()));
-            final PlatformEvent copy = inputStream.readSerializable(false, PlatformEvent::new);
-            copy.setHash(event.getHash());
-            return copy;
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
         }
     }
 }

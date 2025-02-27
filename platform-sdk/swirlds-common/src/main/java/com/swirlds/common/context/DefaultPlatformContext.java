@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
@@ -21,6 +6,7 @@ import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,6 +25,7 @@ public final class DefaultPlatformContext implements PlatformContext {
     private final ExecutorFactory executorFactory;
     private final FileSystemManager fileSystemManager;
     private final RecycleBin recycleBin;
+    private final MerkleCryptography merkleCryptography;
 
     /**
      * Constructor.
@@ -58,7 +45,8 @@ public final class DefaultPlatformContext implements PlatformContext {
             @NonNull final Time time,
             @NonNull final ExecutorFactory executorFactory,
             @NonNull final FileSystemManager fileSystemManager,
-            RecycleBin recycleBin) {
+            @NonNull final RecycleBin recycleBin,
+            @NonNull final MerkleCryptography merkleCryptography) {
         this.configuration = Objects.requireNonNull(configuration, "configuration must not be null");
         this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
         this.cryptography = Objects.requireNonNull(cryptography, "cryptography must not be null");
@@ -66,6 +54,7 @@ public final class DefaultPlatformContext implements PlatformContext {
         this.executorFactory = Objects.requireNonNull(executorFactory, "executorFactory must not be null");
         this.fileSystemManager = Objects.requireNonNull(fileSystemManager, "fileSystemManager must not be null");
         this.recycleBin = Objects.requireNonNull(recycleBin, "recycleBin must not be null");
+        this.merkleCryptography = Objects.requireNonNull(merkleCryptography, "merkleCryptography must not be null");
     }
 
     /**
@@ -120,5 +109,9 @@ public final class DefaultPlatformContext implements PlatformContext {
     @Override
     public RecycleBin getRecycleBin() {
         return recycleBin;
+    }
+
+    public MerkleCryptography getMerkleCryptography() {
+        return merkleCryptography;
     }
 }

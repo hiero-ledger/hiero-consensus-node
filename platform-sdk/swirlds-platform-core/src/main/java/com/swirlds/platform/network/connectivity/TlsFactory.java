@@ -1,24 +1,12 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
 import com.swirlds.common.crypto.config.CryptoConfig;
+import com.swirlds.common.platform.NodeId;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.system.PlatformConstructionException;
@@ -49,10 +37,11 @@ import javax.net.ssl.TrustManagerFactory;
  * used to create and receive TLS connections, based on the given trustStore
  */
 public class TlsFactory implements SocketFactory {
-    private final SocketConfig socketConfig;
     private SSLServerSocketFactory sslServerSocketFactory;
     private SSLSocketFactory sslSocketFactory;
 
+    private final Configuration configuration;
+    private final NodeId selfId;
     private final SSLContext sslContext;
     private final SecureRandom nonDetRandom;
     private final KeyManagerFactory keyManagerFactory;
@@ -63,23 +52,23 @@ public class TlsFactory implements SocketFactory {
      * @param agrCert the TLS certificate to use
      * @param agrKey the private key corresponding to the public key in the certificate
      * @param peers the list of peers to allow connections with
-     * @param socketConfig the configuration for the sockets
-     * @param cryptoConfig the configuration for the cryptography
+     * @param configuration configuration for the platform
      */
     public TlsFactory(
             @NonNull final Certificate agrCert,
             @NonNull final PrivateKey agrKey,
             @NonNull final List<PeerInfo> peers,
-            @NonNull final SocketConfig socketConfig,
-            @NonNull final CryptoConfig cryptoConfig)
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration)
             throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException,
                     UnrecoverableKeyException {
         Objects.requireNonNull(agrCert);
         Objects.requireNonNull(agrKey);
         Objects.requireNonNull(peers);
-        this.socketConfig = Objects.requireNonNull(socketConfig);
-        Objects.requireNonNull(cryptoConfig);
-        final char[] password = cryptoConfig.keystorePassword().toCharArray();
+        this.selfId = Objects.requireNonNull(selfId);
+        this.configuration = Objects.requireNonNull(configuration);
+        final CryptoConfig configData = configuration.getConfigData(CryptoConfig.class);
+        final char[] password = configData.keystorePassword().toCharArray();
 
         /* nondeterministic CSPRNG */
         this.nonDetRandom = CryptoStatic.getNonDetRandom();
@@ -109,7 +98,9 @@ public class TlsFactory implements SocketFactory {
         serverSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
         serverSocket.setWantClientAuth(true);
         serverSocket.setNeedClientAuth(true);
-        SocketFactory.configureAndBind(serverSocket, socketConfig, port);
+        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
+        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
+        SocketFactory.configureAndBind(selfId, serverSocket, socketConfig, gossipConfig, port);
         return serverSocket;
     }
 
@@ -124,6 +115,7 @@ public class TlsFactory implements SocketFactory {
         clientSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
         clientSocket.setWantClientAuth(true);
         clientSocket.setNeedClientAuth(true);
+        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
         SocketFactory.configureAndConnect(clientSocket, socketConfig, hostname, port);
         clientSocket.startHandshake();
         return clientSocket;

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect;
 
 import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeTreeAfterCopy;
@@ -32,8 +17,10 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
@@ -64,13 +51,12 @@ public class MerkleBenchmarkUtils {
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
+            final NodeId selfId,
             final Configuration configuration)
             throws Exception {
         System.out.println("------------");
         System.out.println("starting: " + startingTree);
         System.out.println("desired: " + desiredTree);
-
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
         if (startingTree != null && startingTree.getHash() == null) {
             MerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
@@ -86,8 +72,8 @@ public class MerkleBenchmarkUtils {
                 delayStorageFuzzRangePercent,
                 delayNetworkMicroseconds,
                 delayNetworkFuzzRangePercent,
-                configuration,
-                reconnectConfig);
+                selfId,
+                configuration);
     }
 
     /**
@@ -102,10 +88,14 @@ public class MerkleBenchmarkUtils {
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
-            final Configuration configuration,
-            final ReconnectConfig reconnectConfig)
+            final NodeId selfId,
+            final Configuration configuration)
             throws Exception {
-        try (PairedStreams streams = new PairedStreams(configuration.getConfigData(SocketConfig.class))) {
+        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
+        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+
+        try (PairedStreams streams = new PairedStreams(selfId, socketConfig, gossipConfig)) {
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
 

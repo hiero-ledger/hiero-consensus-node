@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -105,7 +90,7 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
     }
 
     @Test
-    void validatesQueryWhenValidRecord() throws Throwable {
+    void validatesQueryWhenValidRecord() {
 
         final var query = createGetTransactionRecordQuery(transactionID, false, false);
         given(context.query()).willReturn(query);
@@ -115,7 +100,7 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
     }
 
     @Test
-    void validatesQueryWhenNoTransactionId() throws Throwable {
+    void validatesQueryWhenNoTransactionId() {
 
         final var query = createEmptysQuery();
         given(context.query()).willReturn(query);
@@ -124,8 +109,7 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
     }
 
     @Test
-    void validatesQueryWhenNoAccountId() throws Throwable {
-
+    void validatesQueryWhenNoAccountId() {
         final var query = createGetTransactionRecordQuery(transactionIDWithoutAccount(0, 0), false, false);
         given(context.query()).willReturn(query);
 
@@ -170,7 +154,7 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
         final var responseHeader = ResponseHeader.newBuilder()
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
                 .build();
-        final var expectedRecord = getExpectedRecord(transactionID);
+        final var expectedRecord = getExpectedRecord();
 
         final var query = createGetTransactionRecordQuery(transactionID, false, false);
         when(context.query()).thenReturn(query);
@@ -188,7 +172,7 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
         final var responseHeader = ResponseHeader.newBuilder()
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
                 .build();
-        final var expectedRecord = getExpectedRecord(transactionID);
+        final var expectedRecord = getExpectedRecord();
         final List<TransactionRecord> expectedDuplicateRecords = getExpectedDuplicateList();
 
         final var query = createGetTransactionRecordQuery(transactionID, true, false);
@@ -209,10 +193,10 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
         final var responseHeader = ResponseHeader.newBuilder()
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
                 .build();
-        final var expectedRecord = getExpectedRecord(transactionID);
-        final List<TransactionRecord> expectedChildRecordList = getExpectedChildRecordList();
+        final List<TransactionRecord> expectedChildRecordList = List.of(recordOne, recordTwo, recordThree);
 
-        final var query = createGetTransactionRecordQuery(transactionID, false, true);
+        final var txnId = otherRecord.transactionIDOrThrow();
+        final var query = createGetTransactionRecordQuery(txnId, false, true);
         when(context.query()).thenReturn(query);
         when(context.recordCache()).thenReturn(cache);
 
@@ -220,14 +204,14 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
         final var op = response.transactionGetRecordOrThrow();
         assertThat(op.header()).isNotNull();
         assertThat(op.header().nodeTransactionPrecheckCode()).isEqualTo(ResponseCodeEnum.OK);
-        assertThat(op.transactionRecord()).isEqualTo(expectedRecord);
+        assertThat(op.transactionRecord()).isEqualTo(otherRecord);
         assertThat(op.childTransactionRecords()).isEqualTo(expectedChildRecordList);
         assertThat(op.childTransactionRecords().size()).isEqualTo(expectedChildRecordList.size());
     }
 
     @Test
     @DisplayName("test computeFees When Free")
-    void testComputeFees() throws Throwable {
+    void testComputeFees() {
         final var query = createGetTransactionRecordQuery(transactionID, false, false);
         given(context.query()).willReturn(query);
         given(context.recordCache()).willReturn(cache);
@@ -240,7 +224,7 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
 
     @Test
     @DisplayName("test computeFees with duplicates and children")
-    void testComputeFeesWithDuplicatesAndChildRecords() throws Throwable {
+    void testComputeFeesWithDuplicatesAndChildRecords() {
         final var query = createGetTransactionRecordQuery(transactionID, true, true);
         given(context.query()).willReturn(query);
         given(context.recordCache()).willReturn(cache);
@@ -254,7 +238,7 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
         assertThat(networkFee).isZero();
     }
 
-    private TransactionRecord getExpectedRecord(TransactionID transactionID) {
+    private TransactionRecord getExpectedRecord() {
         return primaryRecord;
     }
 

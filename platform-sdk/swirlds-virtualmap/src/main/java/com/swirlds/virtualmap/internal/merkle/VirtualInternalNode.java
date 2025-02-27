@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
@@ -32,6 +17,7 @@ import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
@@ -204,13 +190,14 @@ public final class VirtualInternalNode<K extends VirtualKey, V extends VirtualVa
         // On cache miss, check the data source. It *has* to be there.
         if (rec == null) {
             try {
-                rec = root.getDataSource().loadLeafRecord(path);
+                final VirtualLeafBytes leafBytes = root.getDataSource().loadLeafRecord(path);
                 // This should absolutely be impossible. We already checked to make sure the path falls
                 // within the firstLeafPath and lastLeafPath, and we already failed to find the leaf
                 // in the cache. It **MUST** be on disk, or we have a broken system.
-                if (rec == null) {
+                if (leafBytes == null) {
                     throw new IllegalStateException("Attempted to read from disk but couldn't find the leaf");
                 }
+                rec = leafBytes.toRecord(root.getKeySerializer(), root.getValueSerializer());
             } catch (final IOException ex) {
                 throw new RuntimeException("Failed to read a leaf record from the data source", ex);
             }

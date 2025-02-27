@@ -1,36 +1,16 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation;
 
-import static com.swirlds.platform.event.creation.EventCreationStatus.ATTEMPTING_CREATION;
-import static com.swirlds.platform.event.creation.EventCreationStatus.IDLE;
-import static com.swirlds.platform.event.creation.EventCreationStatus.NO_ELIGIBLE_PARENTS;
-import static com.swirlds.platform.event.creation.EventCreationStatus.RATE_LIMITED;
+import static org.hiero.event.creator.EventCreationStatus.ATTEMPTING_CREATION;
+import static org.hiero.event.creator.EventCreationStatus.IDLE;
+import static org.hiero.event.creator.EventCreationStatus.NO_ELIGIBLE_PARENTS;
+import static org.hiero.event.creator.EventCreationStatus.RATE_LIMITED;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.event.creation.rules.AggregateEventCreationRules;
-import com.swirlds.platform.event.creation.rules.BackpressureRule;
-import com.swirlds.platform.event.creation.rules.EventCreationRule;
-import com.swirlds.platform.event.creation.rules.MaximumRateRule;
-import com.swirlds.platform.event.creation.rules.PlatformHealthRule;
 import com.swirlds.platform.event.creation.rules.PlatformStatusRule;
 import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.system.events.UnsignedEvent;
@@ -41,7 +21,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.LongSupplier;
+import org.hiero.event.creator.EventCreationRule;
+import org.hiero.event.creator.EventCreationStatus;
+import org.hiero.event.creator.impl.EventCreationConfig;
+import org.hiero.event.creator.impl.rules.AggregateEventCreationRules;
+import org.hiero.event.creator.impl.rules.MaximumRateRule;
+import org.hiero.event.creator.impl.rules.PlatformHealthRule;
 
 /**
  * Default implementation of the {@link EventCreationManager}.
@@ -78,28 +63,21 @@ public class DefaultEventCreationManager implements EventCreationManager {
      *
      * @param platformContext      the platform context
      * @param transactionPoolNexus provides transactions to be added to new events
-     * @param eventIntakeQueueSize supplies the size of the event intake queue
      * @param creator              creates events
      */
     public DefaultEventCreationManager(
             @NonNull final PlatformContext platformContext,
             @NonNull final TransactionPoolNexus transactionPoolNexus,
-            @NonNull final LongSupplier eventIntakeQueueSize,
             @NonNull final EventCreator creator) {
 
         this.creator = Objects.requireNonNull(creator);
 
         final EventCreationConfig config = platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
-        final boolean useLegacyBackpressure = config.useLegacyBackpressure();
 
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(platformContext));
         rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
-        if (useLegacyBackpressure) {
-            rules.add(new BackpressureRule(platformContext, eventIntakeQueueSize));
-        } else {
-            rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
-        }
+        rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
         this.eventCreationRules = AggregateEventCreationRules.of(rules);
 

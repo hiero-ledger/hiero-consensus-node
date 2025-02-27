@@ -1,0 +1,3 @@
+Hedera Hashgraph is a software platform designed to build fully-distributed applications that harness the power of the cloud
+without servers. Now you can develop applications with fairness in decision making, speed, trust and reliability, at
+a fraction of the cost of traditional server-based platforms.

@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -33,7 +19,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -46,31 +31,25 @@ public class TokenTotalSupplyAfterMintBurnWipeSuite {
     @HapiTest
     final Stream<DynamicTest> checkTokenTotalSupplyAfterMintAndBurn() {
         String tokenName = "tokenToTest";
-        return defaultHapiSpec(
-                        "checkTokenTotalSupplyAfterMintAndBurn", SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(0L),
-                        cryptoCreate("tokenReceiver").balance(0L),
-                        newKeyNamed("adminKey"),
-                        newKeyNamed("supplyKey"))
-                .when(tokenCreate(tokenName)
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate("tokenReceiver").balance(0L),
+                newKeyNamed("adminKey"),
+                newKeyNamed("supplyKey"),
+                tokenCreate(tokenName)
                         .treasury(TOKEN_TREASURY)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .initialSupply(1000)
                         .decimals(1)
                         .supplyKey("supplyKey")
-                        .via("createTxn"))
-                .then(
-                        getTxnRecord("createTxn").logged(),
-                        mintToken(tokenName, 1000).via("mintToken"),
-                        getTxnRecord("mintToken").logged(),
-                        getTokenInfo(tokenName).hasTreasury(TOKEN_TREASURY).hasTotalSupply(2000),
-                        burnToken(tokenName, 200).via("burnToken"),
-                        getTxnRecord("burnToken").logged(),
-                        getTokenInfo(tokenName)
-                                .logged()
-                                .hasTreasury(TOKEN_TREASURY)
-                                .hasTotalSupply(1800));
+                        .via("createTxn"),
+                getTxnRecord("createTxn").logged(),
+                mintToken(tokenName, 1000).via("mintToken"),
+                getTxnRecord("mintToken").logged(),
+                getTokenInfo(tokenName).hasTreasury(TOKEN_TREASURY).hasTotalSupply(2000),
+                burnToken(tokenName, 200).via("burnToken"),
+                getTxnRecord("burnToken").logged(),
+                getTokenInfo(tokenName).logged().hasTreasury(TOKEN_TREASURY).hasTotalSupply(1800));
     }
 
     @HapiTest

@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.io.extendable.ExtendableInputStream;
-import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -39,9 +23,9 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
     private final AncientMode fileType;
     private final SerializableDataInputStream stream;
     private boolean hasPartialEvent = false;
-    private final CountingStreamExtension counter;
     private PlatformEvent next;
     private boolean streamClosed = false;
+    private PcesFileVersion fileVersion;
 
     /**
      * Create a new iterator that walks over events in a preconsensus event file.
@@ -57,21 +41,18 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
 
         this.lowerBound = lowerBound;
         this.fileType = Objects.requireNonNull(fileType);
-        counter = new CountingStreamExtension();
-        stream = new SerializableDataInputStream(new ExtendableInputStream(
-                new BufferedInputStream(
-                        new FileInputStream(fileDescriptor.getPath().toFile())),
-                counter));
+        stream = new SerializableDataInputStream(new BufferedInputStream(
+                new FileInputStream(fileDescriptor.getPath().toFile())));
 
         try {
-            final int fileVersion = stream.readInt();
-            if (fileVersion != PcesMutableFile.FILE_VERSION) {
-                throw new IOException("unsupported file version: " + fileVersion);
+            final int fileVersionNumber = stream.readInt();
+            fileVersion = PcesFileVersion.fromVersionNumber(fileVersionNumber);
+            if (fileVersion == null) {
+                throw new IOException("unsupported file version: " + fileVersionNumber);
             }
         } catch (final EOFException e) {
             // Empty file. Possible if the node crashed right after it created this file.
-            stream.close();
-            streamClosed = true;
+            closeFile();
         }
     }
 
@@ -80,24 +61,36 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
      */
     private void findNext() throws IOException {
         while (next == null && !streamClosed) {
-
-            final long initialCount = counter.getCount();
+            if (stream.available() == 0) {
+                closeFile();
+                return;
+            }
 
             try {
-                final PlatformEvent candidate = stream.readSerializable(false, PlatformEvent::new);
+                final PlatformEvent candidate =
+                        switch (fileVersion) {
+                            case PROTOBUF_EVENTS -> new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF));
+                        };
                 if (candidate.getAncientIndicator(fileType) >= lowerBound) {
                     next = candidate;
                 }
-            } catch (final EOFException e) {
-                if (counter.getCount() > initialCount) {
-                    // We started parsing an event but couldn't find enough bytes to finish it.
-                    // This is possible (if not likely) when a node is shut down abruptly.
-                    hasPartialEvent = true;
-                }
-                stream.close();
-                streamClosed = true;
+            } catch (final IOException e) {
+                // We started parsing an event but couldn't find enough bytes to finish it.
+                // This is possible (if not likely) when a node is shut down abruptly.
+                hasPartialEvent = true;
+                closeFile();
+            } catch (final NullPointerException e) {
+                // The PlatformEvent constructor can throw this if the event is malformed.
+                hasPartialEvent = true;
+                closeFile();
+                throw new IOException("GossipEvent read from the file is malformed", e);
             }
         }
+    }
+
+    private void closeFile() throws IOException {
+        stream.close();
+        streamClosed = true;
     }
 
     /**

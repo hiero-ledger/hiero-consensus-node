@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.validation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,6 +9,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
@@ -37,12 +25,10 @@ import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,7 +44,7 @@ class EventSignatureValidatorTests {
     private AtomicLong exitedIntakePipelineCount;
     private IntakeEventCounter intakeEventCounter;
 
-    private AddressBook currentAddressBook;
+    private Roster currentRoster;
 
     /**
      * A verifier that always returns true.
@@ -76,24 +62,33 @@ class EventSignatureValidatorTests {
     private SemanticVersion defaultVersion;
 
     /**
-     * This address belongs to a node that is placed in the previous address book.
+     * This address belongs to a node that is placed in the previous roster.
      */
-    private Address previousNodeAddress;
+    private RosterEntry previousNodeRosterEntry;
 
     /**
-     * This address belongs to a node that is placed in the current address book.
+     * This address belongs to a node that is placed in the current roster.
      */
-    private Address currentNodeAddress;
+    private RosterEntry currentNodeRosterEntry;
 
     /**
-     * Generate a mock address, with enough elements mocked to support the signature validation.
+     * Generate a mock RosterEntry, with enough elements mocked to support the signature validation.
      *
      * @param nodeId the node id to use for the address
-     * @return a mock address
+     * @return a mock roster entry
      */
-    private static Address generateMockAddress(final @NonNull NodeId nodeId) {
-        return new Address(
-                nodeId, "", "", 10, null, 77, null, 88, PreGeneratedX509Certs.getSigCert(nodeId.id()), null, "");
+    private static RosterEntry generateMockRosterEntry(final long nodeId) {
+        try {
+            return new RosterEntry(
+                    nodeId,
+                    10,
+                    Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId)
+                            .getCertificate()
+                            .getEncoded()),
+                    List.of());
+        } catch (CertificateEncodingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @BeforeEach
@@ -112,36 +107,26 @@ class EventSignatureValidatorTests {
                 .eventExitedIntakePipeline(any());
 
         // create two addresses, one for the previous address book and one for the current address book
-        previousNodeAddress = generateMockAddress(new NodeId(66));
-        currentNodeAddress = generateMockAddress(new NodeId(77));
+        previousNodeRosterEntry = generateMockRosterEntry(66);
+        currentNodeRosterEntry = generateMockRosterEntry(77);
 
-        final AddressBook previousAddressBook = new AddressBook(List.of(previousNodeAddress));
-        currentAddressBook = new AddressBook(List.of(currentNodeAddress));
+        final Roster previousRoster = new Roster(List.of(previousNodeRosterEntry));
+        currentRoster = new Roster(List.of(currentNodeRosterEntry));
 
         defaultVersion = SemanticVersion.newBuilder().major(2).build();
 
         validatorWithTrueVerifier = new DefaultEventSignatureValidator(
-                platformContext,
-                trueVerifier,
-                defaultVersion,
-                previousAddressBook,
-                currentAddressBook,
-                intakeEventCounter);
+                platformContext, trueVerifier, defaultVersion, previousRoster, currentRoster, intakeEventCounter);
 
         validatorWithFalseVerifier = new DefaultEventSignatureValidator(
-                platformContext,
-                falseVerifier,
-                defaultVersion,
-                previousAddressBook,
-                currentAddressBook,
-                intakeEventCounter);
+                platformContext, falseVerifier, defaultVersion, previousRoster, currentRoster, intakeEventCounter);
     }
 
     @Test
     @DisplayName("Events with higher version than the app should always fail validation")
     void irreconcilableVersions() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(currentNodeAddress.getNodeId())
+                .setCreatorId(NodeId.of(currentNodeRosterEntry.nodeId()))
                 .setSoftwareVersion(SemanticVersion.newBuilder().major(3).build())
                 .build();
 
@@ -153,10 +138,10 @@ class EventSignatureValidatorTests {
     @DisplayName("Lower version event with missing previous address book")
     void versionMismatchWithNullPreviousAddressBook() {
         final EventSignatureValidator signatureValidator = new DefaultEventSignatureValidator(
-                platformContext, trueVerifier, defaultVersion, null, currentAddressBook, intakeEventCounter);
+                platformContext, trueVerifier, defaultVersion, null, currentRoster, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(previousNodeAddress.getNodeId())
+                .setCreatorId(NodeId.of(previousNodeRosterEntry.nodeId()))
                 .setSoftwareVersion(SemanticVersion.newBuilder().major(3).build())
                 .build();
 
@@ -169,7 +154,7 @@ class EventSignatureValidatorTests {
     void applicableAddressBookMissingNode() {
         // this creator isn't in the current address book, so verification will fail
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(previousNodeAddress.getNodeId())
+                .setCreatorId(NodeId.of(previousNodeRosterEntry.nodeId()))
                 .setSoftwareVersion(defaultVersion)
                 .build();
 
@@ -180,10 +165,7 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Node has a null public key")
     void missingPublicKey() {
-        final NodeId nodeId = new NodeId(88);
-        final Address nodeAddress = new Address(nodeId, "", "", 10, null, 77, null, 88, null, null, "");
-
-        currentAddressBook.add(nodeAddress);
+        final NodeId nodeId = NodeId.of(88);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(nodeId)
@@ -199,7 +181,7 @@ class EventSignatureValidatorTests {
     void validSignature() {
         // both the event and the app have the same version, so the currentAddressBook will be selected
         final PlatformEvent event1 = new TestingEventBuilder(random)
-                .setCreatorId(currentNodeAddress.getNodeId())
+                .setCreatorId(NodeId.of(currentNodeRosterEntry.nodeId()))
                 .setSoftwareVersion(defaultVersion)
                 .build();
 
@@ -208,7 +190,7 @@ class EventSignatureValidatorTests {
 
         // event2 is from a previous version, so the previous address book will be selected
         final PlatformEvent event2 = new TestingEventBuilder(random)
-                .setCreatorId(previousNodeAddress.getNodeId())
+                .setCreatorId(NodeId.of(previousNodeRosterEntry.nodeId()))
                 .setSoftwareVersion(SemanticVersion.newBuilder().major(1).build())
                 .build();
 
@@ -220,7 +202,7 @@ class EventSignatureValidatorTests {
     @DisplayName("Event fails validation if the signature does not verify")
     void verificationFails() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(currentNodeAddress.getNodeId())
+                .setCreatorId(NodeId.of(currentNodeRosterEntry.nodeId()))
                 .setSoftwareVersion(defaultVersion)
                 .build();
 
@@ -240,18 +222,13 @@ class EventSignatureValidatorTests {
                         .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncientThreshold)
                         .getOrCreateConfig())
                 .build();
-        final AddressBook previousAddressBook = new AddressBook(List.of(previousNodeAddress));
+        final Roster previousRoster = new Roster(List.of(previousNodeRosterEntry));
 
         final EventSignatureValidator validator = new DefaultEventSignatureValidator(
-                platformContext,
-                trueVerifier,
-                defaultVersion,
-                previousAddressBook,
-                currentAddressBook,
-                intakeEventCounter);
+                platformContext, trueVerifier, defaultVersion, previousRoster, currentRoster, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(currentNodeAddress.getNodeId())
+                .setCreatorId(NodeId.of(currentNodeRosterEntry.nodeId()))
                 .setBirthRound(EventConstants.MINIMUM_ROUND_CREATED)
                 .setSoftwareVersion(defaultVersion)
                 .build();

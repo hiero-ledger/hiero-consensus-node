@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
@@ -60,24 +45,21 @@ public class PermissionSemanticsSpec {
     final Stream<DynamicTest> addressBookAdminExemptFromFeesGivenAuthorizedOps() {
         long amount = 100 * 100_000_000L;
         AtomicReference<byte[]> origContents = new AtomicReference<>();
-        return defaultHapiSpec("AddressBookAdminExemptFromFeesGivenAuthorizedOps")
-                .given(
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, amount))
-                                .fee(ONE_HUNDRED_HBARS),
-                        fileCreate("tbu"),
-                        getFileContents(NODE_DETAILS).consumedBy(origContents::set))
-                .when(
-                        fileUpdate(NODE_DETAILS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .contents(ignore -> ByteString.copyFrom(origContents.get()))
-                                .via("authorizedTxn"),
-                        fileUpdate("tbu")
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .contents("This is something new.")
-                                .via("unauthorizedTxn"))
-                .then(
-                        getTxnRecord("unauthorizedTxn").hasPriority(recordWith().feeDifferentThan(0L)),
-                        getTxnRecord("authorizedTxn").hasPriority(recordWith().fee(0L)));
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, amount))
+                        .fee(ONE_HUNDRED_HBARS),
+                fileCreate("tbu"),
+                getFileContents(NODE_DETAILS).consumedBy(origContents::set),
+                fileUpdate(NODE_DETAILS)
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .contents(ignore -> ByteString.copyFrom(origContents.get()))
+                        .via("authorizedTxn"),
+                fileUpdate("tbu")
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .contents("This is something new.")
+                        .via("unauthorizedTxn"),
+                getTxnRecord("unauthorizedTxn").hasPriority(recordWith().feeDifferentThan(0L)),
+                getTxnRecord("authorizedTxn").hasPriority(recordWith().fee(0L)));
     }
 
     @HapiTest
@@ -85,41 +67,32 @@ public class PermissionSemanticsSpec {
         long extensionSecs = 666L;
         AtomicLong approxExpiry = new AtomicLong();
 
-        return defaultHapiSpec("SupportsImmutableFiles")
-                .given(
-                        newKeyNamed(NEVER_TO_BE_USED).type(KeyFactory.KeyType.LIST),
-                        cryptoCreate(CIVILIAN),
-                        fileCreate(ETERNAL).payingWith(CIVILIAN).unmodifiable())
-                .when(
-                        fileDelete(ETERNAL)
-                                .payingWith(CIVILIAN)
-                                .signedBy(CIVILIAN)
-                                .hasKnownStatus(UNAUTHORIZED),
-                        fileAppend(ETERNAL)
-                                .payingWith(CIVILIAN)
-                                .signedBy(CIVILIAN)
-                                .content("Ignored.")
-                                .hasKnownStatus(UNAUTHORIZED),
-                        fileUpdate(ETERNAL)
-                                .payingWith(CIVILIAN)
-                                .signedBy(CIVILIAN)
-                                .contents("Ignored.")
-                                .hasKnownStatus(UNAUTHORIZED),
-                        fileUpdate(ETERNAL)
-                                .payingWith(CIVILIAN)
-                                .signedBy(CIVILIAN, NEVER_TO_BE_USED)
-                                .wacl(NEVER_TO_BE_USED)
-                                .hasKnownStatus(UNAUTHORIZED))
-                .then(
-                        withOpContext((spec, opLog) -> approxExpiry.set(
-                                spec.registry().getTimestamp(ETERNAL).getSeconds())),
-                        fileUpdate(ETERNAL)
-                                .payingWith(CIVILIAN)
-                                .signedBy(CIVILIAN)
-                                .extendingExpiryBy(extensionSecs),
-                        getFileInfo(ETERNAL)
-                                .isUnmodifiable()
-                                .hasExpiryPassing(l -> Math.abs(l - approxExpiry.get() - extensionSecs) < 5));
+        return hapiTest(
+                newKeyNamed(NEVER_TO_BE_USED).type(KeyFactory.KeyType.LIST),
+                cryptoCreate(CIVILIAN),
+                fileCreate(ETERNAL).payingWith(CIVILIAN).unmodifiable(),
+                fileDelete(ETERNAL).payingWith(CIVILIAN).signedBy(CIVILIAN).hasKnownStatus(UNAUTHORIZED),
+                fileAppend(ETERNAL)
+                        .payingWith(CIVILIAN)
+                        .signedBy(CIVILIAN)
+                        .content("Ignored.")
+                        .hasKnownStatus(UNAUTHORIZED),
+                fileUpdate(ETERNAL)
+                        .payingWith(CIVILIAN)
+                        .signedBy(CIVILIAN)
+                        .contents("Ignored.")
+                        .hasKnownStatus(UNAUTHORIZED),
+                fileUpdate(ETERNAL)
+                        .payingWith(CIVILIAN)
+                        .signedBy(CIVILIAN, NEVER_TO_BE_USED)
+                        .wacl(NEVER_TO_BE_USED)
+                        .hasKnownStatus(UNAUTHORIZED),
+                withOpContext((spec, opLog) ->
+                        approxExpiry.set(spec.registry().getTimestamp(ETERNAL).getSeconds())),
+                fileUpdate(ETERNAL).payingWith(CIVILIAN).signedBy(CIVILIAN).extendingExpiryBy(extensionSecs),
+                getFileInfo(ETERNAL)
+                        .isUnmodifiable()
+                        .hasExpiryPassing(l -> Math.abs(l - approxExpiry.get() - extensionSecs) < 5));
     }
 
     @HapiTest
@@ -132,23 +105,22 @@ public class PermissionSemanticsSpec {
         var updateSig = wacl.signedWith(sigs(ON, sigs(ON, ON)));
         var failedUpdateSig = wacl.signedWith(sigs(ON, sigs(OFF, ON)));
 
-        return defaultHapiSpec("AllowsDeleteWithOneTopLevelSig")
-                .given(newKeyNamed(WACL).shape(wacl))
-                .when(fileCreate("tbd").key(WACL))
-                .then(
-                        fileUpdate("tbd")
-                                .contents("Some more contents!")
-                                .signedBy(GENESIS, WACL)
-                                .sigControl(ControlForKey.forKey(WACL, failedUpdateSig))
-                                .hasKnownStatus(INVALID_SIGNATURE),
-                        fileUpdate("tbd")
-                                .contents("Some new contents!")
-                                .signedBy(GENESIS, WACL)
-                                .sigControl(ControlForKey.forKey(WACL, updateSig)),
-                        fileDelete("tbd")
-                                .signedBy(GENESIS, WACL)
-                                .sigControl(ControlForKey.forKey(WACL, failedDeleteSig))
-                                .hasKnownStatus(INVALID_SIGNATURE),
-                        fileDelete("tbd").signedBy(GENESIS, WACL).sigControl(ControlForKey.forKey(WACL, deleteSig)));
+        return hapiTest(
+                newKeyNamed(WACL).shape(wacl),
+                fileCreate("tbd").key(WACL),
+                fileUpdate("tbd")
+                        .contents("Some more contents!")
+                        .signedBy(GENESIS, WACL)
+                        .sigControl(ControlForKey.forKey(WACL, failedUpdateSig))
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                fileUpdate("tbd")
+                        .contents("Some new contents!")
+                        .signedBy(GENESIS, WACL)
+                        .sigControl(ControlForKey.forKey(WACL, updateSig)),
+                fileDelete("tbd")
+                        .signedBy(GENESIS, WACL)
+                        .sigControl(ControlForKey.forKey(WACL, failedDeleteSig))
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                fileDelete("tbd").signedBy(GENESIS, WACL).sigControl(ControlForKey.forKey(WACL, deleteSig)));
     }
 }

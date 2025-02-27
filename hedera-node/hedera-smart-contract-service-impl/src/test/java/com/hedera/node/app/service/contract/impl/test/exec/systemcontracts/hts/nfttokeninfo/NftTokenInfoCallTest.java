@@ -1,31 +1,20 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.nfttokeninfo;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO_V2;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CIVILIAN_OWNED_NFT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_FIXED_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_FRACTIONAL_CUSTOM_FEES;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_KEYLIST_V2;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_ROYALTY_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE_DEFAULT_KEYLIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE_KEYLIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN_V2;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.LEDGER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
@@ -69,8 +58,14 @@ class NftTokenInfoCallTest extends CallTestBase {
         when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.ownerIdOrThrow())).thenReturn(SOMEBODY);
         when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.spenderIdOrThrow())).thenReturn(OPERATOR);
 
-        final var subject =
-                new NftTokenInfoCall(gasCalculator, mockEnhancement(), false, FUNGIBLE_EVERYTHING_TOKEN, 2L, config);
+        final var subject = new NftTokenInfoCall(
+                gasCalculator,
+                mockEnhancement(),
+                false,
+                FUNGIBLE_EVERYTHING_TOKEN,
+                2L,
+                config,
+                NON_FUNGIBLE_TOKEN_INFO.function());
 
         final var result = subject.execute().fullResult().result();
 
@@ -78,11 +73,11 @@ class NftTokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
                                 Tuple.of(
-                                        Tuple.of(
-                                                Tuple.of(
+                                        Tuple.from(
+                                                Tuple.from(
                                                         "Fungible Everything Token",
                                                         "FET",
                                                         headlongAddressOf(SENDER_ID),
@@ -106,7 +101,68 @@ class NftTokenInfoCallTest extends CallTestBase {
                                         1000000L,
                                         com.hedera.pbj.runtime.io.buffer.Bytes.wrap("SOLD")
                                                 .toByteArray(),
-                                        headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId())))
+                                        headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId()))))
+                        .array()),
+                result.getOutput());
+    }
+
+    @Test
+    void returnsNftTokenInfoStatusForPresentTokenV2() {
+        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
+        final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(LEDGER_ID);
+        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN_V2.tokenId().tokenNum(), 2L))
+                .thenReturn(CIVILIAN_OWNED_NFT);
+
+        when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.ownerIdOrThrow())).thenReturn(SOMEBODY);
+        when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.spenderIdOrThrow())).thenReturn(OPERATOR);
+
+        final var subject = new NftTokenInfoCall(
+                gasCalculator,
+                mockEnhancement(),
+                false,
+                FUNGIBLE_EVERYTHING_TOKEN_V2,
+                2L,
+                config,
+                NON_FUNGIBLE_TOKEN_INFO_V2.function());
+
+        final var result = subject.execute().fullResult().result();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(
+                Bytes.wrap(NON_FUNGIBLE_TOKEN_INFO_V2
+                        .getOutputs()
+                        .encode(Tuple.of(
+                                SUCCESS.protoOrdinal(),
+                                Tuple.of(
+                                        Tuple.from(
+                                                Tuple.from(
+                                                        "Fungible Everything Token",
+                                                        "FET",
+                                                        headlongAddressOf(SENDER_ID),
+                                                        "The memo",
+                                                        true,
+                                                        88888888L,
+                                                        true,
+                                                        EXPECTED_KEYLIST_V2.toArray(new Tuple[0]),
+                                                        Tuple.of(100L, headlongAddressOf(SENDER_ID), 200L),
+                                                        com.hedera.pbj.runtime.io.buffer.Bytes.wrap("SOLD")
+                                                                .toByteArray()),
+                                                7777777L,
+                                                false,
+                                                true,
+                                                true,
+                                                EXPECTED_FIXED_CUSTOM_FEES.toArray(new Tuple[0]),
+                                                EXPECTED_FRACTIONAL_CUSTOM_FEES.toArray(new Tuple[0]),
+                                                EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[0]),
+                                                Bytes.wrap(expectedLedgerId.toByteArray())
+                                                        .toString()),
+                                        2L,
+                                        headlongAddressOf(CIVILIAN_OWNED_NFT.ownerId()),
+                                        1000000L,
+                                        com.hedera.pbj.runtime.io.buffer.Bytes.wrap("SOLD")
+                                                .toByteArray(),
+                                        headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId()))))
                         .array()),
                 result.getOutput());
     }
@@ -117,7 +173,8 @@ class NftTokenInfoCallTest extends CallTestBase {
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
 
-        final var subject = new NftTokenInfoCall(gasCalculator, mockEnhancement(), false, null, 0L, config);
+        final var subject = new NftTokenInfoCall(
+                gasCalculator, mockEnhancement(), false, null, 0L, config, NON_FUNGIBLE_TOKEN_INFO.function());
 
         final var result = subject.execute().fullResult().result();
 
@@ -125,11 +182,11 @@ class NftTokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 INVALID_TOKEN_ID.protoOrdinal(),
                                 Tuple.of(
-                                        Tuple.of(
-                                                Tuple.of(
+                                        Tuple.from(
+                                                Tuple.from(
                                                         "",
                                                         "",
                                                         headlongAddressOf(ZERO_ACCOUNT_ID),
@@ -152,14 +209,26 @@ class NftTokenInfoCallTest extends CallTestBase {
                                         headlongAddressOf(ZERO_ACCOUNT_ID),
                                         new Timestamp(0, 0).seconds(),
                                         com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY.toByteArray(),
-                                        headlongAddressOf(ZERO_ACCOUNT_ID)))
+                                        headlongAddressOf(ZERO_ACCOUNT_ID))))
                         .array()),
                 result.getOutput());
     }
 
     @Test
     void returnsNftTokenInfoStatusForMissingTokenStaticCall() {
-        final var subject = new NftTokenInfoCall(gasCalculator, mockEnhancement(), true, null, 0L, config);
+        final var subject = new NftTokenInfoCall(
+                gasCalculator, mockEnhancement(), true, null, 0L, config, NON_FUNGIBLE_TOKEN_INFO.function());
+
+        final var result = subject.execute().fullResult().result();
+
+        assertEquals(MessageFrame.State.REVERT, result.getState());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+    }
+
+    @Test
+    void returnsNftTokenInfoStatusForMissingTokenStaticCallV2() {
+        final var subject = new NftTokenInfoCall(
+                gasCalculator, mockEnhancement(), true, null, 0L, config, NON_FUNGIBLE_TOKEN_INFO_V2.function());
 
         final var result = subject.execute().fullResult().result();
 

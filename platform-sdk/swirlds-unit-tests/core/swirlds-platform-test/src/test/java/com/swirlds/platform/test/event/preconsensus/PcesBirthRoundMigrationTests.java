@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -26,8 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
@@ -46,8 +29,6 @@ import com.swirlds.platform.event.preconsensus.PcesConfig_;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileIterator;
 import com.swirlds.platform.event.preconsensus.PcesMutableFile;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.StaticSoftwareVersion;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -63,7 +44,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -82,11 +62,6 @@ class PcesBirthRoundMigrationTests {
     private Path pcesPath;
     private Path temporaryFilePath;
 
-    @BeforeAll
-    static void beforeAll() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-    }
-
     @BeforeEach
     void beforeEach() throws IOException {
         if (Files.exists(testDirectory)) {
@@ -97,8 +72,6 @@ class PcesBirthRoundMigrationTests {
         recycleBinPath = testDirectory.resolve("recycle-bin");
         pcesPath = testDirectory.resolve("pces");
         temporaryFilePath = testDirectory.resolve("tmp");
-
-        StaticSoftwareVersion.setSoftwareVersion(new BasicSoftwareVersion(0));
     }
 
     @AfterEach
@@ -106,8 +79,6 @@ class PcesBirthRoundMigrationTests {
         if (Files.exists(testDirectory)) {
             FileUtils.deleteDirectory(testDirectory);
         }
-
-        StaticSoftwareVersion.reset();
     }
 
     /**
@@ -261,7 +232,7 @@ class PcesBirthRoundMigrationTests {
         final long migrationRound = random.nextLong(100, 1000);
 
         PcesBirthRoundMigration.migratePcesToBirthRoundMode(
-                platformContext, new NodeId(0), migrationRound, middleGeneration);
+                platformContext, NodeId.of(0), migrationRound, middleGeneration);
 
         // We should not find any generation based PCES files in the database directory.
         assertTrue(findPcesFiles(pcesPath, GENERATION_THRESHOLD).isEmpty());
@@ -313,7 +284,7 @@ class PcesBirthRoundMigrationTests {
         }
 
         PcesBirthRoundMigration.migratePcesToBirthRoundMode(
-                platformContext, new NodeId(0), migrationRound, middleGeneration);
+                platformContext, NodeId.of(0), migrationRound, middleGeneration);
 
         final Set<Path> allFilesAfterSecondMigration = new HashSet<>();
         try (final Stream<Path> stream = Files.walk(testDirectory)) {
@@ -346,7 +317,7 @@ class PcesBirthRoundMigrationTests {
                 .build();
 
         // should not throw
-        PcesBirthRoundMigration.migratePcesToBirthRoundMode(platformContext, new NodeId(0), ROUND_FIRST, -1);
+        PcesBirthRoundMigration.migratePcesToBirthRoundMode(platformContext, NodeId.of(0), ROUND_FIRST, -1);
     }
 
     @Test
@@ -382,7 +353,7 @@ class PcesBirthRoundMigrationTests {
         final long migrationRound = random.nextLong(1, 1000);
 
         PcesBirthRoundMigration.migratePcesToBirthRoundMode(
-                platformContext, new NodeId(0), migrationRound, middleGeneration);
+                platformContext, NodeId.of(0), migrationRound, middleGeneration);
 
         // Some funny business: copy the original files back into the PCES database directory.
         // This simulates a crash in the middle of the migration process after we have created
@@ -402,7 +373,7 @@ class PcesBirthRoundMigrationTests {
 
         // Run migration again.
         PcesBirthRoundMigration.migratePcesToBirthRoundMode(
-                platformContext, new NodeId(0), migrationRound, middleGeneration);
+                platformContext, NodeId.of(0), migrationRound, middleGeneration);
 
         // We should not find any generation based PCES files in the database directory.
         assertTrue(findPcesFiles(pcesPath, GENERATION_THRESHOLD).isEmpty());
@@ -455,7 +426,7 @@ class PcesBirthRoundMigrationTests {
         }
 
         PcesBirthRoundMigration.migratePcesToBirthRoundMode(
-                platformContext, new NodeId(0), migrationRound, middleGeneration);
+                platformContext, NodeId.of(0), migrationRound, middleGeneration);
 
         final Set<Path> allFilesAfterSecondMigration = new HashSet<>();
         try (final Stream<Path> stream = Files.walk(testDirectory)) {

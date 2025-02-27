@@ -1,22 +1,6 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -44,11 +28,11 @@ public interface TransactionHandler {
      * The result of these checks is cached in the {@link PreHandleContext} for use
      * in handle workflow.
      *
-     * @param txn the transaction body
+     * @param context the {@link PureChecksContext} which collects all information
      * @throws NullPointerException if {@code txBody} is {@code null}
      * @throws PreCheckException if the transaction is invalid
      */
-    void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException;
+    void pureChecks(@NonNull PureChecksContext context) throws PreCheckException;
 
     /**
      * This method can be used to perform any warm up, e.g. loading data into memory that is needed

@@ -1,41 +1,31 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAliasOrElse;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.extractIdFromAddressAlias;
+import static com.hedera.node.app.service.token.AliasUtils.extractRealmFromAddressAlias;
+import static com.hedera.node.app.service.token.AliasUtils.extractShardFromAddressAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
 
 /**
- * Default implementation of {@link ReadableAccountStore}
+ * Default implementation of {@link ReadableAccountStore}.
  */
 public class ReadableAccountStoreImpl implements ReadableAccountStore {
     /** The underlying data storage class that holds the account data. */
@@ -72,14 +62,17 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
      */
     private final ReadableKVState<ProtoBytes, AccountID> aliases;
 
+    private final ReadableEntityCounters entityCounters;
+
     /**
      * Create a new {@link ReadableAccountStoreImpl} instance.
      *
      * @param states The state to use.
      */
-    public ReadableAccountStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableAccountStoreImpl(@NonNull final ReadableStates states, ReadableEntityCounters entityCounters) {
         this.accountState = states.get("ACCOUNTS");
         this.aliases = states.get("ALIASES");
+        this.entityCounters = requireNonNull(entityCounters);
     }
 
     /** Get the account state. Convenience method for auto-casting to the right kind of state (readable vs. writable) */
@@ -171,7 +164,17 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
 
     @Override
     public long getNumberOfAccounts() {
-        return accountState.size();
+        return entityCounters.getCounterFor(EntityType.ACCOUNT);
+    }
+
+    /**
+     * Returns the number of aliases in the state. It also includes modifications in the {@link
+     * WritableKVState}.
+     *
+     * @return the number of aliases in the state
+     */
+    public long sizeOfAliasesState() {
+        return entityCounters.getCounterFor(EntityType.ALIAS);
     }
 
     /**
@@ -180,7 +183,7 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
      * containing an alias that we simply don't know about, then return null.
      *
      * @param id The account ID that possibly has an alias to convert to an Account ID without an alias.
-     * @return The result, or null if the id is invalid or there is no known alias-to-account mapping for it.
+     * @return The result, or null if the id is invalid or there is no known alias-to-account mapping for it
      */
     @Nullable
     protected AccountID lookupAliasedAccountId(@NonNull final AccountID id) {
@@ -192,8 +195,10 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
                 // any other form of valid alias (in which case it will be in the map). So we do a quick check
                 // first to see if it is a valid long zero, and if not, then we look it up in the map.
                 final Bytes alias = accountOneOf.as();
-                if (isEntityNumAlias(alias)) {
+                if (isEntityNumAlias(alias, id.shardNum(), id.realmNum())) {
                     yield id.copyBuilder()
+                            .shardNum(extractShardFromAddressAlias(alias))
+                            .realmNum(extractRealmFromAddressAlias(alias))
                             .accountNum(extractIdFromAddressAlias(alias))
                             .build();
                 }
@@ -214,7 +219,7 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
     }
 
     public long sizeOfAccountState() {
-        return accountState().size();
+        return entityCounters.getCounterFor(EntityType.ACCOUNT);
     }
 
     @Override

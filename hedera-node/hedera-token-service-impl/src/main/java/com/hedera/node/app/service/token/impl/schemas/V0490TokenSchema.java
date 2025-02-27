@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
 import static com.hedera.node.app.service.token.impl.schemas.SyntheticAccountCreator.asAccountId;
@@ -38,8 +23,9 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.MigrationContext;
-import com.swirlds.state.spi.StateDefinition;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -54,7 +40,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Initial mod-service schema for the token service.
  */
-public class V0490TokenSchema extends StakingInfoManagementSchema {
+public class V0490TokenSchema extends Schema {
     private static final Logger log = LogManager.getLogger(V0490TokenSchema.class);
 
     // These need to be big so databases are created at right scale. If they are too small then the on disk hash map
@@ -123,18 +109,14 @@ public class V0490TokenSchema extends StakingInfoManagementSchema {
 
         // Get the map for storing all the created accounts
         final var accounts = ctx.newStates().<AccountID, Account>get(ACCOUNTS_KEY);
-        if (accounts.size() != 0) {
-            throw new IllegalStateException("Accounts map should be empty at genesis");
-        }
-
         // We will use these various configs for creating accounts. It would be nice to consolidate them somehow
-        final var ledgerConfig = ctx.configuration().getConfigData(LedgerConfig.class);
-        final var hederaConfig = ctx.configuration().getConfigData(HederaConfig.class);
-        final var accountsConfig = ctx.configuration().getConfigData(AccountsConfig.class);
+        final var ledgerConfig = ctx.appConfig().getConfigData(LedgerConfig.class);
+        final var hederaConfig = ctx.appConfig().getConfigData(HederaConfig.class);
+        final var accountsConfig = ctx.appConfig().getConfigData(AccountsConfig.class);
 
         // Generate synthetic accounts based on the genesis configuration
         final Consumer<SortedSet<Account>> noOpCb = ignore -> {};
-        syntheticAccountCreator.generateSyntheticAccounts(ctx.configuration(), noOpCb, noOpCb, noOpCb, noOpCb, noOpCb);
+        syntheticAccountCreator.generateSyntheticAccounts(ctx.appConfig(), noOpCb, noOpCb, noOpCb, noOpCb, noOpCb);
         // ---------- Create system accounts -------------------------
         for (final Account acct : syntheticAccountCreator.systemAccounts()) {
             accounts.put(acct.accountIdOrThrow(), acct);
@@ -170,7 +152,7 @@ public class V0490TokenSchema extends StakingInfoManagementSchema {
                 throw new IllegalStateException("Aliases map should be empty at genesis");
             }
             for (final Account acct : syntheticAccountCreator.blocklistAccounts()) {
-                final var id = asAccountId(ctx.newEntityNum(), hederaConfig);
+                final var id = asAccountId(ctx.newEntityNumForAccount(), hederaConfig);
                 if (!Objects.equals(
                         id.accountNumOrThrow(), acct.accountIdOrThrow().accountNumOrThrow())) {
                     throw new IllegalStateException(
@@ -209,15 +191,15 @@ public class V0490TokenSchema extends StakingInfoManagementSchema {
     public long getTotalBalanceOfAllAccounts(
             @NonNull final WritableKVState<AccountID, Account> accounts, @NonNull final HederaConfig hederaConfig) {
         long totalBalance = 0;
-        long i = 1; // Start with the first account ID
-        long totalAccounts = accounts.size();
+        long curAccountId = 1; // Start with the first account ID
+        long totalAccounts = 704; // Since this runs only on genesis, these will only be system accounts
         do {
-            Account account = accounts.get(asAccountId(i, hederaConfig));
+            final Account account = accounts.get(asAccountId(curAccountId, hederaConfig));
             if (account != null) {
                 totalBalance += account.tinybarBalance();
                 totalAccounts--;
             }
-            i++;
+            curAccountId++;
         } while (totalAccounts > 0);
         return totalBalance;
     }
@@ -236,10 +218,10 @@ public class V0490TokenSchema extends StakingInfoManagementSchema {
     }
 
     private void initializeStakingNodeInfo(@NonNull final MigrationContext ctx) {
-        final var config = ctx.configuration();
+        final var config = ctx.appConfig();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var stakingConfig = config.getConfigData(StakingConfig.class);
-        final var addressBook = ctx.networkInfo().addressBook();
+        final var addressBook = ctx.genesisNetworkInfo().addressBook();
         final var numberOfNodes = addressBook.size();
 
         final long maxStakePerNode = ledgerConfig.totalTinyBarFloat() / numberOfNodes;

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.common.io.IOIterator;
@@ -59,20 +44,37 @@ public class PcesMultiFileIterator implements IOIterator<PlatformEvent> {
      * Find the next event that should be returned.
      */
     private void findNext() throws IOException {
-        while (next == null) {
-            if (currentIterator == null || !currentIterator.hasNext()) {
-                if (currentIterator != null && currentIterator.hasPartialEvent()) {
-                    truncatedFileCount++;
-                }
-
-                if (!fileIterator.hasNext()) {
-                    break;
-                }
-
+        if (currentIterator == null) { // on first call
+            if (fileIterator.hasNext()) {
                 currentIterator = new PcesFileIterator(fileIterator.next(), lowerBound, fileType);
             } else {
-                next = currentIterator.next();
+                return;
             }
+        }
+
+        while (next == null) {
+
+            boolean hasNextEvent = false;
+            try {
+                hasNextEvent = currentIterator.hasNext();
+            } catch (final IOException ignored) {
+                // ignore the exception and move on to the next file if there is one
+            }
+
+            if (hasNextEvent) {
+                next = currentIterator.next();
+                return;
+            }
+
+            if (currentIterator.hasPartialEvent()) {
+                truncatedFileCount++;
+            }
+
+            if (!fileIterator.hasNext()) {
+                return;
+            }
+
+            currentIterator = new PcesFileIterator(fileIterator.next(), lowerBound, fileType);
         }
     }
 

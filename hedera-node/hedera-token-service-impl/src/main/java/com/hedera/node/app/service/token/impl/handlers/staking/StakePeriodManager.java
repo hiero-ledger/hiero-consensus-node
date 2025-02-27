@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -77,18 +62,26 @@ public class StakePeriodManager {
     }
 
     /**
-     * Returns the current stake period, based on the current consensus time.
-     * Current staking period is very important to calculate rewards.
-     * Since any account is rewarded only once per a stake period.
+     * Sets the current stake period, based on the current consensus time. Avoids excessive
+     * stake period calculations by only updating when the consensus second has changed from
+     * the last time the method was called.
      * @param consensusNow the current consensus time
-     * @return the current stake period
      */
-    public long currentStakePeriod(@NonNull final Instant consensusNow) {
+    public void setCurrentStakePeriodFor(@NonNull final Instant consensusNow) {
         final var currentConsensusSecs = consensusNow.getEpochSecond();
         if (prevConsensusSecs != currentConsensusSecs) {
             currentStakePeriod = StakingRewardsApi.stakePeriodAt(consensusNow, stakingPeriodMins);
             prevConsensusSecs = currentConsensusSecs;
         }
+    }
+
+    /**
+     * Returns the current stake period, based on the current consensus time.
+     * Current staking period is very important to calculate rewards.
+     * Since any account is rewarded only once per a stake period.
+     * @return the current stake period
+     */
+    public long currentStakePeriod() {
         return currentStakePeriod;
     }
 
@@ -97,25 +90,20 @@ public class StakePeriodManager {
      * rewardable or not.
      * @param stakePeriodStart the stake period start
      * @param networkRewards the network rewards
-     * @param consensusNow the current consensus time
      * @return true if the current consensus time is rewardable, false otherwise
      */
     public boolean isRewardable(
-            final long stakePeriodStart,
-            @NonNull final ReadableNetworkStakingRewardsStore networkRewards,
-            @NonNull final Instant consensusNow) {
-        return stakePeriodStart > -1 && stakePeriodStart < firstNonRewardableStakePeriod(networkRewards, consensusNow);
+            final long stakePeriodStart, @NonNull final ReadableNetworkStakingRewardsStore networkRewards) {
+        return stakePeriodStart > -1 && stakePeriodStart < firstNonRewardableStakePeriod(networkRewards);
     }
 
     /**
      * Returns the first stake period that is not rewardable. This is used to determine
      * if an account is eligible for a reward, as soon as staking rewards are activated.
      * @param rewardsStore the network rewards store
-     * @param consensusNow the current consensus time
      * @return the first stake period that is not rewardable
      */
-    public long firstNonRewardableStakePeriod(
-            @NonNull final ReadableNetworkStakingRewardsStore rewardsStore, @NonNull final Instant consensusNow) {
+    public long firstNonRewardableStakePeriod(@NonNull final ReadableNetworkStakingRewardsStore rewardsStore) {
 
         // The earliest period by which an account can have started staking, _without_ becoming
         // eligible for a reward; if staking is not active, this will return Long.MIN_VALUE so
@@ -123,7 +111,7 @@ public class StakePeriodManager {
         // Remember that accounts are only rewarded for _full_ periods.
         // So if Alice started staking in the previous period (current - 1), she will not have
         // completed a full period until current has ended
-        return rewardsStore.isStakingRewardsActivated() ? currentStakePeriod(consensusNow) - 1 : Long.MIN_VALUE;
+        return rewardsStore.isStakingRewardsActivated() ? currentStakePeriod() - 1 : Long.MIN_VALUE;
     }
 
     /**
@@ -184,29 +172,27 @@ public class StakePeriodManager {
      * <ol>
      *   <li>{@code -1} if the {@code stakePeriodStart} doesn't need to change; or,
      *   <li>The value to which the {@code stakePeriodStart} should be changed.
-     * </ol>
+     * </ol>.
      *
      * @param originalAccount the original account before the transaction
      * @param modifiedAccount the modified account after the transaction
      * @param rewarded whether the account was rewarded during the transaction
      * @param stakeMetaChanged whether the account's stake metadata changed
-     * @param consensusNow the current consensus time
      * @return either NA for no new stakePeriodStart, or the new value
      */
     public long startUpdateFor(
             @Nullable final Account originalAccount,
             @NonNull final Account modifiedAccount,
             final boolean rewarded,
-            final boolean stakeMetaChanged,
-            @NonNull final Instant consensusNow) {
+            final boolean stakeMetaChanged) {
         // Only worthwhile to update stakedPeriodStart for an account staking to a node
         if (modifiedAccount.hasStakedNodeId()) {
             if ((originalAccount != null && originalAccount.hasStakedAccountId()) || stakeMetaChanged) {
                 // We just started staking to a node today
-                return currentStakePeriod(consensusNow);
+                return currentStakePeriod();
             } else if (rewarded) {
                 // If we were just rewarded, stake period start is yesterday
-                return currentStakePeriod(consensusNow) - 1;
+                return currentStakePeriod() - 1;
             }
         }
         return -1;

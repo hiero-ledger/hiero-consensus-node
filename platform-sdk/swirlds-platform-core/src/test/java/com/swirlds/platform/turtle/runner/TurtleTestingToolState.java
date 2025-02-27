@@ -1,33 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.turtle.runner;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
-import com.swirlds.common.utility.NonCryptographicHashing;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.State;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SwirldState;
+import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+
+import com.swirlds.platform.state.*;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 
 /**
  * A simple testing application intended for use with TURTLE.
@@ -37,7 +15,7 @@ import java.io.IOException;
  *   ﹉∏﹉∏﹉                   ﹉∏﹉∏﹉
  * </pre>
  */
-public class TurtleTestingToolState extends PartialMerkleLeaf implements SwirldState, MerkleLeaf {
+public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolState> implements MerkleNodeState {
 
     private static final long CLASS_ID = 0xa49b3822a4136ac6L;
 
@@ -46,20 +24,20 @@ public class TurtleTestingToolState extends PartialMerkleLeaf implements SwirldS
         public static final int ORIGINAL = 1;
     }
 
-    private long state;
+    long state;
 
-    /**
-     * Zero arg constructor needed for constructable registry.
-     */
-    public TurtleTestingToolState() {}
+    public TurtleTestingToolState() {
+        // empty
+    }
 
     /**
      * Copy constructor.
      *
-     * @param that the object to copy
+     * @param from the object to copy
      */
-    private TurtleTestingToolState(@NonNull final TurtleTestingToolState that) {
-        this.state = that.state;
+    private TurtleTestingToolState(@NonNull final TurtleTestingToolState from) {
+        super(from);
+        this.state = from.state;
     }
 
     /**
@@ -81,37 +59,17 @@ public class TurtleTestingToolState extends PartialMerkleLeaf implements SwirldS
     /**
      * {@inheritDoc}
      */
-    @Override
-    public void handleConsensusRound(@NonNull final Round round, @NonNull final PlatformStateAccessor platformState) {
-        state = NonCryptographicHashing.hash64(
-                state,
-                round.getRoundNum(),
-                round.getConsensusTimestamp().getNano(),
-                round.getConsensusTimestamp().getEpochSecond());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
+    @NonNull
     @Override
     public TurtleTestingToolState copy() {
+        throwIfImmutable();
+        setImmutable(true);
         return new TurtleTestingToolState(this);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void serialize(@NonNull final SerializableDataOutputStream out) throws IOException {
-        out.writeLong(state);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
-        state = in.readLong();
+    protected TurtleTestingToolState copyingConstructor() {
+        return new TurtleTestingToolState(this);
     }
 
     /**
@@ -120,10 +78,11 @@ public class TurtleTestingToolState extends PartialMerkleLeaf implements SwirldS
      * @return merkle tree root
      */
     @NonNull
-    public static MerkleRoot getStateRootNode() {
-        final TurtleTestingToolState turtleState = new TurtleTestingToolState();
-        final State root = new State();
-        root.setSwirldState(turtleState);
-        return root;
+    public static MerkleNodeState getStateRootNode() {
+        final MerkleNodeState state = new TurtleTestingToolState();
+        FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
+        FAKE_MERKLE_STATE_LIFECYCLES.initRosterState(state);
+
+        return state;
     }
 }

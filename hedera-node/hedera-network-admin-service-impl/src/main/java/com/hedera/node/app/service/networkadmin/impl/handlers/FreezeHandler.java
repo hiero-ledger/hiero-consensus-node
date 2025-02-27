@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static com.hedera.hapi.node.freeze.FreezeType.FREEZE_ONLY;
@@ -42,11 +27,12 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.FilesConfig;
-import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Instant;
@@ -70,6 +56,7 @@ public class FreezeHandler implements TransactionHandler {
     private static final int UPDATE_FILE_HASH_LEN = 48;
 
     private final Executor freezeExecutor;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * Constructs a {@link FreezeHandler} with the provided {@link Executor}.
@@ -77,8 +64,11 @@ public class FreezeHandler implements TransactionHandler {
      * @param freezeExecutor the {@link Executor} to use for handling freeze transactions
      */
     @Inject
-    public FreezeHandler(@NonNull @Named("FreezeService") final Executor freezeExecutor) {
+    public FreezeHandler(
+            @NonNull @Named("FreezeService") final Executor freezeExecutor,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.freezeExecutor = requireNonNull(freezeExecutor);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     /**
@@ -110,17 +100,12 @@ public class FreezeHandler implements TransactionHandler {
     // it is necessary to check startHour, startMin, endHour, endMin, all of which are deprecated
     // because if any are present then we set a status of INVALID_FREEZE_TRANSACTION_BODY
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
-        FreezeTransactionBody freezeTxn = txn.freezeOrThrow();
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final TransactionBody txn = context.body();
 
-        // freeze.proto properties startHour, startMin, endHour, endMin are deprecated in the protobuf
-        // reject any freeze transactions that set these properties
-        if (freezeTxn.startHour() != 0
-                || freezeTxn.startMin() != 0
-                || freezeTxn.endHour() != 0
-                || freezeTxn.endMin() != 0) {
-            throw new PreCheckException(ResponseCodeEnum.INVALID_FREEZE_TRANSACTION_BODY);
-        }
+        requireNonNull(txn);
+        final FreezeTransactionBody freezeTxn = getFreezeTransactionBody(txn);
 
         final FreezeType freezeType = freezeTxn.freezeType();
         if (freezeType == UNKNOWN_FREEZE_TYPE) {
@@ -148,11 +133,25 @@ public class FreezeHandler implements TransactionHandler {
         }
     }
 
+    private static @NonNull FreezeTransactionBody getFreezeTransactionBody(final TransactionBody txn)
+            throws PreCheckException {
+        final FreezeTransactionBody freezeTxn = txn.freezeOrThrow();
+
+        // freeze.proto properties startHour, startMin, endHour, endMin are deprecated in the protobuf
+        // reject any freeze transactions that set these properties
+        if (freezeTxn.startHour() != 0
+                || freezeTxn.startMin() != 0
+                || freezeTxn.endHour() != 0
+                || freezeTxn.endMin() != 0) {
+            throw new PreCheckException(ResponseCodeEnum.INVALID_FREEZE_TRANSACTION_BODY);
+        }
+        return freezeTxn;
+    }
+
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
         final var txn = context.body();
-        final NetworkAdminConfig adminServiceConfig = context.configuration().getConfigData(NetworkAdminConfig.class);
         final StoreFactory storeFactory = context.storeFactory();
         final ReadableUpgradeFileStore upgradeFileStore = storeFactory.readableStore(ReadableUpgradeFileStore.class);
         final ReadableNodeStore nodeStore = storeFactory.readableStore(ReadableNodeStore.class);
@@ -167,7 +166,13 @@ public class FreezeHandler implements TransactionHandler {
         final var filesConfig = context.configuration().getConfigData(FilesConfig.class);
 
         final FreezeUpgradeActions upgradeActions = new FreezeUpgradeActions(
-                adminServiceConfig, freezeStore, freezeExecutor, upgradeFileStore, nodeStore, stakingInfoStore);
+                context.configuration(),
+                freezeStore,
+                freezeExecutor,
+                upgradeFileStore,
+                nodeStore,
+                stakingInfoStore,
+                entityIdFactory);
         final Timestamp freezeStartTime = freezeTxn.startTime(); // may be null for some freeze types
 
         switch (freezeTxn.freezeType()) {
@@ -222,7 +227,7 @@ public class FreezeHandler implements TransactionHandler {
     }
 
     /**
-     * Performs checks that the entities related to this transaction exist and are valid
+     * Performs checks that the entities related to this transaction exist and are valid.
      */
     private static void validateSemantics(
             @NonNull final FreezeTransactionBody freezeTxn,

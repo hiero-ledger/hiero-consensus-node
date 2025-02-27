@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test;
 
 import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.areTreesEqual;
@@ -26,9 +11,9 @@ import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.State;
-import com.swirlds.platform.test.fixtures.state.BlockingSwirldState;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.test.fixtures.state.BlockingState;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,7 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
 @DisplayName("State Tests")
 class StateTests {
 
-    private static State state;
+    private static MerkleStateRoot merkleStateRoot;
     /**
      * Temporary directory provided by JUnit
      */
@@ -53,11 +38,10 @@ class StateTests {
 
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
 
-        state = new State();
-        state.setSwirldState(new BlockingSwirldState());
+        merkleStateRoot = new BlockingState();
 
-        state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state);
+        merkleStateRoot.invalidateHash();
+        MerkleCryptoFactory.getInstance().digestTreeSync(merkleStateRoot);
     }
 
     @Test
@@ -67,25 +51,25 @@ class StateTests {
     void stateSerializationTest() throws IOException {
         InputOutputStream io = new InputOutputStream();
 
-        io.getOutput().writeMerkleTree(testDirectory, state);
+        io.getOutput().writeMerkleTree(testDirectory, merkleStateRoot);
 
         io.startReading();
 
-        final MerkleRoot decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
-        MerkleCryptoFactory.getInstance().digestTreeSync(decodedState);
+        final MerkleNodeState decodedState = io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        MerkleCryptoFactory.getInstance().digestTreeSync(decodedState.getRoot());
 
-        assertEquals(state.getHash(), decodedState.getHash(), "expected trees to be equal");
-        assertTrue(areTreesEqual(state, decodedState), "expected trees to be equal");
+        assertEquals(merkleStateRoot.getHash(), decodedState.getHash(), "expected trees to be equal");
+        assertTrue(areTreesEqual(merkleStateRoot, decodedState.getRoot()), "expected trees to be equal");
     }
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("State Copy Test")
     void stateCopyTest() {
-        final MerkleRoot copiedState = state.copy();
+        final MerkleStateRoot copiedState = merkleStateRoot.copy();
         MerkleCryptoFactory.getInstance().digestTreeSync(copiedState);
 
-        assertEquals(state.getHash(), copiedState.getHash(), "expected trees to be equal");
-        assertTrue(areTreesEqual(state, copiedState), "expected trees to be equal");
+        assertEquals(merkleStateRoot.getHash(), copiedState.getHash(), "expected trees to be equal");
+        assertTrue(areTreesEqual(merkleStateRoot, copiedState), "expected trees to be equal");
     }
 }

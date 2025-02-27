@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.api;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -35,6 +20,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
@@ -42,20 +28,20 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.validation.EntityType;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
-import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionRecordBuilder;
+import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.WritableStates;
-import com.swirlds.state.spi.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,8 +51,6 @@ import org.apache.logging.log4j.Logger;
  */
 public class TokenServiceApiImpl implements TokenServiceApi {
     private static final Logger logger = LogManager.getLogger(TokenServiceApiImpl.class);
-    private static final Key STANDIN_CONTRACT_KEY =
-            Key.newBuilder().contractID(ContractID.newBuilder().contractNum(0)).build();
 
     private final WritableAccountStore accountStore;
     private final AccountID fundingAccountID;
@@ -76,20 +60,21 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private final Predicate<CryptoTransferTransactionBody> customFeeTest;
 
     /**
-     * Constructs a {@link TokenServiceApiImpl}
-     * @param config the configuration
-     * @param storeMetricsService the store metrics service
+     * Constructs a {@link TokenServiceApiImpl}.
+     *
+     * @param config         the configuration
      * @param writableStates the writable states
-     * @param customFeeTest a predicate for determining if a transfer has custom fees
+     * @param customFeeTest  a predicate for determining if a transfer has custom fees
+     * @param entityCounters the entity counters
      */
     public TokenServiceApiImpl(
             @NonNull final Configuration config,
-            @NonNull final StoreMetricsService storeMetricsService,
             @NonNull final WritableStates writableStates,
-            @NonNull final Predicate<CryptoTransferTransactionBody> customFeeTest) {
+            @NonNull final Predicate<CryptoTransferTransactionBody> customFeeTest,
+            @NonNull final WritableEntityCounters entityCounters) {
         this.customFeeTest = customFeeTest;
         requireNonNull(config);
-        this.accountStore = new WritableAccountStore(writableStates, config, storeMetricsService);
+        this.accountStore = new WritableAccountStore(writableStates, entityCounters);
 
         // Determine whether staking is enabled
         stakingConfig = config.getConfigData(StakingConfig.class);
@@ -178,7 +163,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         }
         final var accountAsContract = hollowAccount
                 .copyBuilder()
-                .key(STANDIN_CONTRACT_KEY)
+                .key(Key.newBuilder()
+                        .contractID(ContractID.newBuilder()
+                                .shardNum(hollowAccountId.shardNum())
+                                .realmNum(hollowAccountId.realmNum())
+                                .contractNum(hollowAccountId.accountNumOrThrow()))
+                        .build())
                 .smartContract(true)
                 .maxAutoAssociations(hollowAccount.numberAssociations())
                 .build();
@@ -327,25 +317,29 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
     @Override
     public boolean chargeNetworkFee(
-            @NonNull final AccountID payerId, final long amount, @NonNull final FeeStreamBuilder rb) {
+            @NonNull final AccountID payerId,
+            final long amount,
+            @NonNull final FeeStreamBuilder rb,
+            @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(rb);
         requireNonNull(payerId);
 
         final var payerAccount = lookupAccount("Payer", payerId);
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
-        chargePayer(payerAccount, amountToCharge);
+        chargePayer(payerAccount, amountToCharge, cb);
         // We may be charging for preceding child record fees, which are additive to the base fee
         rb.transactionFee(rb.transactionFee() + amountToCharge);
-        distributeToNetworkFundingAccounts(amountToCharge, rb);
+        distributeToNetworkFundingAccounts(amountToCharge, cb);
         return amountToCharge == amount;
     }
 
     @Override
     public void chargeFees(
             @NonNull AccountID payerId,
-            AccountID nodeAccountId,
+            @NonNull final AccountID nodeAccountId,
             @NonNull Fees fees,
-            @NonNull final FeeStreamBuilder rb) {
+            @NonNull final FeeStreamBuilder rb,
+            @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(rb);
         requireNonNull(fees);
         requireNonNull(payerId);
@@ -356,24 +350,24 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // no conceivable way that these accounts *should* be null at this point.
         final var payerAccount = lookupAccount("Payer", payerId);
         if (payerAccount.tinybarBalance() < fees.networkFee()) {
-            throw new IllegalArgumentException(
-                    "Payer %s (balance=%d) cannot afford network fee of %d, which should have been a due diligence failure"
-                            .formatted(payerId, payerAccount.tinybarBalance(), fees.networkFee()));
+            throw new IllegalArgumentException(("Payer %s (balance=%d) cannot afford network fee of %d, "
+                            + "which should have been a due diligence failure")
+                    .formatted(payerId, payerAccount.tinybarBalance(), fees.networkFee()));
         }
         if (fees.serviceFee() > 0 && payerAccount.tinybarBalance() < fees.totalFee()) {
-            throw new IllegalArgumentException(
-                    "Payer %s (balance=%d) cannot afford total fee of %d, which means service component should have been zeroed out"
-                            .formatted(payerId, payerAccount.tinybarBalance(), fees.totalFee()));
+            throw new IllegalArgumentException(("Payer %s (balance=%d) cannot afford total fee of %d, "
+                            + "which means service component should have been zeroed out")
+                    .formatted(payerId, payerAccount.tinybarBalance(), fees.totalFee()));
         }
         // Prioritize network fee over node fee
         final long chargeableNodeFee = Math.min(fees.nodeFee(), payerAccount.tinybarBalance() - fees.networkFee());
         final long amountToCharge = fees.totalWithoutNodeFee() + chargeableNodeFee;
         final long amountToDistributeToFundingAccounts = amountToCharge - chargeableNodeFee;
 
-        chargePayer(payerAccount, amountToCharge);
+        chargePayer(payerAccount, amountToCharge, cb);
         // Record the amount charged into the record builder
         rb.transactionFee(amountToCharge);
-        distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, rb);
+        distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, cb);
 
         if (chargeableNodeFee > 0) {
             final var nodeAccount = lookupAccount("Node account", nodeAccountId);
@@ -381,6 +375,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                     .copyBuilder()
                     .tinybarBalance(nodeAccount.tinybarBalance() + chargeableNodeFee)
                     .build());
+            if (cb != null) {
+                cb.accept(nodeAccountId, chargeableNodeFee);
+            }
         }
     }
 
@@ -409,7 +406,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      * @param amount the maximum amount to charge
      * @throws IllegalStateException if the payer account doesn't exist
      */
-    private void chargePayer(@NonNull final Account payerAccount, final long amount) {
+    private void chargePayer(
+            @NonNull final Account payerAccount, final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         if (amount > payerAccount.tinybarBalance()) {
             throw new IllegalArgumentException("Payer %s (balance=%d) cannot afford fee of %d"
                     .formatted(payerAccount, payerAccount.tinybarBalance(), amount));
@@ -419,6 +417,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .copyBuilder()
                 .tinybarBalance(currentBalance - amount)
                 .build());
+        if (cb != null) {
+            cb.accept(payerAccount.accountId(), -amount);
+        }
     }
 
     /**
@@ -460,7 +461,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      *
      * @param logName The name of this account to use in log statements.
      * @param id The account ID to lookup
-     * @return The looked up account.
+     * @return The looked up account
      * @throws IllegalStateException if the given account doesn't exist
      */
     @NonNull
@@ -492,7 +493,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final DeleteCapableTransactionRecordBuilder recordBuilder,
+            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
             @NonNull final FreeAliasOnDeletion freeAliasOnDeletion) {
         // validate the semantics involving dynamic properties and state.
         // Gets delete and transfer accounts from state
@@ -501,7 +502,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
         // get the account from account store that has all balance changes
         // commit the account with deleted flag set to true
-        final var updatedDeleteAccount = requireNonNull(accountStore.getForModify(deletedId));
+        final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
         final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
         if (freeAliasOnDeletion == YES) {
             accountStore.removeAlias(updatedDeleteAccount.alias());
@@ -573,10 +574,10 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     }
 
     private EntityType getEntityType(@NonNull final Account account) {
-        return account.smartContract() ? EntityType.CONTRACT : EntityType.ACCOUNT;
+        return account.smartContract() ? EntityType.CONTRACT_BYTECODE : EntityType.ACCOUNT;
     }
 
-    private void distributeToNetworkFundingAccounts(final long amount, @NonNull final FeeStreamBuilder rb) {
+    private void distributeToNetworkFundingAccounts(final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         // We may have a rounding error, so we will first remove the node and staking rewards from the total, and then
         // whatever is left over goes to the funding account.
         long balance = amount;
@@ -586,10 +587,16 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
             balance -= nodeReward;
             payNodeRewardAccount(nodeReward);
+            if (cb != null) {
+                cb.accept(nodeRewardAccountID, nodeReward);
+            }
 
             final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
             balance -= stakingReward;
             payStakingRewardAccount(stakingReward);
+            if (cb != null) {
+                cb.accept(stakingRewardAccountID, stakingReward);
+            }
         }
 
         // Whatever is left over goes to the funding account
@@ -598,5 +605,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .copyBuilder()
                 .tinybarBalance(fundingAccount.tinybarBalance() + balance)
                 .build());
+        if (cb != null) {
+            cb.accept(fundingAccountID, balance);
+        }
     }
 }

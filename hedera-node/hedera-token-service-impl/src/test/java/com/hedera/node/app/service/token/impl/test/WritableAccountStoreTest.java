@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
 import static java.util.Objects.requireNonNull;
@@ -28,15 +13,13 @@ import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +29,27 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
     public void setUp() {
         super.setUp();
         resetStores();
+    }
+
+    @Test
+    void finalizingAccountAsContractCountsAsNewContract() {
+        final var hollowAccountId = AccountID.newBuilder().accountNum(666).build();
+        writableAccounts.put(
+                hollowAccountId, Account.newBuilder().accountId(hollowAccountId).build());
+        writableAccounts.commit();
+
+        final var finalizedContract = requireNonNull(writableStore.get(hollowAccountId))
+                .copyBuilder()
+                .ethereumNonce(1)
+                .smartContract(true)
+                .build();
+        writableStore.put(finalizedContract);
+
+        final List<ContractID> expectedCreationIds =
+                List.of(ContractID.newBuilder().contractNum(666).build());
+        final var actualCreationIds = writableStore.summarizeContractChanges().newContractIds();
+
+        assertEquals(expectedCreationIds, actualCreationIds);
     }
 
     @Test
@@ -61,7 +65,7 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
         writableAccounts.put(otherContractIdByNum, contractWith(otherContractIdByNum, unchangedOtherNonce));
         writableAccounts.commit();
 
-        final var newContract = requireNonNull(writableStore.getForModify(contractIdByNum))
+        final var newContract = requireNonNull(writableStore.get(contractIdByNum))
                 .copyBuilder()
                 .ethereumNonce(afterNonce)
                 .build();
@@ -77,14 +81,9 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void throwsIfNullValuesAsArgs(@Mock StoreMetricsService storeMetricsService) {
-        final var configuration = HederaTestConfigBuilder.createConfig();
-        assertThrows(
-                NullPointerException.class, () -> new WritableAccountStore(null, configuration, storeMetricsService));
-        assertThrows(
-                NullPointerException.class, () -> new WritableAccountStore(writableStates, null, storeMetricsService));
-        assertThrows(NullPointerException.class, () -> new WritableAccountStore(writableStates, configuration, null));
-        assertThrows(NullPointerException.class, () -> writableStore.put(null));
+    void throwsIfNullValuesAsArgs() {
+        assertThrows(NullPointerException.class, () -> new WritableAccountStore(null, writableEntityCounters));
+        assertThrows(NullPointerException.class, () -> new WritableAccountStore(writableStates, null));
         assertThrows(NullPointerException.class, () -> writableStore.put(null));
     }
 
@@ -101,33 +100,21 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void getForModifyReturnsImmutableAccount() {
-        refreshStoresWithCurrentTokenInWritable();
-
-        writableStore.put(account);
-
-        final var readaccount = writableStore.getForModify(id);
-
-        assertThat(readaccount).isNotNull();
-        assertThat(account).isEqualTo(readaccount);
-    }
-
-    @Test
     void canRemoveAlias() {
-        writableStore.putAlias(alias.aliasOrThrow(), id);
+        writableStore.putAndIncrementCountAlias(alias.aliasOrThrow(), id);
         assertEquals(1, writableStore.sizeOfAliasesState());
         writableStore.removeAlias(alias.aliasOrThrow());
         assertEquals(0, writableStore.sizeOfAliasesState());
     }
 
     @Test
-    void getForModifyDoesntLookForAlias() {
+    void getDoesntLookForAlias() {
         assertEquals(0, writableStore.sizeOfAliasesState());
 
-        writableStore.put(account);
-        writableStore.putAlias(alias.alias(), id);
+        writableStore.putAndIncrementCount(account);
+        writableStore.putAndIncrementCountAlias(alias.alias(), id);
 
-        final var readaccount = writableStore.getForModify(alias);
+        final var readaccount = writableStore.get(alias);
 
         assertThat(readaccount).isNull();
         assertEquals(1, writableStore.sizeOfAliasesState());
@@ -138,8 +125,8 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
     void getWithAliasedIdLooksForAlias() {
         assertEquals(0, writableStore.sizeOfAliasesState());
 
-        writableStore.put(account);
-        writableStore.putAlias(alias.alias(), id);
+        writableStore.putAndIncrementCount(account);
+        writableStore.putAndIncrementCountAlias(alias.alias(), id);
 
         final var readaccount = writableStore.getAliasedAccountById(alias);
 
@@ -150,10 +137,10 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void getForModifyReturnEmptyIfAliasNotPresent() {
+    void getReturnEmptyIfAliasNotPresent() {
         writableStore.put(account);
 
-        final var readaccount = writableStore.getForModify(alias);
+        final var readaccount = writableStore.get(alias);
 
         assertThat(readaccount).isNull();
         assertThat(writableStore.sizeOfAliasesState()).isZero();
@@ -176,10 +163,9 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
         assertThat(writableStore.sizeOfAliasesState()).isZero();
         assertThat(writableStore.modifiedAccountsInState()).isEqualTo(Collections.EMPTY_SET);
 
-        writableStore.put(account);
+        writableStore.putAndIncrementCount(account);
         assertThat(writableStore.sizeOfAccountState()).isEqualTo(1);
-        assertThat(writableStore.modifiedAccountsInState())
-                .isEqualTo(Set.of(AccountID.newBuilder().accountNum(3).build()));
+        assertThat(writableStore.modifiedAccountsInState()).isEqualTo(Set.of(idFactory.newAccountId(3)));
     }
 
     private Account contractWith(final AccountID id, final long nonce) {

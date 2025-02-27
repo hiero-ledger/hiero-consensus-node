@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -44,11 +28,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordedChildBodyWithId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustInclude;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_FUNCTION_PARAMETERS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_NONCE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
@@ -85,21 +67,22 @@ public class ContractKeysStillWorkAsExpectedSuite {
         final AtomicReference<Address> bReceiverAddr = new AtomicReference<>();
 
         return hapiTest(
-                streamMustInclude(recordedChildBodyWithId(TOKEN_UNIT_FROM_TO_OTHERS_TXN, 1, (spec, txn) -> {
-                    if (txn.hasNodeStakeUpdate()) {
-                        // Avoid asserting something about an end-of-staking-period NodeStakeUpdate in CI
-                        return;
-                    }
-                    final var tokenTransfers = txn.getCryptoTransfer().getTokenTransfersList();
-                    assertEquals(1, tokenTransfers.size());
-                    final var tokenTransfer = tokenTransfers.getFirst();
-                    for (final var adjust : tokenTransfer.getTransfersList()) {
-                        if (adjust.getAmount() < 0) {
-                            // The debit should have been automatically converted to an approval
-                            assertTrue(adjust.getIsApproval());
-                        }
-                    }
-                })),
+                recordStreamMustIncludePassFrom(
+                        recordedChildBodyWithId(TOKEN_UNIT_FROM_TO_OTHERS_TXN, 1, (spec, txn) -> {
+                            if (txn.hasNodeStakeUpdate()) {
+                                // Avoid asserting something about an end-of-staking-period NodeStakeUpdate in CI
+                                return;
+                            }
+                            final var tokenTransfers = txn.getCryptoTransfer().getTokenTransfersList();
+                            assertEquals(1, tokenTransfers.size());
+                            final var tokenTransfer = tokenTransfers.getFirst();
+                            for (final var adjust : tokenTransfer.getTransfersList()) {
+                                if (adjust.getAmount() < 0) {
+                                    // The debit should have been automatically converted to an approval
+                                    assertTrue(adjust.getIsApproval());
+                                }
+                            }
+                        })),
                 someWellKnownTokensAndAccounts(
                         fungibleTokenMirrorAddr,
                         nonFungibleTokenMirrorAddr,
@@ -357,87 +340,66 @@ public class ContractKeysStillWorkAsExpectedSuite {
         final AtomicReference<Address> tokenMirrorAddr = new AtomicReference<>();
         final AtomicReference<Address> accountAddr = new AtomicReference<>();
 
-        return defaultHapiSpec(
-                        "ContractKeysStillHaveSpecificityNoMatterTopLevelSignatures",
-                        NONDETERMINISTIC_FUNCTION_PARAMETERS,
-                        NONDETERMINISTIC_NONCE)
-                .given(
-                        uploadInitCode(managementContract, PAY_RECEIVABLE_CONTRACT),
-                        newKeyNamed(tmpAdminKey),
-                        contractCreate(managementContract).gas(500_000L).adminKey(tmpAdminKey),
-                        // Just create some other contract to be the real admin key
-                        contractCreate(PAY_RECEIVABLE_CONTRACT).gas(500_000L),
-                        newKeyNamed(otherContractAsKey).shape(CONTRACT.signedWith(PAY_RECEIVABLE_CONTRACT)),
-                        cryptoCreate(associatedAccount).keyShape(SECP256K1_ON).exposingEvmAddressTo(accountAddr::set),
-                        tokenCreate(fungibleToken)
-                                .exposingAddressTo(tokenMirrorAddr::set)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(1_000_000)
-                                .treasury(managementContract)
-                                .supplyKey(otherContractAsKey)
-                                .wipeKey(otherContractAsKey)
-                                .kycKey(otherContractAsKey)
-                                .pauseKey(otherContractAsKey)
-                                .freezeKey(otherContractAsKey),
-                        tokenAssociate(associatedAccount, fungibleToken),
-                        contractUpdate(managementContract).properlyEmptyingAdminKey())
-                .when(
-                        // Confirm the contract is really immutable
-                        getContractInfo(managementContract)
-                                .has(contractWith().immutableContractKey(managementContract)))
-                .then(
-                        // And now test a bunch of management functions are not authorized by
-                        // the management contract's ContractID key under these conditions;
-                        // even when it is the token treasury, and 0.0.2 has a top-level signature
-                        sourcing(() -> contractCall(managementContract, "justBurnFungible", tokenMirrorAddr.get())
-                                .gas(15_000_000L)
-                                .via("burnTxn")
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                        childRecordsCheck(
-                                "burnTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        sourcing(() -> contractCall(
-                                        managementContract,
-                                        "justFreezeAccount",
-                                        tokenMirrorAddr.get(),
-                                        accountAddr.get())
-                                .gas(15_000_000L)
-                                .via("freezeTxn")
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                        childRecordsCheck(
-                                "freezeTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_SIGNATURE)),
-                        sourcing(() -> contractCall(
-                                        managementContract, "justGrantKyc", tokenMirrorAddr.get(), accountAddr.get())
+        return hapiTest(
+                uploadInitCode(managementContract, PAY_RECEIVABLE_CONTRACT),
+                newKeyNamed(tmpAdminKey),
+                contractCreate(managementContract).gas(500_000L).adminKey(tmpAdminKey),
+                // Just create some other contract to be the real admin key
+                contractCreate(PAY_RECEIVABLE_CONTRACT).gas(500_000L),
+                newKeyNamed(otherContractAsKey).shape(CONTRACT.signedWith(PAY_RECEIVABLE_CONTRACT)),
+                cryptoCreate(associatedAccount).keyShape(SECP256K1_ON).exposingEvmAddressTo(accountAddr::set),
+                tokenCreate(fungibleToken)
+                        .exposingAddressTo(tokenMirrorAddr::set)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(1_000_000)
+                        .treasury(managementContract)
+                        .supplyKey(otherContractAsKey)
+                        .wipeKey(otherContractAsKey)
+                        .kycKey(otherContractAsKey)
+                        .pauseKey(otherContractAsKey)
+                        .freezeKey(otherContractAsKey),
+                tokenAssociate(associatedAccount, fungibleToken),
+                contractUpdate(managementContract).properlyEmptyingAdminKey(),
+                // Confirm the contract is really immutable
+                getContractInfo(managementContract).has(contractWith().immutableContractKey(managementContract)),
+                // And now test a bunch of management functions are not authorized by
+                // the management contract's ContractID key under these conditions;
+                // even when it is the token treasury, and 0.0.2 has a top-level signature
+                sourcing(() -> contractCall(managementContract, "justBurnFungible", tokenMirrorAddr.get())
+                        .gas(15_000_000L)
+                        .via("burnTxn")
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                childRecordsCheck(
+                        "burnTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                sourcing(() -> contractCall(
+                                managementContract, "justFreezeAccount", tokenMirrorAddr.get(), accountAddr.get())
+                        .gas(15_000_000L)
+                        .via("freezeTxn")
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                childRecordsCheck(
+                        "freezeTxn", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)),
+                sourcing(
+                        () -> contractCall(managementContract, "justGrantKyc", tokenMirrorAddr.get(), accountAddr.get())
                                 .gas(15_000_000L)
                                 .via("grantTxn")
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                        childRecordsCheck(
-                                "grantTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_SIGNATURE)),
-                        sourcing(() -> contractCall(
-                                        managementContract, "justRevokeKyc", tokenMirrorAddr.get(), accountAddr.get())
-                                .gas(15_000_000L)
-                                .via("revokeTxn")
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                        childRecordsCheck(
-                                "revokeTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_SIGNATURE)),
-                        sourcing(() -> contractCall(
-                                        managementContract,
-                                        "justWipeFungible",
-                                        tokenMirrorAddr.get(),
-                                        accountAddr.get())
-                                .gas(15_000_000L)
-                                .via("wipeTxn")
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                        childRecordsCheck(
-                                "wipeTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_SIGNATURE)));
+                childRecordsCheck(
+                        "grantTxn", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)),
+                sourcing(() -> contractCall(
+                                managementContract, "justRevokeKyc", tokenMirrorAddr.get(), accountAddr.get())
+                        .gas(15_000_000L)
+                        .via("revokeTxn")
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                childRecordsCheck(
+                        "revokeTxn", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)),
+                sourcing(() -> contractCall(
+                                managementContract, "justWipeFungible", tokenMirrorAddr.get(), accountAddr.get())
+                        .gas(15_000_000L)
+                        .via("wipeTxn")
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                childRecordsCheck(
+                        "wipeTxn", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)));
     }
 }

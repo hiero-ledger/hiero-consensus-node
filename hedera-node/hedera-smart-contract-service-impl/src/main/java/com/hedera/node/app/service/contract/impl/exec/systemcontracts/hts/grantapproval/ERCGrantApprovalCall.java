@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -22,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
@@ -33,8 +19,21 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
+/**
+ * Implements the ERC-20 {@code transfer()} and {@code transferFrom()} calls of the HTS contract.
+ */
 public class ERCGrantApprovalCall extends AbstractGrantApprovalCall {
 
+    /**
+     * @param enhancement the enhancement that is used
+     * @param gasCalculator the gas calculator that is used
+     * @param verificationStrategy the verification strategy that is used
+     * @param senderId the sender id of the sending account
+     * @param tokenId the token id of the token to be transferred
+     * @param spenderId the spender id of the spending account
+     * @param amount the amount that is approved
+     * @param tokenType the token type of the token
+     */
     // too many parameters
     @SuppressWarnings("java:S107")
     public ERCGrantApprovalCall(
@@ -71,10 +70,10 @@ public class ERCGrantApprovalCall extends AbstractGrantApprovalCall {
                         tokenId, senderId, spenderId, amount, readableAccountStore(), frame);
             }
             final var encodedOutput = tokenType.equals(TokenType.FUNGIBLE_COMMON)
-                    ? GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encodeElements(true)
+                    ? GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encode(Tuple.singleton(true))
                     : GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                             .getOutputs()
-                            .encodeElements();
+                            .encode(Tuple.EMPTY);
             return gasOnly(successResult(encodedOutput, gasRequirement, recordBuilder), status, false);
         }
     }

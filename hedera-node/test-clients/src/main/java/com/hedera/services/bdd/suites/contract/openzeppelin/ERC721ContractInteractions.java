@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.openzeppelin;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -26,7 +11,6 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -51,56 +35,53 @@ public class ERC721ContractInteractions {
         final var APPROVE_TX = "approve";
         final var TRANSFER_FROM_TX = "transferFrom";
 
-        return defaultHapiSpec("CallsERC721ContractInteractions", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(QueryVerbs.getAccountBalance(DEFAULT_CONTRACT_SENDER).logged(), uploadInitCode(CONTRACT))
-                .when(
-                        QueryVerbs.getAccountBalance(DEFAULT_CONTRACT_SENDER).logged(),
-                        contractCreate(CONTRACT)
-                                .payingWith(DEFAULT_CONTRACT_SENDER)
-                                .hasKnownStatus(SUCCESS)
-                                .gas(500_000L)
-                                .via(CREATE_TX),
-                        cryptoTransfer(tinyBarsFromTo(
-                                        DEFAULT_CONTRACT_SENDER, DEFAULT_CONTRACT_RECEIVER, 10 * ONE_HBAR))
-                                .payingWith(DEFAULT_CONTRACT_SENDER),
-                        QueryVerbs.getAccountBalance(DEFAULT_CONTRACT_RECEIVER).logged())
-                .then(
-                        QueryVerbs.getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
-                        QueryVerbs.getAccountInfo(DEFAULT_CONTRACT_RECEIVER).savingSnapshot(DEFAULT_CONTRACT_RECEIVER),
-                        withOpContext((spec, log) -> {
-                            final var contractCreatorId = spec.registry()
-                                    .getAccountInfo(DEFAULT_CONTRACT_SENDER)
-                                    .getContractAccountID();
-                            final var nftSenderId = spec.registry()
-                                    .getAccountInfo(DEFAULT_CONTRACT_RECEIVER)
-                                    .getContractAccountID();
+        return hapiTest(
+                QueryVerbs.getAccountBalance(DEFAULT_CONTRACT_SENDER).logged(),
+                uploadInitCode(CONTRACT),
+                QueryVerbs.getAccountBalance(DEFAULT_CONTRACT_SENDER),
+                contractCreate(CONTRACT)
+                        .payingWith(DEFAULT_CONTRACT_SENDER)
+                        .hasKnownStatus(SUCCESS)
+                        .gas(500_000L)
+                        .via(CREATE_TX),
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_CONTRACT_SENDER, DEFAULT_CONTRACT_RECEIVER, 10 * ONE_HBAR))
+                        .payingWith(DEFAULT_CONTRACT_SENDER),
+                QueryVerbs.getAccountBalance(DEFAULT_CONTRACT_RECEIVER),
+                QueryVerbs.getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
+                QueryVerbs.getAccountInfo(DEFAULT_CONTRACT_RECEIVER).savingSnapshot(DEFAULT_CONTRACT_RECEIVER),
+                withOpContext((spec, log) -> {
+                    final var contractCreatorId = spec.registry()
+                            .getAccountInfo(DEFAULT_CONTRACT_SENDER)
+                            .getContractAccountID();
+                    final var nftSenderId = spec.registry()
+                            .getAccountInfo(DEFAULT_CONTRACT_RECEIVER)
+                            .getContractAccountID();
 
-                            final var mintParams = new Object[] {asHeadlongAddress(nftSenderId), nftId};
-                            final var approveParams = new Object[] {asHeadlongAddress(contractCreatorId), nftId};
-                            final var transferFromParams = new Object[] {
-                                asHeadlongAddress(nftSenderId), asHeadlongAddress(contractCreatorId), nftId
-                            };
+                    final var mintParams = new Object[] {asHeadlongAddress(nftSenderId), nftId};
+                    final var approveParams = new Object[] {asHeadlongAddress(contractCreatorId), nftId};
+                    final var transferFromParams =
+                            new Object[] {asHeadlongAddress(nftSenderId), asHeadlongAddress(contractCreatorId), nftId};
 
-                            final var mint = contractCall(CONTRACT, "mint", mintParams)
-                                    .payingWith(DEFAULT_CONTRACT_SENDER)
-                                    .via(MINT_TX);
-                            allRunFor(spec, mint);
+                    final var mint = contractCall(CONTRACT, "mint", mintParams)
+                            .payingWith(DEFAULT_CONTRACT_SENDER)
+                            .via(MINT_TX);
+                    allRunFor(spec, mint);
 
-                            final var approve = contractCall(CONTRACT, "approve", approveParams)
-                                    .payingWith(DEFAULT_CONTRACT_RECEIVER)
-                                    .signingWith(SECP_256K1_RECEIVER_SOURCE_KEY)
-                                    .gas(4_000_000L)
-                                    .via(APPROVE_TX);
-                            allRunFor(spec, approve);
+                    final var approve = contractCall(CONTRACT, "approve", approveParams)
+                            .payingWith(DEFAULT_CONTRACT_RECEIVER)
+                            .signingWith(SECP_256K1_RECEIVER_SOURCE_KEY)
+                            .gas(4_000_000L)
+                            .via(APPROVE_TX);
+                    allRunFor(spec, approve);
 
-                            final var transferFrom = contractCall(CONTRACT, "transferFrom", transferFromParams)
-                                    .payingWith(DEFAULT_CONTRACT_SENDER)
-                                    .via(TRANSFER_FROM_TX);
-                            allRunFor(spec, transferFrom);
-                        }),
-                        QueryVerbs.getTxnRecord(CREATE_TX).logged(),
-                        QueryVerbs.getTxnRecord(MINT_TX).logged(),
-                        QueryVerbs.getTxnRecord(APPROVE_TX).logged(),
-                        QueryVerbs.getTxnRecord(TRANSFER_FROM_TX).logged());
+                    final var transferFrom = contractCall(CONTRACT, "transferFrom", transferFromParams)
+                            .payingWith(DEFAULT_CONTRACT_SENDER)
+                            .via(TRANSFER_FROM_TX);
+                    allRunFor(spec, transferFrom);
+                }),
+                QueryVerbs.getTxnRecord(CREATE_TX).logged(),
+                QueryVerbs.getTxnRecord(MINT_TX).logged(),
+                QueryVerbs.getTxnRecord(APPROVE_TX).logged(),
+                QueryVerbs.getTxnRecord(TRANSFER_FROM_TX).logged());
     }
 }

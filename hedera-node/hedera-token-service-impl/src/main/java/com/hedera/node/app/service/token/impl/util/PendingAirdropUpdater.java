@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.util;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
@@ -23,7 +8,7 @@ import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -47,10 +32,10 @@ public class PendingAirdropUpdater {
      * Updates sender accounts ({@code headPendingAirdropId()} and {@code numberPendingAirdrops()}).
      * Update neighbour pending airdrops linked list pointers ({@code previousAirdrop()} and {@code nextAirdrop()}).
      *
-     * @param airdropsToRemove list of PendingAirdropId to be removed
+     * @param airdropsToRemove set of PendingAirdropIds to be removed
      */
     public void removePendingAirdrops(
-            @NonNull final List<PendingAirdropId> airdropsToRemove,
+            @NonNull final Set<PendingAirdropId> airdropsToRemove,
             @NonNull final WritableAirdropStore pendingAirdropStore,
             @NonNull final WritableAccountStore accountStore) {
         for (final var id : airdropsToRemove) {
@@ -69,14 +54,14 @@ public class PendingAirdropUpdater {
             @NonNull final PendingAirdropId airdropId,
             @NonNull final WritableAirdropStore pendingAirdropStore,
             @NonNull final WritableAccountStore accountStore) {
-        final var airdrop = pendingAirdropStore.getForModify(airdropId);
+        final var airdrop = pendingAirdropStore.get(airdropId);
         validateTrue(airdrop != null, INVALID_PENDING_AIRDROP_ID);
 
         // update pending airdrops links
         final var prevAirdropId = airdrop.previousAirdrop();
         final var nextAirdropId = airdrop.nextAirdrop();
         if (prevAirdropId != null) {
-            final var prevAirdrop = pendingAirdropStore.getForModify(prevAirdropId);
+            final var prevAirdrop = pendingAirdropStore.get(prevAirdropId);
             if (prevAirdrop == null) {
                 log.error("Failed to find pending airdrop with id {}", prevAirdropId);
             } else {
@@ -86,7 +71,7 @@ public class PendingAirdropUpdater {
             }
         }
         if (nextAirdropId != null) {
-            final var nextAirdrop = pendingAirdropStore.getForModify(nextAirdropId);
+            final var nextAirdrop = pendingAirdropStore.get(nextAirdropId);
             if (nextAirdrop == null) {
                 log.error("Failed to find pending airdrop with id {}", nextAirdropId);
             } else {

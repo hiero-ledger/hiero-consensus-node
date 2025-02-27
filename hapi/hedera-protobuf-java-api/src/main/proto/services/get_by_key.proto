@@ -1,0 +1,113 @@
+/**
+ * # Get By Key
+ * An obsolete query to obtain a list of entities that refer to
+ * a given Key object.<br/>
+ * Returned entities may be accounts, files, smart contracts, and/or
+ * live hash entries.
+ *
+ * > Important
+ * >> This query is obsolete and not supported.<br/>
+ * >> Any query of this type that is submitted SHALL fail with a `PRE_CHECK`
+ * >> result of `NOT_SUPPORTED`.
+ *
+ * > Implementation Note
+ * >> This query is not defined for any service, and while it is implemented
+ * >> in the "Network Admin" service, it may be unnecessary to do so.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/crypto_add_live_hash.proto";
+
+/**
+ * Query all accounts, claims, files, and smart contract instances whose
+ * associated keys include the given Key.
+ *
+ * > This query is no longer supported.
+ */
+message GetByKeyQuery {
+    option deprecated = true;
+
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * The key to search for. It MUST NOT contain a contractID nor
+     * a ThresholdKey.
+     */
+    Key key = 2;
+}
+
+/**
+ * The ID for a single entity (account, livehash, file, or smart contract)
+ *
+ * > The query that defines this message is no longer supported.
+ */
+message EntityID {
+    option deprecated = true;
+
+    oneof entity {
+        /**
+         * The Account ID for the cryptocurrency account
+         */
+        AccountID accountID = 1;
+
+        /**
+         * A uniquely identifying livehash of an account
+         */
+        LiveHash liveHash = 2;
+
+        /**
+         * The file ID of the file
+         */
+        FileID fileID = 3;
+
+        /**
+         * The smart contract ID that identifies instance
+         */
+        ContractID contractID = 4;
+
+    }
+}
+
+/**
+ * Response when the client sends the node GetByKeyQuery
+ *
+ * > This query is no longer supported.
+ */
+message GetByKeyResponse {
+    option deprecated = true;
+
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * The list of entities that include this public key in their
+     * associated Key list
+     */
+    repeated EntityID entities = 2;
+}

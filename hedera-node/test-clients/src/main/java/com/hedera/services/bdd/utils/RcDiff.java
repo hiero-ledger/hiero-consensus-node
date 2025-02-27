@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.utils;
 
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.orderedRecordFilesFrom;
@@ -23,8 +8,12 @@ import static com.hedera.node.app.hapi.utils.forensics.DifferingEntries.FirstEnc
 import static com.hedera.node.app.hapi.utils.forensics.DifferingEntries.FirstEncounteredDifference.TRANSACTION_RECORD_MISMATCH;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.findDifferencesBetweenV6;
 import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.parseV6RecordStreamEntriesIn;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotModeOp.exactMatch;
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toSet;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.GeneratedMessage;
 import com.hedera.node.app.hapi.utils.forensics.DifferingEntries;
 import com.hedera.node.app.hapi.utils.forensics.OrderedComparison;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -38,11 +27,19 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
+import org.junit.jupiter.api.Assertions;
 
+/**
+ * Utility to diff two record streams, and report on the differences.
+ */
 public class RcDiff implements Callable<Integer> {
     private static final OrderedComparison.RecordDiffSummarizer DEFAULT_SUMMARIZER = (a, b) -> {
         try {
@@ -89,20 +86,20 @@ public class RcDiff implements Callable<Integer> {
      * Instantiates an {@code RcDiff} object with record files from the given directories. The object
      * returned from this method is immediately ready to compare the record files via the {@link #call()}
      * method or the {@link #summarizeDiffs()} method.
+     *
      * @param maxDiffsToExport the maximum number of diffs to report in the output
      * @param lenOfDiffSecs the length, in seconds, of the diff to compute. This value is used to construct
-     *                      a time range from the earliest record present in the expected and actual
-     *                      streams to a caller-specified boundary point (this parameter). The earliest
-     *                      record is computed via {@code (Math.min(expected.getFirst().consensusTimestamp(),
-     *                      actual.getFirst().consensusTimestamp()}; the resulting time window then
-     *                      becomes [earliestTimestamp, earliestTimestamp + lenOfDiffSeconds). All record
-     *                      files with a starting consensus timestamp inside of this interval will be
-     *                      included in the diff calculations, while all record files with a later timestamp
-     *                      will be ignored. Note that this parameter <b>does not</b> override the
-     *                      {@code maxDiffsToExport} parameter; if the number of diffs found in the computed
-     *                      time window exceeds {@code maxDiffsToExport}, only the first
-     *                      {@code maxDiffsToExport} diffs will be reported.
-     *
+     * a time range from the earliest record present in the expected and actual
+     * streams to a caller-specified boundary point (this parameter). The earliest
+     * record is computed via {@code (Math.min(expected.getFirst().consensusTimestamp(),
+     * actual.getFirst().consensusTimestamp()}; the resulting time window then
+     * becomes [earliestTimestamp, earliestTimestamp + lenOfDiffSeconds). All record
+     * files with a starting consensus timestamp inside of this interval will be
+     * included in the diff calculations, while all record files with a later timestamp
+     * will be ignored. Note that this parameter <b>does not</b> override the
+     * {@code maxDiffsToExport} parameter; if the number of diffs found in the computed
+     * time window exceeds {@code maxDiffsToExport}, only the first
+     * {@code maxDiffsToExport} diffs will be reported.
      * @param expectedStreamsLoc the location of the expected record files
      * @param actualStreamsLoc the location of the actual record files
      * @param diffsLoc an optional file location to write the diff output(s) to
@@ -149,6 +146,49 @@ public class RcDiff implements Callable<Integer> {
         }
 
         throwOnInvalidInput();
+    }
+
+    /**
+     * Given an expected and actual message, recursively asserts that they are exactly equal.
+     *
+     * @param expectedMessage the expected message
+     * @param actualMessage the actual message
+     * @param mismatchContext a supplier of a string that describes the context of the mismatch
+     */
+    public static void exactMatch(
+            @NonNull GeneratedMessage expectedMessage,
+            @NonNull GeneratedMessage actualMessage,
+            @NonNull final Supplier<String> mismatchContext) {
+        requireNonNull(expectedMessage);
+        requireNonNull(actualMessage);
+        requireNonNull(mismatchContext);
+        final var expectedType = expectedMessage.getClass();
+        final var actualType = actualMessage.getClass();
+        if (!expectedType.equals(actualType)) {
+            Assertions.fail("Mismatched types between expected " + expectedType + " and " + actualType + " - "
+                    + mismatchContext.get());
+        }
+        // getAllFields() returns a SortedMap so ordering is deterministic here
+        final var expectedFields =
+                new ArrayList<>(expectedMessage.getAllFields().entrySet());
+        final var actualFields = new ArrayList<>(actualMessage.getAllFields().entrySet());
+        if (expectedFields.size() != actualFields.size()) {
+            Assertions.fail("Mismatched field counts "
+                    + " (" + describeFieldCountMismatch(expectedFields, actualFields) + ") " + "between expected "
+                    + expectedMessage + " and " + actualMessage + " - " + mismatchContext.get());
+        }
+        for (int i = 0, n = expectedFields.size(); i < n; i++) {
+            final var expectedField = expectedFields.get(i);
+            final var actualField = actualFields.get(i);
+            final var expectedName = expectedField.getKey().getName();
+            final var actualName = actualField.getKey().getName();
+            if (!Objects.equals(expectedName, actualName)) {
+                Assertions.fail(
+                        "Mismatched field names ('" + expectedName + "' vs '" + actualName + "' between expected "
+                                + expectedMessage + " and " + actualMessage + " - " + mismatchContext.get());
+            }
+            matchValues(expectedName, expectedField.getValue(), actualField.getValue(), mismatchContext);
+        }
     }
 
     /**
@@ -275,19 +315,131 @@ public class RcDiff implements Callable<Integer> {
         }
         if (firstEncounteredDifference == CONSENSUS_TIME_MISMATCH) {
             sb.append("➡️  Expected ")
-                    .append(Objects.requireNonNull(diff.firstEntry()).consensusTime())
+                    .append(requireNonNull(diff.firstEntry()).consensusTime())
                     .append("\n\n")
                     .append("➡️ but was ")
-                    .append(Objects.requireNonNull(diff.secondEntry()).consensusTime());
+                    .append(requireNonNull(diff.secondEntry()).consensusTime());
         } else if (firstEncounteredDifference == TRANSACTION_RECORD_MISMATCH
                 || firstEncounteredDifference == TRANSACTION_MISMATCH) {
-            sb.append("\nFor body,\n")
-                    .append(Objects.requireNonNull(diff.firstEntry()).body());
+            sb.append("\nFor body,\n").append(requireNonNull(diff.firstEntry()).body());
             sb.append("➡️  Expected Record ")
-                    .append(Objects.requireNonNull(diff.firstEntry()).transactionRecord())
+                    .append(requireNonNull(diff.firstEntry()).transactionRecord())
                     .append(" but was ")
-                    .append(Objects.requireNonNull(diff.secondEntry()).transactionRecord());
+                    .append(requireNonNull(diff.secondEntry()).transactionRecord());
         }
         return sb.toString();
+    }
+
+    private static Set<String> fieldNamesOf(
+            @NonNull final List<Map.Entry<Descriptors.FieldDescriptor, Object>> fields) {
+        return fields.stream()
+                .map(Map.Entry::getKey)
+                .map(Descriptors.FieldDescriptor::getName)
+                .collect(toSet());
+    }
+
+    /**
+     * Given an expected value which may be a list, either matches all values in the list against the actual
+     * value (which must of course also be a list in this case); or matches the expected single value with the
+     * actual value.
+     *
+     * @param fieldName the name of the field being matched
+     * @param expectedValue the expected value
+     * @param actualValue the actual value
+     * @param mismatchContext a supplier of a string that describes the context of the mismatch
+     */
+    private static void matchValues(
+            @NonNull final String fieldName,
+            @NonNull final Object expectedValue,
+            @NonNull final Object actualValue,
+            @NonNull final Supplier<String> mismatchContext) {
+        requireNonNull(fieldName);
+        requireNonNull(expectedValue);
+        requireNonNull(actualValue);
+        requireNonNull(mismatchContext);
+        if (expectedValue instanceof List<?> expectedList) {
+            if (actualValue instanceof List<?> actualList) {
+                if (expectedList.size() != actualList.size()) {
+                    Assertions.fail("Mismatched list sizes between expected list " + expectedList + " and " + actualList
+                            + " - " + mismatchContext.get());
+                }
+                for (int j = 0, m = expectedList.size(); j < m; j++) {
+                    final var expectedElement = expectedList.get(j);
+                    final var actualElement = actualList.get(j);
+                    // There are no lists of lists in the record stream, so match single values
+                    matchSingleValues(expectedElement, actualElement, mismatchContext);
+                }
+            } else {
+                Assertions.fail("Mismatched types between expected list '" + expectedList + "' and "
+                        + actualValue.getClass().getSimpleName() + " '" + actualValue + "' - "
+                        + mismatchContext.get());
+            }
+        } else {
+            matchSingleValues(
+                    expectedValue, actualValue, () -> "Matching field '" + fieldName + "' " + mismatchContext.get());
+        }
+    }
+
+    /**
+     * Either recursively matches two given {@link GeneratedMessage}; or asserts object equality via
+     * {@code Assertions#assertEquals()}; or fails immediately if the types are mismatched.
+     *
+     * @param expected the expected value
+     * @param actual the actual value
+     * @param mismatchContext a supplier of a string that describes the context of the mismatch
+     */
+    private static void matchSingleValues(
+            @NonNull final Object expected,
+            @NonNull final Object actual,
+            @NonNull final Supplier<String> mismatchContext) {
+        requireNonNull(expected);
+        requireNonNull(actual);
+        requireNonNull(mismatchContext);
+        if (expected instanceof GeneratedMessage expectedMessage) {
+            if (actual instanceof GeneratedMessage actualMessage) {
+                exactMatch(expectedMessage, actualMessage, mismatchContext);
+            } else {
+                Assertions.fail("Mismatched types between expected message '" + expectedMessage + "' and "
+                        + actual.getClass().getSimpleName() + " '" + actual + "' - " + mismatchContext.get());
+            }
+        } else {
+            assertEquals(
+                    expected,
+                    actual,
+                    "Mismatched values, expected '" + expected + "', got '" + actual + "' - " + mismatchContext.get());
+        }
+    }
+
+    // inline initializers
+    @SuppressWarnings({"java:S3599", "java:S1171"})
+    private static String describeFieldCountMismatch(
+            @NonNull final List<Map.Entry<Descriptors.FieldDescriptor, Object>> expectedFields,
+            @NonNull final List<Map.Entry<Descriptors.FieldDescriptor, Object>> actualFields) {
+        final Set<String> expectedNames = fieldNamesOf(expectedFields);
+        final Set<String> actualNames = fieldNamesOf(actualFields);
+        final var expectedButNotObservedNames = new HashSet<>(expectedNames) {
+            {
+                removeAll(actualNames);
+            }
+        };
+        final var observedButNotExpectedNames = new HashSet<>(actualNames) {
+            {
+                removeAll(expectedNames);
+            }
+        };
+        final var description = new StringBuilder();
+        if (!expectedButNotObservedNames.isEmpty()) {
+            description
+                    .append("expected from generated but did not find in translated ")
+                    .append(expectedButNotObservedNames);
+        }
+        if (!observedButNotExpectedNames.isEmpty()) {
+            if (!description.isEmpty()) {
+                description.append(" AND ");
+            }
+            description.append("found in translated but not in generated ").append(observedButNotExpectedNames);
+        }
+
+        return description.toString();
     }
 }

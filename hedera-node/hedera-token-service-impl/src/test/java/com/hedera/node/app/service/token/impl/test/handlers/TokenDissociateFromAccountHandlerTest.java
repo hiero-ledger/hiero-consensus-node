@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -50,6 +35,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenDissociateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -57,11 +43,11 @@ import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenDissociateFromAccountHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.ParityTestBase;
 import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import java.time.Instant;
 import java.util.List;
 import org.assertj.core.api.Assertions;
@@ -79,9 +65,12 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private HandleContext handleContext;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private static final AccountID ACCOUNT_1339 =
             AccountID.newBuilder().accountNum(MISC_ACCOUNT.getAccountNum()).build();
-    private static final AccountID ACCOUNT_2020 = BaseCryptoHandler.asAccount(2020);
+    private static final AccountID ACCOUNT_2020 = BaseCryptoHandler.asAccount(0L, 0L, 2020);
     private static final TokenID TOKEN_555_ID =
             TokenID.newBuilder().tokenNum(555).build();
     private static final TokenID TOKEN_666_ID =
@@ -100,8 +89,9 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
         @Test
         void pureChecksRejectsDissociateWithMissingAccount() {
             final var txn = newDissociateTxn(null, List.of(TOKEN_555_ID));
+            given(pureChecksContext.body()).willReturn(txn);
 
-            assertThatThrownBy(() -> subject.pureChecks(txn))
+            assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
         }
@@ -109,8 +99,9 @@ class TokenDissociateFromAccountHandlerTest extends ParityTestBase {
         @Test
         void pureChecksRejectsDissociateWithRepeatedTokenId() {
             final var txn = newDissociateTxn(ACCOUNT_1339, List.of(TOKEN_555_ID, TOKEN_666_ID, TOKEN_555_ID));
+            given(pureChecksContext.body()).willReturn(txn);
 
-            assertThatThrownBy(() -> subject.pureChecks(txn))
+            assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TOKEN_ID_REPEATED_IN_TOKEN_LIST));
         }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
@@ -26,9 +11,9 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.MigrationContext;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.Schema;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -80,10 +65,6 @@ public class V0500ContractSchema extends Schema {
     public void migrate(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
         final ReadableKVState<SlotKey, SlotValue> storage = ctx.previousStates().get(STORAGE_KEY);
-        if (storage.size() > MAX_SUPPORTED_STORAGE_SIZE) {
-            log.warn("  -> Link repair is impractical with {} slots in state, skipping migration", storage.size());
-            return;
-        }
         final var begin = Instant.now();
         final Map<ContractID, List<StorageMapping>> mappings = new HashMap<>();
         final SortedMap<ContractID, Bytes> firstKeys = new TreeMap<>(CONTRACT_ID_COMPARATOR);
@@ -104,10 +85,6 @@ public class V0500ContractSchema extends Schema {
         });
 
         final List<ContractID> contractIdsToMigrate = new ArrayList<>(mappings.keySet());
-        log.info(
-                "Previous state with {} slots had {} contracts with broken storage links",
-                storage.size(),
-                contractIdsToMigrate.size());
         if (!contractIdsToMigrate.isEmpty()) {
             contractIdsToMigrate.sort(CONTRACT_ID_COMPARATOR);
             final WritableKVState<SlotKey, SlotValue> writableStorage =

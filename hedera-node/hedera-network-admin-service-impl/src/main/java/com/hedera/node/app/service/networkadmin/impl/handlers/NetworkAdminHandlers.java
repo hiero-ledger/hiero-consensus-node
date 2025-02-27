@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static java.util.Objects.requireNonNull;
@@ -47,7 +32,7 @@ public class NetworkAdminHandlers {
     private final NetworkUncheckedSubmitHandler networkUncheckedSubmitHandler;
 
     /**
-     * Creates a new AdminHandlers
+     * Creates a new AdminHandlers.
      */
     @Inject
     public NetworkAdminHandlers(
@@ -79,7 +64,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the freeze handler
+     * Returns the freeze handler.
      *
      * @return the freeze handler
      */
@@ -88,7 +73,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the network get account details handler
+     * Returns the network get account details handler.
      *
      * @return the network get account details handler
      */
@@ -97,7 +82,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the network get by key handler
+     * Returns the network get by key handler.
      * @return the network get by key handler
      */
     public NetworkGetByKeyHandler networkGetByKeyHandler() {
@@ -105,7 +90,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the network get execution time handler
+     * Returns the network get execution time handler.
      * @return the network get execution time handler
      */
     public NetworkGetExecutionTimeHandler networkGetExecutionTimeHandler() {
@@ -113,7 +98,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the network get version info handler
+     * Returns the network get version info handler.
      * @return the network get version info handler
      */
     public NetworkGetVersionInfoHandler networkGetVersionInfoHandler() {
@@ -121,7 +106,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the network transaction get receipt handler
+     * Returns the network transaction get receipt handler.
      * @return the network transaction get receipt handler
      */
     public NetworkTransactionGetReceiptHandler networkTransactionGetReceiptHandler() {
@@ -129,7 +114,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the network transaction get record handler
+     * Returns the network transaction get record handler.
      * @return the network transaction get record handler
      */
     public NetworkTransactionGetRecordHandler networkTransactionGetRecordHandler() {
@@ -137,7 +122,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the network unchecked submit handler
+     * Returns the network unchecked submit handler.
      * @return the network unchecked submit handler
      */
     public NetworkUncheckedSubmitHandler networkUncheckedSubmitHandler() {
@@ -145,7 +130,7 @@ public class NetworkAdminHandlers {
     }
 
     /**
-     * Returns the network transaction get fast record handler
+     * Returns the network transaction get fast record handler.
      * @return the network transaction get fast record handler
      */
     public NetworkTransactionGetFastRecordHandler networkTransactionGetFastRecordHandler() {

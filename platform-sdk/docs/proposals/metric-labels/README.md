@@ -227,7 +227,7 @@ interface MetricsFactory {
 }
 ```
 
-The definition of the api should follow our rules regarding services as defined at https://github.com/hashgraph/hedera-services/blob/develop/platform-sdk/docs/base/service-architecture/service-architecture.md
+The definition of the api should follow our rules regarding services as defined at https://github.com/hashgraph/hedera-services/blob/main/platform-sdk/docs/base/service-architecture/service-architecture.md
 
 ##### Examples
 

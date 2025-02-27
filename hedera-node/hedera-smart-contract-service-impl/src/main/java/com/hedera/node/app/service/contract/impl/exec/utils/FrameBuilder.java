@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -64,6 +49,9 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class FrameBuilder {
     private static final int MAX_STACK_SIZE = 1024;
 
+    /**
+     * Default constructor for injection.
+     */
     @Inject
     public FrameBuilder() {
         // Dagger2
@@ -76,6 +64,7 @@ public class FrameBuilder {
      * @param worldUpdater the world updater for the transaction
      * @param context the Hedera EVM context (gas price, block values, etc.)
      * @param config the active Hedera configuration
+     * @param featureFlags the feature flag currently used
      * @param from the sender of the transaction
      * @param to the recipient of the transaction
      * @param intrinsicGas the intrinsic gas cost, needed to calculate remaining gas
@@ -93,7 +82,7 @@ public class FrameBuilder {
             final long intrinsicGas) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-        final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
+        final var nominalCoinbase = asLongZeroAddress(worldUpdater.entityIdFactory(), ledgerConfig.fundingAccount());
         final var contextVariables = contextVariablesFrom(config, context);
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
@@ -101,6 +90,7 @@ public class FrameBuilder {
                 .initialGas(transaction.gasAvailable(intrinsicGas))
                 .originator(from)
                 .gasPrice(Wei.of(context.gasPrice()))
+                .blobGasPrice(Wei.ONE) // Per Hedera CANCUN adaptation
                 .sender(from)
                 .value(value)
                 .apparentValue(value)

@@ -56,7 +56,13 @@
       }
     ],
     "name": "resetFungibleTokenFees",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -69,7 +75,13 @@
       }
     ],
     "name": "resetNonFungibleTokenFees",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -180,7 +192,13 @@
       }
     ],
     "name": "updateFungibleFees",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -203,7 +221,13 @@
       }
     ],
     "name": "updateFungibleFixedHbarFee",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -231,7 +255,13 @@
       }
     ],
     "name": "updateFungibleFixedHbarFees",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -259,7 +289,13 @@
       }
     ],
     "name": "updateFungibleFixedHtsFee",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -282,7 +318,13 @@
       }
     ],
     "name": "updateFungibleFixedTokenFee",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -315,7 +357,13 @@
       }
     ],
     "name": "updateFungibleFractionalFee",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -358,7 +406,13 @@
       }
     ],
     "name": "updateFungibleFractionalFeeMinAndMax",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -396,7 +450,13 @@
       }
     ],
     "name": "updateFungibleFractionalFees",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -434,7 +494,13 @@
       }
     ],
     "name": "updateNonFungibleFees",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -457,7 +523,13 @@
       }
     ],
     "name": "updateNonFungibleFixedHbarFee",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -485,7 +557,13 @@
       }
     ],
     "name": "updateNonFungibleFixedHtsFee",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -508,7 +586,13 @@
       }
     ],
     "name": "updateNonFungibleFixedTokenFee",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -536,7 +620,13 @@
       }
     ],
     "name": "updateNonFungibleRoyaltyFee",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -569,7 +659,13 @@
       }
     ],
     "name": "updateNonFungibleRoyaltyFeeHbarFallback",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -607,7 +703,13 @@
       }
     ],
     "name": "updateNonFungibleRoyaltyFeeHtsFallback",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -640,7 +742,13 @@
       }
     ],
     "name": "updateNonFungibleRoyaltyFees",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   }

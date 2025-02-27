@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.impl.internal;
 
 import com.swirlds.base.ArgumentUtils;
@@ -61,6 +46,11 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
         return propertiesService.containsKey(propertyName);
     }
 
+    @Override
+    public boolean isListValue(@NonNull final String propertyName) {
+        return propertiesService.isListProperty(propertyName);
+    }
+
     @SuppressWarnings("unchecked")
     @Nullable
     @Override
@@ -90,6 +80,9 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
     @Override
     public String getValue(@NonNull final String propertyName) {
         ArgumentUtils.throwArgBlank(propertyName, "propertyName");
+        if (propertiesService.isListProperty(propertyName)) {
+            throw new NoSuchElementException("Property '" + propertyName + "' is a list property");
+        }
         if (!exists(propertyName)) {
             throw new NoSuchElementException("Property '" + propertyName + "' not defined in configuration");
         }
@@ -100,6 +93,9 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
     @Override
     public String getValue(@NonNull final String propertyName, @Nullable final String defaultValue) {
         ArgumentUtils.throwArgBlank(propertyName, "propertyName");
+        if (propertiesService.isListProperty(propertyName)) {
+            throw new NoSuchElementException("Property '" + propertyName + "' is a list property");
+        }
         if (!exists(propertyName)) {
             return defaultValue;
         }
@@ -110,21 +106,26 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
     @Override
     public List<String> getValues(@NonNull final String propertyName) {
         ArgumentUtils.throwArgBlank(propertyName, "propertyName");
-        final String rawValue = getValue(propertyName);
-        if (rawValue == null) {
-            return null;
+        if (!propertiesService.isListProperty(propertyName)) {
+            throw new NoSuchElementException("Property '" + propertyName + "' is not a list property");
         }
-        return ConfigListUtils.createList(rawValue);
+        if (!exists(propertyName)) {
+            throw new NoSuchElementException("Property '" + propertyName + "' not defined in configuration");
+        }
+        return propertiesService.getListProperty(propertyName);
     }
 
     @Nullable
     @Override
     public List<String> getValues(@NonNull final String propertyName, @Nullable final List<String> defaultValue) {
         ArgumentUtils.throwArgBlank(propertyName, "propertyName");
+        if (!propertiesService.isListProperty(propertyName)) {
+            throw new NoSuchElementException("Property '" + propertyName + "' is not a list property");
+        }
         if (!exists(propertyName)) {
             return defaultValue;
         }
-        return getValues(propertyName);
+        return propertiesService.getListProperty(propertyName);
     }
 
     @Nullable
@@ -132,7 +133,13 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
     public <T> List<T> getValues(@NonNull final String propertyName, @NonNull final Class<T> propertyType) {
         ArgumentUtils.throwArgBlank(propertyName, "propertyName");
         Objects.requireNonNull(propertyType, "propertyType must not be null");
-        final List<String> values = getValues(propertyName);
+        final List<String> values;
+        if (!propertiesService.isListProperty(propertyName)) {
+            final String value = getValue(propertyName);
+            values = ConfigListUtils.createList(value);
+        } else {
+            values = getValues(propertyName);
+        }
         if (values == null) {
             return null;
         }

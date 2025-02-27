@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
 import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -88,16 +74,18 @@ public final class SyncUtils {
 
             connection.getDos().writeTipHashes(tipHashes);
             connection.getDos().flush();
-            logger.info(
-                    SYNC_INFO.getMarker(),
-                    "{} sent event window: {}",
-                    connection::getDescription,
-                    eventWindow::toString);
-            logger.info(
-                    SYNC_INFO.getMarker(),
-                    "{} sent tips: {}",
-                    connection::getDescription,
-                    () -> SyncLogging.toShortShadows(tips));
+            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                logger.debug(
+                        SYNC_INFO.getMarker(),
+                        "{} sent event window: {}",
+                        connection::getDescription,
+                        eventWindow::toString);
+                logger.debug(
+                        SYNC_INFO.getMarker(),
+                        "{} sent tips: {}",
+                        connection::getDescription,
+                        () -> SyncLogging.toShortShadows(tips));
+            }
             return null;
         };
     }
@@ -119,16 +107,18 @@ public final class SyncUtils {
 
             final List<Hash> tips = connection.getDis().readTipHashes(numberOfNodes);
 
-            logger.info(
-                    SYNC_INFO.getMarker(),
-                    "{} received event window: {}",
-                    connection::getDescription,
-                    eventWindow::toString);
-            logger.info(
-                    SYNC_INFO.getMarker(),
-                    "{} received tips: {}",
-                    connection::getDescription,
-                    () -> SyncLogging.toShortHashes(tips));
+            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                logger.debug(
+                        SYNC_INFO.getMarker(),
+                        "{} received event window: {}",
+                        connection::getDescription,
+                        eventWindow::toString);
+                logger.debug(
+                        SYNC_INFO.getMarker(),
+                        "{} received tips: {}",
+                        connection::getDescription,
+                        () -> SyncLogging.toShortHashes(tips));
+            }
 
             return new TheirTipsAndEventWindow(eventWindow, tips);
         };
@@ -147,11 +137,13 @@ public final class SyncUtils {
         return () -> {
             connection.getDos().writeBooleanList(theirTipsIHave);
             connection.getDos().flush();
-            logger.info(
-                    SYNC_INFO.getMarker(),
-                    "{} sent booleans: {}",
-                    connection::getDescription,
-                    () -> SyncLogging.toShortBooleans(theirTipsIHave));
+            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                logger.debug(
+                        SYNC_INFO.getMarker(),
+                        "{} sent booleans: {}",
+                        connection::getDescription,
+                        () -> SyncLogging.toShortBooleans(theirTipsIHave));
+            }
             return null;
         };
     }
@@ -170,11 +162,13 @@ public final class SyncUtils {
             if (booleans == null) {
                 throw new SyncException(connection, "peer sent null booleans");
             }
-            logger.info(
-                    SYNC_INFO.getMarker(),
-                    "{} received booleans: {}",
-                    connection::getDescription,
-                    () -> SyncLogging.toShortBooleans(booleans));
+            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                logger.debug(
+                        SYNC_INFO.getMarker(),
+                        "{} received booleans: {}",
+                        connection::getDescription,
+                        () -> SyncLogging.toShortBooleans(booleans));
+            }
             return booleans;
         };
     }
@@ -198,23 +192,27 @@ public final class SyncUtils {
             final AtomicBoolean writeAborted,
             final Duration syncKeepalivePeriod) {
         return () -> {
-            logger.info(
-                    SYNC_INFO.getMarker(),
-                    "{} writing events start. send list size: {}",
-                    connection.getDescription(),
-                    events.size());
+            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                logger.debug(
+                        SYNC_INFO.getMarker(),
+                        "{} writing events start. send list size: {}",
+                        connection.getDescription(),
+                        events.size());
+            }
             for (final PlatformEvent event : events) {
                 connection.getDos().writeByte(ByteConstants.COMM_EVENT_NEXT);
-                connection.getDos().writeEventData(event);
+                connection.getDos().writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
             }
             if (writeAborted.get()) {
                 logger.info(SYNC_INFO.getMarker(), "{} writing events aborted", connection.getDescription());
             } else {
-                logger.info(
-                        SYNC_INFO.getMarker(),
-                        "{} writing events done, wrote {} events",
-                        connection.getDescription(),
-                        events.size());
+                if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                    logger.debug(
+                            SYNC_INFO.getMarker(),
+                            "{} writing events done, wrote {} events",
+                            connection.getDescription(),
+                            events.size());
+                }
                 connection.getDos().writeByte(ByteConstants.COMM_EVENT_DONE);
             }
             connection.getDos().flush();
@@ -231,7 +229,9 @@ public final class SyncUtils {
             connection.getDos().writeByte(ByteConstants.COMM_SYNC_DONE);
             connection.getDos().flush();
 
-            logger.debug(SYNC_INFO.getMarker(), "{} sent COMM_SYNC_DONE", connection.getDescription());
+            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                logger.debug(SYNC_INFO.getMarker(), "{} sent COMM_SYNC_DONE", connection.getDescription());
+            }
 
             // (ignored)
             return null;
@@ -262,7 +262,9 @@ public final class SyncUtils {
             @NonNull final Duration maxSyncTime) {
 
         return () -> {
-            logger.info(SYNC_INFO.getMarker(), "{} reading events start", connection.getDescription());
+            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                logger.debug(SYNC_INFO.getMarker(), "{} reading events start", connection.getDescription());
+            }
             int eventsRead = 0;
             try {
                 final long startTime = System.nanoTime();
@@ -281,9 +283,8 @@ public final class SyncUtils {
                                     throw new IOException("max event count " + maxEventCount + " exceeded");
                                 }
                             }
-
-                            final PlatformEvent platformEvent =
-                                    connection.getDis().readEventData();
+                            final GossipEvent gossipEvent = connection.getDis().readPbjRecord(GossipEvent.PROTOBUF);
+                            final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
 
                             platformEvent.setSenderId(connection.getOtherId());
                             intakeEventCounter.eventEnteredIntakePipeline(connection.getOtherId());
@@ -299,11 +300,13 @@ public final class SyncUtils {
                             eventsRead = Integer.MIN_VALUE;
                         }
                         case ByteConstants.COMM_EVENT_DONE -> {
-                            logger.info(
-                                    SYNC_INFO.getMarker(),
-                                    "{} reading events done, read {} events",
-                                    connection.getDescription(),
-                                    eventsRead);
+                            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                                logger.debug(
+                                        SYNC_INFO.getMarker(),
+                                        "{} reading events done, read {} events",
+                                        connection.getDescription(),
+                                        eventsRead);
+                            }
                             syncMetrics.eventsReceived(startTime, eventsRead);
                             // we are done reading event, tell the writer thread to send a COMM_SYNC_DONE
                             eventReadingDone.countDown();
@@ -313,14 +316,20 @@ public final class SyncUtils {
                             // if they are still busy reading events
                         case ByteConstants.COMM_SYNC_ONGOING -> {
                             // peer is still reading events, waiting for them to finish
-                            logger.debug(
-                                    SYNC_INFO.getMarker(),
-                                    "{} received COMM_SYNC_ONGOING",
-                                    connection.getDescription());
+                            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                                logger.debug(
+                                        SYNC_INFO.getMarker(),
+                                        "{} received COMM_SYNC_ONGOING",
+                                        connection.getDescription());
+                            }
                         }
                         case ByteConstants.COMM_SYNC_DONE -> {
-                            logger.debug(
-                                    SYNC_INFO.getMarker(), "{} received COMM_SYNC_DONE", connection.getDescription());
+                            if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
+                                logger.debug(
+                                        SYNC_INFO.getMarker(),
+                                        "{} received COMM_SYNC_DONE",
+                                        connection.getDescription());
+                            }
                             return eventsRead;
                         }
                         default -> throw new SyncException(

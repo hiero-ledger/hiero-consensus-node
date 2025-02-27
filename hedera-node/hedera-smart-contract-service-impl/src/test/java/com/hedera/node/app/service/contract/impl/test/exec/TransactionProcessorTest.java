@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CHARGING_RESULT;
@@ -65,7 +51,6 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
-import com.hedera.node.app.service.contract.impl.exec.failure.AbortException;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
@@ -78,6 +63,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -163,7 +149,7 @@ class TransactionProcessorTest {
 
     @Test
     void lazyCreationAttemptWithNoValueFailsFast() {
-        givenSenderAccount();
+        givenSenderAccountWithNoHederaAccount();
         givenRelayerAccount();
         given(messageCallProcessor.isImplicitCreationEnabled(config)).willReturn(true);
         assertAbortsWith(wellKnownRelayedHapiCall(0), INVALID_CONTRACT_ID);
@@ -171,7 +157,7 @@ class TransactionProcessorTest {
 
     @Test
     void lazyCreationAttemptWithInvalidAddress() {
-        givenSenderAccount();
+        givenSenderAccountWithNoHederaAccount();
         givenRelayerAccount();
         final var invalidCreation = new HederaEvmTransaction(
                 SENDER_ID,
@@ -363,22 +349,48 @@ class TransactionProcessorTest {
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(null);
 
-        final var abortException = catchThrowableOfType(
+        final var handleException = catchThrowableOfType(
                 () -> subject.processTransaction(
                         transaction, worldUpdater, () -> feesOnlyUpdater, context, tracer, config),
-                AbortException.class);
-        assertThat(abortException.isChargeable()).isFalse();
+                HandleException.class);
+        assertThat(handleException.getStatus()).isEqualTo(INVALID_ACCOUNT_ID);
+    }
+
+    @Test
+    void callWhenInvalidContractIdThrowsException() {
+        final var transaction = new HederaEvmTransaction(
+                SENDER_ID,
+                null,
+                INVALID_CONTRACT_ADDRESS,
+                NONCE,
+                CALL_DATA,
+                MAINNET_CHAIN_ID,
+                0L,
+                GAS_LIMIT,
+                USER_OFFERED_GAS_PRICE,
+                MAX_GAS_ALLOWANCE,
+                null,
+                null);
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
+        given(worldUpdater.getHederaAccount(INVALID_CONTRACT_ADDRESS)).willThrow(IllegalArgumentException.class);
+
+        final var handleException = catchThrowableOfType(
+                () -> subject.processTransaction(
+                        transaction, worldUpdater, () -> feesOnlyUpdater, context, tracer, config),
+                HandleException.class);
+        assertThat(handleException.getStatus()).isEqualTo(INVALID_TRANSACTION_BODY);
     }
 
     @Test
     void requiresEthTxToHaveNonNullRelayer() {
-        givenSenderAccount();
+        givenSenderAccountWithNoHederaAccount();
         assertAbortsWith(wellKnownRelayedHapiCall(0), INVALID_ACCOUNT_ID);
     }
 
     @Test
     void nonLazyCreateCandidateMustHaveReceiver() {
-        givenSenderAccount();
+        givenSenderAccountWithNoHederaAccount();
         givenRelayerAccount();
         assertAbortsWith(wellKnownRelayedHapiCall(0), INVALID_CONTRACT_ID);
     }
@@ -756,8 +768,12 @@ class TransactionProcessorTest {
         given(feesOnlyUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(receiverAccount);
     }
 
-    private void givenSenderAccount() {
+    private void givenSenderAccountWithNoHederaAccount() {
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
+    }
+
+    private void givenSenderAccount() {
+        givenSenderAccountWithNoHederaAccount();
         given(senderAccount.hederaId()).willReturn(SENDER_ID);
     }
 

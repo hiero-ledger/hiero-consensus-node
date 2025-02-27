@@ -1,26 +1,12 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.datasource;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
+import com.swirlds.virtualmap.serialize.KeySerializer;
+import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -38,30 +24,33 @@ import java.util.stream.Stream;
  * The nodes returned by the methods on this interface represent the *LATEST* state on disk. Once retrieved,
  * the nodes can be fast-copied for later versions, and persisted to disk via *archive*.
  * <p>
- * Each datasource instance works for a single type of K and V
- * <p>
  * <strong>YOU MUST NEVER ASK FOR SOMETHING YOU HAVE NOT PREVIOUSLY WRITTEN.</strong> If you do, you will get
  * very strange exceptions. This is deemed acceptable because guarding against it would require obnoxious
  * performance degradation.
- *
- * @param <K>
- * 		The key for a leaf node.
- * @param <V>
- * 		The type of leaf node.
  */
-@SuppressWarnings("unused")
-public interface VirtualDataSource<K extends VirtualKey, V extends VirtualValue> {
+public interface VirtualDataSource {
 
     /** nominal value for a invalid path */
     int INVALID_PATH = -1;
 
     /**
-     * Close the data source
+     * Close the data source and delete all its data.
      *
      * @throws IOException
      * 		If there was a problem closing the data source
      */
-    void close() throws IOException;
+    default void close() throws IOException {
+        close(false);
+    }
+
+    /**
+     * Close the data source.
+     *
+     * @param keepData Indicates whether to keep data source data or not
+     * @throws IOException
+     * 		If there was a problem closing the data source
+     */
+    void close(boolean keepData) throws IOException;
 
     /**
      * Save a batch of data to data store.
@@ -73,21 +62,25 @@ public interface VirtualDataSource<K extends VirtualKey, V extends VirtualValue>
      * that if you were to query for some record between batches that hadn't yet been saved, you
      * will encounter problems.
      *
-     * @param firstLeafPath the tree path for first leaf
-     * @param lastLeafPath the tree path for last leaf
-     * @param pathHashRecordsToUpdate stream of records with hashes to update, it is assumed this is sorted by
-     *     path and each path only appears once.
-     * @param leafRecordsToAddOrUpdate stream of new leaf nodes and updated leaf nodes
-     * @param leafRecordsToDelete stream of new leaf nodes to delete, The leaf record's key and path
-     *     have to be populated, all other data can be null.
+     * @param firstLeafPath
+     *      the tree path for first leaf
+     * @param lastLeafPath
+     *      the tree path for last leaf
+     * @param pathHashRecordsToUpdate
+     * 		stream of dirty hash records to update
+     * @param leafRecordsToAddOrUpdate
+     * 		stream of new and updated leaf node bytes
+     * @param leafRecordsToDelete
+     * 		stream of new leaf node bytes to delete, The leaf record's key and path have to be
+     * 		populated, all other data can be null
      * @throws IOException If there was a problem saving changes to data source
      */
     default void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
             @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-            @NonNull final Stream<VirtualLeafRecord<K, V>> leafRecordsToAddOrUpdate,
-            @NonNull final Stream<VirtualLeafRecord<K, V>> leafRecordsToDelete)
+            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete)
             throws IOException {
         saveRecords(
                 firstLeafPath,
@@ -108,10 +101,10 @@ public interface VirtualDataSource<K extends VirtualKey, V extends VirtualValue>
      * @param pathHashRecordsToUpdate
      * 		stream of dirty hash records to update
      * @param leafRecordsToAddOrUpdate
-     * 		stream of new leaf nodes and updated leaf nodes
+     * 		stream of new and updated leaf node bytes
      * @param leafRecordsToDelete
-     * 		stream of new leaf nodes to delete, The leaf record's key and path have to be populated, all other data can
-     * 		be null.
+     * 		stream of new leaf node bytes to delete, The leaf record's key and path have to be
+     * 		populated, all other data can be null
      * @param isReconnectContext if the save is in the context of a reconnect
      * @throws IOException
      * 		If there was a problem saving changes to data source
@@ -120,46 +113,52 @@ public interface VirtualDataSource<K extends VirtualKey, V extends VirtualValue>
             final long firstLeafPath,
             final long lastLeafPath,
             @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-            @NonNull final Stream<VirtualLeafRecord<K, V>> leafRecordsToAddOrUpdate,
-            @NonNull final Stream<VirtualLeafRecord<K, V>> leafRecordsToDelete,
+            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
             final boolean isReconnectContext)
             throws IOException;
 
     /**
-     * Load the record for a leaf node by key.
+     * Load virtual record bytes for a leaf node by key.
      *
-     * @param key
-     * 		the key for a leaf
+     * <p>Key hash code may look redundant here, but it's currently not. In the future, key
+     * hash codes will be calculated as {@code keyBytes}' hash code. However, keys stored in
+     * the data source before it's migrated to bytes could be different from hashcodes from
+     * bytes. Therefore to load the existing keys, key hash codes must be passed explicitly.
+     *
+     * @param keyBytes the key bytes for a leaf
+     * @param keyHashCode the key hash code
      * @return the leaf's record if one was stored for the given key or null if not stored
-     * @throws IOException
-     * 		If there was a problem reading the leaf record
+     * @throws IOException if there was a problem reading the leaf record
      */
     @Nullable
-    VirtualLeafRecord<K, V> loadLeafRecord(final K key) throws IOException;
+    VirtualLeafBytes loadLeafRecord(final Bytes keyBytes, final int keyHashCode) throws IOException;
 
     /**
-     * Load the record for a leaf node by path. If the path is outside the current data source's
-     * leaf path range, this method returns {@code null}.
+     * Load virtual record bytes for a leaf node by path. If the path is outside the current
+     * data source's leaf path range, this method returns {@code null}.
      *
-     * @param path
-     * 		the path for a leaf
+     * @param path the path for a leaf
      * @return the leaf's record if one was stored for the given path or null if not stored
-     * @throws IOException
-     * 		If there was a problem reading the leaf record
+     * @throws IOException if there was a problem reading the leaf record
      */
     @Nullable
-    VirtualLeafRecord<K, V> loadLeafRecord(final long path) throws IOException;
+    VirtualLeafBytes loadLeafRecord(final long path) throws IOException;
 
     /**
      * Find the path of the given key.
      *
-     * @param key
-     * 		the key for a path
-     * @return the path or INVALID_PATH if not stored
-     * @throws IOException
-     * 		If there was a problem locating the key
+     * <p>Key hash code may look redundant here, but it's currently not. In the future, key
+     * hash codes will be calculated as {@code keyBytes}' hash code. However, keys stored in
+     * the data source before it's migrated to bytes could be different from hash codes from
+     * bytes. Therefore, to load the existing keys, key hash codes must be passed explicitly.
+     *
+     * @param keyBytes the key bytes
+     * @param keyHashCode the key hash code
+     * @return the path or INVALID_PATH if the key is not stored
+     * @throws IOException if there was a problem locating the key
      */
-    long findKey(final K key) throws IOException;
+    long findKey(final Bytes keyBytes, final int keyHashCode) throws IOException;
 
     /**
      * Load a virtual node hash by path. If the path is outside [0, last leaf path] range, this
@@ -219,7 +218,7 @@ public interface VirtualDataSource<K extends VirtualKey, V extends VirtualValue>
      * @param that
      * 		the database with statistics to copy
      */
-    void copyStatisticsFrom(VirtualDataSource<K, V> that);
+    void copyStatisticsFrom(VirtualDataSource that);
 
     /**
      * Register all statistics with an object that manages statistics.
@@ -239,17 +238,31 @@ public interface VirtualDataSource<K extends VirtualKey, V extends VirtualValue>
      */
     void stopAndDisableBackgroundCompaction();
 
-    /**
-     * Provides estimation how much space is needed to store the given number of internal / leaf nodes in the data
-     * source. This estimation is used to decide when to flush virtual node caches to data sources.
-     *
-     * @param dirtyInternals Number of dirty internal nodes in the node cache
-     * @param dirtyLeaves    Number of dirty leaf nodes in the node cache
-     * @return Estimated space needed to store the given number of nodes in the data source, in bytes
-     */
-    long estimatedSize(long dirtyInternals, long dirtyLeaves);
-
     long getFirstLeafPath();
 
     long getLastLeafPath();
+
+    /**
+     * This method is used by VirtualMap / VirtualRootNode to get a key serializer from the
+     * data source, when it's deserialized from an existing state snapshot, where serializers
+     * are stored in the data source rather than in the root node.
+     *
+     * <p>The method is only used to migrate data sources to work with bytes rather than with
+     * strictly typed objects. It will be removed in the next version.
+     */
+    @Deprecated
+    @SuppressWarnings("rawtypes")
+    KeySerializer getKeySerializer();
+
+    /**
+     * This method is used by VirtualMap / VirtualRootNode to get a value serializer from the
+     * data source, when it's deserialized from an existing state snapshot, where serializers
+     * are stored in the data source rather than in the root node.
+     *
+     * <p>This method is only used to migrate data sources to work with bytes rather than with
+     * strictly typed objects. It will be removed in the next version.
+     */
+    @Deprecated
+    @SuppressWarnings("rawtypes")
+    ValueSerializer getValueSerializer();
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.allowance;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
@@ -26,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.com
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountFungibleTokenAllowance;
@@ -41,6 +27,9 @@ import java.nio.ByteBuffer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+/**
+ * Implements the token redirect {@code allowance()} call of the HTS system contract.
+ */
 @Singleton
 public class GetAllowanceCall extends AbstractCall {
 
@@ -53,6 +42,16 @@ public class GetAllowanceCall extends AbstractCall {
     @Nullable
     private final Token token;
 
+    /**
+     * @param addressIdConverter the address ID converter for this call
+     * @param gasCalculator the gas calculator to be used
+     * @param enhancement the enhancement to be used
+     * @param token the token id that the token allowance pertains to
+     * @param owner the account id of the token owner
+     * @param spender the account id of the token allowance spender
+     * @param isERCCall whether this is an ERC call
+     * @param isStaticCall whether this is a static call
+     */
     @Inject
     public GetAllowanceCall(
             @NonNull final AddressIdConverter addressIdConverter,
@@ -113,11 +112,11 @@ public class GetAllowanceCall extends AbstractCall {
     @NonNull
     private ByteBuffer encodedAllowanceOutput(@NonNull final BigInteger allowance) {
         if (isERCCall) {
-            return GetAllowanceTranslator.ERC_GET_ALLOWANCE.getOutputs().encodeElements(allowance);
+            return GetAllowanceTranslator.ERC_GET_ALLOWANCE.getOutputs().encode(Tuple.singleton(allowance));
         } else {
             return GetAllowanceTranslator.GET_ALLOWANCE
                     .getOutputs()
-                    .encodeElements((long) SUCCESS.protoOrdinal(), allowance);
+                    .encode(Tuple.of((long) SUCCESS.protoOrdinal(), allowance));
         }
     }
 }

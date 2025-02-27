@@ -44,6 +44,8 @@ Use the following tutorials to set up a GPG key.
 
 ## Development Model
 
+:warning: This section is out of date and will be updated soon:tm:
+
 The Git Source Code Management(SCM) system treats branches as one of the fundamental constructs for
 supporting concurrent development and assisting with merge conflict resolution. Due to the
 fundamental nature and flexibility offered by Git branches, it is critical to have a consistent
@@ -58,12 +60,10 @@ pattern for the development life cycle.
 
 ![gitflow-branching-model](./assets/gitflow-branching-model.png)
 
-Note especially the roles of the `main` and `develop` branches:
+Note especially the roles of the `main` branch:
 
-- `develop` is the default branch, the target of active development, and should at all times
+- `main` is the default branch, the target of active development, and should at all times
   should be a viable candidate for the next release.
-- `main` is a tightly-controlled branch that release engineering uses for final tags deployed to
-  production.
 
 ### Creating issues on GitHub
 
@@ -92,35 +92,44 @@ with 0.30 milestone on it.
 
 ![labels-on-issue](./assets/labels-on-issue.png)
 
-### Release Engineering Responsibilities
+### Platform-CI Responsibilities
 
-The release engineering team will handle the following:
+The Platform-CI team will handle the following:
 
-- Create a release branch from `develop` branch at the end of first sprint in the release cycle
-- Will merge the release branch for current deploying release into `main`
 - Will provide automated release processes and coordinate release schedules
 - Will handle production releases
+- Note: no release branch will be created
+
+### Github CI Workflow Naming Conventions
+
+- `node-*` and `platform-*` prefix is a legacy carryover because node repo and platform repo were merged together.
+- `flow-*` is a standalone workflow that can be executed by a user (should have a workflow-dispatch trigger). It can also be a PR target. Anything the user interacts with starts with flow.
+- `z` is used to force everything to sort to the bottom of the view in the Actions tab of github. We can now pin these.
+- `x` means a workflow is not user facing.
+- `f` means the workflow can be triggered directly by other workflows (or by users). Ex: `workflow_dispatch`.
+- `c` means the file contains a reusable workflow, called a workflow component, triggered by `workflow_call`. 
+- `cron` indicates a workflow has a time-based trigger.
 
 ### User Stories
 
 #### As a developer, I would like to create a branch to work on the feature for the upcoming release
 
-As per the development model, every developer should create a feature branch from `develop` branch
+As per the development model, every developer should create a feature branch from `main` branch
 for working on a change targeted for the current release. The created branch should follow
 [naming conventions](branch-naming-conventions.md).
 
-The `develop` branch should be up-to-date with all the features going into the next release.
+The `main` branch should be up-to-date with all the features going into the next release.
 
 #### As a developer, I would like to create a branch to work on the feature NOT targeted for upcoming release
 
-As per the development model, every developer should create a feature branch to work from `develop`
+As per the development model, every developer should create a feature branch to work from `main`
 branch. The created branch should follow [naming conventions](branch-naming-conventions.md). But,
-the feature branch should NOT be merged into `develop` until the decision is made if the feature is
+the feature branch should NOT be merged into `main` until the decision is made if the feature is
 going into upcoming release.
 
 #### As a developer, I would like to merge my feature branch or bug fix for the upcoming release
 
-Open a pull request (PR) from the feature branch to `develop` branch and add
+Open a pull request (PR) from the feature branch to `main` branch and add
 `hashgraph/hedera-services-team` as reviewers.
 
 Also add the following labels on the PR :
@@ -134,7 +143,7 @@ PR should be merged after an approving review and all the checks are passed.
 NOTE:
 
 1. Any feature that is not going into the upcoming release should stay in the feature branch and
-   should not be merged to `develop`.
+   should not be merged to `main`.
 2. Please use either the Gradle command line `./gradlew qualityGate` or the
    [Google Java Format IntelliJ Plugin](https://github.com/google/google-java-format#intellij-android-studio-and-other-jetbrains-ides)
    to format your code to avoid failing checks in CI pipeline.
@@ -146,14 +155,14 @@ Once the release branch is created, only bugfixes or hotfixes should be merged i
 To do that, create a `hotfix` from the `release` branch. The created branch should follow
 [naming conventions](branch-naming-conventions.md). Once the fix is in the branch, open a PR to the
 release branch. Once the fix is merged into `release` branch, it should be cherry-picked into the
-`develop` branch.
+`main` branch.
 
 #### As a developer, I would like to merge a bugfix/hotfix from the production code
 
 To fix a bug from one of the previous releases(production code), create a hotfix branch from `main`.
 Once the fix is in the branch, create a PR targeting to `main`. Once bugfix is merged into `main`and
 it should be cherry-picked back into the current `release` branch(if the release branch is still
-open), and also into `develop`.
+open).
 
 ### DCO Sign Off
 

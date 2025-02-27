@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -28,12 +13,13 @@ import com.hedera.hapi.node.transaction.CustomFee;
  *   <li>A fee collection account is exempt from any fee for which it would be the collector.
  *   <li>A fee collection account is exempt from any of its token's fees with {@code
  *       all_collectors_are_exempt=true}.
- * </ul>
+ * </ul>.
  */
 public final class CustomFeeExemptions {
     private CustomFeeExemptions() {
         throw new UnsupportedOperationException("Utility Class");
     }
+
     /**
      * Given the fee metadata for a token, and one of this token's custom fees, returns whether the
      * given payer is exempt from the specific custom fee provided.

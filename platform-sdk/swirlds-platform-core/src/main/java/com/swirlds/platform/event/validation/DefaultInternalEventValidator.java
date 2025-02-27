@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -21,7 +6,13 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
 
+import com.hedera.hapi.platform.event.EventCore;
+import com.hedera.hapi.platform.event.EventDescriptor;
+import com.hedera.hapi.platform.event.GossipEvent;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.crypto.DigestType;
+import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.platform.config.TransactionConfig;
@@ -65,7 +56,8 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
 
     private final AncientMode ancientMode;
 
-    private final RateLimitedLogger nullUnhashedDataLogger;
+    private final RateLimitedLogger nullFieldLogger;
+    private final RateLimitedLogger fieldLengthLogger;
     private final RateLimitedLogger tooManyTransactionBytesLogger;
     private final RateLimitedLogger inconsistentSelfParentLogger;
     private final RateLimitedLogger inconsistentOtherParentLogger;
@@ -73,7 +65,8 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     private final RateLimitedLogger invalidGenerationLogger;
     private final RateLimitedLogger invalidBirthRoundLogger;
 
-    private final LongAccumulator nullUnhashedDataAccumulator;
+    private final LongAccumulator nullFieldAccumulator;
+    private final LongAccumulator fieldLengthAccumulator;
     private final LongAccumulator tooManyTransactionBytesAccumulator;
     private final LongAccumulator inconsistentSelfParentAccumulator;
     private final LongAccumulator inconsistentOtherParentAccumulator;
@@ -102,7 +95,8 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
 
-        this.nullUnhashedDataLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
+        this.nullFieldLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
+        this.fieldLengthLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.tooManyTransactionBytesLogger =
                 new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.inconsistentSelfParentLogger =
@@ -113,10 +107,15 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
         this.invalidGenerationLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.invalidBirthRoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
 
-        this.nullUnhashedDataAccumulator = platformContext
+        this.nullFieldAccumulator = platformContext
                 .getMetrics()
-                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithNullUnhashedData")
-                        .withDescription("Events that had null unhashed data")
+                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithNullFields")
+                        .withDescription("Events that had a null field")
+                        .withUnit("events"));
+        this.fieldLengthAccumulator = platformContext
+                .getMetrics()
+                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidFieldLength")
+                        .withDescription("Events with an invalid field length")
                         .withUnit("events"));
         this.tooManyTransactionBytesAccumulator = platformContext
                 .getMetrics()
@@ -157,13 +156,62 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @return true if the required fields of the event are non-null, otherwise false
      */
     private boolean areRequiredFieldsNonNull(@NonNull final PlatformEvent event) {
-        if (event.getSignature() == null) {
-            // do not log the event itself, since toString would throw a NullPointerException
-            nullUnhashedDataLogger.error(EXCEPTION.getMarker(), "Event has null signature");
-            nullUnhashedDataAccumulator.update(1);
+        final GossipEvent gossipEvent = event.getGossipEvent();
+        final EventCore eventCore = gossipEvent.eventCore();
+        String nullField = null;
+        if (eventCore == null) {
+            nullField = "eventCore";
+        } else if (eventCore.timeCreated() == null) {
+            nullField = "timeCreated";
+        } else if (eventCore.version() == null) {
+            nullField = "version";
+        } else if (eventCore.parents().stream().anyMatch(Objects::isNull)) {
+            nullField = "parent";
+        } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
+            nullField = "transaction";
+        }
+        if (nullField != null) {
+            nullFieldLogger.error(EXCEPTION.getMarker(), "Event has null field '{}' {}", nullField, gossipEvent);
+            nullFieldAccumulator.update(1);
             return false;
         }
 
+        return true;
+    }
+
+    /**
+     * Checks whether the transaction is null.
+     * @param transaction the transaction to check
+     * @return true if the transaction is null, otherwise false
+     */
+    private static boolean isTransactionNull(@Nullable final Bytes transaction) {
+        return transaction == null || transaction.length() == 0;
+    }
+
+    /**
+     * Checks whether the {@link com.hedera.pbj.runtime.io.buffer.Bytes} fields of an event are the expected length.
+     *
+     * @param event the event to check
+     * @return true if the byte fields of the event are the correct length, otherwise false
+     */
+    private boolean areByteFieldsCorrectLength(@NonNull final PlatformEvent event) {
+        final GossipEvent gossipEvent = event.getGossipEvent();
+        final EventCore eventCore = gossipEvent.eventCore();
+        if (gossipEvent.signature().length() != SignatureType.RSA.signatureLength()) {
+            fieldLengthLogger.error(EXCEPTION.getMarker(), "Event signature is the wrong length {}", gossipEvent);
+            fieldLengthAccumulator.update(1);
+            return false;
+        }
+        if (eventCore.parents().stream()
+                .map(EventDescriptor::hash)
+                .anyMatch(hash -> hash.length() != DigestType.SHA_384.digestLength())) {
+            fieldLengthLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Event parent descriptor has a hash that is the wrong length {}",
+                    gossipEvent);
+            fieldLengthAccumulator.update(1);
+            return false;
+        }
         return true;
     }
 
@@ -320,6 +368,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     @Nullable
     public PlatformEvent validateEvent(@NonNull final PlatformEvent event) {
         if (areRequiredFieldsNonNull(event)
+                && areByteFieldsCorrectLength(event)
                 && isTransactionByteCountValid(event)
                 && areParentsInternallyConsistent(event)
                 && isEventGenerationValid(event)

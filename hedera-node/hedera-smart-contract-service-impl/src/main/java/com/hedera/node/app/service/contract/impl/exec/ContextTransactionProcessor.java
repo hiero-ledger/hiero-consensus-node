@@ -1,30 +1,16 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
-import com.hedera.node.app.service.contract.impl.exec.failure.AbortException;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
@@ -33,7 +19,9 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
+import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
@@ -68,10 +56,24 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final TransactionProcessor processor;
     private final EvmActionTracer evmActionTracer;
     private final RootProxyWorldUpdater rootProxyWorldUpdater;
-    public final HevmTransactionFactory hevmTransactionFactory;
+    private final HevmTransactionFactory hevmTransactionFactory;
     private final Supplier<HederaWorldUpdater> feesOnlyUpdater;
     private final CustomGasCharging gasCharging;
 
+    /**
+     * @param hydratedEthTxData the hydrated Ethereum transaction data
+     * @param context the context of the transaction
+     * @param contractsConfig the contracts configuration to use
+     * @param configuration the configuration to use
+     * @param hederaEvmContext the hedera EVM context
+     * @param addOnTracers all operation tracer callbacks
+     * @param evmActionTracer the EVM action tracer
+     * @param worldUpdater the world updater for the transaction
+     * @param hevmTransactionFactory the factory for EVM transaction
+     * @param feesOnlyUpdater if base commit fails, a fees-only updater
+     * @param processor a map from the version of the Hedera EVM to the transaction processor
+     * @param customGasCharging the Hedera gas charging logic
+     */
     @Inject
     public ContextTransactionProcessor(
             @Nullable final HydratedEthTxData hydratedEthTxData,
@@ -109,8 +111,12 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         // if an exception occurs during a ContractCall, charge fees to the sender and return a CallOutcome reflecting
         // the error.
         final var hevmTransaction = safeCreateHevmTransaction();
-        if (hevmTransaction.isException() && contractsConfig.chargeGasOnPreEvmException()) {
-            return chargeFeesAndReturnOutcome(hevmTransaction);
+        if (hevmTransaction.isException()) {
+            return maybeChargeFeesAndReturnOutcome(
+                    hevmTransaction,
+                    context.body().transactionIDOrThrow().accountIDOrThrow(),
+                    null,
+                    contractsConfig.chargeGasOnEvmHandleException());
         }
 
         // Process the transaction and return its outcome
@@ -126,6 +132,10 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 result = result.withSignerNonce(sender.getNonce());
             }
 
+            if (!result.isSuccess()) {
+                chargeOnFailedEthTxn(hevmTransaction);
+            }
+
             // For mono-service fidelity, externalize an initcode-only sidecar when a top-level creation fails
             if (!result.isSuccess() && hevmTransaction.needsInitcodeExternalizedOnFailure()) {
                 final var contractBytecode = ContractBytecode.newBuilder()
@@ -135,54 +145,72 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             }
             return CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater), result);
-        } catch (AbortException e) {
-            if (e.isChargeable() && contractsConfig.chargeGasOnPreEvmException()) {
-                gasCharging.chargeGasForAbortedTransaction(
-                        requireNonNull(e.senderId()), hederaEvmContext, rootProxyWorldUpdater, hevmTransaction);
-            }
-            // Commit any HAPI fees that were charged before aborting
-            rootProxyWorldUpdater.commit();
+        } catch (HandleException e) {
+            final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
+            final var senderId = sender != null ? sender.hederaId() : hevmTransaction.senderId();
 
-            ContractID recipientId = null;
-            if (!INVALID_CONTRACT_ID.equals(e.getStatus())) {
-                recipientId = hevmTransaction.contractId();
-            }
-
-            var result = HederaEvmTransactionResult.fromAborted(e.senderId(), recipientId, e.getStatus());
-
-            if (context.body().hasEthereumTransaction()) {
-                final var sender = rootProxyWorldUpdater.getHederaAccount(e.senderId());
-                if (sender != null) {
-                    result = result.withSignerNonce(sender.getNonce());
-                }
-            }
-
-            return CallOutcome.fromResultsWithoutSidecars(
-                    result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater), result);
+            return maybeChargeFeesAndReturnOutcome(
+                    hevmTransaction.withException(e),
+                    senderId,
+                    sender,
+                    hevmTransaction.isContractCall() && contractsConfig.chargeGasOnEvmHandleException());
         }
     }
 
     private HederaEvmTransaction safeCreateHevmTransaction() {
         try {
-            return hevmTransactionFactory.fromHapiTransaction(context.body());
+            return hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
         } catch (HandleException e) {
             // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
             return hevmTransactionFactory.fromContractTxException(context.body(), e);
         }
     }
 
-    private CallOutcome chargeFeesAndReturnOutcome(@NonNull final HederaEvmTransaction hevmTransaction) {
-        // If there was an exception while creating the HederaEvmTransaction and the transaction is a ContractCall
-        // charge fees to the sender and return a CallOutcome reflecting the error.
-        final var senderId = context.body().transactionIDOrThrow().accountIDOrThrow();
-        gasCharging.chargeGasForAbortedTransaction(senderId, hederaEvmContext, rootProxyWorldUpdater, hevmTransaction);
+    private CallOutcome maybeChargeFeesAndReturnOutcome(
+            @NonNull final HederaEvmTransaction hevmTransaction,
+            @NonNull final AccountID senderId,
+            @Nullable final HederaEvmAccount sender,
+            final boolean chargeGas) {
+        final var status = requireNonNull(hevmTransaction.exception()).getStatus();
+        if (chargeGas) {
+            gasCharging.chargeGasForAbortedTransaction(
+                    senderId, hederaEvmContext, rootProxyWorldUpdater, hevmTransaction);
+        }
+
+        chargeOnFailedEthTxn(hevmTransaction);
         rootProxyWorldUpdater.commit();
-        final var result = HederaEvmTransactionResult.fromAborted(
-                senderId,
-                hevmTransaction.contractId(),
-                hevmTransaction.exception().getStatus());
+        ContractID recipientId = null;
+        if (!INVALID_CONTRACT_ID.equals(status)) {
+            recipientId = hevmTransaction.contractId();
+        }
+
+        var result = HederaEvmTransactionResult.fromAborted(senderId, recipientId, status);
+
+        if (context.body().hasEthereumTransaction() && sender != null) {
+            result = result.withSignerNonce(sender.getNonce());
+        }
+
         return CallOutcome.fromResultsWithoutSidecars(
                 result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater), result);
+    }
+
+    /**
+     * Charges hapi fees to the relayer if an Ethereum transaction failed.
+     * The charge is the canonical price of an Ethereum transaction in tinybars.
+     * @param hevmTransaction the Hedera EVM transaction
+     */
+    private void chargeOnFailedEthTxn(@NonNull final HederaEvmTransaction hevmTransaction) {
+        final var zeroHapiFeesEnabled = contractsConfig.evmEthTransactionZeroHapiFeesEnabled();
+        if (hevmTransaction.isEthereumTransaction() && zeroHapiFeesEnabled) {
+            final var relayerId = hevmTransaction.relayerId();
+
+            final var fee = hederaEvmContext
+                    .systemContractGasCalculator()
+                    .canonicalPriceInTinycents(DispatchType.ETHEREUM_TRANSACTION);
+            final var feeInTinyBars = ConversionUtils.fromTinycentsToTinybars(
+                    context.exchangeRateInfo().activeRate(context.consensusNow()), fee);
+            rootProxyWorldUpdater.collectFee(relayerId, feeInTinyBars);
+        }
     }
 
     private void assertEthTxDataValidIfApplicable() {

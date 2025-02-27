@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -193,27 +178,27 @@ public class NetworkTransactionGetRecordHandler extends PaidQueryHandler {
         return queryContext.feeCalculator().legacyCalculate(sigValueObj -> feeData);
     }
 
-    private static FeeData multiplierOfUsages(final FeeData a, final int multiplier) {
+    private static FeeData multiplierOfUsages(final FeeData feeData, final int multiplier) {
         return FeeData.newBuilder()
-                .setNodedata(multiplierOfScopedUsages(a.getNodedata(), multiplier))
-                .setNetworkdata(multiplierOfScopedUsages(a.getNetworkdata(), multiplier))
-                .setServicedata(multiplierOfScopedUsages(a.getServicedata(), multiplier))
+                .setNodedata(multiplierOfScopedUsages(feeData.getNodedata(), multiplier))
+                .setNetworkdata(multiplierOfScopedUsages(feeData.getNetworkdata(), multiplier))
+                .setServicedata(multiplierOfScopedUsages(feeData.getServicedata(), multiplier))
                 .build();
     }
 
-    private static FeeComponents multiplierOfScopedUsages(final FeeComponents a, final int multiplier) {
+    private static FeeComponents multiplierOfScopedUsages(final FeeComponents feeComponents, final int multiplier) {
         return FeeComponents.newBuilder()
-                .setMin(a.getMin())
-                .setMax(a.getMax())
-                .setConstant(a.getConstant() * multiplier)
-                .setBpt(a.getBpt() * multiplier)
-                .setVpt(a.getVpt() * multiplier)
-                .setRbh(a.getRbh() * multiplier)
-                .setSbh(a.getSbh() * multiplier)
-                .setGas(a.getGas() * multiplier)
-                .setTv(a.getTv() * multiplier)
-                .setBpr(a.getBpr() * multiplier)
-                .setSbpr(a.getSbpr() * multiplier)
+                .setMin(feeComponents.getMin())
+                .setMax(feeComponents.getMax())
+                .setConstant(feeComponents.getConstant() * multiplier)
+                .setBpt(feeComponents.getBpt() * multiplier)
+                .setVpt(feeComponents.getVpt() * multiplier)
+                .setRbh(feeComponents.getRbh() * multiplier)
+                .setSbh(feeComponents.getSbh() * multiplier)
+                .setGas(feeComponents.getGas() * multiplier)
+                .setTv(feeComponents.getTv() * multiplier)
+                .setBpr(feeComponents.getBpr() * multiplier)
+                .setSbpr(feeComponents.getSbpr() * multiplier)
                 .build();
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN;
@@ -42,7 +27,9 @@ import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
+import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
+import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -71,18 +58,20 @@ public class BaseTokenHandler {
     protected static final Set<TokenKey> TOKEN_KEYS = EnumSet.allOf(TokenKey.class);
 
     /**
-     * The value for unlimited automatic associations
+     * The value for unlimited automatic associations.
      */
     public static final int UNLIMITED_AUTOMATIC_ASSOCIATIONS = -1;
 
     /**
      * Mints fungible tokens. This method is called in both token create and mint.
-     * @param token the new or existing token to mint
-     * @param treasuryRel the treasury relation for the token
-     * @param amount the amount to mint
-     * @param accountStore the account store
-     * @param tokenStore the token store
+     *
+     * @param token              the new or existing token to mint
+     * @param treasuryRel        the treasury relation for the token
+     * @param amount             the amount to mint
+     * @param accountStore       the account store
+     * @param tokenStore         the token store
      * @param tokenRelationStore the token relation store
+     * @param expiryValidator    the expiry validator
      */
     protected long mintFungible(
             @NonNull final Token token,
@@ -90,12 +79,20 @@ public class BaseTokenHandler {
             final long amount,
             @NonNull final WritableAccountStore accountStore,
             @NonNull final WritableTokenStore tokenStore,
-            @NonNull final WritableTokenRelationStore tokenRelationStore) {
+            @NonNull final WritableTokenRelationStore tokenRelationStore,
+            @NonNull final ExpiryValidator expiryValidator) {
         requireNonNull(token);
         requireNonNull(treasuryRel);
 
         return changeSupply(
-                token, treasuryRel, +amount, INVALID_TOKEN_MINT_AMOUNT, accountStore, tokenStore, tokenRelationStore);
+                token,
+                treasuryRel,
+                +amount,
+                INVALID_TOKEN_MINT_AMOUNT,
+                accountStore,
+                tokenStore,
+                tokenRelationStore,
+                expiryValidator);
     }
 
     /**
@@ -105,13 +102,14 @@ public class BaseTokenHandler {
      * <p>
      * <b>Note:</b> This method assumes the given token has a non-null supply key!
      *
-     * @param token the token that is minted or burned
-     * @param treasuryRel the treasury relation for the token
-     * @param amount the amount to mint or burn
-     * @param invalidSupplyCode the invalid supply code to use if the supply is invalid
-     * @param accountStore the account store
-     * @param tokenStore the token store
+     * @param token              the token that is minted or burned
+     * @param treasuryRel        the treasury relation for the token
+     * @param amount             the amount to mint or burn
+     * @param invalidSupplyCode  the invalid supply code to use if the supply is invalid
+     * @param accountStore       the account store
+     * @param tokenStore         the token store
      * @param tokenRelationStore the token relation store
+     * @param expiryValidator    the expiry validator
      */
     protected long changeSupply(
             @NonNull final Token token,
@@ -120,7 +118,8 @@ public class BaseTokenHandler {
             @NonNull final ResponseCodeEnum invalidSupplyCode,
             @NonNull final WritableAccountStore accountStore,
             @NonNull final WritableTokenStore tokenStore,
-            @NonNull final WritableTokenRelationStore tokenRelationStore) {
+            @NonNull final WritableTokenRelationStore tokenRelationStore,
+            @NonNull final ExpiryValidator expiryValidator) {
         requireNonNull(token);
         requireNonNull(treasuryRel);
         requireNonNull(invalidSupplyCode);
@@ -140,8 +139,8 @@ public class BaseTokenHandler {
             validateTrue(token.maxSupply() >= newTotalSupply, TOKEN_MAX_SUPPLY_REACHED);
         }
 
-        final var treasuryAccount = accountStore.get(treasuryRel.accountId());
-        validateTrue(treasuryAccount != null, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
+        final var treasuryAccount = TokenHandlerHelper.getIfUsable(
+                treasuryRel.accountId(), accountStore, expiryValidator, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
 
         final long newTreasuryBalance = treasuryRel.balance() + amount;
         validateTrue(newTreasuryBalance >= 0, INSUFFICIENT_TOKEN_BALANCE);
@@ -208,7 +207,7 @@ public class BaseTokenHandler {
 
             // Save the results
             accountStore.put(updatedAcct);
-            newTokenRels.forEach(tokenRelStore::put);
+            newTokenRels.forEach(tokenRelStore::putAndIncrementCount);
         }
     }
 
@@ -375,7 +374,7 @@ public class BaseTokenHandler {
             }
         }
         accountStore.put(copyAccount);
-        tokenRelStore.put(newTokenRel);
+        tokenRelStore.putAndIncrementCount(newTokenRel);
         return newTokenRel;
     }
 
@@ -449,7 +448,7 @@ public class BaseTokenHandler {
     }
 
     /**
-     * Determines if a given token is valid
+     * Determines if a given token is valid.
      *
      * @param tokenId the token to check
      * @return true if the token is valid

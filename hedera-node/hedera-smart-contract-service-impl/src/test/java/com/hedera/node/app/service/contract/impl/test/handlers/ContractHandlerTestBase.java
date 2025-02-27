@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,7 +22,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-@SuppressWarnings("NewClassNamingConvention")
+/**
+ * A base class which aims to combine common logic for all Contract handlers.
+ */
+@SuppressWarnings({"NewClassNamingConvention", "MissingJavadoc"})
 @ExtendWith(MockitoExtension.class)
 public class ContractHandlerTestBase implements TransactionFactory {
     private static final Function<String, Key.Builder> KEY_BUILDER =
@@ -48,6 +36,7 @@ public class ContractHandlerTestBase implements TransactionFactory {
 
     private static final String C_NAME = "cccccccccccccccccccccccccccccccc";
 
+    @SuppressWarnings("MissingJavadoc")
     public static final Key A_THRESHOLD_KEY = Key.newBuilder()
             .thresholdKey(ThresholdKey.newBuilder()
                     .threshold(2)
@@ -58,6 +47,8 @@ public class ContractHandlerTestBase implements TransactionFactory {
                                     KEY_BUILDER.apply(C_NAME).build())
                             .build()))
             .build();
+
+    @SuppressWarnings("MissingJavadoc")
     public static final Key A_COMPLEX_KEY = Key.newBuilder()
             .thresholdKey(ThresholdKey.newBuilder()
                     .threshold(2)
@@ -67,6 +58,8 @@ public class ContractHandlerTestBase implements TransactionFactory {
                                     KEY_BUILDER.apply(B_NAME).build(),
                                     A_THRESHOLD_KEY)))
             .build();
+
+    @SuppressWarnings("MissingJavadoc")
     public static final Key B_COMPLEX_KEY = Key.newBuilder()
             .thresholdKey(ThresholdKey.newBuilder()
                     .threshold(2)
@@ -76,6 +69,8 @@ public class ContractHandlerTestBase implements TransactionFactory {
                                     KEY_BUILDER.apply(B_NAME).build(),
                                     A_COMPLEX_KEY)))
             .build();
+
+    @SuppressWarnings("MissingJavadoc")
     public static final Key C_COMPLEX_KEY = Key.newBuilder()
             .thresholdKey(ThresholdKey.newBuilder()
                     .threshold(2)
@@ -85,6 +80,7 @@ public class ContractHandlerTestBase implements TransactionFactory {
                                     KEY_BUILDER.apply(B_NAME).build(),
                                     B_COMPLEX_KEY)))
             .build();
+
     protected final AccountID payer = asAccount("0.0.3");
     protected final AccountID autoRenewAccountId = asAccount("0.0.10001");
     protected final Key payerKey = A_COMPLEX_KEY;
@@ -96,6 +92,8 @@ public class ContractHandlerTestBase implements TransactionFactory {
             Timestamp.newBuilder().seconds(1_234_567L).build();
     protected final ContractID targetContract =
             ContractID.newBuilder().contractNum(9_999L).build();
+    protected final ContractID invalidContract =
+            ContractID.newBuilder().evmAddress(Bytes.fromHex("abcdabcd")).build();
 
     @Mock
     private Bytes evmAddress;

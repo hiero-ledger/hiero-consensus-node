@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
@@ -89,7 +74,7 @@ public class CryptoCreateValidator {
 
     /** Check if the number of auto associations is too many
      * or in the case of unlimited auto associations, check if the number is less than -1 or 0 if disabled.
-     * @param n number to check
+     * @param numAssociations number to check
      * @param ledgerConfig LedgerConfig
      * @param entitiesConfig EntitiesConfig
      * @param tokensConfig TokensConfig
@@ -98,13 +83,14 @@ public class CryptoCreateValidator {
      * or less than -1 if unlimited auto associations are enabled
      */
     public boolean tooManyAutoAssociations(
-            final int n,
+            final int numAssociations,
             @NonNull final LedgerConfig ledgerConfig,
             @NonNull final EntitiesConfig entitiesConfig,
             @NonNull final TokensConfig tokensConfig) {
-        return (entitiesConfig.limitTokenAssociations() && n > tokensConfig.maxPerAccount())
-                || n > ledgerConfig.maxAutoAssociations()
-                || (n < UNLIMITED_AUTOMATIC_ASSOCIATIONS && entitiesConfig.unlimitedAutoAssociationsEnabled())
-                || (n < 0 && !entitiesConfig.unlimitedAutoAssociationsEnabled());
+        return (entitiesConfig.limitTokenAssociations() && numAssociations > tokensConfig.maxPerAccount())
+                || numAssociations > ledgerConfig.maxAutoAssociations()
+                || (numAssociations < UNLIMITED_AUTOMATIC_ASSOCIATIONS
+                        && entitiesConfig.unlimitedAutoAssociationsEnabled())
+                || (numAssociations < 0 && !entitiesConfig.unlimitedAutoAssociationsEnabled());
     }
 }

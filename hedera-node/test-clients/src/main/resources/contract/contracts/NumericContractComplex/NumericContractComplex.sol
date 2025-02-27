@@ -178,7 +178,7 @@ contract NumericContractComplex is KeyHelper {
 
     function createNonFungibleTokenWithCustomRoyaltyFeesV3(bytes memory key, int64 numerator, int64 denominator, int64 amount) public payable {
         Structs.HederaTokenV3 memory token = buildTokenV3({
-            expirySecond: 1, expiryRenew: 3_000_000, maxSupply: 10000});
+            expirySecond: 1_000_000, expiryRenew: 3_000_000, maxSupply: 10000});
         IHederaTokenService.TokenKey[] memory keys = getAllTypeKeys(3, key);
         token.tokenKeys = keys;
 
@@ -361,7 +361,7 @@ contract NumericContractComplex is KeyHelper {
 
     function transferTokenERC(address token, address sender, address receiver, uint256 amount) public {
         (bool success, bytes memory result) =
-                                address(token).call(abi.encodeWithSignature("transfer(address,address,uint256)", token, receiver, amount));
+                                address(token).call(abi.encodeWithSignature("transfer(address,address,uint256)", sender, receiver, amount));
 
         int32 responseCode = abi.decode(result, (int32));
         require(responseCode == SUCCESS_CODE);

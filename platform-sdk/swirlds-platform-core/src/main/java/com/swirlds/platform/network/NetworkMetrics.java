@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
 import com.swirlds.common.metrics.RunningAverageMetric;
@@ -22,15 +7,9 @@ import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -83,21 +62,21 @@ public class NetworkMetrics {
      *
      * @param metrics         a reference to the metrics-system
      * @param selfId          this node's id
-     * @param addressBook     the address book
+     * @param peerList        list of peers to connect to
      * @throws IllegalArgumentException if {@code platform} is {@code null}
      */
     public NetworkMetrics(
-            @NonNull final Metrics metrics, @NonNull final NodeId selfId, @NonNull final AddressBook addressBook) {
+            @NonNull final Metrics metrics, @NonNull final NodeId selfId, @NonNull final List<PeerInfo> peerList) {
         Objects.requireNonNull(metrics, "The metrics must not be null.");
         this.selfId = Objects.requireNonNull(selfId, "The selfId must not be null.");
-        Objects.requireNonNull(addressBook, "The addressBook must not be null.");
+        Objects.requireNonNull(peerList, "The peerList must not be null.");
 
         avgPing = metrics.getOrCreate(AVG_PING_CONFIG);
         bytesPerSecondSent = metrics.getOrCreate(BYTES_PER_SECOND_SENT_CONFIG);
         avgConnsCreated = metrics.getOrCreate(AVG_CONNS_CREATED_CONFIG);
 
-        for (final Address address : addressBook) {
-            final NodeId nodeId = address.getNodeId();
+        for (final PeerInfo entry : peerList) {
+            final NodeId nodeId = NodeId.of(entry.nodeId().id());
             avgPingMilliseconds.put(
                     nodeId,
                     metrics.getOrCreate(

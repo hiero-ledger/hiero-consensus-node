@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -48,46 +33,42 @@ public class ExchangeRateControlSuite {
 
     @HapiTest
     final Stream<DynamicTest> acct57CanMakeSmallChanges() {
-        return defaultHapiSpec("Acct57CanMakeSmallChanges")
-                .given(
-                        resetRatesOp,
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS))
-                                .fee(ONE_HUNDRED_HBARS))
-                .when(fileUpdate(EXCHANGE_RATES)
+        return hapiTest(
+                resetRatesOp,
+                cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS))
+                        .fee(ONE_HUNDRED_HBARS),
+                fileUpdate(EXCHANGE_RATES)
                         .contents(spec -> {
                             ByteString newRates =
                                     spec.ratesProvider().rateSetWith(10, 121).toByteString();
                             spec.registry().saveBytes("newRates", newRates);
                             return newRates;
                         })
-                        .payingWith(EXCHANGE_RATE_CONTROL))
-                .then(
-                        getFileContents(EXCHANGE_RATES)
-                                .hasContents(spec -> spec.registry().getBytes("newRates")),
-                        resetRatesOp);
+                        .payingWith(EXCHANGE_RATE_CONTROL),
+                getFileContents(EXCHANGE_RATES)
+                        .hasContents(spec -> spec.registry().getBytes("newRates")),
+                resetRatesOp);
     }
 
     @HapiTest
     final Stream<DynamicTest> midnightRateChangesWhenAcct50UpdatesFile112() {
-        return defaultHapiSpec("MidnightRateChangesWhenAcct50UpdatesFile112")
-                .given(
-                        resetRatesOp,
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS))
-                                .fee(ONE_HUNDRED_HBARS),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, SYSTEM_ADMIN, ADEQUATE_FUNDS))
-                                .fee(ONE_HUNDRED_HBARS),
-                        fileUpdate(EXCHANGE_RATES)
-                                .contents(spec -> {
-                                    ByteString newRates = spec.ratesProvider()
-                                            .rateSetWith(10, 254)
-                                            .toByteString();
-                                    spec.registry().saveBytes("newRates", newRates);
-                                    return newRates;
-                                })
-                                .payingWith(EXCHANGE_RATE_CONTROL)
-                                .fee(1_000_000_000)
-                                .hasKnownStatus(EXCHANGE_RATE_CHANGE_LIMIT_EXCEEDED))
-                .when(fileUpdate(EXCHANGE_RATES)
+        return hapiTest(
+                resetRatesOp,
+                cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS))
+                        .fee(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, SYSTEM_ADMIN, ADEQUATE_FUNDS))
+                        .fee(ONE_HUNDRED_HBARS),
+                fileUpdate(EXCHANGE_RATES)
+                        .contents(spec -> {
+                            ByteString newRates =
+                                    spec.ratesProvider().rateSetWith(10, 254).toByteString();
+                            spec.registry().saveBytes("newRates", newRates);
+                            return newRates;
+                        })
+                        .payingWith(EXCHANGE_RATE_CONTROL)
+                        .fee(1_000_000_000)
+                        .hasKnownStatus(EXCHANGE_RATE_CHANGE_LIMIT_EXCEEDED),
+                fileUpdate(EXCHANGE_RATES)
                         .contents(spec -> {
                             ByteString newRates =
                                     spec.ratesProvider().rateSetWith(1, 25).toByteString();
@@ -95,38 +76,36 @@ public class ExchangeRateControlSuite {
                             return newRates;
                         })
                         .payingWith(SYSTEM_ADMIN)
-                        .fee(1_000_000_000))
-                .then(
-                        fileUpdate(EXCHANGE_RATES)
-                                .contents(spec -> {
-                                    ByteString newRates = spec.ratesProvider()
-                                            .rateSetWith(10, 254)
-                                            .toByteString();
-                                    spec.registry().saveBytes("newRates", newRates);
-                                    return newRates;
-                                })
-                                .payingWith(EXCHANGE_RATE_CONTROL)
-                                .fee(1_000_000_000)
-                                .hasKnownStatus(SUCCESS),
-                        fileUpdate(EXCHANGE_RATES)
-                                .contents(spec -> {
-                                    ByteString newRates = spec.ratesProvider()
-                                            .rateSetWith(1, 12, 1, 15)
-                                            .toByteString();
-                                    spec.registry().saveBytes("newRates", newRates);
-                                    return newRates;
-                                })
-                                .payingWith(SYSTEM_ADMIN)
-                                .fee(1_000_000_000)
-                                .hasKnownStatus(SUCCESS));
+                        .fee(1_000_000_000),
+                fileUpdate(EXCHANGE_RATES)
+                        .contents(spec -> {
+                            ByteString newRates =
+                                    spec.ratesProvider().rateSetWith(10, 254).toByteString();
+                            spec.registry().saveBytes("newRates", newRates);
+                            return newRates;
+                        })
+                        .payingWith(EXCHANGE_RATE_CONTROL)
+                        .fee(1_000_000_000)
+                        .hasKnownStatus(SUCCESS),
+                fileUpdate(EXCHANGE_RATES)
+                        .contents(spec -> {
+                            ByteString newRates = spec.ratesProvider()
+                                    .rateSetWith(1, 12, 1, 15)
+                                    .toByteString();
+                            spec.registry().saveBytes("newRates", newRates);
+                            return newRates;
+                        })
+                        .payingWith(SYSTEM_ADMIN)
+                        .fee(1_000_000_000)
+                        .hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
     final Stream<DynamicTest> anonCantUpdateRates() {
-        return defaultHapiSpec("AnonCantUpdateRates")
-                .given(resetRatesOp, cryptoCreate("randomAccount"))
-                .when()
-                .then(fileUpdate(EXCHANGE_RATES)
+        return hapiTest(
+                resetRatesOp,
+                cryptoCreate("randomAccount"),
+                fileUpdate(EXCHANGE_RATES)
                         .contents("Should be impossible!")
                         .payingWith("randomAccount")
                         .hasPrecheck(AUTHORIZATION_FAILED));
@@ -134,13 +113,11 @@ public class ExchangeRateControlSuite {
 
     @HapiTest
     final Stream<DynamicTest> acct57CantMakeLargeChanges() {
-        return defaultHapiSpec("Acct57CantMakeLargeChanges")
-                .given(
-                        resetRatesOp,
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS))
-                                .fee(ONE_HUNDRED_HBARS))
-                .when()
-                .then(fileUpdate(EXCHANGE_RATES)
+        return hapiTest(
+                resetRatesOp,
+                cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS))
+                        .fee(ONE_HUNDRED_HBARS),
+                fileUpdate(EXCHANGE_RATES)
                         .contents(
                                 spec -> spec.ratesProvider().rateSetWith(1, 25).toByteString())
                         .payingWith(EXCHANGE_RATE_CONTROL)

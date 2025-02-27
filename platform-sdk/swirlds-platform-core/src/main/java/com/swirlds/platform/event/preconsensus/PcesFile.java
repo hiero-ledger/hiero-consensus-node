@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.parseSanitizedTimestamp;
@@ -393,14 +378,26 @@ public final class PcesFile implements Comparable<PcesFile> {
     }
 
     /**
-     * Get an object that can be used to write events to this file. Throws if there already exists a file on disk with
-     * the same path.
-     *
-     * @return a writer for this file
+     * Same as {@link #getMutableFile(boolean, boolean)} with both parameters set to false.
      */
     @NonNull
     public PcesMutableFile getMutableFile() throws IOException {
-        return new PcesMutableFile(this);
+        return new PcesMutableFile(this, false, false);
+    }
+
+    /**
+     * Get an object that can be used to write events to this file. Throws if there already exists a file on disk with
+     * the same path.
+     *
+     * @param useFileChannelWriter if true, use a {@link java.nio.channels.FileChannel} to write to the file. Otherwise,
+     *                             use a {@link java.io.FileOutputStream}.
+     * @param syncEveryEvent       if true, sync the file after every event is written
+     * @return a writer for this file
+     */
+    @NonNull
+    public PcesMutableFile getMutableFile(final boolean useFileChannelWriter, final boolean syncEveryEvent)
+            throws IOException {
+        return new PcesMutableFile(this, useFileChannelWriter, syncEveryEvent);
     }
 
     /**

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2019-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
@@ -24,6 +9,8 @@ import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -58,7 +45,15 @@ public interface PlatformContext {
         final Cryptography cryptography = CryptographyHolder.get();
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
         final Time time = Time.getCurrent();
-        return create(configuration, time, metrics, cryptography, fileSystemManager, new NoOpRecycleBin());
+        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
+        return create(
+                configuration,
+                time,
+                metrics,
+                cryptography,
+                fileSystemManager,
+                new NoOpRecycleBin(),
+                merkleCryptography);
     }
 
     /**
@@ -81,12 +76,20 @@ public interface PlatformContext {
             @NonNull final Metrics metrics,
             @NonNull final Cryptography cryptography,
             @NonNull final FileSystemManager fileSystemManager,
-            @NonNull final RecycleBin recycleBin) {
+            @NonNull final RecycleBin recycleBin,
+            @NonNull final MerkleCryptography merkleCryptography) {
 
         final UncaughtExceptionHandler handler = new PlatformUncaughtExceptionHandler();
         final ExecutorFactory executorFactory = ExecutorFactory.create("platform", null, handler);
         return new DefaultPlatformContext(
-                configuration, metrics, cryptography, time, executorFactory, fileSystemManager, recycleBin);
+                configuration,
+                metrics,
+                cryptography,
+                time,
+                executorFactory,
+                fileSystemManager,
+                recycleBin,
+                merkleCryptography);
     }
 
     /**
@@ -144,4 +147,12 @@ public interface PlatformContext {
      */
     @NonNull
     RecycleBin getRecycleBin();
+
+    /**
+     * Returns the {@link MerkleCryptography} for this node
+     *
+     * @return the {@link MerkleCryptography} for this node
+     */
+    @NonNull
+    MerkleCryptography getMerkleCryptography();
 }

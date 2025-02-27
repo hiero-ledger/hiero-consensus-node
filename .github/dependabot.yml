@@ -1,12 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "gradle"
-    directory: "/hedera-dependency-versions"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-  - package-ecosystem: "gradle"
-    directory: "/gradle/plugins"
+    directory: "/hiero-dependency-versions"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10

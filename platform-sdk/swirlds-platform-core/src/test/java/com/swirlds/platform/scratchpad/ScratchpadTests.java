@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.scratchpad;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -58,7 +43,7 @@ class ScratchpadTests {
 
     private PlatformContext platformContext;
 
-    private final NodeId selfId = new NodeId(0);
+    private final NodeId selfId = NodeId.of(0);
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -120,7 +105,7 @@ class ScratchpadTests {
         assertEquals(long1, scratchpad.get(TestScratchpadType.BAR));
         assertNull(scratchpad.get(TestScratchpadType.BAZ));
 
-        final NodeId nodeId1 = new NodeId(random.nextInt(0, 1000));
+        final NodeId nodeId1 = NodeId.of(random.nextInt(0, 1000));
         assertNull(scratchpad.set(TestScratchpadType.BAZ, nodeId1));
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash1, scratchpad.get(TestScratchpadType.FOO));
@@ -143,7 +128,7 @@ class ScratchpadTests {
         assertEquals(long2, scratchpad.get(TestScratchpadType.BAR));
         assertEquals(nodeId1, scratchpad.get(TestScratchpadType.BAZ));
 
-        final NodeId nodeId2 = new NodeId(random.nextInt(1001, 2000));
+        final NodeId nodeId2 = NodeId.of(random.nextInt(1001, 2000));
         assertEquals(nodeId1, scratchpad.set(TestScratchpadType.BAZ, nodeId2));
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash2, scratchpad.get(TestScratchpadType.FOO));
@@ -174,7 +159,7 @@ class ScratchpadTests {
         assertEquals(long3, scratchpad.get(TestScratchpadType.BAR));
         assertNull(scratchpad.get(TestScratchpadType.BAZ));
 
-        final NodeId nodeId3 = new NodeId(random.nextInt(2001, 3000));
+        final NodeId nodeId3 = NodeId.of(random.nextInt(2001, 3000));
         assertNull(scratchpad.set(TestScratchpadType.BAZ, nodeId3));
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash3, scratchpad.get(TestScratchpadType.FOO));
@@ -269,7 +254,7 @@ class ScratchpadTests {
 
         final Hash hash1 = randomHash(random);
         final SerializableLong long1 = new SerializableLong(random.nextLong());
-        final NodeId nodeId1 = new NodeId(random.nextInt(0, 1000));
+        final NodeId nodeId1 = NodeId.of(random.nextInt(0, 1000));
 
         scratchpad.atomicOperation(map -> {
             assertNull(map.put(TestScratchpadType.FOO, hash1));
@@ -287,7 +272,7 @@ class ScratchpadTests {
 
         final Hash hash2 = randomHash(random);
         final SerializableLong long2 = new SerializableLong(random.nextLong());
-        final NodeId nodeId2 = new NodeId(random.nextInt(1001, 2000));
+        final NodeId nodeId2 = NodeId.of(random.nextInt(1001, 2000));
 
         scratchpad.atomicOperation(map -> {
             assertEquals(hash1, map.put(TestScratchpadType.FOO, hash2));
@@ -320,7 +305,7 @@ class ScratchpadTests {
 
         final Hash hash3 = randomHash(random);
         final SerializableLong long3 = new SerializableLong(random.nextLong());
-        final NodeId nodeId3 = new NodeId(random.nextInt(2001, 3000));
+        final NodeId nodeId3 = NodeId.of(random.nextInt(2001, 3000));
 
         scratchpad.atomicOperation(map -> {
             assertNull(map.put(TestScratchpadType.FOO, hash3));
@@ -375,7 +360,7 @@ class ScratchpadTests {
 
         final Hash hash1 = randomHash(random);
         final SerializableLong long1 = new SerializableLong(random.nextLong());
-        final NodeId nodeId1 = new NodeId(random.nextInt(0, 1000));
+        final NodeId nodeId1 = NodeId.of(random.nextInt(0, 1000));
 
         scratchpad.atomicOperation(map -> {
             assertNull(map.put(TestScratchpadType.FOO, hash1));
@@ -398,7 +383,7 @@ class ScratchpadTests {
 
         final Hash hash2 = randomHash(random);
         final SerializableLong long2 = new SerializableLong(random.nextLong());
-        final NodeId nodeId2 = new NodeId(random.nextInt(1001, 2000));
+        final NodeId nodeId2 = NodeId.of(random.nextInt(1001, 2000));
 
         scratchpad.atomicOperation(map -> {
             assertEquals(hash1, map.put(TestScratchpadType.FOO, hash2));
@@ -441,7 +426,7 @@ class ScratchpadTests {
 
         final Hash hash3 = randomHash(random);
         final SerializableLong long3 = new SerializableLong(random.nextLong());
-        final NodeId nodeId3 = new NodeId(random.nextInt(2001, 3000));
+        final NodeId nodeId3 = NodeId.of(random.nextInt(2001, 3000));
 
         scratchpad.atomicOperation(map -> {
             assertNull(map.put(TestScratchpadType.FOO, hash3));

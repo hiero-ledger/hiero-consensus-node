@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.util;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
@@ -61,7 +46,7 @@ public enum TokenKey {
         }
 
         @Override
-        public void setOn(final Token.Builder builder, TokenUpdateTransactionBody update) {
+        public void setOn(Token.Builder builder, TokenUpdateTransactionBody update) {
             builder.adminKey(getNewKeyValue(update.adminKey()));
         }
 
@@ -378,7 +363,7 @@ public enum TokenKey {
      * @param builder the token builder
      * @param update the update transaction body
      */
-    public abstract void setOn(final Token.Builder builder, TokenUpdateTransactionBody update);
+    public abstract void setOn(Token.Builder builder, TokenUpdateTransactionBody update);
 
     /**
      * Get the key from the update transaction body.
@@ -435,7 +420,8 @@ public enum TokenKey {
     }
 
     /**
-     * Get the new key value. If the key is a sentinel key used for key removals, return null. Otherwise, return the key.
+     * Get the new key value. If the key is a sentinel key used for key removals, return null. Otherwise,
+     * return the key.
      * @param newKey the new key
      * @return the new key value
      */

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EVM_VERSIONS;
@@ -53,6 +38,15 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
     private final Supplier<HederaWorldUpdater> feesOnlyUpdater;
     private final Map<HederaEvmVersion, TransactionProcessor> processors;
 
+    /**
+     * @param context the context of the query
+     * @param hederaEvmContext the hedera EVM context
+     * @param tracer the tracer to use
+     * @param worldUpdater the world updater for the transaction
+     * @param hevmStaticTransactionFactory the factory to create Hedera EVM transaction for static calls
+     * @param feesOnlyUpdater if base commit fails, a fees-only updater
+     * @param processors a map from the version of the Hedera EVM to the transaction processor
+     */
     @Inject
     public ContextQueryProcessor(
             @NonNull final QueryContext context,
@@ -86,7 +80,7 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
                     hevmTransaction, worldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, context.configuration());
 
             // Return the outcome (which cannot include sidecars to be externalized, since this is a query)
-            return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(), result);
+            return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(worldUpdater), result);
         } catch (final HandleException e) {
             final var op = context.query().contractCallLocalOrThrow();
             final var senderId = op.hasSenderId() ? op.senderIdOrThrow() : context.payer();
@@ -96,7 +90,7 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
                     senderId,
                     hevmTransaction.contractId(),
                     hevmTransaction.exception().getStatus());
-            return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(), result);
+            return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(worldUpdater), result);
         }
     }
 }

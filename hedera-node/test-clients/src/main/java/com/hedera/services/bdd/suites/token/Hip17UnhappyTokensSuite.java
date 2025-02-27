@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
@@ -86,196 +71,186 @@ public class Hip17UnhappyTokensSuite {
 
     @HapiTest
     final Stream<DynamicTest> canStillGetNftInfoWhenDeleted() {
-        return defaultHapiSpec("canStillGetNftInfoWhenDeleted")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY),
-                        mintToken(NFTdeleted, List.of(metadata(FIRST_MEMO))))
-                .when(tokenDelete(NFTdeleted))
-                .then(getTokenNftInfo(NFTdeleted, 1L).hasTokenID(NFTdeleted).hasSerialNum(1L));
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                tokenCreate(NFTdeleted)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY),
+                mintToken(NFTdeleted, List.of(metadata(FIRST_MEMO))),
+                (tokenDelete(NFTdeleted)),
+                (getTokenNftInfo(NFTdeleted, 1L).hasTokenID(NFTdeleted).hasSerialNum(1L)));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotTransferNftWhenDeleted() {
-        return defaultHapiSpec("cannotTransferNftWhenDeleted")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(ANOTHER_USER),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .treasury(TOKEN_TREASURY))
-                .when(
-                        tokenAssociate(ANOTHER_USER, NFTdeleted),
-                        mintToken(NFTdeleted, List.of(metadata(FIRST_MEMO), metadata(SECOND_MEMO))),
-                        cryptoTransfer(
-                                TokenMovement.movingUnique(NFTdeleted, 1L).between(TOKEN_TREASURY, ANOTHER_USER)),
-                        tokenDelete(NFTdeleted))
-                .then(cryptoTransfer(TokenMovement.movingUnique(NFTdeleted, 2L).between(TOKEN_TREASURY, ANOTHER_USER))
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ANOTHER_USER),
+                tokenCreate(NFTdeleted)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(ANOTHER_USER, NFTdeleted),
+                mintToken(NFTdeleted, List.of(metadata(FIRST_MEMO), metadata(SECOND_MEMO))),
+                cryptoTransfer(TokenMovement.movingUnique(NFTdeleted, 1L).between(TOKEN_TREASURY, ANOTHER_USER)),
+                tokenDelete(NFTdeleted),
+                cryptoTransfer(TokenMovement.movingUnique(NFTdeleted, 2L).between(TOKEN_TREASURY, ANOTHER_USER))
                         .hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotUnfreezeNftWhenDeleted() {
-        return defaultHapiSpec("cannotUnfreezeNftWhenDeleted")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(FREEZE_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L).key(ADMIN_KEY),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0L)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(true)
-                                .adminKey(ADMIN_KEY)
-                                .supplyKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY))
-                .when(tokenDelete(NFTdeleted))
-                .then(tokenUnfreeze(NFTdeleted, TOKEN_TREASURY).hasKnownStatus(TOKEN_WAS_DELETED));
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(TOKEN_TREASURY).balance(0L).key(ADMIN_KEY),
+                tokenCreate(NFTdeleted)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .freezeKey(FREEZE_KEY)
+                        .freezeDefault(true)
+                        .adminKey(ADMIN_KEY)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenDelete(NFTdeleted),
+                tokenUnfreeze(NFTdeleted, TOKEN_TREASURY).hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotFreezeNftWhenDeleted() {
-        return defaultHapiSpec("cannotFreezeNftWhenDeleted")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(FREEZE_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L).key(ADMIN_KEY),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .freezeKey(FREEZE_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .supplyKey(SUPPLY_KEY)
-                                .initialSupply(0L)
-                                .treasury(TOKEN_TREASURY))
-                .when(tokenDelete(NFTdeleted))
-                .then(tokenFreeze(NFTdeleted, TOKEN_TREASURY).hasPrecheck(OK).hasKnownStatus(TOKEN_WAS_DELETED));
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(TOKEN_TREASURY).balance(0L).key(ADMIN_KEY),
+                tokenCreate(NFTdeleted)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .freezeKey(FREEZE_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .supplyKey(SUPPLY_KEY)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY),
+                tokenDelete(NFTdeleted),
+                tokenFreeze(NFTdeleted, TOKEN_TREASURY).hasPrecheck(OK).hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotDissociateNftWhenDeleted() {
-        return defaultHapiSpec("cannotDissociateNftWhenDeleted")
-                .given(
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
-                        cryptoCreate(ANOTHER_USER),
-                        tokenCreate(NFTdeleted)
-                                .initialSupply(0)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        tokenAssociate(ANOTHER_USER, NFTdeleted))
-                .when(tokenDelete(NFTdeleted))
-                .then(tokenDissociate(ANOTHER_USER, NFTdeleted).hasKnownStatus(SUCCESS));
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
+                cryptoCreate(ANOTHER_USER),
+                tokenCreate(NFTdeleted)
+                        .initialSupply(0)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(ANOTHER_USER, NFTdeleted),
+                tokenDelete(NFTdeleted),
+                tokenDissociate(ANOTHER_USER, NFTdeleted).hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotAssociateNftWhenDeleted() {
-        return defaultHapiSpec("cannotAssociateNftWhenDeleted")
-                .given(
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
-                        cryptoCreate(ANOTHER_USER),
-                        tokenCreate(NFTdeleted)
-                                .initialSupply(0)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .treasury(TOKEN_TREASURY))
-                .when(tokenDelete(NFTdeleted))
-                .then(tokenAssociate(ANOTHER_USER, NFTdeleted).hasKnownStatus(TOKEN_WAS_DELETED));
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
+                cryptoCreate(ANOTHER_USER),
+                tokenCreate(NFTdeleted)
+                        .initialSupply(0)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenDelete(NFTdeleted),
+                tokenAssociate(ANOTHER_USER, NFTdeleted).hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest // transferList differ
     final Stream<DynamicTest> cannotUpdateNftWhenDeleted() {
-        return defaultHapiSpec("cannotUpdateNftWhenDeleted")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(NEW_TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(AUTO_RENEW_ACCT).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(NEW_AUTO_RENEW_ACCT).balance(ONE_HUNDRED_HBARS),
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(FREEZE_KEY),
-                        newKeyNamed(NEW_FREEZE_KEY),
-                        newKeyNamed(KYC_KEY),
-                        newKeyNamed(NEW_KYC_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(NEW_SUPPLY_KEY),
-                        newKeyNamed(WIPE_KEY),
-                        newKeyNamed(NEW_WIPE_KEY),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .name(SALTED_NAME)
-                                .entityMemo(FIRST_MEMO)
-                                .treasury(TOKEN_TREASURY)
-                                .autoRenewAccount(AUTO_RENEW_ACCT)
-                                .initialSupply(0)
-                                .adminKey(ADMIN_KEY)
-                                .freezeKey(FREEZE_KEY)
-                                .kycKey(KYC_KEY)
-                                .supplyKey(SUPPLY_KEY)
-                                .wipeKey(WIPE_KEY),
-                        tokenAssociate(NEW_TOKEN_TREASURY, NFTdeleted),
-                        // can update before NFT is deleted
-                        tokenUpdate(NFTdeleted)
-                                .entityMemo(ZERO_BYTE_MEMO)
-                                .signedByPayerAnd(ADMIN_KEY)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
-                        tokenUpdate(NFTdeleted)
-                                .name(NEW_SALTED_NAME)
-                                .entityMemo(SECOND_MEMO)
-                                .treasury(NEW_TOKEN_TREASURY)
-                                .autoRenewAccount(NEW_AUTO_RENEW_ACCT)
-                                .freezeKey(NEW_FREEZE_KEY)
-                                .kycKey(NEW_KYC_KEY)
-                                .supplyKey(NEW_SUPPLY_KEY)
-                                .wipeKey(NEW_WIPE_KEY)
-                                .signedByPayerAnd(ADMIN_KEY, NEW_TOKEN_TREASURY, NEW_AUTO_RENEW_ACCT)
-                                .hasKnownStatus(SUCCESS))
-                .when(tokenDelete(NFTdeleted))
-                .then(
-                        // can't update after NFT is deleted.
-                        tokenUpdate(NFTdeleted)
-                                .name(NEW_SALTED_NAME)
-                                .entityMemo(SECOND_MEMO)
-                                .signedByPayerAnd(ADMIN_KEY)
-                                .hasKnownStatus(TOKEN_WAS_DELETED),
-                        tokenUpdate(NFTdeleted)
-                                .treasury(NEW_TOKEN_TREASURY)
-                                .signedByPayerAnd(ADMIN_KEY, NEW_TOKEN_TREASURY)
-                                .hasKnownStatus(TOKEN_WAS_DELETED),
-                        tokenUpdate(NFTdeleted)
-                                .autoRenewAccount(NEW_AUTO_RENEW_ACCT)
-                                .signedByPayerAnd(ADMIN_KEY, NEW_AUTO_RENEW_ACCT)
-                                .hasKnownStatus(TOKEN_WAS_DELETED),
-                        tokenUpdate(NFTdeleted)
-                                .freezeKey(NEW_FREEZE_KEY)
-                                .kycKey(NEW_KYC_KEY)
-                                .supplyKey(NEW_SUPPLY_KEY)
-                                .wipeKey(NEW_WIPE_KEY)
-                                .signedByPayerAnd(ADMIN_KEY)
-                                .hasKnownStatus(TOKEN_WAS_DELETED));
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(NEW_TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(AUTO_RENEW_ACCT).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(NEW_AUTO_RENEW_ACCT).balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(NEW_FREEZE_KEY),
+                newKeyNamed(KYC_KEY),
+                newKeyNamed(NEW_KYC_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(NEW_SUPPLY_KEY),
+                newKeyNamed(WIPE_KEY),
+                newKeyNamed(NEW_WIPE_KEY),
+                tokenCreate(NFTdeleted)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .name(SALTED_NAME)
+                        .entityMemo(FIRST_MEMO)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewAccount(AUTO_RENEW_ACCT)
+                        .initialSupply(0)
+                        .adminKey(ADMIN_KEY)
+                        .freezeKey(FREEZE_KEY)
+                        .kycKey(KYC_KEY)
+                        .supplyKey(SUPPLY_KEY)
+                        .wipeKey(WIPE_KEY),
+                tokenAssociate(NEW_TOKEN_TREASURY, NFTdeleted),
+                // can update before NFT is deleted
+                tokenUpdate(NFTdeleted)
+                        .entityMemo(ZERO_BYTE_MEMO)
+                        .signedByPayerAnd(ADMIN_KEY)
+                        .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                tokenUpdate(NFTdeleted)
+                        .name(NEW_SALTED_NAME)
+                        .entityMemo(SECOND_MEMO)
+                        .treasury(NEW_TOKEN_TREASURY)
+                        .autoRenewAccount(NEW_AUTO_RENEW_ACCT)
+                        .freezeKey(NEW_FREEZE_KEY)
+                        .kycKey(NEW_KYC_KEY)
+                        .supplyKey(NEW_SUPPLY_KEY)
+                        .wipeKey(NEW_WIPE_KEY)
+                        .signedByPayerAnd(ADMIN_KEY, NEW_TOKEN_TREASURY, NEW_AUTO_RENEW_ACCT)
+                        .hasKnownStatus(SUCCESS),
+                tokenDelete(NFTdeleted),
+                // can't update after NFT is deleted.
+                tokenUpdate(NFTdeleted)
+                        .name(NEW_SALTED_NAME)
+                        .entityMemo(SECOND_MEMO)
+                        .signedByPayerAnd(ADMIN_KEY)
+                        .hasKnownStatus(TOKEN_WAS_DELETED),
+                tokenUpdate(NFTdeleted)
+                        .treasury(NEW_TOKEN_TREASURY)
+                        .signedByPayerAnd(ADMIN_KEY, NEW_TOKEN_TREASURY)
+                        .hasKnownStatus(TOKEN_WAS_DELETED),
+                tokenUpdate(NFTdeleted)
+                        .autoRenewAccount(NEW_AUTO_RENEW_ACCT)
+                        .signedByPayerAnd(ADMIN_KEY, NEW_AUTO_RENEW_ACCT)
+                        .hasKnownStatus(TOKEN_WAS_DELETED),
+                tokenUpdate(NFTdeleted)
+                        .freezeKey(NEW_FREEZE_KEY)
+                        .kycKey(NEW_KYC_KEY)
+                        .supplyKey(NEW_SUPPLY_KEY)
+                        .wipeKey(NEW_WIPE_KEY)
+                        .signedByPayerAnd(ADMIN_KEY)
+                        .hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest
@@ -284,109 +259,103 @@ public class Hip17UnhappyTokensSuite {
         final var newHbarFee = 4_321L;
         final var hbarCollector = "hbarFee";
 
-        return defaultHapiSpec("cannotUpdateNftFeeScheduleWhenDeleted")
-                .given(
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(FEE_SCHEDULE_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
-                        cryptoCreate(hbarCollector),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0L)
-                                .adminKey(ADMIN_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .supplyKey(SUPPLY_KEY)
-                                .feeScheduleKey(FEE_SCHEDULE_KEY)
-                                .withCustom(fixedHbarFee(origHbarFee, hbarCollector)))
-                .when(tokenDelete(NFTdeleted))
-                .then(tokenFeeScheduleUpdate(NFTdeleted)
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(FEE_SCHEDULE_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
+                cryptoCreate(hbarCollector),
+                tokenCreate(NFTdeleted)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(SUPPLY_KEY)
+                        .feeScheduleKey(FEE_SCHEDULE_KEY)
+                        .withCustom(fixedHbarFee(origHbarFee, hbarCollector)),
+                tokenDelete(NFTdeleted),
+                tokenFeeScheduleUpdate(NFTdeleted)
                         .withCustom(fixedHbarFee(newHbarFee, hbarCollector))
                         .hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotMintNftWhenDeleted() {
-        return defaultHapiSpec("cannotMintNftWhenDeleted")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(WIPE_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
-                        cryptoCreate(ANOTHER_USER),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .supplyKey(SUPPLY_KEY)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(ADMIN_KEY))
-                .when(tokenDelete(NFTdeleted))
-                .then(mintToken(NFTdeleted, List.of(ByteString.copyFromUtf8(FIRST_MEMO)))
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(WIPE_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
+                cryptoCreate(ANOTHER_USER),
+                tokenCreate(NFTdeleted)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .supplyKey(SUPPLY_KEY)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(ADMIN_KEY),
+                tokenDelete(NFTdeleted),
+                mintToken(NFTdeleted, List.of(ByteString.copyFromUtf8(FIRST_MEMO)))
                         .hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotBurnNftWhenDeleted() {
-        return defaultHapiSpec("cannotBurnNftWhenDeleted")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(WIPE_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(ANOTHER_KEY),
-                        cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
-                        cryptoCreate(ANOTHER_USER).key(ANOTHER_KEY),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .supplyKey(SUPPLY_KEY)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(ADMIN_KEY),
-                        tokenAssociate(ANOTHER_USER, NFTdeleted),
-                        mintToken(
-                                NFTdeleted,
-                                List.of(ByteString.copyFromUtf8(FIRST_MEMO), ByteString.copyFromUtf8(SECOND_MEMO))),
-                        cryptoTransfer(movingUnique(NFTdeleted, 2L).between(TOKEN_TREASURY, ANOTHER_USER)),
-                        getAccountInfo(ANOTHER_USER).hasOwnedNfts(1),
-                        getAccountInfo(TOKEN_TREASURY).hasOwnedNfts(1),
-                        getTokenInfo(NFTdeleted).hasTotalSupply(2),
-                        getTokenNftInfo(NFTdeleted, 2).hasCostAnswerPrecheck(OK),
-                        getTokenNftInfo(NFTdeleted, 1).hasSerialNum(1))
-                .when(tokenDelete(NFTdeleted))
-                .then(burnToken(NFTdeleted, List.of(2L)).hasKnownStatus(TOKEN_WAS_DELETED));
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(WIPE_KEY),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(ANOTHER_KEY),
+                cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
+                cryptoCreate(ANOTHER_USER).key(ANOTHER_KEY),
+                tokenCreate(NFTdeleted)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .supplyKey(SUPPLY_KEY)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(ADMIN_KEY),
+                tokenAssociate(ANOTHER_USER, NFTdeleted),
+                mintToken(
+                        NFTdeleted, List.of(ByteString.copyFromUtf8(FIRST_MEMO), ByteString.copyFromUtf8(SECOND_MEMO))),
+                cryptoTransfer(movingUnique(NFTdeleted, 2L).between(TOKEN_TREASURY, ANOTHER_USER)),
+                getAccountInfo(ANOTHER_USER).hasOwnedNfts(1),
+                getAccountInfo(TOKEN_TREASURY).hasOwnedNfts(1),
+                getTokenInfo(NFTdeleted).hasTotalSupply(2),
+                getTokenNftInfo(NFTdeleted, 2).hasCostAnswerPrecheck(OK),
+                getTokenNftInfo(NFTdeleted, 1).hasSerialNum(1),
+                tokenDelete(NFTdeleted),
+                burnToken(NFTdeleted, List.of(2L)).hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotWipeNftWhenDeleted() {
-        return defaultHapiSpec("cannotWipeNftWhenDeleted")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(WIPE_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(ANOTHER_KEY),
-                        cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
-                        cryptoCreate(ANOTHER_USER).key(ANOTHER_KEY),
-                        tokenCreate(NFTdeleted)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .supplyKey(SUPPLY_KEY)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(ADMIN_KEY)
-                                .wipeKey(WIPE_KEY),
-                        tokenAssociate(ANOTHER_USER, NFTdeleted),
-                        mintToken(
-                                NFTdeleted,
-                                List.of(ByteString.copyFromUtf8(FIRST_MEMO), ByteString.copyFromUtf8(SECOND_MEMO))),
-                        cryptoTransfer(movingUnique(NFTdeleted, 2L).between(TOKEN_TREASURY, ANOTHER_USER)),
-                        getAccountInfo(ANOTHER_USER).hasOwnedNfts(1),
-                        getAccountInfo(TOKEN_TREASURY).hasOwnedNfts(1),
-                        getTokenInfo(NFTdeleted).hasTotalSupply(2),
-                        getTokenNftInfo(NFTdeleted, 2).hasCostAnswerPrecheck(OK),
-                        getTokenNftInfo(NFTdeleted, 1).hasSerialNum(1))
-                .when(tokenDelete(NFTdeleted))
-                .then(wipeTokenAccount(NFTdeleted, ANOTHER_USER, List.of(1L)).hasKnownStatus(TOKEN_WAS_DELETED));
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(WIPE_KEY),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(ANOTHER_KEY),
+                cryptoCreate(TOKEN_TREASURY).key(ADMIN_KEY),
+                cryptoCreate(ANOTHER_USER).key(ANOTHER_KEY),
+                tokenCreate(NFTdeleted)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .supplyKey(SUPPLY_KEY)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(ADMIN_KEY)
+                        .wipeKey(WIPE_KEY),
+                tokenAssociate(ANOTHER_USER, NFTdeleted),
+                mintToken(
+                        NFTdeleted, List.of(ByteString.copyFromUtf8(FIRST_MEMO), ByteString.copyFromUtf8(SECOND_MEMO))),
+                cryptoTransfer(movingUnique(NFTdeleted, 2L).between(TOKEN_TREASURY, ANOTHER_USER)),
+                getAccountInfo(ANOTHER_USER).hasOwnedNfts(1),
+                getAccountInfo(TOKEN_TREASURY).hasOwnedNfts(1),
+                getTokenInfo(NFTdeleted).hasTotalSupply(2),
+                getTokenNftInfo(NFTdeleted, 2).hasCostAnswerPrecheck(OK),
+                getTokenNftInfo(NFTdeleted, 1).hasSerialNum(1),
+                tokenDelete(NFTdeleted),
+                wipeTokenAccount(NFTdeleted, ANOTHER_USER, List.of(1L)).hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     private ByteString metadata(String contents) {

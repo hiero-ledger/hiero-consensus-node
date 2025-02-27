@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.test.clients.yahcli {
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook;
@@ -7,6 +8,7 @@ module com.hedera.node.test.clients.yahcli {
     requires com.swirlds.common;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
+    requires com.google.protobuf;
     requires info.picocli;
     requires net.i2p.crypto.eddsa;
     requires org.apache.logging.log4j;

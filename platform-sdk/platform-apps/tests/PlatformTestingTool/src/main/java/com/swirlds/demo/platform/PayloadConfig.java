@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
 import org.apache.logging.log4j.LogManager;
@@ -25,6 +10,10 @@ import org.apache.logging.log4j.MarkerManager;
  * Use this config to set different payload generation mode
  */
 public class PayloadConfig {
+
+    // Pre-append this byte as a marker for all application transactions, so that
+    // they are easily distinguishable from system transactions
+    public static final byte APPLICATION_TRANSACTION_MARKER = 1;
 
     /**
      * use this for all logging
@@ -49,7 +38,7 @@ public class PayloadConfig {
      * if payload type is TYPE_FCM_VIRTUAL_MIX, what percentage is FCM transactions, the remained is virtual merkle
      * transaction
      */
-    private float ratioOfFCMTransaction;
+    private final float ratioOfFCMTransaction;
 
     /**
      * If it is true, treat handling transactions on deleted entities of MerkleMap as info/warn
@@ -72,7 +61,7 @@ public class PayloadConfig {
      * If it is true, allow nodes performing operations only on the entities they created.
      * If it is false, each node can perform operation on entities any node created.
      */
-    private boolean operateEntitiesOfSameNode = false;
+    private final boolean operateEntitiesOfSameNode = false;
     /**
      * when it is false, payload bytes size would be payloadByteSize;
      * when it is true, payload bytes size be a random number in range [payloadByteSize, maxByteSize]
@@ -90,7 +79,7 @@ public class PayloadConfig {
 
     private PayloadDistribution distribution = null;
 
-    private PayloadConfig(Builder builder) {
+    private PayloadConfig(final Builder builder) {
         this.insertSeq = builder.insertSeq;
         this.appendSig = builder.appendSig;
         this.variedSize = builder.variedSize;
@@ -137,7 +126,7 @@ public class PayloadConfig {
         return invalidSigRatio;
     }
 
-    public void setPerformOnDeleted(boolean performOnDeleted) {
+    public void setPerformOnDeleted(final boolean performOnDeleted) {
         this.performOnDeleted = performOnDeleted;
     }
 
@@ -255,42 +244,42 @@ public class PayloadConfig {
 
         private Builder() {}
 
-        public Builder setInsertSeq(boolean insertSeq) {
+        public Builder setInsertSeq(final boolean insertSeq) {
             this.insertSeq = insertSeq;
             return this;
         }
 
-        public Builder setAppendSig(boolean appendSig) {
+        public Builder setAppendSig(final boolean appendSig) {
             this.appendSig = appendSig;
             return this;
         }
 
-        public Builder setVariedSize(boolean variedSize) {
+        public Builder setVariedSize(final boolean variedSize) {
             this.variedSize = variedSize;
             return this;
         }
 
-        public Builder setPayloadByteSize(int payloadByteSize) {
+        public Builder setPayloadByteSize(final int payloadByteSize) {
             this.payloadByteSize = payloadByteSize;
             return this;
         }
 
-        public Builder setMaxByteSize(int maxByteSize) {
+        public Builder setMaxByteSize(final int maxByteSize) {
             this.maxByteSize = maxByteSize;
             return this;
         }
 
-        public Builder setType(PAYLOAD_TYPE type) {
+        public Builder setType(final PAYLOAD_TYPE type) {
             this.type = type;
             return this;
         }
 
-        public Builder setDistribution(PayloadDistribution distribution) {
+        public Builder setDistribution(final PayloadDistribution distribution) {
             this.distribution = distribution;
             return this;
         }
 
-        public Builder setInvalidSigRatio(double invalidSigRatio) {
+        public Builder setInvalidSigRatio(final double invalidSigRatio) {
             this.invalidSigRatio = invalidSigRatio;
             return this;
         }
@@ -301,27 +290,27 @@ public class PayloadConfig {
          * @param ratioOfFCMTransaction
          * 		The new ratio for FCM transactions.
          */
-        public Builder setRatioOfFCMTransaction(float ratioOfFCMTransaction) {
+        public Builder setRatioOfFCMTransaction(final float ratioOfFCMTransaction) {
             this.ratioOfFCMTransaction = ratioOfFCMTransaction;
             return this;
         }
 
-        public Builder setPerformOnDeleted(boolean performOnDeleted) {
+        public Builder setPerformOnDeleted(final boolean performOnDeleted) {
             this.performOnDeleted = performOnDeleted;
             return this;
         }
 
-        public Builder setCreateOnExistingEntities(boolean createOnExistingEntities) {
+        public Builder setCreateOnExistingEntities(final boolean createOnExistingEntities) {
             this.createOnExistingEntities = createOnExistingEntities;
             return this;
         }
 
-        public Builder setPerformOnNonExistingEntities(boolean performOnNonExistingEntities) {
+        public Builder setPerformOnNonExistingEntities(final boolean performOnNonExistingEntities) {
             this.performOnNonExistingEntities = performOnNonExistingEntities;
             return this;
         }
 
-        public Builder setOperateEntitiesOfSameNode(boolean operateEntitiesOfSameNode) {
+        public Builder setOperateEntitiesOfSameNode(final boolean operateEntitiesOfSameNode) {
             this.operateEntitiesOfSameNode = operateEntitiesOfSameNode;
             return this;
         }

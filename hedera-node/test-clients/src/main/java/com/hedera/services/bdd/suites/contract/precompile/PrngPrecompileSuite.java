@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isRandomResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -30,8 +15,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_CONTRACT_CALL_RESULTS;
-import static com.hedera.services.bdd.spec.utilops.records.SnapshotMatchMode.NONDETERMINISTIC_TRANSACTION_FEES;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -72,44 +55,41 @@ public class PrngPrecompileSuite {
         final var gasToOffer = 400_000;
         final var numCalls = 5;
         final List<String> prngSeeds = new ArrayList<>();
-        return defaultHapiSpec(
-                        "MultipleCallsHaveIndependentResults",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS)
-                .given(uploadInitCode(prng), contractCreate(prng))
-                .when(withOpContext((spec, opLog) -> {
-                    for (int i = 0; i < numCalls; i++) {
-                        final var txn = "call" + i;
-                        final var call =
-                                contractCall(prng, GET_SEED).gas(gasToOffer).via(txn);
-                        final var lookup = getTxnRecord(txn).andAllChildRecords();
-                        allRunFor(spec, call, lookup);
-                        final var response = lookup.getResponseRecord();
-                        final var rawResult = response.getContractCallResult()
-                                .getContractCallResult()
-                                .toByteArray();
-                        // Since this contract returns the result of the Prng system
-                        // contract, its call result
-                        // should be identical to the result of the system contract
-                        // in the child record
-                        for (final var child : lookup.getChildRecords()) {
-                            if (child.hasContractCallResult()) {
-                                assertArrayEquals(
-                                        rawResult,
-                                        child.getContractCallResult()
-                                                .getContractCallResult()
-                                                .toByteArray());
+        return hapiTest(
+                uploadInitCode(prng), contractCreate(prng),
+                withOpContext((spec, opLog) -> {
+                            for (int i = 0; i < numCalls; i++) {
+                                final var txn = "call" + i;
+                                final var call = contractCall(prng, GET_SEED)
+                                        .gas(gasToOffer)
+                                        .via(txn);
+                                final var lookup = getTxnRecord(txn).andAllChildRecords();
+                                allRunFor(spec, call, lookup);
+                                final var response = lookup.getResponseRecord();
+                                final var rawResult = response.getContractCallResult()
+                                        .getContractCallResult()
+                                        .toByteArray();
+                                // Since this contract returns the result of the Prng system
+                                // contract, its call result
+                                // should be identical to the result of the system contract
+                                // in the child record
+                                for (final var child : lookup.getChildRecords()) {
+                                    if (child.hasContractCallResult()) {
+                                        assertArrayEquals(
+                                                rawResult,
+                                                child.getContractCallResult()
+                                                        .getContractCallResult()
+                                                        .toByteArray());
+                                    }
+                                }
+                                prngSeeds.add(CommonUtils.hex(rawResult));
                             }
-                        }
-                        prngSeeds.add(CommonUtils.hex(rawResult));
-                    }
-                    opLog.info("Got prng seeds  : {}", prngSeeds);
-                    assertEquals(
-                            prngSeeds.size(),
-                            new HashSet<>(prngSeeds).size(),
-                            "An N-3 running hash was repeated, which is" + " inconceivable");
-                }))
-                .then(
+                            opLog.info("Got prng seeds  : {}", prngSeeds);
+                            assertEquals(
+                                    prngSeeds.size(),
+                                    new HashSet<>(prngSeeds).size(),
+                                    "An N-3 running hash was repeated, which is" + " inconceivable");
+                        }),
                         // It's possible to call these contracts in a static context with no issues
                         contractCallLocal(prng, GET_SEED).gas(gasToOffer));
     }
@@ -118,101 +98,92 @@ public class PrngPrecompileSuite {
     final Stream<DynamicTest> emptyInputCallFails() {
         final var prng = THE_PRNG_CONTRACT;
         final var emptyInputCall = "emptyInputCall";
-        return defaultHapiSpec("emptyInputCallFails", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(cryptoCreate(BOB), uploadInitCode(prng), contractCreate(prng))
-                .when(sourcing(() -> contractCall(prng, GET_SEED)
+        return hapiTest(
+                cryptoCreate(BOB),
+                uploadInitCode(prng),
+                contractCreate(prng),
+                sourcing(() -> contractCall(prng, GET_SEED)
                         .withExplicitParams(
                                 () -> CommonUtils.hex(Bytes.fromBase64String("").toArray()))
                         .gas(GAS_TO_OFFER)
                         .payingWith(BOB)
                         .via(emptyInputCall)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                        .logged()))
-                .then(
-                        getTxnRecord(emptyInputCall)
-                                .andAllChildRecords()
-                                .logged()
-                                .saveTxnRecordToRegistry(emptyInputCall),
-                        withOpContext((spec, ignore) -> {
-                            final var gasUsed = spec.registry()
-                                    .getTransactionRecord(emptyInputCall)
-                                    .getContractCallResult()
-                                    .getGasUsed();
-                            assertEquals(320000, gasUsed);
-                        }));
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                getTxnRecord(emptyInputCall).andAllChildRecords().logged().saveTxnRecordToRegistry(emptyInputCall),
+                withOpContext((spec, ignore) -> {
+                    final var gasUsed = spec.registry()
+                            .getTransactionRecord(emptyInputCall)
+                            .getContractCallResult()
+                            .getGasUsed();
+                    assertEquals(320000, gasUsed);
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> invalidLargeInputFails() {
         final var prng = THE_PRNG_CONTRACT;
         final var largeInputCall = "largeInputCall";
-        return defaultHapiSpec("invalidLargeInputFails", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(cryptoCreate(BOB), uploadInitCode(prng), contractCreate(prng))
-                .when(sourcing(() -> contractCall(prng, GET_SEED)
+        return hapiTest(
+                cryptoCreate(BOB),
+                uploadInitCode(prng),
+                contractCreate(prng),
+                sourcing(() -> contractCall(prng, GET_SEED)
                         .withExplicitParams(() -> CommonUtils.hex(
                                 Bytes.fromBase64String(EXPLICIT_LARGE_PARAMS).toArray()))
                         .gas(GAS_TO_OFFER)
                         .payingWith(BOB)
                         .via(largeInputCall)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                        .logged()))
-                .then(
-                        getTxnRecord(largeInputCall)
-                                .andAllChildRecords()
-                                .logged()
-                                .saveTxnRecordToRegistry(largeInputCall),
-                        withOpContext((spec, ignore) -> {
-                            final var gasUsed = spec.registry()
-                                    .getTransactionRecord(largeInputCall)
-                                    .getContractCallResult()
-                                    .getGasUsed();
-                            assertEquals(320000, gasUsed);
-                        }));
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                getTxnRecord(largeInputCall).andAllChildRecords().logged().saveTxnRecordToRegistry(largeInputCall),
+                withOpContext((spec, ignore) -> {
+                    final var gasUsed = spec.registry()
+                            .getTransactionRecord(largeInputCall)
+                            .getContractCallResult()
+                            .getGasUsed();
+                    assertEquals(320000, gasUsed);
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> nonSupportedAbiCallGracefullyFails() {
         final var prng = THE_GRACEFULLY_FAILING_PRNG_CONTRACT;
         final var failedCall = "failedCall";
-        return defaultHapiSpec("nonSupportedAbiCallGracefullyFails", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(cryptoCreate(BOB), uploadInitCode(prng), contractCreate(prng))
-                .when(sourcing(() -> contractCall(prng, "performNonExistingServiceFunctionCall")
+        return hapiTest(
+                cryptoCreate(BOB),
+                uploadInitCode(prng),
+                contractCreate(prng),
+                sourcing(() -> contractCall(prng, "performNonExistingServiceFunctionCall")
                         .gas(GAS_TO_OFFER)
                         .payingWith(BOB)
                         .via(failedCall)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                        .logged()))
-                .then(
-                        getTxnRecord(failedCall).andAllChildRecords().logged().saveTxnRecordToRegistry(failedCall),
-                        withOpContext((spec, ignore) -> {
-                            final var gasUsed = spec.registry()
-                                    .getTransactionRecord(failedCall)
-                                    .getContractCallResult()
-                                    .getGasUsed();
-                            assertEquals(394210, gasUsed);
-                        }));
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                getTxnRecord(failedCall).andAllChildRecords().logged().saveTxnRecordToRegistry(failedCall),
+                withOpContext((spec, ignore) -> {
+                    final var gasUsed = spec.registry()
+                            .getTransactionRecord(failedCall)
+                            .getContractCallResult()
+                            .getGasUsed();
+                    assertEquals(394210, gasUsed);
+                }));
     }
 
     @HapiTest
     final Stream<DynamicTest> functionCallWithLessThanFourBytesFailsGracefully() {
         final var lessThan4Bytes = "lessThan4Bytes";
-        return defaultHapiSpec("functionCallWithLessThanFourBytesFailsGracefully", NONDETERMINISTIC_TRANSACTION_FEES)
-                .given(cryptoCreate(BOB), uploadInitCode(THE_PRNG_CONTRACT), contractCreate(THE_PRNG_CONTRACT))
-                .when(
-                        sourcing(() -> contractCall(THE_PRNG_CONTRACT, GET_SEED)
-                                .withExplicitParams(
-                                        () -> CommonUtils.hex(Bytes.of((byte) 0xab, (byte) 0xab, (byte) 0xab)
-                                                .toArray()))
-                                .gas(GAS_TO_OFFER)
-                                .payingWith(BOB)
-                                .via(lessThan4Bytes)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .logged()),
-                        getTxnRecord(lessThan4Bytes)
-                                .andAllChildRecords()
-                                .logged()
-                                .saveTxnRecordToRegistry(lessThan4Bytes))
-                .then(withOpContext((spec, ignore) -> {
+        return hapiTest(
+                cryptoCreate(BOB),
+                uploadInitCode(THE_PRNG_CONTRACT),
+                contractCreate(THE_PRNG_CONTRACT),
+                sourcing(() -> contractCall(THE_PRNG_CONTRACT, GET_SEED)
+                        .withExplicitParams(() -> CommonUtils.hex(
+                                Bytes.of((byte) 0xab, (byte) 0xab, (byte) 0xab).toArray()))
+                        .gas(GAS_TO_OFFER)
+                        .payingWith(BOB)
+                        .via(lessThan4Bytes)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .logged()),
+                getTxnRecord(lessThan4Bytes).andAllChildRecords().logged().saveTxnRecordToRegistry(lessThan4Bytes),
+                withOpContext((spec, ignore) -> {
                     final var gasUsed = spec.registry()
                             .getTransactionRecord(lessThan4Bytes)
                             .getContractCallResult()
@@ -225,57 +196,48 @@ public class PrngPrecompileSuite {
     final Stream<DynamicTest> prngPrecompileHappyPathWorks() {
         final var prng = THE_PRNG_CONTRACT;
         final var randomBits = "randomBits";
-        return defaultHapiSpec(
-                        "prngPrecompileHappyPathWorks",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS)
-                .given(cryptoCreate(BOB), uploadInitCode(prng), contractCreate(prng))
-                .when(sourcing(() -> contractCall(prng, GET_SEED)
+        return hapiTest(
+                cryptoCreate(BOB),
+                uploadInitCode(prng),
+                contractCreate(prng),
+                sourcing(() -> contractCall(prng, GET_SEED)
                         .gas(GAS_TO_OFFER)
                         .payingWith(BOB)
-                        .via(randomBits)
-                        .logged()))
-                .then(getTxnRecord(randomBits)
+                        .via(randomBits)),
+                getTxnRecord(randomBits)
                         .andAllChildRecords()
                         .hasChildRecordCount(1)
                         .hasChildRecords(recordWith()
                                 .pseudoRandomBytes()
                                 .contractCallResult(resultWith()
                                         .resultViaFunctionName(
-                                                GET_SEED, prng, isRandomResult(new Object[] {new byte[32]}))))
-                        .logged());
+                                                GET_SEED, prng, isRandomResult(new Object[] {new byte[32]})))));
     }
 
     @HapiTest
     final Stream<DynamicTest> prngPrecompileInvalidFeeSubmitted() {
         final var TX = "TX";
-        return defaultHapiSpec(
-                        "prngPrecompileInvalidFeeSubmitted",
-                        NONDETERMINISTIC_TRANSACTION_FEES,
-                        NONDETERMINISTIC_CONTRACT_CALL_RESULTS)
-                .given(
-                        uploadInitCode(THE_PRNG_CONTRACT),
-                        contractCreate(THE_PRNG_CONTRACT).balance(ONE_HBAR))
-                .when(contractCall(THE_PRNG_CONTRACT, GET_SEED_PAYABLE)
+        return hapiTest(
+                uploadInitCode(THE_PRNG_CONTRACT),
+                contractCreate(THE_PRNG_CONTRACT).balance(ONE_HBAR),
+                contractCall(THE_PRNG_CONTRACT, GET_SEED_PAYABLE)
                         .gas(GAS_TO_OFFER)
                         .via(TX)
-                        .hasKnownStatus(INVALID_CONTRACT_ID))
-                .then(getTxnRecord(TX).logged());
+                        .hasKnownStatus(INVALID_CONTRACT_ID),
+                getTxnRecord(TX));
     }
 
     @HapiTest
     final Stream<DynamicTest> prngPrecompileInsufficientGas() {
         final var prng = THE_PRNG_CONTRACT;
         final var randomBits = "randomBits";
-        return defaultHapiSpec("prngPrecompileInsufficientGas")
-                .given(cryptoCreate(BOB), uploadInitCode(prng), contractCreate(prng))
-                .when(sourcing(() -> contractCall(prng, GET_SEED)
-                        .gas(1L)
-                        .payingWith(BOB)
-                        .via(randomBits)
-                        .hasPrecheckFrom(OK, INSUFFICIENT_GAS)
-                        .hasKnownStatus(INSUFFICIENT_GAS)
-                        .logged()))
-                .then();
+        return hapiTest(cryptoCreate(BOB), uploadInitCode(prng), contractCreate(prng), sourcing(() -> contractCall(
+                        prng, GET_SEED)
+                .gas(1L)
+                .payingWith(BOB)
+                .via(randomBits)
+                .hasPrecheckFrom(OK, INSUFFICIENT_GAS)
+                .hasKnownStatus(INSUFFICIENT_GAS)
+                .logged()));
     }
 }

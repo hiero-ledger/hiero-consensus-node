@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.event.tipset;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -28,6 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -41,12 +28,10 @@ import com.swirlds.platform.event.creation.tipset.Tipset;
 import com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight;
 import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder.WeightDistributionStrategy;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,34 +69,35 @@ class TipsetWeightCalculatorTests {
 
         final Map<NodeId, EventDescriptorWrapper> latestEvents = new HashMap<>();
 
-        final AddressBook addressBook =
-                RandomAddressBookBuilder.create(random).withSize(nodeCount).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(nodeCount).build();
 
         final Map<NodeId, Long> weightMap = new HashMap<>();
         long totalWeight = 0;
-        for (final Address address : addressBook) {
-            weightMap.put(address.getNodeId(), address.getWeight());
-            totalWeight += address.getWeight();
+        for (final RosterEntry address : roster.rosterEntries()) {
+            weightMap.put(NodeId.of(address.nodeId()), address.weight());
+            totalWeight += address.weight();
         }
 
-        final NodeId selfId = addressBook.getNodeId(random.nextInt(nodeCount));
+        final NodeId selfId =
+                NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker builder =
-                new TipsetTracker(Time.getCurrent(), addressBook, AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), roster, AncientMode.GENERATION_THRESHOLD);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(platformContext, addressBook, selfId, builder, childlessEventTracker);
+                new TipsetWeightCalculator(platformContext, roster, selfId, builder, childlessEventTracker);
 
         List<EventDescriptorWrapper> previousParents = List.of();
         TipsetAdvancementWeight runningAdvancementScore = ZERO_ADVANCEMENT_WEIGHT;
         Tipset previousSnapshot = calculator.getSnapshot();
 
         for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
-            final NodeId creator = addressBook.getNodeId(random.nextInt(nodeCount));
+            final NodeId creator = NodeId.of(
+                    roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
             final long generation;
             if (latestEvents.containsKey(creator)) {
                 generation = latestEvents.get(creator).eventDescriptor().generation() + 1;
@@ -127,7 +113,8 @@ class TipsetWeightCalculatorTests {
             final Set<NodeId> desiredParents = new HashSet<>();
             final int maxParentCount = random.nextInt(nodeCount);
             for (int parentIndex = 0; parentIndex < maxParentCount; parentIndex++) {
-                final NodeId parent = addressBook.getNodeId(random.nextInt(nodeCount));
+                final NodeId parent = NodeId.of(
+                        roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
 
                 // We are only trying to generate a random number of parents, the exact count is unimportant.
                 // So it doesn't matter if the actual number of parents is less than the number we requested.
@@ -168,7 +155,7 @@ class TipsetWeightCalculatorTests {
 
             final Tipset newTipset;
             if (parentTipsets.isEmpty()) {
-                newTipset = new Tipset(addressBook).advance(creator, generation);
+                newTipset = new Tipset(roster).advance(creator, generation);
             } else {
                 newTipset = merge(parentTipsets).advance(creator, generation);
             }
@@ -217,27 +204,26 @@ class TipsetWeightCalculatorTests {
         final Random random = getRandomPrintSeed();
         final int nodeCount = 4;
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
                 .withAverageWeight(1)
                 .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
                 .build();
 
         // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
-        final NodeId nodeA = addressBook.getNodeId(0);
-        final NodeId nodeB = addressBook.getNodeId(1);
-        final NodeId nodeC = addressBook.getNodeId(2);
-        final NodeId nodeD = addressBook.getNodeId(3);
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker tracker =
-                new TipsetTracker(Time.getCurrent(), addressBook, AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker tracker = new TipsetTracker(Time.getCurrent(), roster, AncientMode.GENERATION_THRESHOLD);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(platformContext, addressBook, nodeA, tracker, childlessEventTracker);
+                new TipsetWeightCalculator(platformContext, roster, nodeA, tracker, childlessEventTracker);
 
         final Tipset snapshot1 = calculator.getSnapshot();
 
@@ -430,7 +416,7 @@ class TipsetWeightCalculatorTests {
         final Random random = getRandomPrintSeed();
         final int nodeCount = 4;
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
                 .withAverageWeight(1)
                 .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
@@ -438,22 +424,31 @@ class TipsetWeightCalculatorTests {
 
         // In this test, we simulate from the perspective of node A.
         // All nodes have 1 weight except for D, which has 0 weight.
-        final NodeId nodeA = addressBook.getNodeId(0);
-        final NodeId nodeB = addressBook.getNodeId(1);
-        final NodeId nodeC = addressBook.getNodeId(2);
-        final NodeId nodeD = addressBook.getNodeId(3);
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
-        addressBook.add(addressBook.getAddress(nodeD).copySetWeight(0));
+        roster = Roster.newBuilder()
+                .rosterEntries(roster.rosterEntries().stream()
+                        .map(entry -> {
+                            if (entry.nodeId() == nodeD.id()) {
+                                return entry.copyBuilder().weight(0).build();
+                            } else {
+                                return entry;
+                            }
+                        })
+                        .toList())
+                .build();
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker builder =
-                new TipsetTracker(Time.getCurrent(), addressBook, AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), roster, AncientMode.GENERATION_THRESHOLD);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(platformContext, addressBook, nodeA, builder, childlessEventTracker);
+                new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
 
         final Tipset snapshot1 = calculator.getSnapshot();
 
@@ -508,26 +503,25 @@ class TipsetWeightCalculatorTests {
         final Random random = getRandomPrintSeed();
         final int nodeCount = 4;
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
                 .withAverageWeight(1)
                 .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
                 .build();
 
-        final NodeId nodeA = addressBook.getNodeId(0);
-        final NodeId nodeB = addressBook.getNodeId(1);
-        final NodeId nodeC = addressBook.getNodeId(2);
-        final NodeId nodeD = addressBook.getNodeId(3);
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker builder =
-                new TipsetTracker(Time.getCurrent(), addressBook, AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), roster, AncientMode.GENERATION_THRESHOLD);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(platformContext, addressBook, nodeA, builder, childlessEventTracker);
+                new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
 
         // Create generation 1 events.
         final EventDescriptorWrapper eventA1 = newEventDescriptor(randomHash(random), nodeA, 1);

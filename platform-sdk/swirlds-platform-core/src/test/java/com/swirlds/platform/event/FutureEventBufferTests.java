@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -76,7 +61,7 @@ class FutureEventBufferTests {
         for (int i = 0; i < count; i++) {
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setBirthRound(random.nextLong(1, maxFutureRound))
-                    .setCreatorId(new NodeId(random.nextInt(100)))
+                    .setCreatorId(NodeId.of(random.nextInt(100)))
                     .setTimeCreated(randomInstant(random))
                     .build();
             events.add(event);
@@ -161,7 +146,7 @@ class FutureEventBufferTests {
         for (int i = 0; i < count; i++) {
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setBirthRound(random.nextLong(1, maxFutureRound))
-                    .setCreatorId(new NodeId(random.nextInt(100)))
+                    .setCreatorId(NodeId.of(random.nextInt(100)))
                     .setTimeCreated(randomInstant(random))
                     .build();
             events.add(event);
@@ -220,7 +205,7 @@ class FutureEventBufferTests {
         final long eventBirthRound = pendingConsensusRound + roundsUntilRelease;
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setBirthRound(eventBirthRound)
-                .setCreatorId(new NodeId(random.nextInt(100)))
+                .setCreatorId(NodeId.of(random.nextInt(100)))
                 .setTimeCreated(randomInstant(random))
                 .build();
 

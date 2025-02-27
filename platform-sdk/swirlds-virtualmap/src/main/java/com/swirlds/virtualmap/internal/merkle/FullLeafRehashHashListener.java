@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
 import com.swirlds.virtualmap.VirtualKey;
@@ -21,6 +6,9 @@ import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
+import com.swirlds.virtualmap.serialize.KeySerializer;
+import com.swirlds.virtualmap.serialize.ValueSerializer;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.stream.Stream;
 
 /**
@@ -62,10 +50,20 @@ public class FullLeafRehashHashListener<K extends VirtualKey, V extends VirtualV
      * 		The last leaf path. Must be a valid path.
      * @param dataSource
      * 		The data source. Cannot be null.
+     * @param flushInterval
+     *      The number of nodes to hash before they are flushed to disk.
+     * @param statistics
+     *      Virtual map stats. Cannot be null.
      */
     public FullLeafRehashHashListener(
-            final long firstLeafPath, final long lastLeafPath, final VirtualDataSource<K, V> dataSource) {
-        super(firstLeafPath, lastLeafPath, dataSource);
+            final long firstLeafPath,
+            final long lastLeafPath,
+            final KeySerializer<K> keySerializer,
+            final ValueSerializer<V> valueSerializer,
+            @NonNull final VirtualDataSource dataSource,
+            final int flushInterval,
+            @NonNull final VirtualMapStatistics statistics) {
+        super(firstLeafPath, lastLeafPath, keySerializer, valueSerializer, dataSource, flushInterval, statistics);
     }
 
     /**

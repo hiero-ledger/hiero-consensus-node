@@ -1,38 +1,20 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
 import static com.swirlds.common.crypto.SignatureType.RSA;
-import static com.swirlds.common.utility.CommonUtils.hex;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
  * Encapsulates a cryptographic signature along with its SignatureType.
  */
-public class Signature implements SelfSerializable {
+public class Signature {
     /** a unique class type identifier */
     private static final long CLASS_ID = 0x13dc4b399b245c69L;
 
@@ -40,51 +22,26 @@ public class Signature implements SelfSerializable {
     private static final int CLASS_VERSION = 1;
 
     /** The type of cryptographic algorithm used to create the signature */
-    private SignatureType signatureType;
+    private final SignatureType signatureType;
 
     /** signature byte array */
-    private byte[] signatureBytes;
+    private final Bytes signatureBytes;
 
-    /**
-     * For RuntimeConstructable
-     */
-    public Signature() {}
-
-    public Signature(final SignatureType signatureType, final byte[] signatureBytes) {
-        this.signatureType = signatureType;
-        this.signatureBytes = signatureBytes;
+    public Signature(@NonNull final SignatureType signatureType, @NonNull final byte[] signatureBytes) {
+        this(signatureType, Bytes.wrap(signatureBytes));
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        this.signatureType = SignatureType.from(in.readInt(), RSA);
-        this.signatureBytes = in.readByteArray(this.signatureType.signatureLength(), true);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeInt(signatureType.ordinal());
-        out.writeByteArray(signatureBytes, true);
-    }
-
-    /**
-     * Get the bytes of this signature.
-     */
-    public byte[] getSignatureBytes() {
-        return signatureBytes;
+    public Signature(@NonNull final SignatureType signatureType, @NonNull final Bytes signatureBytes) {
+        this.signatureType = Objects.requireNonNull(signatureType, "signatureType should not be null");
+        this.signatureBytes = Objects.requireNonNull(signatureBytes, "signatureBytes should not be null");
     }
 
     /**
      * @return the bytes of this signature in an immutable instance
      */
-    public @NonNull Bytes getBytes() {
-        return Bytes.wrap(signatureBytes);
+    @NonNull
+    public Bytes getBytes() {
+        return signatureBytes;
     }
 
     /**
@@ -93,22 +50,6 @@ public class Signature implements SelfSerializable {
     @NonNull
     public SignatureType getType() {
         return signatureType;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return CLASS_VERSION;
     }
 
     /**
@@ -124,7 +65,7 @@ public class Signature implements SelfSerializable {
             return false;
         }
 
-        return Arrays.equals(signatureBytes, signature.signatureBytes) && signatureType == signature.signatureType;
+        return Objects.equals(signatureBytes, signature.signatureBytes) && signatureType == signature.signatureType;
     }
 
     /**
@@ -132,7 +73,45 @@ public class Signature implements SelfSerializable {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(signatureType, Arrays.hashCode(signatureBytes));
+        return Objects.hash(signatureType, signatureBytes);
+    }
+
+    /**
+     * Deserialize a signature from a stream.
+     *
+     * @param in the stream to read from
+     * @param readClassId whether to read the class ID from the stream
+     *
+     * @return the signature read from the stream
+     */
+    public static Signature deserialize(final SerializableDataInputStream in, final boolean readClassId)
+            throws IOException {
+        if (readClassId) {
+            final long classId = in.readLong();
+            if (classId != CLASS_ID) {
+                throw new IOException("unexpected class ID: " + classId);
+            }
+        }
+        in.readInt(); // ignore version
+        final SignatureType signatureType = SignatureType.from(in.readInt(), RSA);
+        final byte[] signatureBytes = in.readByteArray(signatureType.signatureLength(), true);
+
+        return new Signature(signatureType, signatureBytes);
+    }
+
+    /**
+     * Serialize this signature to a stream.
+     *
+     * @param out the stream to write to
+     * @param withClassId whether to write the class ID to the stream
+     */
+    public void serialize(final SerializableDataOutputStream out, final boolean withClassId) throws IOException {
+        if (withClassId) {
+            out.writeLong(CLASS_ID);
+        }
+        out.writeInt(CLASS_VERSION);
+        out.writeInt(signatureType.ordinal());
+        out.writeByteArray(signatureBytes.toByteArray(), true);
     }
 
     /**
@@ -142,7 +121,7 @@ public class Signature implements SelfSerializable {
     public String toString() {
         return new ToStringBuilder(this)
                 .append("signatureType", signatureType)
-                .append("sigBytes", hex(signatureBytes))
+                .append("sigBytes", signatureBytes)
                 .toString();
     }
 }

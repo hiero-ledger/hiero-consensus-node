@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -35,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  *
  * @param result the result of the call
  * @param status the resolved status of the call
+ * @param recipientId if known, the Hedera id of the contract that was called
  * @param tinybarGasPrice the tinybar-denominated gas price used for the call
  * @param actions any contract actions that should be externalized in a sidecar
  * @param stateChanges any contract state changes that should be externalized in a sidecar
@@ -47,12 +33,20 @@ public record CallOutcome(
         @Nullable ContractActions actions,
         @Nullable ContractStateChanges stateChanges) {
 
+    /**
+     * @return whether some state changes appeared from the execution of the contract
+     */
     public boolean hasStateChanges() {
         return stateChanges != null && !stateChanges.contractStateChanges().isEmpty();
     }
 
+    /**
+     * @param result the contract function result
+     * @param hevmResult the result after EVM transaction execution
+     * @return the EVM transaction outcome
+     */
     public static CallOutcome fromResultsWithMaybeSidecars(
-            @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
+            @NonNull final ContractFunctionResult result, @NonNull final HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
                 result,
                 hevmResult.finalStatus(),
@@ -62,12 +56,25 @@ public record CallOutcome(
                 hevmResult.stateChanges());
     }
 
+    /**
+     * @param result the contract function result
+     * @param hevmResult the result after EVM transaction execution
+     * @return the EVM transaction outcome
+     */
     public static CallOutcome fromResultsWithoutSidecars(
             @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
                 result, hevmResult.finalStatus(), hevmResult.recipientId(), hevmResult.gasPrice(), null, null);
     }
 
+    /**
+     * @param result the result of the call
+     * @param status the resolved status of the call
+     * @param recipientId if known, the Hedera id of the contract that was called
+     * @param tinybarGasPrice the tinybar-denominated gas price used for the call
+     * @param actions any contract actions that should be externalized in a sidecar
+     * @param stateChanges any contract state changes that should be externalized in a sidecar
+     */
     public CallOutcome {
         requireNonNull(result);
         requireNonNull(status);

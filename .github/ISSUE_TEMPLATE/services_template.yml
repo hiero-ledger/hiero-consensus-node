@@ -1,0 +1,74 @@
+##
+# Copyright (C) 2025 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: Services Team Template
+description: Template for services team issues
+body:
+  - type: textarea
+    id: background-description
+    attributes:
+      label: Background
+      description: Provide a brief description of the issue
+      placeholder: Describe the value this change brings to the codebase and a detailed description of the change needed
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List the specific measurable criteria that must be met for this to be considered complete
+      placeholder: |
+        1. Specific measurable criteria 1
+        2. Specific measurable criteria 2, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List any blocking dependencies, link to related issues/PRs
+      placeholder: |
+        1. #1234
+        2. #2345, etc.
+    validations:
+      required: false
+  - type: checkboxes
+    id: definition-of-ready
+    attributes:
+      label: Definition of Ready (DoR) Checklist
+      description: Note that DoR does not need to be 100% met prior to starting work
+      options:
+        - label: Clear acceptance criteria
+        - label: Clear and detailed description
+        - label: Dependencies identified
+        - label: Links to documentation
+        - label: Should be completable in 2-3 Days
+        - label: Initial draft of Low-level design document
+        - label: At least high level test plan
+        - label: Groomed/Estimated
+  - type: checkboxes
+    id: definition-of-done
+    attributes:
+      label: Definition of Done (DoD) Checklist
+      description: Note that DoD must be completed before the issue can be closed. As applicable, check off each item as it is completed.
+      options:
+        - label: Acceptance Criteria complete
+        - label: No Codacy issues greater than minor (in new code)
+        - label: JavaDocs updated/created
+        - label: Code commented
+        - label: Unit tests created/updated
+        - label: 80% test code coverage (in new code)
+        - label: Happy Path and major negative cases in HAPI tests as applicable

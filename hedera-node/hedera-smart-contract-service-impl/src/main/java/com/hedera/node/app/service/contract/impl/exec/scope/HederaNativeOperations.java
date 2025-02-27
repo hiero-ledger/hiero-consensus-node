@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
+import static com.hedera.node.app.spi.key.KeyVerifier.NO_AUTHORIZING_KEYS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -23,20 +9,26 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
+import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.SortedSet;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -78,6 +70,14 @@ public interface HederaNativeOperations {
      */
     @NonNull
     ReadableAccountStore readableAccountStore();
+
+    /**
+     * Returns the {@link ReadableScheduleStore} for this {@link HederaNativeOperations}.
+     *
+     * @return the {@link ReadableScheduleStore}
+     */
+    @NonNull
+    ReadableScheduleStore readableScheduleStore();
 
     /**
      * Returns the {@link Account} with the given number.
@@ -167,6 +167,18 @@ public interface HederaNativeOperations {
     }
 
     /**
+     * Returns the {@link Schedule} with the given number.
+     *
+     * @param number the schedule number
+     * @return the schedule transaction, or {@code null} if no such schedule transactionexists
+     */
+    @Nullable
+    default Schedule getSchedule(final long number) {
+        return readableScheduleStore()
+                .get(ScheduleID.newBuilder().scheduleNum(number).build());
+    }
+
+    /**
      * Given an EVM address, resolves to the account or contract number (if any) that this address
      * is an alias for.
      *
@@ -238,4 +250,24 @@ public interface HederaNativeOperations {
      * @return true if the given transaction body has custom fees, false otherwise
      */
     boolean checkForCustomFees(@NonNull CryptoTransferTransactionBody op);
+
+    /**
+     * Returns the {@link SortedSet} of authorizing simple keys for this transaction.
+     * @return the authorizing simple keys
+     */
+    default SortedSet<Key> authorizingSimpleKeys() {
+        return NO_AUTHORIZING_KEYS;
+    }
+
+    /**
+     * Returns the {@link TransactionID} for the top level transaction.
+     * @return the transaction ID
+     */
+    TransactionID getTransactionID();
+
+    /**
+     * Returns the {@link com.swirlds.state.lifecycle.EntityIdFactory}
+     * @return the {@link com.swirlds.state.lifecycle.EntityIdFactory}
+     */
+    EntityIdFactory entityIdFactory();
 }

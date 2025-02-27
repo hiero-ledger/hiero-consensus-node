@@ -16,5 +16,3 @@ exclude:
       hedera-node/test-clients/src/main/java/com/hedera/services/bdd/suites/contract/opcodes/Create2OperationSuite.java
     - >-
       hedera-node/test-clients/src/main/java/com/hedera/services/bdd/spec/keys/deterministic/Bip0032.java
-    - >-
-      hedera-node/hedera-evm/src/main/java/com/hedera/node/app/service/evm/store/contracts/HederaEvmWorldStateTokenAccount.java

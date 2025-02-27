@@ -1,25 +1,9 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip;
 
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.topology.NetworkTopology;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.hiero.consensus.gossip.FallenBehindManager;
 
 /**
  * A thread-safe implementation of {@link FallenBehindManager}
@@ -71,13 +56,11 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
     volatile int numReportFallenBehind;
 
     public FallenBehindManagerImpl(
-            @NonNull final AddressBook addressBook,
             @NonNull final NodeId selfId,
             @NonNull final NetworkTopology topology,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final Runnable fallenBehindCallback,
             @NonNull final ReconnectConfig config) {
-        Objects.requireNonNull(addressBook, "addressBook");
         Objects.requireNonNull(selfId, "selfId");
         Objects.requireNonNull(topology, "topology");
 

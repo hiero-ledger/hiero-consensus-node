@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.sync;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
@@ -42,7 +27,6 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -70,7 +54,7 @@ public class SyncNode {
     private final NodeId nodeId;
 
     private final int numNodes;
-    private final EventEmitter<?> eventEmitter;
+    private final EventEmitter eventEmitter;
     private int eventsEmitted = 0;
     private final TestingSyncManager syncManager;
     private final Shadowgraph shadowGraph;
@@ -96,7 +80,7 @@ public class SyncNode {
     public SyncNode(
             final int numNodes,
             final long nodeId,
-            final EventEmitter<?> eventEmitter,
+            final EventEmitter eventEmitter,
             @NonNull final AncientMode ancientMode) {
 
         this(
@@ -110,7 +94,7 @@ public class SyncNode {
     public SyncNode(
             final int numNodes,
             final long nodeId,
-            final EventEmitter<?> eventEmitter,
+            final EventEmitter eventEmitter,
             final ParallelExecutor executor,
             @NonNull final AncientMode ancientMode) {
 
@@ -120,7 +104,7 @@ public class SyncNode {
 
         this.ancientMode = Objects.requireNonNull(ancientMode);
         this.numNodes = numNodes;
-        this.nodeId = new NodeId(nodeId);
+        this.nodeId = NodeId.of(nodeId);
         this.eventEmitter = eventEmitter;
 
         syncManager = new TestingSyncManager();
@@ -144,7 +128,7 @@ public class SyncNode {
                 .withConfiguration(configuration)
                 .build();
 
-        shadowGraph = new Shadowgraph(platformContext, mock(AddressBook.class), new NoOpIntakeEventCounter());
+        shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
         this.executor = executor;
     }
@@ -298,7 +282,7 @@ public class SyncNode {
         return numNodes;
     }
 
-    public EventEmitter<?> getEmitter() {
+    public EventEmitter getEmitter() {
         return eventEmitter;
     }
 
