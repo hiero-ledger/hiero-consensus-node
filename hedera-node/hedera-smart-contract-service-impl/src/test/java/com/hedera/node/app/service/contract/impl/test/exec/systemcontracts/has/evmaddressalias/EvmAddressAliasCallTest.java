@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,6 +36,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
     void invalidAccountIdWhenNotLongZero() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, APPROVED_HEADLONG_ADDRESS);
 
         final var result = subject.execute(frame).fullResult().result();
@@ -54,6 +56,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
     void invalidAccountIdWhenNoAccount() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
@@ -75,6 +78,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.getAccount(numberOfLongZero(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
                 .willReturn(OPERATOR);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
@@ -97,6 +101,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(nativeOperations.getAccount(numberOfLongZero(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
                 .willReturn(account);
         given(account.alias()).willReturn(RECEIVER_ADDRESS);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
 
         final var result = subject.execute(frame).fullResult().result();

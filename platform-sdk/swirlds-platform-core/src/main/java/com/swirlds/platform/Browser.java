@@ -266,7 +266,7 @@ public class Browser {
                     nodeId,
                     appDefinition.getConfigAddressBook(),
                     platformStateFacade,
-                    merkleCryptography);
+                    platformContext);
             final var initialState = reservedState.state();
 
             // Initialize the address book

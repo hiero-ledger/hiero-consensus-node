@@ -172,7 +172,7 @@ public class StartupStateUtilsTests {
                         swirldName,
                         currentSoftwareVersion,
                         platformStateFacade,
-                        MERKLE_CRYPTOGRAPHY)
+                        platformContext)
                 .getNullable();
 
         assertNull(loadedState);
@@ -203,7 +203,7 @@ public class StartupStateUtilsTests {
                         swirldName,
                         currentSoftwareVersion,
                         platformStateFacade,
-                        MERKLE_CRYPTOGRAPHY)
+                        platformContext)
                 .get();
 
         loadedState.getState().throwIfImmutable();
@@ -238,7 +238,7 @@ public class StartupStateUtilsTests {
                         swirldName,
                         currentSoftwareVersion,
                         platformStateFacade,
-                        MERKLE_CRYPTOGRAPHY)
+                        platformContext)
                 .get());
     }
 
@@ -285,7 +285,7 @@ public class StartupStateUtilsTests {
                         swirldName,
                         currentSoftwareVersion,
                         platformStateFacade,
-                        MERKLE_CRYPTOGRAPHY)
+                        platformContext)
                 .getNullable();
 
         if (latestUncorruptedState != null) {

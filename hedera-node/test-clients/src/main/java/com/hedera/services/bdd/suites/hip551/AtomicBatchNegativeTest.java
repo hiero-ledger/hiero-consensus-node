@@ -5,6 +5,8 @@ import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDE
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
+import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
@@ -44,8 +46,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,7 +58,9 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
+import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
@@ -621,6 +627,125 @@ public class AtomicBatchNegativeTest {
                                             .batchKey("batchOperator")
                                             .signedByPayerAnd("batchOperator"))
                             .hasKnownStatus(BATCH_TRANSACTION_NOT_IN_WHITELIST));
+        }
+    }
+
+    @Nested
+    @DisplayName("Signatures - NEGATIVE")
+    class SignaturesNegative {
+
+        @HapiTest
+        @DisplayName("Batch transaction fails due to missing threshold key signatures")
+        // BATCH_70
+        public Stream<DynamicTest> missingThresholdKeySignaturesFails() {
+            final var alice = "alice";
+            final var bob = "bob";
+            final var dave = "dave";
+            final var thresholdKey = "thresholdKey";
+
+            final KeyShape threshKeyShape = KeyShape.threshOf(2, PREDEFINED_SHAPE, PREDEFINED_SHAPE);
+
+            final var innerTxn1 = cryptoCreate("foo1")
+                    .balance(ONE_HBAR)
+                    .batchKey(thresholdKey)
+                    .payingWith(alice)
+                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED);
+
+            final var innerTxn2 = cryptoCreate("foo2")
+                    .balance(ONE_HBAR)
+                    .batchKey(thresholdKey)
+                    .payingWith(alice)
+                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED);
+
+            return hapiTest(
+                    cryptoCreate(alice),
+                    cryptoCreate(bob),
+                    cryptoCreate(dave),
+                    newKeyNamed(thresholdKey).shape(threshKeyShape.signedWith(sigs(bob, dave))),
+                    atomicBatch(innerTxn1, innerTxn2)
+                            .payingWith(bob) // Bob submits the transaction
+                            .signedBy(bob) // Missing Dave’s key, you can't sign with the threshold key
+                            .hasKnownStatus(INVALID_SIGNATURE));
+        }
+
+        @HapiTest
+        @DisplayName("Batch transaction passes when different batch keys signatures are present")
+        // BATCH_71
+        public Stream<DynamicTest> differentNecessaryBatchKeysArePresent() {
+            final var alice = "alice";
+            final var bob = "bob";
+            final var dave = "dave";
+            final var thresholdKey = "thresholdKey";
+
+            final KeyShape threshKeyShape = KeyShape.threshOf(2, PREDEFINED_SHAPE, PREDEFINED_SHAPE);
+            final var innerTxn1 = cryptoCreate("foo1")
+                    .balance(ONE_HBAR)
+                    .batchKey(thresholdKey)
+                    .payingWith(alice)
+                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED);
+
+            final var innerTxn2 = cryptoCreate("foo2")
+                    .balance(ONE_HBAR)
+                    .batchKey(bob)
+                    .payingWith(alice)
+                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED);
+
+            return hapiTest(
+                    cryptoCreate(alice),
+                    cryptoCreate(bob),
+                    cryptoCreate(dave),
+                    newKeyNamed(thresholdKey).shape(threshKeyShape.signedWith(sigs(bob, dave))),
+                    atomicBatch(innerTxn1, innerTxn2)
+                            .payingWith(bob) // Bob submits the transaction
+                            .signedBy(bob, dave), // Bob signs with the threshold key
+                    getAccountBalance("foo1").hasTinyBars(ONE_HBAR),
+                    getAccountBalance("foo2").hasTinyBars(ONE_HBAR));
+        }
+
+        @HapiTest
+        @DisplayName("Batch transaction fails when one inner transaction has a different BatchKey")
+        // BATCH_72 && BATCH_73
+        public Stream<DynamicTest> batchWithDifferentBatchKeysFails() {
+            final var alice = "alice";
+            final var bob = "bob";
+            final var batchKey1 = "batchKey1";
+            final var batchKey2 = "batchKey2";
+
+            return hapiTest(
+                    cryptoCreate(alice),
+                    cryptoCreate(bob),
+                    newKeyNamed(batchKey1),
+                    newKeyNamed(batchKey2),
+                    atomicBatch(
+                                    cryptoCreate("foo1")
+                                            .batchKey(batchKey1)
+                                            .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED),
+                                    cryptoCreate("foo2")
+                                            .batchKey(batchKey2)
+                                            .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED))
+                            .payingWith(alice) // Alice pays for the batch
+                            .signedBy(batchKey1) // Alice signs with only batchKey1
+                            .hasPrecheck(INVALID_SIGNATURE));
+        }
+
+        @HapiTest
+        @DisplayName("Batch transaction fails when one inner transaction has no BatchKey set")
+        // BATCH_74
+        public Stream<DynamicTest> batchWithMissingBatchKeyFails() {
+            final var alice = "alice";
+
+            return hapiTest(
+                    cryptoCreate(alice),
+                    atomicBatch(
+                                    cryptoCreate("foo1")
+                                            .batchKey(alice)
+                                            .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED),
+                                    cryptoCreate("foo2")
+                                            .withProtoStructure(
+                                                    HapiSpecSetup.TxnProtoStructure.NORMALIZED)) // No BatchKey set
+                            .payingWith(alice) // Alice pays for the batch
+                            .signedBy(alice) // Alice signs with the valid BatchKey
+                            .hasPrecheck(MISSING_BATCH_KEY));
         }
     }
 }

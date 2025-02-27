@@ -9,6 +9,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStat
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -75,7 +76,7 @@ public final class StartupStateUtils {
             @NonNull final NodeId selfId,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final MerkleCryptography merkleCryptography)
+            @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
 
         requireNonNull(configuration);
@@ -92,7 +93,7 @@ public final class StartupStateUtils {
                 swirldName,
                 softwareVersion,
                 platformStateFacade,
-                merkleCryptography);
+                platformContext);
 
         try (loadedState) {
             if (loadedState.isNotNull()) {
@@ -101,16 +102,20 @@ public final class StartupStateUtils {
                         new SavedStateLoadedPayload(
                                 loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
 
-                return copyInitialSignedState(
-                        configuration, loadedState.get(), platformStateFacade, merkleCryptography);
+                return copyInitialSignedState(configuration, loadedState.get(), platformStateFacade, platformContext);
             }
         }
 
         final ReservedSignedState genesisState = buildGenesisState(
-                configuration, configAddressBook, softwareVersion, genesisStateBuilder.get(), platformStateFacade);
+                configuration,
+                configAddressBook,
+                softwareVersion,
+                genesisStateBuilder.get(),
+                platformStateFacade,
+                platformContext);
 
         try (genesisState) {
-            return copyInitialSignedState(configuration, genesisState.get(), platformStateFacade, merkleCryptography);
+            return copyInitialSignedState(configuration, genesisState.get(), platformStateFacade, platformContext);
         }
     }
 
@@ -135,7 +140,7 @@ public final class StartupStateUtils {
             @NonNull final String swirldName,
             @NonNull final SoftwareVersion currentSoftwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final MerkleCryptography merkleCryptography) {
+            @NonNull final PlatformContext platformContext) {
 
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
@@ -156,7 +161,7 @@ public final class StartupStateUtils {
                 currentSoftwareVersion,
                 savedStateFiles,
                 platformStateFacade,
-                merkleCryptography);
+                platformContext);
         return state;
     }
 
@@ -172,7 +177,7 @@ public final class StartupStateUtils {
             @NonNull final Configuration configuration,
             @NonNull final SignedState initialSignedState,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final MerkleCryptography merkleCryptography) {
+            @NonNull final PlatformContext platformContext) {
         requireNonNull(configuration);
         requireNonNull(initialSignedState);
 
@@ -186,10 +191,11 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
+        signedStateCopy.init(platformContext);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
         final Hash hash =
-                merkleCryptography.digestTreeSync(initialSignedState.getState().getRoot());
+                platformContext.getMerkleCryptography().digestTreeSync(initialSignedState.getState().getRoot());
         return new HashedReservedSignedState(signedStateCopy.reserve("Copied initial state"), hash);
     }
 
@@ -225,7 +231,7 @@ public final class StartupStateUtils {
             @NonNull final SoftwareVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateFiles,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final MerkleCryptography merkleCryptography)
+            @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading latest state from disk.");
@@ -237,7 +243,7 @@ public final class StartupStateUtils {
                     currentSoftwareVersion,
                     savedStateFile,
                     platformStateFacade,
-                    merkleCryptography);
+                    platformContext);
             if (state != null) {
                 return state;
             }
@@ -261,14 +267,15 @@ public final class StartupStateUtils {
             @NonNull final SoftwareVersion currentSoftwareVersion,
             @NonNull final SavedStateInfo savedStateFile,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final MerkleCryptography merkleCryptography)
+            @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading signed state from disk: {}", savedStateFile.stateFile());
 
         final DeserializedSignedState deserializedSignedState;
         try {
-            deserializedSignedState = readStateFile(configuration, savedStateFile.stateFile(), platformStateFacade);
+            deserializedSignedState =
+                    readStateFile(configuration, savedStateFile.stateFile(), platformStateFacade, platformContext);
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateFile.stateFile(), e);
 
@@ -285,7 +292,7 @@ public final class StartupStateUtils {
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
-        final Hash newHash = rehashTree(merkleCryptography, state.getRoot());
+        final Hash newHash = rehashTree(platformContext.getMerkleCryptography(), state.getRoot());
 
         final SoftwareVersion loadedVersion = platformStateFacade.creationSoftwareVersionOf(state);
 
@@ -343,7 +350,8 @@ public final class StartupStateUtils {
             @NonNull final AddressBook addressBook,
             @NonNull final SoftwareVersion appVersion,
             @NonNull final MerkleNodeState stateRoot,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final PlatformContext platformContext) {
         initGenesisState(configuration, stateRoot, platformStateFacade, addressBook, appVersion);
 
         final SignedState signedState = new SignedState(
@@ -355,6 +363,7 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
+        signedState.init(platformContext);
         return signedState.reserve("initial reservation on genesis state");
     }
 
