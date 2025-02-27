@@ -67,7 +67,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.config.api.validation.ConfigValidator;
 import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.config.TransactionConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
@@ -113,7 +112,6 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 TokensConfig.class,
                 TopicsConfig.class,
                 TraceabilityConfig.class,
-                TransactionConfig.class,
                 UtilPrngConfig.class,
                 AtomicBatchConfig.class,
                 VersionConfig.class,

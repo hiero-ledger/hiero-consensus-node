@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.hedera.node.app.utils.TestUtils;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,7 +21,9 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 final class GrpcServiceBuilderTest {
     private static final String SERVICE_NAME = "TestService";
-    private static final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(6144);
+    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL =
+            ThreadLocal.withInitial(() -> BufferedData.allocate(6145));
+    private static final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(6144, BUFFER_THREAD_LOCAL::get);
 
     // These are simple no-op workflows
     private final QueryWorkflow queryWorkflow = (requestBuffer, responseBuffer) -> {};
