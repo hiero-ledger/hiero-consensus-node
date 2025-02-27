@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c;
 
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.HEDERA_TOKEN_WITH_METADATA;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTokenCommons.updateMethodsSet;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommons.updateMethodsSet;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;

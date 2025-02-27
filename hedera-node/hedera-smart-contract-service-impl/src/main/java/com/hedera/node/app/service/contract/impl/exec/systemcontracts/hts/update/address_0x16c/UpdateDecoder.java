@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -49,14 +50,17 @@ public class UpdateDecoder extends UpdateCommonDecoder {
     }
 
     public TokenUpdateTransactionBody.Builder decodeUpdateWithMeta(
-            @NonNull final Tuple call, @NonNull final AddressIdConverter addressIdConverter, @NonNull final HederaNativeOperations nativeOperation) {
+            @NonNull final Tuple call,
+            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HederaNativeOperations nativeOperation) {
         final var tokenUpdateTransactionBody = decodeTokenUpdate(call, addressIdConverter, nativeOperation);
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
         final Bytes tokenMetadata = hederaToken.size() > 9 ? Bytes.wrap((byte[]) hederaToken.get(9)) : null;
         if (tokenMetadata != null && tokenMetadata.length() > 0) {
             tokenUpdateTransactionBody.metadata(tokenMetadata);
         }
-        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), addressIdConverter, nativeOperation);
+        final List<TokenKeyWrapper> tokenKeys =
+                decodeTokenKeys(hederaToken.get(7), addressIdConverter, nativeOperation);
         addKeys(tokenKeys, tokenUpdateTransactionBody);
         addMetaKey(tokenKeys, tokenUpdateTransactionBody);
         return tokenUpdateTransactionBody;
@@ -76,6 +80,29 @@ public class UpdateDecoder extends UpdateCommonDecoder {
                 .metadata(Bytes.wrap(metadata));
 
         return TransactionBody.newBuilder().tokenUpdateNfts(txnBodyBuilder).build();
+    }
+
+    @Override
+    @Nullable
+    public TransactionBody decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
+
+        final var call = decodeCall(attempt);
+
+        final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
+        final var tokenKeys =
+                decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter(), attempt.nativeOperations());
+
+        // Build the transaction body
+        final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
+        txnBodyBuilder.token(tokenId);
+        addKeys(tokenKeys, txnBodyBuilder);
+        addMetaKey(tokenKeys, txnBodyBuilder);
+
+        try {
+            return TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build();
+        } catch (final IllegalArgumentException ignore) {
+            return null;
+        }
     }
 
     private void addMetaKey(final List<TokenKeyWrapper> tokenKeys, final TokenUpdateTransactionBody.Builder builder) {

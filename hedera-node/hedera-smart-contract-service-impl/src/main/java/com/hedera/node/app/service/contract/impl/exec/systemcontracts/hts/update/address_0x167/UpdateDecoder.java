@@ -10,11 +10,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
-import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -96,12 +94,6 @@ public class UpdateDecoder extends UpdateCommonDecoder {
     protected Tuple decodeCall(@NonNull final HtsCallAttempt attempt) {
         return UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION.decodeCall(
                 attempt.input().toArrayUnsafe());
-    }
-
-    @Override
-    protected void addAdditionalInfo(
-            final List<TokenKeyWrapper> tokenKeys, final TokenUpdateTransactionBody.Builder txnBodyBuilder) {
-        addKeys(tokenKeys, txnBodyBuilder);
     }
 
     private TransactionBody decodeTokenUpdateExpiry(

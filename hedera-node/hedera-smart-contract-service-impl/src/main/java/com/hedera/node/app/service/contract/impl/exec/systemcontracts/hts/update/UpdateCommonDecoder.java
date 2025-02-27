@@ -80,7 +80,9 @@ public abstract class UpdateCommonDecoder {
     }
 
     protected TokenUpdateTransactionBody.Builder decodeTokenUpdate(
-            @NonNull final Tuple call, @NonNull final AddressIdConverter addressIdConverter, @NonNull final HederaNativeOperations nativeOperation) {
+            @NonNull final Tuple call,
+            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HederaNativeOperations nativeOperation) {
         final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
 
@@ -88,7 +90,8 @@ public abstract class UpdateCommonDecoder {
         final var tokenSymbol = (String) hederaToken.get(1);
         final var tokenTreasury = addressIdConverter.convert(hederaToken.get(2));
         final var memo = (String) hederaToken.get(3);
-        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), addressIdConverter, nativeOperation);
+        final List<TokenKeyWrapper> tokenKeys =
+                decodeTokenKeys(hederaToken.get(7), addressIdConverter, nativeOperation);
         final var tokenExpiry = decodeTokenExpiry(hederaToken.get(8), addressIdConverter);
 
         // Build the transaction body
@@ -123,7 +126,9 @@ public abstract class UpdateCommonDecoder {
     }
 
     protected List<TokenKeyWrapper> decodeTokenKeys(
-            @NonNull final Tuple[] tokenKeysTuples, @NonNull final AddressIdConverter addressIdConverter,@NonNull final HederaNativeOperations nativeOperation) {
+            @NonNull final Tuple[] tokenKeysTuples,
+            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HederaNativeOperations nativeOperation) {
         final List<TokenKeyWrapper> tokenKeys = new ArrayList<>(tokenKeysTuples.length);
         for (final var tokenKeyTuple : tokenKeysTuples) {
             final var keyType = ((BigInteger) tokenKeyTuple.get(KEY_TYPE)).intValue();
@@ -132,9 +137,10 @@ public abstract class UpdateCommonDecoder {
             final byte[] ed25519 = keyValueTuple.get(ED25519);
             final byte[] ecdsaSecp256K1 = keyValueTuple.get(ECDSA_SECP_256K1);
             final var entityIdFactory = nativeOperation.entityIdFactory();
-            final var contractId = asNumericContractId(entityIdFactory, addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
-            final var delegatableContractId =
-                    asNumericContractId(entityIdFactory, addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
+            final var contractId =
+                    asNumericContractId(entityIdFactory, addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
+            final var delegatableContractId = asNumericContractId(
+                    entityIdFactory, addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
 
             tokenKeys.add(new TokenKeyWrapper(
                     keyType,
@@ -155,14 +161,13 @@ public abstract class UpdateCommonDecoder {
         final var call = decodeCall(attempt);
 
         final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
-        final var tokenKeys = decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter(), attempt.nativeOperations());
+        final var tokenKeys =
+                decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter(), attempt.nativeOperations());
 
         // Build the transaction body
         final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
         txnBodyBuilder.token(tokenId);
         addKeys(tokenKeys, txnBodyBuilder);
-
-        addAdditionalInfo(tokenKeys, txnBodyBuilder);
 
         try {
             return TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build();
@@ -172,11 +177,6 @@ public abstract class UpdateCommonDecoder {
     }
 
     protected abstract Tuple decodeCall(@NonNull final HtsCallAttempt attempt);
-
-    protected void addAdditionalInfo(
-            final List<TokenKeyWrapper> tokenKeys, final TokenUpdateTransactionBody.Builder txnBodyBuilder) {
-        // By default, this method does nothing. It can be overridden in subclasses to add specific logic.
-    }
 
     protected void addKeys(final List<TokenKeyWrapper> tokenKeys, final TokenUpdateTransactionBody.Builder builder) {
         tokenKeys.forEach(tokenKeyWrapper -> {
