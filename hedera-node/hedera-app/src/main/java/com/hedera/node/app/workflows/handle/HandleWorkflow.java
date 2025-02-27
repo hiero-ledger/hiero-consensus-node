@@ -37,6 +37,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody;
@@ -87,6 +89,7 @@ import com.hedera.node.app.workflows.handle.steps.UserTxnFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -109,6 +112,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.SplittableRandom;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -606,6 +610,11 @@ public class HandleWorkflow {
                     final var selfInfo = appContext.selfNodeInfoSupplier().get();
                     if (selfInfo.nodeId() == 0L) {
                         logger.info("Submitting history proof vote @ {}", userTxn.consensusNow());
+                        final var hederaConfig =
+                                configProvider.getConfiguration().getConfigData(HederaConfig.class);
+                        final int xlSize = hederaConfig.transactionMaxBytes() - 1024;
+                        final var proof = new byte[xlSize];
+                        new SplittableRandom().nextBytes(proof);
                         appContext
                                 .gossip()
                                 .submitFuture(
@@ -614,6 +623,11 @@ public class HandleWorkflow {
                                         Duration.ofSeconds(120),
                                         b -> b.historyProofVote(HistoryProofVoteTransactionBody.newBuilder()
                                                 .constructionId(123)
+                                                .vote(HistoryProofVote.newBuilder()
+                                                        .proof(HistoryProof.newBuilder()
+                                                                .proof(Bytes.wrap(proof))
+                                                                .build())
+                                                        .build())
                                                 .build()),
                                         ForkJoinPool.commonPool(),
                                         1,

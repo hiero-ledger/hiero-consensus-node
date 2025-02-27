@@ -7,7 +7,7 @@ import com.swirlds.config.api.ConfigProperty;
 /**
  * Configuration regarding transactions
  *
- * @param transactionMaxBytes          maximum number of bytes allowed in a transaction
+ * @param transactionMaxBytes          maximum number of bytes allowed in an application transaction
  * @param maxTransactionBytesPerEvent  the maximum number of bytes that a single event may contain, not including the
  *                                     event headers. if a single transaction exceeds this limit, then the event will
  *                                     contain the single transaction only

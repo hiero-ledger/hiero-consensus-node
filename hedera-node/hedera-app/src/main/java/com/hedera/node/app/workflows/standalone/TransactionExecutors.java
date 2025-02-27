@@ -7,7 +7,6 @@ import static com.hedera.node.app.workflows.standalone.impl.NoopVerificationStra
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.app.Hedera;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
@@ -283,7 +282,10 @@ public enum TransactionExecutors {
                 .throttleFactory(appContext.throttleFactory())
                 .maxSignedTxnSize(Optional.ofNullable(properties.get(MAX_SIGNED_TXN_SIZE_PROPERTY))
                         .map(Integer::parseInt)
-                        .orElse(Hedera.MAX_SIGNED_TXN_SIZE))
+                        .orElseGet(() -> configProvider
+                                .getConfiguration()
+                                .getConfigData(HederaConfig.class)
+                                .transactionMaxBytes()))
                 .build();
         componentRef.set(component);
         return component;
