@@ -15,13 +15,9 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class HistoryProofVoteHandler implements TransactionHandler {
-    private static final Logger logger = LogManager.getLogger(HistoryProofVoteHandler.class);
-
     private final ProofControllers controllers;
 
     @Inject

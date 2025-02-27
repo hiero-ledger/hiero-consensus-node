@@ -63,7 +63,6 @@ import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
-import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -149,7 +148,6 @@ public class HandleWorkflow {
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
-    private final AppContext appContext;
 
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
     private long lastMetricUpdateSecond;
@@ -183,8 +181,7 @@ public class HandleWorkflow {
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
             @NonNull final CongestionMetrics congestionMetrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
-            AppContext appContext) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -215,7 +212,6 @@ public class HandleWorkflow {
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
-        this.appContext = appContext;
     }
 
     /**

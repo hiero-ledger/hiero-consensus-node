@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -9,21 +8,17 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createDefaultContract;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
-import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NONSENSE_KEY;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
@@ -37,12 +32,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class TopicCreateSuite {
     public static final String TEST_TOPIC = "testTopic";
@@ -74,7 +66,6 @@ public class TopicCreateSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> autoRenewAccountIdDoesntNeedAdminKey() {
         return hapiTest(
                 cryptoCreate("payer"),
@@ -86,13 +77,7 @@ public class TopicCreateSuite {
                         .signedBy("payer", "autoRenewAccount"),
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
-                        .hasAutoRenewAccount("autoRenewAccount"),
-                sourcing(() -> runWithProvider(
-                                spec -> () -> Optional.of(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))))
-                        .lasting(() -> 10L, () -> TimeUnit.SECONDS)
-                        .maxOpsPerSec(() -> 2)
-                        .maxPendingOps(() -> 123)
-                        .backoffSleepSecs(() -> 1)));
+                        .hasAutoRenewAccount("autoRenewAccount"));
     }
 
     @HapiTest

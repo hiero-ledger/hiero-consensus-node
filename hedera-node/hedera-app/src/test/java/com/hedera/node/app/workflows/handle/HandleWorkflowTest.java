@@ -25,7 +25,6 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
-import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -61,9 +60,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class HandleWorkflowTest {
     private static final Timestamp BLOCK_TIME = new Timestamp(1_234_567L, 890);
-
-    @Mock
-    private AppContext appContext;
 
     @Mock
     private HintsService hintsService;
@@ -227,7 +223,6 @@ class HandleWorkflowTest {
                 hintsService,
                 historyService,
                 congestionMetrics,
-                softwareVersionFactory,
-                appContext);
+                softwareVersionFactory);
     }
 }
