@@ -90,7 +90,11 @@ class EventMetadataTest {
         verifyEvent(otherParentsAfterOverride.getFirst(), 1, 90, 1);
     }
 
-    private void verifyEvent(final EventMetadata metadata, final long expectedCreatorNodeId, final long expectedGeneration, final long expectedBirthRound) {
+    private void verifyEvent(
+            final EventMetadata metadata,
+            final long expectedCreatorNodeId,
+            final long expectedGeneration,
+            final long expectedBirthRound) {
         assertNotNull(metadata);
 
         assertEquals(expectedCreatorNodeId, metadata.getCreatorId().id());
@@ -98,7 +102,11 @@ class EventMetadataTest {
         assertEquals(expectedBirthRound, metadata.getBirthRound());
     }
 
-    private void verifyEvent(final EventDescriptorWrapper actualDescriptorWrapper, final long expectedCreatorNodeId, final long expectedGeneration, final long expectedBirthRound) {
+    private void verifyEvent(
+            final EventDescriptorWrapper actualDescriptorWrapper,
+            final long expectedCreatorNodeId,
+            final long expectedGeneration,
+            final long expectedBirthRound) {
         assertNotNull(actualDescriptorWrapper);
 
         final EventDescriptor actualDescriptor = actualDescriptorWrapper.eventDescriptor();
