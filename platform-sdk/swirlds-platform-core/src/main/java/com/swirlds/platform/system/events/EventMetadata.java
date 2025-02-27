@@ -61,7 +61,7 @@ public class EventMetadata extends AbstractHashable {
 
     /**
      * The birth round that was initialized to the event. This may be overridden at a later time via
-     * {@link #setBirthRoundOverride(long)}.
+     * {@link #setBirthRoundOverride(long, long)}.
      */
     private final long birthRound;
 
@@ -240,7 +240,15 @@ public class EventMetadata extends AbstractHashable {
         return descriptor;
     }
 
-    public void setBirthRoundOverride(final long birthRound) {
+    /**
+     * Override the birth round for this event and potentially any parents associated with the event. Parents will be
+     * overridden if their generation is equal to or greater than the round before birth round migration was enabled.
+     *
+     * @param birthRound the birth round to use for this event and potential parents
+     * @param lastRoundBeforeBirthRoundMode the threshold used to determine if parents will also have their birth round
+     *                                      overridden
+     */
+    public void setBirthRoundOverride(final long birthRound, final long lastRoundBeforeBirthRoundMode) {
         if (birthRoundOverride != null) {
             throw new IllegalStateException(
                     "The birth round has already been overridden, you cannot override it again");
@@ -248,8 +256,7 @@ public class EventMetadata extends AbstractHashable {
 
         birthRoundOverride = birthRound;
 
-        // re-build parents with the new birth round
-        if (selfParent != null) {
+        if (selfParent != null && selfParent.eventDescriptor().generation() >= lastRoundBeforeBirthRoundMode) {
             selfParent = new EventDescriptorWrapper(new EventDescriptor(
                     selfParent.eventDescriptor().hash(),
                     selfParent.eventDescriptor().creatorNodeId(),
@@ -258,11 +265,17 @@ public class EventMetadata extends AbstractHashable {
         }
 
         otherParents = otherParents.stream()
-                .map(parent -> new EventDescriptorWrapper(new EventDescriptor(
-                        parent.eventDescriptor().hash(),
-                        parent.eventDescriptor().creatorNodeId(),
-                        birthRoundOverride,
-                        parent.eventDescriptor().generation())))
+                .map(parent -> {
+                    if (parent.eventDescriptor().generation() >= lastRoundBeforeBirthRoundMode) {
+                        return new EventDescriptorWrapper(new EventDescriptor(
+                                parent.eventDescriptor().hash(),
+                                parent.eventDescriptor().creatorNodeId(),
+                                birthRoundOverride,
+                                parent.eventDescriptor().generation()));
+                    }
+
+                    return parent;
+                })
                 .toList();
 
         allParents = selfParent == null
