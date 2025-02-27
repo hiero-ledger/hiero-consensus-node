@@ -7,6 +7,6 @@ module com.swirlds.platform.test.gui {
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.api;
     requires com.swirlds.platform.core.test.fixtures;
+    requires com.github.spotbugs.annotations;
     requires java.desktop;
-    requires static transitive com.github.spotbugs.annotations;
 }
