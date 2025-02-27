@@ -70,6 +70,7 @@ together as part of the atomic batch.
 The transactions are executed in the order they appear in the list.
 If an inner transaction fails, preceding transactions that succeeded
 will still incur fees, even though their effects are not committed.
+Each inner transaction has its own TransactionBody, is individually signed and has its own payer.
 
 ## Handlers
 
@@ -123,7 +124,7 @@ then their containing AtomicBatch transaction must be signed by both `batchKey` 
   - ```maxNumberOfTransactions``` This number is a long that determines the maximum number of transactions
     allowed in an atomic batch. If the number of transactions in a batch exceeds this limit, the batch will be rejected.
   - ```blacklist``` This property is a HederaFunctionalitySet that contains a list of transaction types
-    that are not allowed in an atomic batch.
+    that are not allowed in an atomic batch. If an inner transaction type is in the blacklist, the batch will be rejected.
 
 ## Network Response Messages
 
@@ -132,7 +133,7 @@ The response codes relevant to the Util Service are:
 - `BATCH_LIST_EMPTY`: The list of batch transactions is empty.
 - `BATCH_LIST_CONTAINS_DUPLICATES`: The list of batch transactions contains duplicated transactions.
 - `BATCH_SIZE_LIMIT_EXCEEDED`: The number of transactions in the batch exceeds the limit as configured in ```maxNumberOfTransactions```
-- `BATCH_TRANSACTION_NOT_IN_WHITELIST`: The type of one or more transactions in the batch is in the configuration blacklist.
+- `BATCH_TRANSACTION_IN_BLACKLIST`: The type of one or more transactions in the batch is in the configuration blacklist.
 - `INNER_TRANSACTION_FAILED`: An atomic batch inner transaction failed.
 - `INVALID_BATCH_KEY`: An inner transaction in an atomic batch has an invalid batch key.
 - `INVALID_NODE_ACCOUNT_ID`: An inner transaction in an atomic batch has any account ID other than 0.0.0.
