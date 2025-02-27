@@ -30,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauth
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall.SignatureType;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
@@ -73,7 +74,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
     void revertsWithNoAccountAtAddress() {
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         subject = getSubject(APPROVED_HEADLONG_ADDRESS);
 
         final var result = subject.execute(frame).fullResult().result();

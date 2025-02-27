@@ -211,6 +211,8 @@ class HandleHederaNativeOperationsTest {
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountIDByAlias(0, 0, CANONICAL_ALIAS)).willReturn(A_NEW_ACCOUNT_ID);
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create().getOrCreateConfig());
 
         subject.finalizeHollowAccountAsContract(CANONICAL_ALIAS);
 

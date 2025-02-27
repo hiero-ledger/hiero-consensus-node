@@ -102,13 +102,12 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
     @Override
     @Nullable
     public AccountID getAccountIDByAlias(final long shardNum, final long realmNum, @NonNull final Bytes alias) {
-        //        return aliases.get(new ProtoBytes(alias));
         return lookupAlias(shardNum, realmNum, alias);
     }
 
     @Override
     public boolean containsAlias(final long shardNum, final long realmNum, @NonNull Bytes alias) {
-        return lookupAlias(shardNum, realmNum, alias) != null;
+        return getAccountIDByAlias(shardNum, realmNum, alias) != null;
     }
 
     @Override
