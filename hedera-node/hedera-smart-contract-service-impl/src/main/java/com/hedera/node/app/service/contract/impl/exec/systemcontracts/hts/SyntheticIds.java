@@ -5,7 +5,7 @@ import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeO
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
 
@@ -72,7 +72,7 @@ public class SyntheticIds {
         final var accountNum = accountNumberForEvmReference(address, nativeOperations);
         if (accountNum == MISSING_ENTITY_NUMBER) {
             final var explicit = explicitFromHeadlong(address);
-            if (isLongZeroAddress(explicit)) {
+            if (isLongZero(nativeOperations.entityIdFactory(), address)) {
                 // References to missing long-zero addresses are synthesized as aliases for
                 // credits and numeric ids for debits
                 return isCredit ? aliasIdWith(explicit) : numericIdWith(numberOfLongZero(explicit));

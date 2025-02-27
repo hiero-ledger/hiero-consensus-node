@@ -11,9 +11,9 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -63,7 +63,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
      */
     @Override
     public List<StateChanges.Builder> doMigrations(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final ServicesRegistry servicesRegistry,
             @Nullable final SoftwareVersion previousVersion,
             @NonNull final SoftwareVersion currentVersion,
