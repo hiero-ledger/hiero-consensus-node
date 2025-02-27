@@ -101,6 +101,13 @@ public interface HintsService extends Service, BlockHashSigner {
             @NonNull TssConfig tssConfig);
 
     /**
+     * Executes the work needed to set the CRS for the network and start the preprocessing vote.
+     * @param hintsStore the hints store
+     * @param now the current consensus time
+     */
+    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now);
+
+    /**
      * Stops the hinTS service, causing it to abandon any in-progress work.
      */
     void stop();
