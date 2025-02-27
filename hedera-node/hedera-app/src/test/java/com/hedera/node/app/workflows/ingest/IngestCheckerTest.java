@@ -62,7 +62,7 @@ import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
@@ -149,7 +149,7 @@ class IngestCheckerTest extends AppTestBase {
     private IngestChecker subject;
 
     @BeforeEach
-    void setUp() throws PreCheckException {
+    void setUp() {
         setupStandardStates();
         when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
 
@@ -222,7 +222,7 @@ class IngestCheckerTest extends AppTestBase {
                 given(blockStreamManager.hasLedgerId()).willReturn(true);
                 // When we try to parse and check a transaction, it should fail because the platform is not active
                 assertThatThrownBy(() -> subject.verifyPlatformActive())
-                        .isInstanceOf(PreCheckException.class)
+                        .isInstanceOf(WorkflowException.class)
                         .has(responseCode(PLATFORM_NOT_ACTIVE));
                 verify(opWorkflowMetrics, never()).incrementThrottled(any());
             }
@@ -234,7 +234,7 @@ class IngestCheckerTest extends AppTestBase {
             when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
             // When we try to parse and check a transaction, it should fail because the platform is not active
             assertThatThrownBy(() -> subject.verifyReadyForTransactions())
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(WAITING_FOR_LEDGER_ID));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
@@ -265,9 +265,9 @@ class IngestCheckerTest extends AppTestBase {
                 opWorkflowMetrics,
                 ServicesSoftwareVersion::new);
 
-        // Then the checker should throw a PreCheckException
+        // Then the checker should throw a WorkflowException
         assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_NODE_ACCOUNT));
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
@@ -308,20 +308,20 @@ class IngestCheckerTest extends AppTestBase {
         @ParameterizedTest(name = "TransactionChecker fails with error code {0}")
         @MethodSource("failureReasons")
         @DisplayName("If the transaction fails TransactionChecker, a failure response is returned with the right error")
-        void onsetFailsWithPreCheckException(ResponseCodeEnum failureReason) throws PreCheckException {
-            // Given a TransactionChecker that will throw a PreCheckException with the given failure reason
-            when(transactionChecker.parseAndCheck(any())).thenThrow(new PreCheckException(failureReason));
+        void onsetFailsWithWorkflowException(ResponseCodeEnum failureReason) {
+            // Given a TransactionChecker that will throw a WorkflowException with the given failure reason
+            when(transactionChecker.parseAndCheck(any())).thenThrow(new WorkflowException(failureReason));
 
             // When the transaction is checked
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(failureReason));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
 
         @Test
         @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
-        void randomException() throws PreCheckException {
+        void randomException() {
             // Given a WorkflowOnset that will throw a RuntimeException
             when(transactionChecker.parseAndCheck(any())).thenThrow(new RuntimeException("check exception"));
 
@@ -342,10 +342,10 @@ class IngestCheckerTest extends AppTestBase {
             // Given a deduplication cache, and a transaction with an ID already in the deduplication cache
             final var id = txBody.transactionIDOrThrow();
             deduplicationCache.add(id);
-            // When the transaction is checked, then it throws a PreCheckException due to duplication
+            // When the transaction is checked, then it throws a WorkflowException due to duplication
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", DUPLICATE_TRANSACTION);
+                    .isInstanceOf(WorkflowException.class)
+                    .hasFieldOrPropertyWithValue("status", DUPLICATE_TRANSACTION);
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
     }
@@ -363,14 +363,14 @@ class IngestCheckerTest extends AppTestBase {
 
             // When the transaction is submitted
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", BUSY);
+                    .isInstanceOf(WorkflowException.class)
+                    .hasFieldOrPropertyWithValue("status", BUSY);
             verify(opWorkflowMetrics).incrementThrottled(UNCHECKED_SUBMIT);
         }
 
         @Test
         @DisplayName("Unsupported transaction functionality should throw NOT_SUPPORTED")
-        void unsupportedTransactionFunctionality() throws PreCheckException {
+        void unsupportedTransactionFunctionality() {
             final TransactionBody cryptoAddLiveHashTxBody = TransactionBody.newBuilder()
                     .cryptoAddLiveHash(
                             CryptoAddLiveHashTransactionBody.newBuilder().build())
@@ -399,13 +399,13 @@ class IngestCheckerTest extends AppTestBase {
                     .thenReturn(cryptoAddLiveHashTransactionInfo);
 
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedCryptoAddLiveHashTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
+                    .isInstanceOf(WorkflowException.class)
+                    .hasFieldOrPropertyWithValue("status", NOT_SUPPORTED);
         }
 
         @Test
         @DisplayName("Privileged transaction functionality should throw NOT_SUPPORTED for non-privileged accounts")
-        void privilegedTransactionFunctionality() throws PreCheckException {
+        void privilegedTransactionFunctionality() {
             final TransactionBody freezeTxBody = TransactionBody.newBuilder()
                     .freeze(FreezeTransactionBody.newBuilder().build())
                     .transactionID(TransactionID.newBuilder()
@@ -432,8 +432,8 @@ class IngestCheckerTest extends AppTestBase {
             when(transactionChecker.parseAndCheck(serializedFreezeTx)).thenReturn(freezeTransactionInfo);
 
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedFreezeTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
+                    .isInstanceOf(WorkflowException.class)
+                    .hasFieldOrPropertyWithValue("status", NOT_SUPPORTED);
         }
 
         @Test
@@ -462,18 +462,18 @@ class IngestCheckerTest extends AppTestBase {
         @ParameterizedTest(name = "Check of account status fails with error code {0}")
         @MethodSource("failureReasons")
         @DisplayName("If the status of the payer account is invalid, the transaction should be rejected")
-        void payerAccountStatusFails(ResponseCodeEnum failureReason) throws PreCheckException {
-            doThrow(new PreCheckException(failureReason)).when(solvencyPreCheck).getPayerAccount(any(), any());
+        void payerAccountStatusFails(ResponseCodeEnum failureReason) {
+            doThrow(new WorkflowException(failureReason)).when(solvencyPreCheck).getPayerAccount(any(), any());
 
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(failureReason));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
 
         @Test
         @DisplayName("If some random exception is thrown from account status check, the exception is bubbled up")
-        void randomException() throws PreCheckException {
+        void randomException() {
             // Given an IngestChecker that will throw a RuntimeException from checkPayerSignature
             doThrow(new RuntimeException("checkPayerAccountStatus exception"))
                     .when(solvencyPreCheck)
@@ -489,14 +489,14 @@ class IngestCheckerTest extends AppTestBase {
         // NOTE: This should never happen in real life, but we need to code defensively for it anyway.
         @Test
         @DisplayName("No key for payer in state")
-        void noKeyForPayer() throws PreCheckException {
+        void noKeyForPayer() {
             // The tx payer is ALICE. We remove her key from state
             final var account = ALICE.account().copyBuilder().key((Key) null).build();
             when(solvencyPreCheck.getPayerAccount(any(), eq(ALICE.accountID()))).thenReturn(account);
 
             // When the transaction is submitted, then the exception is thrown
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(UNAUTHORIZED));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
@@ -517,7 +517,7 @@ class IngestCheckerTest extends AppTestBase {
         @MethodSource("failureReasons")
         @DisplayName("If the payer has insufficient funds, the transaction should be rejected")
         void payerAccountStatusFails(ResponseCodeEnum failureReason)
-                throws PreCheckException, ExecutionException, InterruptedException, TimeoutException {
+                throws ExecutionException, InterruptedException, TimeoutException {
             givenValidPayerSignature();
             doThrow(new InsufficientBalanceException(failureReason, 123L))
                     .when(solvencyPreCheck)
@@ -532,7 +532,7 @@ class IngestCheckerTest extends AppTestBase {
 
         @Test
         @DisplayName("If some random exception is thrown from checking solvency, the exception is bubbled up")
-        void randomException() throws PreCheckException, ExecutionException, InterruptedException, TimeoutException {
+        void randomException() throws ExecutionException, InterruptedException, TimeoutException {
             // Given an IngestChecker that will throw a RuntimeException from checkPayerSignature
             givenValidPayerSignature();
             doThrow(new RuntimeException("checkSolvency exception"))
@@ -569,7 +569,7 @@ class IngestCheckerTest extends AppTestBase {
 
             // When the transaction is submitted, then the exception is thrown
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_SIGNATURE));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
@@ -585,7 +585,7 @@ class IngestCheckerTest extends AppTestBase {
                     .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
 
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_SIGNATURE));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
@@ -694,7 +694,7 @@ class IngestCheckerTest extends AppTestBase {
 
             // when
             assertThatThrownBy(() -> subject.runAllChecks(state, mySerializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_SIGNATURE));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
@@ -807,7 +807,7 @@ class IngestCheckerTest extends AppTestBase {
 
             // when
             assertThatThrownBy(() -> subject.runAllChecks(state, mySerializedTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_SIGNATURE));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }

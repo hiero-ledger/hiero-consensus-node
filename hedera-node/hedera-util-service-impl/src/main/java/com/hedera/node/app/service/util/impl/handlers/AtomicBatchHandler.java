@@ -13,10 +13,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -37,11 +35,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AtomicBatchConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -85,28 +82,28 @@ public class AtomicBatchHandler implements TransactionHandler {
      * @param context the pure checks context
      */
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final List<Transaction> innerTxs = context.body().atomicBatchOrThrow().transactions();
         if (innerTxs.isEmpty()) {
-            throw new PreCheckException(BATCH_LIST_EMPTY);
+            throw new WorkflowException(BATCH_LIST_EMPTY);
         }
 
         Set<TransactionID> txIds = new HashSet<>();
         for (final var innerTx : innerTxs) {
             if (!innerTx.hasBody()) {
-                throw new PreCheckException(BATCH_TRANSACTION_NOT_IN_WHITELIST);
+                throw new WorkflowException(BATCH_TRANSACTION_NOT_IN_WHITELIST);
             }
             final var txBody = innerTx.bodyOrThrow(); // inner txs are required to use body
 
             // throw if more than one tx has the same transactionID
-            validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
+            validateTrue(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
 
             // validate batch key exists on each inner transaction
-            validateTruePreCheck(txBody.hasBatchKey(), MISSING_BATCH_KEY);
+            validateTrue(txBody.hasBatchKey(), MISSING_BATCH_KEY);
 
             if (!txBody.hasNodeAccountID() || !txBody.nodeAccountIDOrThrow().equals(ATOMIC_BATCH_NODE_ACCOUNT_ID)) {
-                throw new PreCheckException(INVALID_NODE_ACCOUNT_ID);
+                throw new WorkflowException(INVALID_NODE_ACCOUNT_ID);
             }
 
             context.dispatchPureChecks(txBody);
@@ -114,7 +111,7 @@ public class AtomicBatchHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var atomicBatchTransactionBody = context.body().atomicBatchOrThrow();
         final var config = context.configuration();
@@ -124,15 +121,14 @@ public class AtomicBatchHandler implements TransactionHandler {
         // not using stream below as throwing exception from middle of functional pipeline is a terrible idea
         for (final var txn : txns) {
             final var innerTxBody = txn.bodyOrThrow();
-            validateFalsePreCheck(
-                    isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_NOT_IN_WHITELIST);
+            validateFalse(isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_NOT_IN_WHITELIST);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
         final var op = context.body().atomicBatchOrThrow();
         validateTrue(
@@ -159,7 +155,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);
             if (streamBuilder.status() != SUCCESS) {
-                throw new HandleException(
+                throw new WorkflowException(
                         INNER_TRANSACTION_FAILED,
                         ctx -> recordedFeeCharging.forEachRecorded((builder, charges) -> {
                             final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);

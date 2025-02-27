@@ -56,9 +56,9 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -278,7 +278,7 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void preHandleCachesTheSignaturesIfDataCanBeHydrated() throws PreCheckException {
+    void preHandleCachesTheSignaturesIfDataCanBeHydrated() {
         final var ethTxn = EthereumTransactionBody.newBuilder()
                 .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
                 .build();
@@ -294,7 +294,7 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void preHandleTranslatesIseAsInvalidEthereumTransaction() throws PreCheckException {
+    void preHandleTranslatesIseAsInvalidEthereumTransaction() {
         final var ethTxn = EthereumTransactionBody.newBuilder()
                 .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
                 .build();
@@ -380,7 +380,7 @@ class EthereumTransactionHandlerTest {
         // check bad eth txn body
         final var txn1 = ethTxWithNoTx();
         given(pureChecksContext.body()).willReturn(txn1);
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check bad to evm address
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
@@ -393,7 +393,7 @@ class EthereumTransactionHandlerTest {
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(ethTxDataReturned.to()).willReturn(toAddress);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
-            assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
         }
 
         // check at least intrinsic gas
@@ -402,7 +402,7 @@ class EthereumTransactionHandlerTest {
             given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
-            assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
         }
     }
 

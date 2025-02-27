@@ -26,9 +26,8 @@ import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.get
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsableForAliasedId;
 import static com.hedera.node.app.spi.key.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -51,11 +50,10 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextI
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -81,7 +79,7 @@ public class TokenRejectHandler extends BaseTokenHandler implements TransactionH
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenRejectOrThrow();
@@ -100,34 +98,33 @@ public class TokenRejectHandler extends BaseTokenHandler implements TransactionH
      * @param ownerId The AccountID of the owner whose key needs to be validated.
      * @param context The PreHandleContext providing transaction context.
      * @param accountStore The store to access readable account information.
-     * @throws PreCheckException If the sender's account is immutable or the sender's account ID is invalid.
+     * @throws WorkflowException If the sender's account is immutable or the sender's account ID is invalid.
      */
     private void verifyOwnerAndRequireKey(
             @NonNull final AccountID ownerId,
             @NonNull final PreHandleContext context,
-            @NonNull final ReadableAccountStore accountStore)
-            throws PreCheckException {
+            @NonNull final ReadableAccountStore accountStore) {
 
         final var ownerAccount = accountStore.getAliasedAccountById(ownerId);
-        validateTruePreCheck(ownerAccount != null, INVALID_OWNER_ID);
+        validateTrue(ownerAccount != null, INVALID_OWNER_ID);
 
         // If the sender account is immutable, then we throw an exception.
         final var key = ownerAccount.key();
         if (key == null || !isValid(key)) {
-            throw new PreCheckException(ACCOUNT_IS_IMMUTABLE);
+            throw new WorkflowException(ACCOUNT_IS_IMMUTABLE);
         }
         context.requireKey(key);
     }
 
     @SuppressWarnings("java:S2259")
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         requireNonNull(txn, "Transaction body cannot be null");
         final var op = txn.tokenRejectOrThrow();
 
-        validateFalsePreCheck(op.rejections().isEmpty(), EMPTY_TOKEN_REFERENCE_LIST);
+        validateFalse(op.rejections().isEmpty(), EMPTY_TOKEN_REFERENCE_LIST);
         if (op.hasOwner()) {
             validateAccountID(op.owner(), null);
         }
@@ -135,25 +132,25 @@ public class TokenRejectHandler extends BaseTokenHandler implements TransactionH
         final var uniqueTokenReferences = new HashSet<TokenReference>();
         for (final var rejection : op.rejections()) {
             if (!uniqueTokenReferences.add(rejection)) {
-                throw new PreCheckException(TOKEN_REFERENCE_REPEATED);
+                throw new WorkflowException(TOKEN_REFERENCE_REPEATED);
             }
             // Ensure one token type per single rejection reference.
-            validateFalsePreCheck(rejection.hasFungibleToken() && rejection.hasNft(), INVALID_TRANSACTION_BODY);
+            validateFalse(rejection.hasFungibleToken() && rejection.hasNft(), INVALID_TRANSACTION_BODY);
 
             if (rejection.hasFungibleToken()) {
                 final var tokenID = rejection.fungibleToken();
-                validateTruePreCheck(tokenID != null && !tokenID.equals(TokenID.DEFAULT), INVALID_TOKEN_ID);
+                validateTrue(tokenID != null && !tokenID.equals(TokenID.DEFAULT), INVALID_TOKEN_ID);
             }
             if (rejection.hasNft()) {
                 final var nftID = rejection.nft();
-                validateTruePreCheck(nftID != null && nftID.tokenId() != null, INVALID_NFT_ID);
-                validateTruePreCheck(nftID.serialNumber() > 0, INVALID_TOKEN_NFT_SERIAL_NUMBER);
+                validateTrue(nftID != null && nftID.tokenId() != null, INVALID_NFT_ID);
+                validateTrue(nftID.serialNumber() > 0, INVALID_TOKEN_NFT_SERIAL_NUMBER);
             }
         }
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
         final var op = context.body().tokenRejectOrThrow();
         final var rejectingAccountID = op.ownerOrElse(context.payer());

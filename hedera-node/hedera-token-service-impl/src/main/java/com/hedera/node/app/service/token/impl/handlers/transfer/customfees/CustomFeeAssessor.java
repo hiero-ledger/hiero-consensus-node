@@ -3,7 +3,7 @@ package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenType;
@@ -13,7 +13,7 @@ import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Predicate;
 import javax.inject.Inject;
@@ -147,7 +147,7 @@ public class CustomFeeAssessor extends BaseTokenHandler {
                         if (autoCreationTest.test(accountId)) {
                             // mono-service refuses to let an auto-created account pay a custom fee, even
                             // if technically it is receiving sufficient credits in the same transaction
-                            throw new HandleException(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
+                            throw new WorkflowException(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
                         } else {
                             final var currentAccount = accountStore.getAccountById(accountId);
                             // We have to be careful not to fail when an NFT sender with auto-association slots
@@ -158,7 +158,7 @@ public class CustomFeeAssessor extends BaseTokenHandler {
                                     && precedingCredit > 0
                                     && currentAccount.maxAutoAssociations() > currentAccount.usedAutoAssociations();
                             if (!mayBeAutoAssociatedHere) {
-                                throw new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+                                throw new WorkflowException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
                             }
                         }
                     }

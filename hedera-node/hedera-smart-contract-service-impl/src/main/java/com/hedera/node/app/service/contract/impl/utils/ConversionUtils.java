@@ -34,7 +34,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOp
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -578,14 +578,14 @@ public class ConversionUtils {
     }
 
     /**
-     * Throws a {@link HandleException} if the given status is not {@link ResponseCodeEnum#SUCCESS}.
+     * Throws a {@link WorkflowException} if the given status is not {@link ResponseCodeEnum#SUCCESS}.
      *
      * @param status the status
      */
     public static void throwIfUnsuccessful(@NonNull final ResponseCodeEnum status) {
         if (status != SUCCESS) {
             // We don't want to rollback the root updater here since it contains gas charges
-            throw new HandleException(status, HandleException.ShouldRollbackStack.NO);
+            throw new WorkflowException(status, WorkflowException.ShouldRollbackStack.NO);
         }
     }
 

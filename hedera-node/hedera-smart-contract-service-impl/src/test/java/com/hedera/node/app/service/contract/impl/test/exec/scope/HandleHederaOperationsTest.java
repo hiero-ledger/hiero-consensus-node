@@ -62,8 +62,8 @@ import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -343,7 +343,7 @@ class HandleHederaOperationsTest {
     }
 
     @Test
-    void translatesCreateContractHandleException() {
+    void translatesCreateContractWorkflowException() {
         final var parent = Account.newBuilder()
                 .key(Key.newBuilder().contractID(ContractID.newBuilder().contractNum(124L)))
                 .accountId(AccountID.newBuilder().accountNum(123L).build())
@@ -355,7 +355,7 @@ class HandleHederaOperationsTest {
                 .memo("Something")
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.dispatch(any())).willThrow(new HandleException(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED));
+        given(context.dispatch(any())).willThrow(new WorkflowException(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED));
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(parent);

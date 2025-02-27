@@ -37,8 +37,8 @@ import com.hedera.node.app.service.token.impl.handlers.TokenRevokeKycFromAccount
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -169,7 +169,7 @@ class TokenRevokeKycFromAccountHandlerTest {
             given(handleContext.body()).willReturn(txnBody);
 
             assertThatThrownBy(() -> subject.handle(handleContext))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
 
             verify(tokenRelStore, never()).put(any(TokenRelation.class));
@@ -189,7 +189,7 @@ class TokenRevokeKycFromAccountHandlerTest {
             given(handleContext.body()).willReturn(txnBody);
 
             assertThatThrownBy(() -> subject.handle(handleContext))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_IS_PAUSED));
 
             verify(tokenRelStore, never()).put(any(TokenRelation.class));
@@ -209,7 +209,7 @@ class TokenRevokeKycFromAccountHandlerTest {
             given(handleContext.body()).willReturn(txnBody);
 
             assertThatThrownBy(() -> subject.handle(handleContext))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_WAS_DELETED));
 
             verify(tokenRelStore, never()).put(any(TokenRelation.class));

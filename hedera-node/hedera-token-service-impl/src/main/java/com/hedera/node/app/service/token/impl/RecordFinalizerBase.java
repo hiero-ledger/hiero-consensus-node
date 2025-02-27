@@ -7,7 +7,7 @@ import static com.hedera.node.app.service.token.impl.comparator.TokenComparators
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.NFT_TRANSFER_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.asAccountAmounts;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.addExactOrThrowReason;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -17,7 +17,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -63,7 +63,7 @@ public class RecordFinalizerBase {
         // handler before getting here. Therefore, if the sum is non-zero, something went wrong, and we'll respond with
         // FAIL_INVALID
         if (netHbarBalance != 0) {
-            throw new HandleException(FAIL_INVALID);
+            throw new WorkflowException(FAIL_INVALID);
         }
 
         return hbarChanges;

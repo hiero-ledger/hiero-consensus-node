@@ -6,8 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.transactionIdForScheduled;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -24,11 +23,10 @@ import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -50,17 +48,17 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var body = context.body();
         requireNonNull(body);
-        validateTruePreCheck(body.hasScheduleSign(), INVALID_TRANSACTION_BODY);
+        validateTrue(body.hasScheduleSign(), INVALID_TRANSACTION_BODY);
         final var op = body.scheduleSignOrThrow();
-        validateTruePreCheck(op.hasScheduleID(), INVALID_SCHEDULE_ID);
+        validateTrue(op.hasScheduleID(), INVALID_SCHEDULE_ID);
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().scheduleSignOrThrow();
         final var scheduleStore = context.createStore(ReadableScheduleStore.class);
@@ -73,7 +71,7 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
         final var op = context.body().scheduleSignOrThrow();
         final var scheduleStore = context.storeFactory().writableStore(WritableScheduleStore.class);

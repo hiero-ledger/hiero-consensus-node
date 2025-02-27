@@ -2,24 +2,23 @@
 package com.hedera.node.app.spi.fixtures.workflows;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Predicate;
 import org.assertj.core.api.Condition;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 /**
- * A collection of {@link Condition} objects for asserting the state of {@link PreCheckException} objects.
+ * A collection of {@link Condition} objects for asserting the state of {@link WorkflowException} objects.
  */
 public class ExceptionConditions {
 
     private ExceptionConditions() {}
 
     /**
-     * Returns a {@link Condition} that asserts that the {@link PreCheckException} or
-     * {@link HandleException} has the given {@link ResponseCodeEnum}.
+     * Returns a {@link Condition} that asserts that the {@link WorkflowException} or
+     * {@link WorkflowException} has the given {@link ResponseCodeEnum}.
      * <p>
      * The type of the {@link Condition} is {@link Throwable} because
      * {@link org.assertj.core.api.Assertions#assertThatThrownBy(ThrowingCallable)} expects a
@@ -36,10 +35,7 @@ public class ExceptionConditions {
     @NonNull
     private static Predicate<Throwable> getResponseCodeCheck(@NonNull final ResponseCodeEnum responseCode) {
         return e -> {
-            if (e instanceof PreCheckException exception) {
-                return exception.responseCode() == responseCode;
-            }
-            if (e instanceof HandleException exception) {
+            if (e instanceof WorkflowException exception) {
                 return exception.getStatus() == responseCode;
             }
             return false;

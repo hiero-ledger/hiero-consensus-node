@@ -56,9 +56,8 @@ import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -164,7 +163,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Topic submission key sig required")
-    void submissionKeySigRequired() throws PreCheckException {
+    void submissionKeySigRequired() {
         readableStore = mock(ReadableTopicStore.class);
         // given:
         final var payerKey = mockPayerLookup();
@@ -182,7 +181,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Topic not found returns error")
-    void topicIdNotFound() throws PreCheckException {
+    void topicIdNotFound() {
         mockPayerLookup();
         readableTopicState = emptyReadableTopicState();
         given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
@@ -195,7 +194,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Topic without submit key does not error")
-    void noTopicSubmitKey() throws PreCheckException {
+    void noTopicSubmitKey() {
         readableStore = mock(ReadableTopicStore.class);
         mockPayerLookup();
         mockTopicLookup(null);
@@ -246,7 +245,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
 
         given(handleContext.consensusNow()).willReturn(consensusTimestamp);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertThat(msg.getStatus()).isEqualTo(ResponseCodeEnum.INVALID_TRANSACTION);
     }
 
@@ -287,7 +286,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.MESSAGE_SIZE_TOO_LARGE, msg.getStatus());
     }
 
@@ -298,7 +297,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         final var txn = newDefaultSubmitMessageTxn(0L);
         given(handleContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(INVALID_TOPIC_ID, msg.getStatus());
     }
 
@@ -315,7 +314,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         final var txn = newSubmitMessageTxnWithChunks(topicEntityNum, 2, 1);
         given(handleContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_CHUNK_NUMBER, msg.getStatus());
     }
 
@@ -326,7 +325,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         final var txn = newSubmitMessageTxnWithChunks(topicEntityNum, 0, 1);
         given(handleContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_CHUNK_NUMBER, msg.getStatus());
     }
 
@@ -339,7 +338,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         final var txn = newSubmitMessageTxnWithChunksAndPayer(topicEntityNum, 2, 2, chunkTxnId);
         given(handleContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_CHUNK_TRANSACTION_ID, msg.getStatus());
     }
 
@@ -352,7 +351,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         final var txn = newSubmitMessageTxnWithChunksAndPayer(topicEntityNum, 1, 2, chunkTxnId);
         given(handleContext.body()).willReturn(txn);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_CHUNK_TRANSACTION_ID, msg.getStatus());
     }
 

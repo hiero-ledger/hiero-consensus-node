@@ -39,8 +39,8 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
@@ -269,7 +269,7 @@ public class HandleHederaOperations implements HederaOperations {
                     parent.autoRenewAccountId(),
                     evmAddress,
                     ExternalizeInitcodeOnSuccess.YES);
-        } catch (final HandleException e) {
+        } catch (final WorkflowException e) {
             throw new ResourceExhaustedException(e.getStatus());
         }
     }

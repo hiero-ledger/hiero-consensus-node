@@ -34,7 +34,7 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.annotations.NodeSelfId;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
@@ -132,13 +132,13 @@ public class TransactionChecker {
      *
      * @param buffer The buffer containing the protobuf bytes of the transaction
      * @return The parsed {@link TransactionInfo}
-     * @throws PreCheckException If parsing fails or any of the checks fail.
+     * @throws WorkflowException If parsing fails or any of the checks fail.
      */
     @NonNull
-    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) {
         // Fail fast if there are too many transaction bytes
         if (buffer.length() > maxSignedTxnSize) {
-            throw new PreCheckException(TRANSACTION_OVERSIZE);
+            throw new WorkflowException(TRANSACTION_OVERSIZE);
         }
 
         final var tx = parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
@@ -164,7 +164,7 @@ public class TransactionChecker {
      * </ul>
      *
      * <p>In all cases involving parsing, parse <strong>strictly</strong>, meaning, if there are any fields in the
-     * protobuf that we do not understand, then throw a {@link PreCheckException}. This means that we are *NOT*
+     * protobuf that we do not understand, then throw a {@link WorkflowException}. This means that we are *NOT*
      * forward compatible. You cannot send a protobuf encoded object to any of the workflows that is newer than the
      * version of software that is running.
      *
@@ -177,12 +177,12 @@ public class TransactionChecker {
      * @param tx the {@link Transaction} that needs to be checked
      * @param serializedTx if set, the serialized transaction bytes to include in the {@link TransactionInfo}
      * @return an {@link TransactionInfo} with the parsed and checked entities
-     * @throws PreCheckException if the data is not valid
+     * @throws WorkflowException if the data is not valid
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
     @VisibleForTesting
-    TransactionInfo check(@NonNull final Transaction tx, @NonNull Bytes serializedTx) throws PreCheckException {
+    TransactionInfo check(@NonNull final Transaction tx, @NonNull Bytes serializedTx) {
         // NOTE: Since we've already parsed the transaction, we assume that the
         // transaction was not too many bytes. This is a safe assumption because
         // the code that receives the transaction bytes and parses/ the transaction
@@ -197,7 +197,7 @@ public class TransactionChecker {
             try {
                 bodyBytes = ProtobufUtils.extractBodyBytes(serializedTx);
             } catch (IOException | ParseException e) {
-                throw new PreCheckException(INVALID_TRANSACTION);
+                throw new WorkflowException(INVALID_TRANSACTION);
             }
             signatureMap = tx.sigMap();
         } else {
@@ -216,32 +216,32 @@ public class TransactionChecker {
                     bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
         }
         if (signatureMap == null) {
-            throw new PreCheckException(INVALID_TRANSACTION_BODY);
+            throw new WorkflowException(INVALID_TRANSACTION_BODY);
         }
         final HederaFunctionality functionality;
         try {
             functionality = HapiUtils.functionOf(txBody);
         } catch (UnknownHederaFunctionality e) {
-            throw new PreCheckException(INVALID_TRANSACTION_BODY);
+            throw new WorkflowException(INVALID_TRANSACTION_BODY);
         }
         if (!txBody.hasTransactionID()) {
-            throw new PreCheckException(INVALID_TRANSACTION_ID);
+            throw new WorkflowException(INVALID_TRANSACTION_ID);
         } else {
             final var txnId = txBody.transactionIDOrThrow();
             if (!txnId.hasAccountID()) {
-                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+                throw new WorkflowException(PAYER_ACCOUNT_NOT_FOUND);
             }
         }
         return checkParsed(new TransactionInfo(tx, txBody, signatureMap, bodyBytes, functionality, serializedTx));
     }
 
-    public TransactionInfo checkParsed(@NonNull final TransactionInfo txInfo) throws PreCheckException {
+    public TransactionInfo checkParsed(@NonNull final TransactionInfo txInfo) {
         try {
             checkPrefixMismatch(txInfo.signatureMap().sigPair());
             checkTransactionBody(txInfo.txBody(), txInfo.functionality());
             return txInfo;
-        } catch (PreCheckException e) {
-            throw new DueDiligenceException(e.responseCode(), txInfo);
+        } catch (WorkflowException e) {
+            throw new DueDiligenceException(e.getStatus(), txInfo);
         }
     }
 
@@ -250,10 +250,10 @@ public class TransactionChecker {
      * deprecated fields, then increment associated metrics.
      *
      * @param tx the {@code Transaction}
-     * @throws PreCheckException If the transaction is using both deprecated and non-deprecated fields
+     * @throws WorkflowException If the transaction is using both deprecated and non-deprecated fields
      * @throws NullPointerException if {@code tx} is {@code null}
      */
-    private void checkTransactionDeprecation(@NonNull final Transaction tx) throws PreCheckException {
+    private void checkTransactionDeprecation(@NonNull final Transaction tx) {
         // There are three ways a transaction can be used. Two of these are deprecated:
         //   1. body & sigMap. SUPPORTED
         //   2. bodyBytes & sigMap. DEPRECATED, SUPPORTED
@@ -282,10 +282,10 @@ public class TransactionChecker {
         // combination
         if ((hasBody && hasDeprecatedBodyBytes)
                 || hasDeprecatedSignedTxnBytes && (hasBody || hasSigMap || hasDeprecatedBodyBytes)) {
-            throw new PreCheckException(INVALID_TRANSACTION);
+            throw new WorkflowException(INVALID_TRANSACTION);
         }
         if (!hasBody && !hasDeprecatedBodyBytes && !hasDeprecatedSignedTxnBytes) {
-            throw new PreCheckException(INVALID_TRANSACTION_BODY);
+            throw new WorkflowException(INVALID_TRANSACTION_BODY);
         }
     }
 
@@ -293,11 +293,10 @@ public class TransactionChecker {
      * Validates a {@link TransactionBody}
      *
      * @param txBody the {@link TransactionBody} to check
-     * @throws PreCheckException if validation fails
+     * @throws WorkflowException if validation fails
      * @throws NullPointerException if any of the parameters is {@code null}
      */
-    private void checkTransactionBody(@NonNull final TransactionBody txBody, HederaFunctionality functionality)
-            throws PreCheckException {
+    private void checkTransactionBody(@NonNull final TransactionBody txBody, HederaFunctionality functionality) {
         final var config = props.getConfiguration().getConfigData(HederaConfig.class);
         checkTransactionID(txBody.transactionIDOrThrow());
         checkMemo(txBody.memo(), config.transactionMaxMemoUtf8Bytes());
@@ -305,11 +304,11 @@ public class TransactionChecker {
 
         // You cannot have a negative transaction fee!! We're not paying you, buddy.
         if (txBody.transactionFee() < 0) {
-            throw new PreCheckException(INSUFFICIENT_TX_FEE);
+            throw new WorkflowException(INSUFFICIENT_TX_FEE);
         }
 
         if (!txBody.hasTransactionValidDuration()) {
-            throw new PreCheckException(INVALID_TRANSACTION_DURATION);
+            throw new WorkflowException(INVALID_TRANSACTION_DURATION);
         }
     }
 
@@ -326,13 +325,12 @@ public class TransactionChecker {
      * @param txBody The transaction body that needs to be checked.
      * @param consensusTime The consensus time used for comparison (either exact or an approximation)
      * @param requireMinValidLifetimeBuffer Whether to require a minimum valid lifetime buffer
-     * @throws PreCheckException if the transaction duration is invalid, or if the start time is too old, or in the future.
+     * @throws WorkflowException if the transaction duration is invalid, or if the start time is too old, or in the future.
      */
     public void checkTimeBox(
             @NonNull final TransactionBody txBody,
             @NonNull final Instant consensusTime,
-            @NonNull final RequireMinValidLifetimeBuffer requireMinValidLifetimeBuffer)
-            throws PreCheckException {
+            @NonNull final RequireMinValidLifetimeBuffer requireMinValidLifetimeBuffer) {
         requireNonNull(txBody, "txBody must not be null");
 
         // At this stage the txBody should have been checked already. We simply throw if a mandatory field is missing.
@@ -351,16 +349,16 @@ public class TransactionChecker {
         // or less than the configured minimum transaction duration.
         final var validForSecs = duration.seconds();
         if (validForSecs < min || validForSecs > max) {
-            throw new PreCheckException(INVALID_TRANSACTION_DURATION);
+            throw new WorkflowException(INVALID_TRANSACTION_DURATION);
         }
 
         final var validStart = toInstant(start);
         final var validDuration = toSecondsDuration(validForSecs, validStart, minValidityBufferSecs);
         if (validStart.plusSeconds(validDuration).isBefore(consensusTime)) {
-            throw new PreCheckException(TRANSACTION_EXPIRED);
+            throw new WorkflowException(TRANSACTION_EXPIRED);
         }
         if (validStart.isAfter(consensusTime)) {
-            throw new PreCheckException(INVALID_TRANSACTION_START);
+            throw new WorkflowException(INVALID_TRANSACTION_START);
         }
     }
 
@@ -368,10 +366,10 @@ public class TransactionChecker {
      * Validates a {@link TransactionID}
      *
      * @param txnId the {@link TransactionID} to check
-     * @throws PreCheckException if validation fails
+     * @throws WorkflowException if validation fails
      * @throws NullPointerException if any of the parameters is {@code null}
      */
-    private void checkTransactionID(@NonNull final TransactionID txnId) throws PreCheckException {
+    private void checkTransactionID(@NonNull final TransactionID txnId) {
         // Determines whether the given {@link AccountID} can possibly be valid. This method does not refer to state,
         // it simply looks at the {@code accountID} itself to determine whether it might be valid. An ID is valid if
         // the shard and realm match the shard and realm of this node, AND if the account number is positive
@@ -384,15 +382,15 @@ public class TransactionChecker {
                 && accountID.accountNumOrElse(0L) > 0;
 
         if (!isPlausibleAccount) {
-            throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+            throw new WorkflowException(PAYER_ACCOUNT_NOT_FOUND);
         }
 
         if (txnId.scheduled() || txnId.nonce() != USER_TRANSACTION_NONCE) {
-            throw new PreCheckException(TRANSACTION_ID_FIELD_NOT_ALLOWED);
+            throw new WorkflowException(TRANSACTION_ID_FIELD_NOT_ALLOWED);
         }
 
         if (!txnId.hasTransactionValidStart()) {
-            throw new PreCheckException(INVALID_TRANSACTION_START);
+            throw new WorkflowException(INVALID_TRANSACTION_START);
         }
     }
 
@@ -400,38 +398,37 @@ public class TransactionChecker {
      * Checks whether the memo passes checks.
      *
      * @param memo The memo to check.
-     * @throws PreCheckException if the memo is too long, or otherwise fails the check.
+     * @throws WorkflowException if the memo is too long, or otherwise fails the check.
      */
-    private void checkMemo(@Nullable final String memo, final int maxMemoUtf8Bytes) throws PreCheckException {
+    private void checkMemo(@Nullable final String memo, final int maxMemoUtf8Bytes) {
         if (memo == null) return; // Nothing to do, a null memo is valid.
         // Verify the number of bytes does not exceed the maximum allowed.
         // Note that these bytes are counted in UTF-8.
         final var buffer = memo.getBytes(StandardCharsets.UTF_8);
         if (buffer.length > maxMemoUtf8Bytes) {
-            throw new PreCheckException(MEMO_TOO_LONG);
+            throw new WorkflowException(MEMO_TOO_LONG);
         }
         // FUTURE: This check should be removed after mirror node supports 0x00 in memo fields
         for (final byte b : buffer) {
             if (b == 0) {
-                throw new PreCheckException(INVALID_ZERO_BYTE_IN_STRING);
+                throw new WorkflowException(INVALID_ZERO_BYTE_IN_STRING);
             }
         }
     }
 
-    private void checkMaxCustomFee(List<CustomFeeLimit> maxCustomFeeList, HederaFunctionality functionality)
-            throws PreCheckException {
+    private void checkMaxCustomFee(List<CustomFeeLimit> maxCustomFeeList, HederaFunctionality functionality) {
         if (!FUNCTIONALITIES_WITH_MAX_CUSTOM_FEES.contains(functionality) && !maxCustomFeeList.isEmpty()) {
-            throw new PreCheckException(ResponseCodeEnum.MAX_CUSTOM_FEES_IS_NOT_SUPPORTED);
+            throw new WorkflowException(ResponseCodeEnum.MAX_CUSTOM_FEES_IS_NOT_SUPPORTED);
         }
 
         // check required fields
         for (var maxCustomFee : maxCustomFeeList) {
             if (maxCustomFee.accountId() == null || maxCustomFee.fees().isEmpty()) {
-                throw new PreCheckException(ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES);
+                throw new WorkflowException(ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES);
             }
             for (final var fee : maxCustomFee.fees()) {
                 if (fee.amount() < 0) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES);
+                    throw new WorkflowException(ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES);
                 }
             }
         }
@@ -471,7 +468,7 @@ public class TransactionChecker {
     }
 
     /**
-     * A utility method for strictly parsing a protobuf message, throwing {@link PreCheckException} if the message
+     * A utility method for strictly parsing a protobuf message, throwing {@link WorkflowException} if the message
      * is malformed or contains unknown fields.
      *
      * @param data The protobuf data to parse.
@@ -479,22 +476,21 @@ public class TransactionChecker {
      * @param parseErrorCode The error code to use if the data is malformed or contains unknown fields.
      * @param <T> The type of the message to parseStrict.
      * @return The parsed message.
-     * @throws PreCheckException if the data is malformed or contains unknown fields.
+     * @throws WorkflowException if the data is malformed or contains unknown fields.
      */
     @NonNull
-    private <T> T parseStrict(@NonNull ReadableSequentialData data, Codec<T> codec, ResponseCodeEnum parseErrorCode)
-            throws PreCheckException {
+    private <T> T parseStrict(@NonNull ReadableSequentialData data, Codec<T> codec, ResponseCodeEnum parseErrorCode) {
         try {
             return codec.parseStrict(data);
         } catch (ParseException e) {
             if (e.getCause() instanceof UnknownFieldException) {
                 // We do not allow newer clients to send transactions to older networks.
-                throw new PreCheckException(TRANSACTION_HAS_UNKNOWN_FIELDS);
+                throw new WorkflowException(TRANSACTION_HAS_UNKNOWN_FIELDS);
             }
 
             // Either the protobuf was malformed, or something else failed during parsing
             logger.warn("ParseException while parsing protobuf", e);
-            throw new PreCheckException(parseErrorCode);
+            throw new WorkflowException(parseErrorCode);
         }
     }
 
@@ -506,9 +502,9 @@ public class TransactionChecker {
      *  match multiple entries, then we throw).
      *
      * @param sigPairs The list of signature pairs to check. Cannot be null.
-     * @throws PreCheckException if the list contains duplicate prefixes or prefixes that could apply to the same key
+     * @throws WorkflowException if the list contains duplicate prefixes or prefixes that could apply to the same key
      */
-    private void checkPrefixMismatch(@NonNull final List<SignaturePair> sigPairs) throws PreCheckException {
+    private void checkPrefixMismatch(@NonNull final List<SignaturePair> sigPairs) {
         final var sortedList = sort(sigPairs);
         if (sortedList.size() > 1) {
             var prev = sortedList.get(0);
@@ -519,7 +515,7 @@ public class TransactionChecker {
                 final var p2 = curr.pubKeyPrefix();
                 // NOTE: Length equality check is a workaround for a bug in Bytes in PBJ
                 if ((p1.length() == 0 && p2.length() == 0) || p2.matchesPrefix(p1)) {
-                    throw new PreCheckException(KEY_PREFIX_MISMATCH);
+                    throw new WorkflowException(KEY_PREFIX_MISMATCH);
                 }
                 prev = curr;
             }

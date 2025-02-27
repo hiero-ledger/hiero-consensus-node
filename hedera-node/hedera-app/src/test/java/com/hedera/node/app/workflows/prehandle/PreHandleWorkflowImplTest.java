@@ -43,8 +43,8 @@ import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.Scenarios;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -217,7 +217,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
         private AccountID creator;
 
         @BeforeEach
-        void setUp() throws PreCheckException {
+        void setUp() {
             final var txInfo = scenario().withPayer(ALICE.accountID()).txInfo();
             final var txBytes = asByteArray(txInfo.transaction());
             platformTx = createAppPayloadWrapper(txBytes);
@@ -235,7 +235,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
          */
         @Test
         @DisplayName("Unknown failure due to random exception during handling leads to \"unknown\" failure response")
-        void timeoutExceptionDueToRandomErrorLeadsToUnknownFailureResponseTest() throws PreCheckException {
+        void timeoutExceptionDueToRandomErrorLeadsToUnknownFailureResponseTest() {
             doAnswer(invocation -> {
                         throw new Exception("Random error!");
                     })
@@ -274,11 +274,11 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
          */
         @Test
         @DisplayName("Fail pre-handle with an attempt to parse invalid protobuf bytes")
-        void preHandleBadBytes() throws PreCheckException {
+        void preHandleBadBytes() {
             // Given a transaction that has bad bytes (and therefore fails to parse)
             final Transaction platformTx = createAppPayloadWrapper(randomByteArray(123));
             when(transactionChecker.parseAndCheck(any(Bytes.class)))
-                    .thenThrow(new PreCheckException(INVALID_TRANSACTION));
+                    .thenThrow(new WorkflowException(INVALID_TRANSACTION));
 
             // When we try to pre-handle the transaction
             workflow.preHandle(storeFactory, NODE_1.nodeAccountID(), Stream.of(platformTx), txns -> {});
@@ -296,7 +296,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
          */
         @Test
         @DisplayName("Fail pre-handle with failed syntactic check with an unknown exception")
-        void preHandleFailedSyntacticCheckWithUnknownException() throws PreCheckException {
+        void preHandleFailedSyntacticCheckWithUnknownException() {
             // Given a transaction that fails due-diligence checks for some random throwable
             final Transaction platformTx = createAppPayloadWrapper(randomByteArray(123));
             when(transactionChecker.parseAndCheck(any(Bytes.class))).thenThrow(new RuntimeException("Random"));
@@ -319,7 +319,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
          */
         @Test
         @DisplayName("Fail pre-handle because the payer account cannot be found")
-        void preHandlePayerAccountNotFound() throws PreCheckException {
+        void preHandlePayerAccountNotFound() {
             // Given a transactionID that refers to an account that does not exist
             // (Erin doesn't exist yet)
             final var txInfo = scenario().withPayer(FRANK.accountID()).txInfo();
@@ -347,7 +347,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
          */
         @Test
         @DisplayName("Fail pre-handle because the payer account deleted")
-        void preHandlePayerAccountDeleted() throws PreCheckException {
+        void preHandlePayerAccountDeleted() {
             // Given a transactionID that refers to an account that was deleted
             final var txInfo = scenario().withPayer(BOB.accountID()).txInfo();
 
@@ -408,7 +408,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
          */
         @Test
         @DisplayName("Fail pre-handle because the transaction is not created by the creator")
-        void preHandleCreatorAccountNotTxNodeAccount() throws PreCheckException {
+        void preHandleCreatorAccountNotTxNodeAccount() {
             // Given a transactionID that refers to an account OTHER THAN the creator node account.
             // The creator in this scenario is NODE_1.
             final var txInfo =
@@ -462,10 +462,10 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
     final class TransactionHandlerPreHandleTests {
         /**
          * If the transaction has a valid payer, then we next need to perform the pre-handle call on the dispatcher. It
-         * may fail with a {@link PreCheckException}. If it does, this response code must be propagated.
+         * may fail with a {@link WorkflowException}. If it does, this response code must be propagated.
          */
         @Test
-        @DisplayName("Pre-handle semantic checks fail with PreCheckException")
+        @DisplayName("Pre-handle semantic checks fail with WorkflowException")
         void preHandleSemanticChecksFail(@Mock SignatureVerificationFuture sigFuture) throws Exception {
             // Given a transaction that fails the semantic check to the transaction handler
             // (NOTE that INVALID_ACCOUNT_AMOUNTS is one such semantic failure scenario)
@@ -475,7 +475,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var key = ALICE.keyInfo().publicKey();
             when(transactionChecker.parseAndCheck(any(Bytes.class))).thenReturn(txInfo);
             when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(key, sigFuture));
-            doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
+            doThrow(new WorkflowException(INVALID_ACCOUNT_AMOUNTS))
                     .when(dispatcher)
                     .dispatchPreHandle(any());
 
@@ -496,7 +496,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
          */
         @Test
         @DisplayName("Pre-handle warming fails with RuntimeException")
-        void preHandleWarmingFails() throws PreCheckException {
+        void preHandleWarmingFails() {
             // Given a transaction that fails in pre-handle with some random exception
             final var txInfo = scenario().withPayer(ALICE.accountID()).txInfo();
             final var txBytes = asByteArray(txInfo.transaction());

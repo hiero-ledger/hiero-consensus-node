@@ -17,7 +17,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
@@ -62,10 +62,10 @@ class AttributeValidatorImplTest {
 
         assertThatCode(() -> subject.validateMemo("OK")).doesNotThrowAnyException();
         assertThatThrownBy(() -> subject.validateMemo(memo))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(MEMO_TOO_LONG));
         assertThatThrownBy(() -> subject.validateMemo("Not s\u0000 ok!"))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ZERO_BYTE_IN_STRING));
     }
 
@@ -73,7 +73,7 @@ class AttributeValidatorImplTest {
     void rejectsFutureExpiryImplyingSuperMaxLifetime() {
         given(context.consensusNow()).willReturn(Instant.ofEpochSecond(0L));
         Assertions.assertThatThrownBy(() -> subject.validateExpiry(maxLifetime + 1))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_EXPIRATION_TIME));
     }
 
@@ -89,7 +89,7 @@ class AttributeValidatorImplTest {
         final var now = 1_234_567L;
         given(context.consensusNow()).willReturn(Instant.ofEpochSecond(now));
         assertThatThrownBy(() -> subject.validateExpiry(now))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_EXPIRATION_TIME));
     }
 
@@ -101,7 +101,7 @@ class AttributeValidatorImplTest {
         given(context.configuration()).willReturn(config);
 
         assertThatThrownBy(() -> subject.validateAutoRenewPeriod(55L))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
@@ -114,7 +114,7 @@ class AttributeValidatorImplTest {
         given(context.configuration()).willReturn(config);
 
         assertThatThrownBy(() -> subject.validateAutoRenewPeriod(10_001L))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
@@ -126,14 +126,14 @@ class AttributeValidatorImplTest {
                 nestKeys(Key.newBuilder(), MAX_NESTED_KEY_LEVELS).build();
         assertThatCode(() -> subject.validateKey(acceptablyNested)).doesNotThrowAnyException();
         assertThatThrownBy(() -> subject.validateKey(overlyNested))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(BAD_ENCODING));
     }
 
     @Test
     void unsetKeysAreNotValid() {
         assertThatThrownBy(() -> subject.validateKey(Key.DEFAULT))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(BAD_ENCODING));
     }
 

@@ -17,7 +17,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.Assertions;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import java.security.InvalidKeyException;
@@ -35,7 +34,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     private PreHandleContext realPreContext;
 
     @BeforeEach
-    void setUp() throws PreCheckException, InvalidKeyException {
+    void setUp() throws InvalidKeyException {
         setUpBase();
         subject = new ScheduleDeleteHandler(mock(ScheduleFeeCharging.class));
         reset(accountById);
@@ -43,7 +42,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void preHandleHappyPath() throws PreCheckException {
+    void preHandleHappyPath() {
         final TransactionBody deleteBody = scheduleDeleteTransaction(testScheduleID);
         realPreContext = new PreHandleContextImpl(
                 mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker);
@@ -55,7 +54,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
 
     @Test
     // when schedule id to delete is not found, fail with INVALID_SCHEDULE_ID
-    void failsIfScheduleMissing() throws PreCheckException {
+    void failsIfScheduleMissing() {
         final TransactionBody deleteBody = scheduleDeleteTransaction(testScheduleID);
         realPreContext = new PreHandleContextImpl(
                 mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker);
@@ -66,7 +65,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
 
     @Test
     // when admin key not set in scheduled tx, fail with SCHEDULE_IS_IMMUTABLE
-    void failsIfScheduleIsImmutable() throws PreCheckException {
+    void failsIfScheduleIsImmutable() {
         final TransactionBody deleteBody = scheduleDeleteTransaction(testScheduleID);
         realPreContext = new PreHandleContextImpl(
                 mockStoreFactory, deleteBody, testConfig, mockDispatcher, mockTransactionChecker);
@@ -79,7 +78,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void verifySimpleDelete() throws PreCheckException {
+    void verifySimpleDelete() {
         final Schedule beforeDelete = scheduleStore.get(testScheduleID);
         assertThat(beforeDelete.deleted()).isFalse();
         prepareContext(scheduleDeleteTransaction(testScheduleID));
@@ -89,18 +88,18 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void verifyUnauthorized() throws PreCheckException {
+    void verifyUnauthorized() {
         final Schedule beforeDelete = scheduleStore.get(testScheduleID);
         assertThat(beforeDelete.deleted()).isFalse();
         prepareContext(scheduleDeleteTransaction(testScheduleID));
         given(keyVerifier.verificationFor(adminKey)).willReturn(new SignatureVerificationImpl(adminKey, null, false));
-        throwsHandleException(() -> subject.handle(mockContext), ResponseCodeEnum.UNAUTHORIZED);
+        throwsWorkflowException(() -> subject.handle(mockContext), ResponseCodeEnum.UNAUTHORIZED);
         final Schedule afterDelete = scheduleStore.get(testScheduleID);
         assertThat(afterDelete.deleted()).isFalse();
     }
 
     @Test
-    void verifyHandleExceptionsForDelete() throws PreCheckException {
+    void verifyWorkflowExceptionsForDelete() {
         final Schedule beforeDelete = scheduleStore.get(testScheduleID);
         assertThat(beforeDelete.deleted()).isFalse();
         final TransactionBody baseDelete = scheduleDeleteTransaction(testScheduleID);
@@ -116,19 +115,19 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
         writableSchedules.put(noAdmin);
         failures = baseDelete.scheduleDelete().copyBuilder().scheduleID(noAdmin.scheduleId());
         prepareContext(nextFailure.scheduleDelete(failures).build());
-        throwsHandleException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_IS_IMMUTABLE);
+        throwsWorkflowException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_IS_IMMUTABLE);
 
         final Schedule deleted = failBase.copyBuilder().deleted(true).build();
         writableSchedules.put(deleted);
         failures = baseDelete.scheduleDelete().copyBuilder().scheduleID(deleted.scheduleId());
         prepareContext(nextFailure.scheduleDelete(failures).build());
-        throwsHandleException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_ALREADY_DELETED);
+        throwsWorkflowException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_ALREADY_DELETED);
 
         final Schedule executed = failBase.copyBuilder().executed(true).build();
         writableSchedules.put(executed);
         failures = baseDelete.scheduleDelete().copyBuilder().scheduleID(executed.scheduleId());
         prepareContext(nextFailure.scheduleDelete(failures).build());
-        throwsHandleException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED);
+        throwsWorkflowException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED);
     }
 
     private TransactionBody scheduleDeleteTransaction(final ScheduleID idToDelete) {
@@ -138,7 +137,7 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
                 .build();
     }
 
-    private void prepareContext(final TransactionBody deleteTransaction) throws PreCheckException {
+    private void prepareContext(final TransactionBody deleteTransaction) {
         given(mockContext.body()).willReturn(deleteTransaction);
         given(mockContext.allKeysForTransaction(Mockito.any(), Mockito.any())).willReturn(testChildKeys);
         // This is how you get side effects replicated, by having the "Answer" called in place of the real method.

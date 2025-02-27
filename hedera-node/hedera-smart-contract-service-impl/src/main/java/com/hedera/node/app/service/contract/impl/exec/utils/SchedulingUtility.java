@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.utils;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public final class SchedulingUtility {
@@ -52,7 +52,7 @@ public final class SchedulingUtility {
                     transactionBody.tokenFeeScheduleUpdateOrThrow());
             case UTIL_PRNG -> schedulableTransactionBody.utilPrng(transactionBody.utilPrngOrThrow());
             case TOKEN_REJECT -> schedulableTransactionBody.tokenReject(transactionBody.tokenRejectOrThrow());
-            default -> throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION);
+            default -> throw new WorkflowException(ResponseCodeEnum.INVALID_TRANSACTION);
         }
         return schedulableTransactionBody.build();
     }

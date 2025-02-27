@@ -29,7 +29,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.fixtures.AppTestBase;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -99,7 +99,7 @@ class IngestWorkflowImplTest extends AppTestBase {
     private VersionedConfiguration configuration;
 
     @BeforeEach
-    void setup() throws PreCheckException {
+    void setup() {
         // The request buffer, with basically random bytes
         requestBuffer = randomBytes(10);
         transactionBody = TransactionBody.newBuilder()
@@ -156,7 +156,7 @@ class IngestWorkflowImplTest extends AppTestBase {
 
     @Test
     @DisplayName("When everything goes right, the transaction should be submitted")
-    void testSuccess() throws PreCheckException, ParseException {
+    void testSuccess() throws ParseException {
         // When the transaction is submitted
         workflow.submitTransaction(requestBuffer, responseBuffer);
 
@@ -175,13 +175,12 @@ class IngestWorkflowImplTest extends AppTestBase {
         @ParameterizedTest
         @EnumSource(PlatformStatus.class)
         @DisplayName("When the platform is not ACTIVE, the transaction should be rejected (except for ACTIVE)")
-        void testParseAndCheckWithInactivePlatformFails(final PlatformStatus status)
-                throws ParseException, PreCheckException {
+        void testParseAndCheckWithInactivePlatformFails(final PlatformStatus status) throws ParseException {
             // Since the enum source is going over all states, and the ACTIVE state is
             // actually good, I need to skip that one.
             if (status != PlatformStatus.ACTIVE) {
                 // Given a platform that is not ACTIVE
-                doThrow(new PreCheckException(PLATFORM_NOT_ACTIVE))
+                doThrow(new WorkflowException(PLATFORM_NOT_ACTIVE))
                         .when(ingestChecker)
                         .verifyReadyForTransactions();
 
@@ -218,9 +217,9 @@ class IngestWorkflowImplTest extends AppTestBase {
         @ParameterizedTest(name = "WorkflowOnset fails with error code {0}")
         @MethodSource("failureReasons")
         @DisplayName("If the transaction fails WorkflowOnset, a failure response is returned with the right error")
-        void onsetFailsWithPreCheckException(ResponseCodeEnum failureReason) throws PreCheckException, ParseException {
-            // Given a WorkflowOnset that will throw a PreCheckException with the given failure reason
-            when(ingestChecker.runAllChecks(any(), any(), any())).thenThrow(new PreCheckException(failureReason));
+        void onsetFailsWithWorkflowException(ResponseCodeEnum failureReason) throws ParseException {
+            // Given a WorkflowOnset that will throw a WorkflowException with the given failure reason
+            when(ingestChecker.runAllChecks(any(), any(), any())).thenThrow(new WorkflowException(failureReason));
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -236,7 +235,7 @@ class IngestWorkflowImplTest extends AppTestBase {
 
         @Test
         @DisplayName("If some random exception is thrown from IngestChecker, the exception is bubbled up")
-        void randomException() throws PreCheckException, ParseException {
+        void randomException() throws ParseException {
             // Given a WorkflowOnset that will throw a RuntimeException
             when(ingestChecker.runAllChecks(any(), any(), any()))
                     .thenThrow(new RuntimeException("parseAndCheck exception"));
@@ -268,10 +267,10 @@ class IngestWorkflowImplTest extends AppTestBase {
         @ParameterizedTest(name = "IngestChecker fails with error code {0}")
         @MethodSource("failureReasons")
         @DisplayName("When ingest checks fail, the transaction should be rejected")
-        void testIngestChecksFail(ResponseCodeEnum failureReason) throws PreCheckException, ParseException {
+        void testIngestChecksFail(ResponseCodeEnum failureReason) throws ParseException {
             // Given a throttle on CONSENSUS_CREATE_TOPIC transactions (i.e. it is time to throttle)
             when(ingestChecker.runAllChecks(state, requestBuffer, configuration))
-                    .thenThrow(new PreCheckException(failureReason));
+                    .thenThrow(new WorkflowException(failureReason));
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -287,7 +286,7 @@ class IngestWorkflowImplTest extends AppTestBase {
 
         @Test
         @DisplayName("If some random exception is thrown from IngestChecker, the exception is bubbled up")
-        void randomException() throws PreCheckException, ParseException {
+        void randomException() throws ParseException {
             // Given a ThrottleAccumulator that will throw a RuntimeException
             when(ingestChecker.runAllChecks(state, requestBuffer, configuration))
                     .thenThrow(new RuntimeException("runAllChecks exception"));
@@ -311,9 +310,9 @@ class IngestWorkflowImplTest extends AppTestBase {
 
         @Test
         @DisplayName("If the platform fails to onConsensusRound the transaction, the transaction should be rejected")
-        void testSubmitFails() throws PreCheckException, ParseException {
+        void testSubmitFails() throws ParseException {
             // Given a SubmissionManager that will fail the submit
-            doThrow(new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED))
+            doThrow(new WorkflowException(PLATFORM_TRANSACTION_NOT_CREATED))
                     .when(submissionManager)
                     .submit(any(), any());
 
@@ -329,7 +328,7 @@ class IngestWorkflowImplTest extends AppTestBase {
 
         @Test
         @DisplayName("If some random exception is thrown from submitting to the platform, the exception is bubbled up")
-        void randomException() throws PreCheckException, ParseException {
+        void randomException() throws ParseException {
             // Given a SubmissionManager that will throw a RuntimeException from submit
             doThrow(new RuntimeException("submit exception"))
                     .when(submissionManager)

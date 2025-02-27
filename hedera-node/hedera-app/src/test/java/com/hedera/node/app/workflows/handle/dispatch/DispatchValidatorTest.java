@@ -47,7 +47,7 @@ import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
 import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
@@ -119,13 +119,13 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void invalidTransactionDurationIsCreatorError() throws PreCheckException {
+    void invalidTransactionDurationIsCreatorError() {
         givenCreatorInfo();
         givenUserDispatch();
         given(dispatch.txnInfo()).willReturn(TXN_INFO);
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
         given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
-        doThrow(new PreCheckException(INVALID_TRANSACTION_DURATION))
+        doThrow(new WorkflowException(INVALID_TRANSACTION_DURATION))
                 .when(transactionChecker)
                 .checkTimeBox(TXN_BODY, CONSENSUS_NOW, TransactionChecker.RequireMinValidLifetimeBuffer.NO);
 
@@ -149,7 +149,7 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void solvencyCheckDoesNotLookAtOfferedFeesForPrecedingDispatch() throws PreCheckException {
+    void solvencyCheckDoesNotLookAtOfferedFeesForPrecedingDispatch() {
         givenCreatorInfo();
         givenPreceding();
         givenSolvencyCheckSetup();
@@ -172,7 +172,7 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void hollowUserDoesNotRequireSig() throws PreCheckException {
+    void hollowUserDoesNotRequireSig() {
         givenCreatorInfo();
         givenUserDispatch();
         givenNonDuplicate();
@@ -198,7 +198,7 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void otherNodeDuplicateUserIsPayerError() throws PreCheckException {
+    void otherNodeDuplicateUserIsPayerError() {
         givenCreatorInfo();
         givenUserDispatch();
         givenOtherNodeDuplicate();
@@ -245,7 +245,7 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void userPreHandleFailureIsPayerError() throws PreCheckException {
+    void userPreHandleFailureIsPayerError() {
         givenCreatorInfo();
         givenUserDispatch();
         givenNonDuplicate();
@@ -277,7 +277,7 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void precedingInsufficientServiceFeeIsPayerError() throws PreCheckException {
+    void precedingInsufficientServiceFeeIsPayerError() {
         givenCreatorInfo();
         givenChildDispatch();
         givenSolvencyCheckSetup();
@@ -308,7 +308,7 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void scheduledNonFeeDebitsFeeIsPayerError() throws PreCheckException {
+    void scheduledNonFeeDebitsFeeIsPayerError() {
         givenCreatorInfo();
         givenScheduledDispatch();
         givenValidPayerSig();
@@ -340,7 +340,7 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void insufficientNetworkFeeIsCreatorError() throws PreCheckException {
+    void insufficientNetworkFeeIsCreatorError() {
         givenCreatorInfo();
         givenUserDispatch();
         givenValidPayerSig();
@@ -348,7 +348,7 @@ class DispatchValidatorTest {
         givenSolvencyCheckSetup();
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
         final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L));
-        doThrow(new PreCheckException(INSUFFICIENT_PAYER_BALANCE))
+        doThrow(new WorkflowException(INSUFFICIENT_PAYER_BALANCE))
                 .when(solvencyPreCheck)
                 .checkSolvency(
                         TXN_BODY,

@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.addressbook;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 import static java.util.Spliterator.DISTINCT;
 

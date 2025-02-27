@@ -42,7 +42,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.M
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
@@ -523,7 +523,7 @@ class SignScheduleTranslatorTest {
                 systemContractMethodRegistry,
                 configuration);
 
-        assertThrows(HandleException.class, () -> SignScheduleTranslator.getKeyForSignSchedule(attempt));
+        assertThrows(WorkflowException.class, () -> SignScheduleTranslator.getKeyForSignSchedule(attempt));
     }
 
     @Test

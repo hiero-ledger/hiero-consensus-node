@@ -12,8 +12,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -200,7 +199,7 @@ public final class AliasUtils {
 
     /**
      * Parse a {@code Key} from given alias {@code Bytes}. If there is a parse error, throws a
-     * {@code HandleException} with {@code INVALID_ALIAS_KEY} response code.
+     * {@code WorkflowException} with {@code INVALID_ALIAS_KEY} response code.
      * @param alias given alias bytes
      * @return the parsed key
      */
@@ -208,22 +207,22 @@ public final class AliasUtils {
     public static Key asKeyFromAlias(@NonNull final Bytes alias) {
         requireNonNull(alias);
         final var key = asKeyFromAliasOrElse(alias, null);
-        if (key == null) throw new HandleException(ResponseCodeEnum.INVALID_ALIAS_KEY);
+        if (key == null) throw new WorkflowException(ResponseCodeEnum.INVALID_ALIAS_KEY);
         return key;
     }
 
     /**
      * Parse a {@code Key} from given alias {@code Bytes}. If there is a parse error, throws a
-     * {@code HandleException} with {@code INVALID_ALIAS_KEY} response code.
+     * {@code WorkflowException} with {@code INVALID_ALIAS_KEY} response code.
      * @param alias given alias bytes
      * @return the parsed key
-     * @throws PreCheckException if the alias is not a valid key
+     * @throws WorkflowException if the alias is not a valid key
      */
     @NonNull
-    public static Key asKeyFromAliasPreCheck(@NonNull final Bytes alias) throws PreCheckException {
+    public static Key asKeyFromAliasPreCheck(@NonNull final Bytes alias) {
         requireNonNull(alias);
         final var key = asKeyFromAliasOrElse(alias, null);
-        if (key == null) throw new PreCheckException(ResponseCodeEnum.INVALID_ALIAS_KEY);
+        if (key == null) throw new WorkflowException(ResponseCodeEnum.INVALID_ALIAS_KEY);
         return key;
     }
 

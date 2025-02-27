@@ -24,7 +24,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
 import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.handle.dispatch.ValidationResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -70,12 +70,12 @@ public class AppFeeCharging implements FeeCharging {
                             ? CHECK_OFFERED_FEE
                             : SKIP_OFFERED_FEE_CHECK);
         } catch (final InsufficientServiceFeeException e) {
-            return newPayerError(creatorId, payer, e.responseCode(), UNABLE_TO_PAY_SERVICE_FEE, isDuplicate);
+            return newPayerError(creatorId, payer, e.getStatus(), UNABLE_TO_PAY_SERVICE_FEE, isDuplicate);
         } catch (final InsufficientNonFeeDebitsException e) {
-            return newPayerError(creatorId, payer, e.responseCode(), CAN_PAY_SERVICE_FEE, isDuplicate);
-        } catch (final PreCheckException e) {
+            return newPayerError(creatorId, payer, e.getStatus(), CAN_PAY_SERVICE_FEE, isDuplicate);
+        } catch (final WorkflowException e) {
             // Includes InsufficientNetworkFeeException
-            return newCreatorError(creatorId, e.responseCode());
+            return newCreatorError(creatorId, e.getStatus());
         }
         return newSuccess(creatorId, payer);
     }

@@ -40,7 +40,7 @@ import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -188,12 +188,12 @@ class QueryCheckerTest extends AppTestBase {
 
         // then
         assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INSUFFICIENT_TX_FEE));
     }
 
     @Test
-    void testValidateCryptoTransferWithFailingValidation() throws PreCheckException {
+    void testValidateCryptoTransferWithFailingValidation() {
         // given
         final var txBody = TransactionBody.newBuilder()
                 .transactionID(
@@ -203,13 +203,13 @@ class QueryCheckerTest extends AppTestBase {
         final var transaction = Transaction.newBuilder().build();
         final var transactionInfo = new TransactionInfo(
                 transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CRYPTO_TRANSFER, null);
-        doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
+        doThrow(new WorkflowException(INVALID_ACCOUNT_AMOUNTS))
                 .when(cryptoTransferHandler)
                 .pureChecks(any());
 
         // then
         assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
     }
 
@@ -243,7 +243,7 @@ class QueryCheckerTest extends AppTestBase {
 
         // then
         assertThatThrownBy(() -> checker.checkPermissions(payer, GET_ACCOUNT_DETAILS))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
 
@@ -293,7 +293,7 @@ class QueryCheckerTest extends AppTestBase {
         }
 
         @Test
-        void testSolvencyCheckFails() throws PreCheckException {
+        void testSolvencyCheckFails() {
             // given
             final var amount = 8L;
             final var txInfo = createPaymentInfo(
@@ -316,7 +316,7 @@ class QueryCheckerTest extends AppTestBase {
 
             // then
             assertThatThrownBy(() -> checker.validateAccountBalances(store, txInfo, ALICE_ACCOUNT, 8L, 0))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
         }
 
@@ -361,7 +361,7 @@ class QueryCheckerTest extends AppTestBase {
 
             // then
             assertThatThrownBy(() -> checker.validateAccountBalances(store, txInfo, ALICE_ACCOUNT, amount, 0))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
         }
 
@@ -427,7 +427,7 @@ class QueryCheckerTest extends AppTestBase {
 
             // then
             assertThatThrownBy(() -> checker.validateAccountBalances(store, txInfo, ALICE_ACCOUNT, amount, 0))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
         }
 
@@ -441,7 +441,7 @@ class QueryCheckerTest extends AppTestBase {
 
             // then
             assertThatThrownBy(() -> checker.validateAccountBalances(store, txInfo, ALICE_ACCOUNT, amount, 0))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_RECEIVING_NODE_ACCOUNT));
         }
 
@@ -476,7 +476,7 @@ class QueryCheckerTest extends AppTestBase {
 
             // then
             assertThatThrownBy(() -> checker.validateAccountBalances(store, txInfo, ALICE_ACCOUNT, amount, 0))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
         }
 
@@ -494,7 +494,7 @@ class QueryCheckerTest extends AppTestBase {
 
             // then
             assertThatThrownBy(() -> checker.validateAccountBalances(store, txInfo, ALICE_ACCOUNT, amount, 0))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
         }
     }

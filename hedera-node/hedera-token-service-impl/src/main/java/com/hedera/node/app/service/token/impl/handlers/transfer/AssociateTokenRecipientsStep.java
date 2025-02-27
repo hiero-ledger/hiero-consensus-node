@@ -13,8 +13,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO
 import static com.hedera.node.app.service.token.impl.handlers.transfer.NFTOwnersChangeStep.validateSpenderHasAllowance;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsableForAliasedId;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -34,7 +34,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -89,7 +89,7 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
                 try {
                     newAssociation = validateAndBuildAutoAssociation(
                             accountId, tokenId, token, accountStore, tokenRelStore, handleContext);
-                } catch (HandleException e) {
+                } catch (WorkflowException e) {
                     // (FUTURE) Remove this catch and stop translating TOKEN_NOT_ASSOCIATED_TO_ACCOUNT
                     // into e.g. SPENDER_DOES_NOT_HAVE_ALLOWANCE; we need this only for mono-service
                     // fidelity during diff testing
@@ -114,7 +114,7 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
                 final var nft = nftStore.get(tokenId, nftTransfer.serialNumber());
                 try {
                     validateTrue(tokenRelStore.get(senderId, tokenId) != null, TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
-                } catch (HandleException e) {
+                } catch (WorkflowException e) {
                     // (FUTURE) Remove this catch and stop translating TOKEN_NOT_ASSOCIATED_TO_ACCOUNT
                     // into e.g. SPENDER_DOES_NOT_HAVE_ALLOWANCE; we need this only for mono-service
                     // fidelity during diff testing
@@ -141,13 +141,13 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
         }
     }
 
-    private boolean mayNeedTranslation(final HandleException exception, final AccountAmount adjustment) {
+    private boolean mayNeedTranslation(final WorkflowException exception, final AccountAmount adjustment) {
         return exception.getStatus() == TOKEN_NOT_ASSOCIATED_TO_ACCOUNT
                 && adjustment.isApproval()
                 && adjustment.amount() < 0;
     }
 
-    private boolean mayNeedTranslation(final HandleException exception, final NftTransfer nftTransfer) {
+    private boolean mayNeedTranslation(final WorkflowException exception, final NftTransfer nftTransfer) {
         return exception.getStatus() == TOKEN_NOT_ASSOCIATED_TO_ACCOUNT && nftTransfer.isApproval();
     }
 
@@ -191,7 +191,7 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
                 if (unlimitedAssociationsEnabled) {
                     final var autoAssociationFee = associationFeeFor(context, PLACEHOLDER_SYNTHETIC_ASSOCIATION);
                     if (!context.tryToChargePayer(autoAssociationFee)) {
-                        throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
+                        throw new WorkflowException(INSUFFICIENT_PAYER_BALANCE);
                     }
                 }
             }
@@ -223,6 +223,6 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
                 return;
             }
         }
-        throw new HandleException(SPENDER_DOES_NOT_HAVE_ALLOWANCE);
+        throw new WorkflowException(SPENDER_DOES_NOT_HAVE_ALLOWANCE);
     }
 }

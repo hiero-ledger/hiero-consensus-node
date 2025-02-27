@@ -50,8 +50,7 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -148,7 +147,7 @@ public class ChildDispatchFactory {
      * @param options                 the dispatch options
      * @param overridePreHandleResult the override pre-handle result for the inner transaction from atomic batch
      * @return the child dispatch
-     * @throws HandleException if the child stack base builder cannot be created
+     * @throws WorkflowException if the child stack base builder cannot be created
      */
     public Dispatch createChildDispatch(
             @NonNull final Configuration config,
@@ -353,12 +352,12 @@ public class ChildDispatchFactory {
                     null,
                     null,
                     0);
-        } catch (final PreCheckException e) {
+        } catch (final WorkflowException e) {
             return new PreHandleResult(
                     null,
                     null,
                     PRE_HANDLE_FAILURE,
-                    e.responseCode(),
+                    e.getStatus(),
                     null,
                     Collections.emptySet(),
                     null,

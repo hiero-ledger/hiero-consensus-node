@@ -25,9 +25,9 @@ import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -202,13 +202,13 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             // Since it didn't, it has failed in its due diligence and will be charged accordingly.
             return nodeDueDiligenceFailure(
                     creator,
-                    e.responseCode(),
+                    e.getStatus(),
                     e.txInfo(),
                     configProvider.getConfiguration().getVersion());
-        } catch (PreCheckException e) {
+        } catch (WorkflowException e) {
             return nodeDueDiligenceFailure(
                     creator,
-                    e.responseCode(),
+                    e.getStatus(),
                     null,
                     configProvider.getConfiguration().getVersion());
         }
@@ -276,12 +276,11 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             // so I can pass the payer account in directly, since I've already looked it up. But I don't really want
             // that as a public API in the SPI, so for now, we do a double lookup. Boo.
             context = new PreHandleContextImpl(storeFactory, txBody, configuration, dispatcher, transactionChecker);
-        } catch (PreCheckException preCheck) {
+        } catch (WorkflowException e) {
             // This should NEVER happen. The only way an exception is thrown from the PreHandleContext constructor
             // is if the payer account doesn't exist, but by the time we reach this line of code, we already know
             // that it does exist.
-            throw new RuntimeException(
-                    "Payer account disappeared between preHandle and preHandleContext creation!", preCheck);
+            throw new RuntimeException("Payer account disappeared between preHandle and preHandleContext creation!", e);
         }
 
         // 2. Expand the Payer signature
@@ -303,22 +302,21 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         try {
             // Check batch key on non-inner transactions,
             if (innerTransaction == InnerTransaction.NO && txInfo.txBody().hasBatchKey()) {
-                throw new PreCheckException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+                throw new WorkflowException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
             }
             // First, perform semantic checks on the transaction
             final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             // Then gather the signatures from the transaction handler
             dispatcher.dispatchPreHandle(context);
-        } catch (PreCheckException preCheck) {
-            // It is quite possible those semantic checks and other tasks will fail and throw a PreCheckException.
+        } catch (WorkflowException e) {
+            // It is quite possible those semantic checks and other tasks will fail and throw a WorkflowException.
             // In that case, the payer will end up paying for the transaction. So we still need to do the signature
             // verifications that we have determined so far.
-            logger.debug("Transaction failed pre-check", preCheck);
+            logger.debug("Transaction failed pre-check", e);
             final var results =
                     verifySignatures(txInfo, context, VerifyOnlyPayerKey.YES, payerIsHollow, previousResult);
-            return preHandleFailure(
-                    payer, payerKey, preCheck.responseCode(), txInfo, Set.of(), Set.of(), Set.of(), results);
+            return preHandleFailure(payer, payerKey, e.getStatus(), txInfo, Set.of(), Set.of(), Set.of(), results);
         }
 
         // 3. Get the verification results

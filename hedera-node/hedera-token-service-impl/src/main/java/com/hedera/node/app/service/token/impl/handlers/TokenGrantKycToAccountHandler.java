@@ -6,7 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -26,11 +26,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -51,16 +50,16 @@ public class TokenGrantKycToAccountHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().tokenGrantKycOrThrow();
 
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
         if (tokenMeta == null) {
-            throw new PreCheckException(INVALID_TOKEN_ID);
+            throw new WorkflowException(INVALID_TOKEN_ID);
         }
-        validateTruePreCheck(tokenMeta.hasKycKey(), TOKEN_HAS_NO_KYC_KEY);
+        validateTrue(tokenMeta.hasKycKey(), TOKEN_HAS_NO_KYC_KEY);
         context.requireKey(tokenMeta.kycKey());
     }
 
@@ -68,16 +67,16 @@ public class TokenGrantKycToAccountHandler implements TransactionHandler {
      * Performs checks independent of state or context.
      */
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenGrantKycOrThrow();
         if (!op.hasToken()) {
-            throw new PreCheckException(INVALID_TOKEN_ID);
+            throw new WorkflowException(INVALID_TOKEN_ID);
         }
 
         if (!op.hasAccount()) {
-            throw new PreCheckException(INVALID_ACCOUNT_ID);
+            throw new WorkflowException(INVALID_ACCOUNT_ID);
         }
     }
 
@@ -122,7 +121,7 @@ public class TokenGrantKycToAccountHandler implements TransactionHandler {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ExpiryValidator expiryValidator,
             @NonNull final ReadableTokenStore tokenStore)
-            throws HandleException {
+            throws WorkflowException {
         // Throws if the account is unusable
         TokenHandlerHelper.getIfUsable(accountId, accountStore, expiryValidator, INVALID_ACCOUNT_ID);
         // Throws if the token is unusable

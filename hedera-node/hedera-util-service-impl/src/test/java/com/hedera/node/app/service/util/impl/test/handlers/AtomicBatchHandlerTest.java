@@ -37,10 +37,9 @@ import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
@@ -118,8 +117,8 @@ class AtomicBatchHandlerTest {
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp);
         given(pureChecksContext.body()).willReturn(txnBody);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(BATCH_LIST_EMPTY, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(BATCH_LIST_EMPTY, msg.getStatus());
     }
 
     @Test
@@ -132,8 +131,8 @@ class AtomicBatchHandlerTest {
         final var transaction = Transaction.newBuilder().body(innerTxnBody).build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
         given(preHandleContext.body()).willReturn(txnBody);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(BATCH_TRANSACTION_NOT_IN_WHITELIST, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_NOT_IN_WHITELIST, msg.getStatus());
     }
 
     @Test
@@ -146,8 +145,8 @@ class AtomicBatchHandlerTest {
         final var transaction = Transaction.newBuilder().body(innerTxnBody).build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction);
         given(preHandleContext.body()).willReturn(txnBody);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(BATCH_TRANSACTION_NOT_IN_WHITELIST, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_NOT_IN_WHITELIST, msg.getStatus());
     }
 
     @Test
@@ -179,8 +178,8 @@ class AtomicBatchHandlerTest {
         given(transaction1.bodyOrThrow()).willReturn(innerTxnBody1);
         given(transaction2.bodyOrThrow()).willReturn(innerTxnBody2);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(BATCH_LIST_CONTAINS_DUPLICATES, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(BATCH_LIST_CONTAINS_DUPLICATES, msg.getStatus());
     }
 
     @Test
@@ -197,8 +196,8 @@ class AtomicBatchHandlerTest {
         given(transaction.hasBody()).willReturn(true);
         given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(INVALID_NODE_ACCOUNT_ID, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(INVALID_NODE_ACCOUNT_ID, msg.getStatus());
     }
 
     @Test
@@ -214,12 +213,12 @@ class AtomicBatchHandlerTest {
         given(transaction.bodyOrThrow()).willReturn(innerTxnBody);
         given(pureChecksContext.body()).willReturn(txnBody);
 
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(MISSING_BATCH_KEY, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(MISSING_BATCH_KEY, msg.getStatus());
     }
 
     @Test
-    void preHandleBatchWithBatchKeyIsNull() throws PreCheckException {
+    void preHandleBatchWithBatchKeyIsNull() {
         final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp)
                 .consensusCreateTopic(
                         ConsensusCreateTopicTransactionBody.newBuilder().build())
@@ -228,9 +227,9 @@ class AtomicBatchHandlerTest {
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1);
         given(preHandleContext.body()).willReturn(txnBody);
         given(preHandleContext.requireKeyOrThrow(innerTxnBody1.batchKey(), INVALID_BATCH_KEY))
-                .willThrow(new PreCheckException(INVALID_BATCH_KEY));
-        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(INVALID_BATCH_KEY, msg.responseCode());
+                .willThrow(new WorkflowException(INVALID_BATCH_KEY));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(INVALID_BATCH_KEY, msg.getStatus());
     }
 
     @Test
@@ -243,8 +242,8 @@ class AtomicBatchHandlerTest {
         final var transaction1 = Transaction.newBuilder().body(innerTxnBody1).build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2);
         given(preHandleContext.body()).willReturn(txnBody);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(BATCH_TRANSACTION_NOT_IN_WHITELIST, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_NOT_IN_WHITELIST, msg.getStatus());
     }
 
     @Test
@@ -257,8 +256,8 @@ class AtomicBatchHandlerTest {
         final var transaction1 = Transaction.newBuilder().body(innerTxnBody1).build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2);
         given(preHandleContext.body()).willReturn(txnBody);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(BATCH_TRANSACTION_NOT_IN_WHITELIST, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_NOT_IN_WHITELIST, msg.getStatus());
     }
 
     @Test
@@ -290,7 +289,7 @@ class AtomicBatchHandlerTest {
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(UNKNOWN);
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(INNER_TRANSACTION_FAILED, msg.getStatus());
     }
 
@@ -301,7 +300,7 @@ class AtomicBatchHandlerTest {
         final var transaction3 = mock(Transaction.class);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, transaction1, transaction2, transaction3);
         given(handleContext.body()).willReturn(txnBody);
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED, msg.getStatus());
     }
 

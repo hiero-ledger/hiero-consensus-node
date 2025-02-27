@@ -6,11 +6,10 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -32,21 +31,21 @@ public class CryptoDeleteLiveHashHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
-        throw new PreCheckException(ResponseCodeEnum.NOT_SUPPORTED);
+        throw new WorkflowException(ResponseCodeEnum.NOT_SUPPORTED);
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext txn) {
         // nothing to do
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         // this will never actually get called
-        // because preHandle will throw a PreCheckException
+        // because preHandle will throw a WorkflowException
         // before we get here
-        throw new HandleException(ResponseCodeEnum.NOT_SUPPORTED);
+        throw new WorkflowException(ResponseCodeEnum.NOT_SUPPORTED);
     }
 }

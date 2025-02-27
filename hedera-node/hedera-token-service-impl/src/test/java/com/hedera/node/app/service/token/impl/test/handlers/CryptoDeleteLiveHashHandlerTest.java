@@ -8,9 +8,8 @@ import static org.mockito.Mock.Strictness.LENIENT;
 
 import com.hedera.node.app.service.token.impl.handlers.CryptoDeleteLiveHashHandler;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -29,14 +28,14 @@ class CryptoDeleteLiveHashHandlerTest {
     @Test
     void preHandleThrowsUnsupported() {
         assertThatThrownBy(() -> subject.preHandle(preHandleContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
 
     @Test
     void handleThrowsUnsupported() {
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
 }

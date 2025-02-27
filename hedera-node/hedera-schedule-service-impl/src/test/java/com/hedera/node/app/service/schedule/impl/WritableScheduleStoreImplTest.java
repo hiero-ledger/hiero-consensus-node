@@ -10,7 +10,6 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.schedule.Schedule;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.InvalidKeyException;
 import java.time.Instant;
@@ -22,7 +21,7 @@ import org.junit.jupiter.api.Test;
 class WritableScheduleStoreImplTest extends ScheduleTestBase {
 
     @BeforeEach
-    void setUp() throws PreCheckException, InvalidKeyException {
+    void setUp() throws InvalidKeyException {
         setUpBase();
     }
 

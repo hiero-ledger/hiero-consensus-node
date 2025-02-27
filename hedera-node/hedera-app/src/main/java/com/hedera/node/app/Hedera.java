@@ -86,7 +86,7 @@ import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.StateLifecyclesImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -820,8 +820,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             }
             final var payload = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(nodeTransactionWith(body));
             requireNonNull(daggerApp).submissionManager().submit(body, payload);
-        } catch (PreCheckException e) {
-            final var reason = e.responseCode();
+        } catch (WorkflowException e) {
+            final var reason = e.getStatus();
             if (reason == DUPLICATE_TRANSACTION) {
                 // In this case the client must not retry with the same transaction, but
                 // could retry with a different transaction id if desired.

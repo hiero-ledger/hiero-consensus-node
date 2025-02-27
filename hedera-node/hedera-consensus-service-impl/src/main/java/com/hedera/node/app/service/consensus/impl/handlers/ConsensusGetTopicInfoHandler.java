@@ -37,8 +37,8 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -85,7 +85,7 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
     }
 
     @Override
-    public void validate(@NonNull final QueryContext context) throws PreCheckException {
+    public void validate(@NonNull final QueryContext context) {
         requireNonNull(context);
         final var query = context.query();
         final var topicStore = context.createStore(ReadableTopicStore.class);
@@ -95,10 +95,10 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
             final var topic = topicStore.getTopic(op.topicIDOrElse(TopicID.DEFAULT));
             mustExist(topic, INVALID_TOPIC_ID);
             if (topic.deleted()) {
-                throw new PreCheckException(INVALID_TOPIC_ID);
+                throw new WorkflowException(INVALID_TOPIC_ID);
             }
         } else {
-            throw new PreCheckException(INVALID_TOPIC_ID);
+            throw new WorkflowException(INVALID_TOPIC_ID);
         }
     }
 

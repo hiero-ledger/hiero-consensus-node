@@ -23,7 +23,7 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
@@ -84,13 +84,13 @@ public class QueryChecker {
      * Validates the {@link HederaFunctionality#CRYPTO_TRANSFER} that is contained in a query
      *
      * @param transactionInfo the {@link TransactionInfo} that contains all data about the transaction
-     * @throws PreCheckException if validation fails
+     * @throws WorkflowException if validation fails
      * @throws NullPointerException if one of the arguments is {@code null}
      */
-    public void validateCryptoTransfer(@NonNull final TransactionInfo transactionInfo) throws PreCheckException {
+    public void validateCryptoTransfer(@NonNull final TransactionInfo transactionInfo) {
         requireNonNull(transactionInfo);
         if (transactionInfo.functionality() != CRYPTO_TRANSFER) {
-            throw new PreCheckException(INSUFFICIENT_TX_FEE);
+            throw new WorkflowException(INSUFFICIENT_TX_FEE);
         }
         final var txBody = transactionInfo.txBody();
         final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
@@ -104,7 +104,7 @@ public class QueryChecker {
      * @param txInfo the {@link TransactionInfo} of the {@link HederaFunctionality#CRYPTO_TRANSFER}
      * @param nodePayment node payment amount
      * @param transferTxnFee crypto transfer transaction fee
-     * @throws PreCheckException if validation fails
+     * @throws WorkflowException if validation fails
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     public void validateAccountBalances(
@@ -112,8 +112,7 @@ public class QueryChecker {
             @NonNull final TransactionInfo txInfo,
             @NonNull final Account payer,
             final long nodePayment,
-            final long transferTxnFee)
-            throws PreCheckException {
+            final long transferTxnFee) {
         requireNonNull(accountStore);
         requireNonNull(txInfo);
         requireNonNull(payer);
@@ -128,7 +127,7 @@ public class QueryChecker {
         solvencyPreCheck.checkSolvency(txInfo, payer, new Fees(transferTxnFee, 0, 0), NOT_INGEST);
 
         if (transfers.isEmpty()) {
-            throw new PreCheckException(INVALID_ACCOUNT_AMOUNTS);
+            throw new WorkflowException(INVALID_ACCOUNT_AMOUNTS);
         }
 
         boolean nodeReceivesSome = false;
@@ -137,7 +136,7 @@ public class QueryChecker {
             final var amount = transfer.amount();
             // Need to figure out, what is special about this and replace with a constant
             if (amount == Long.MIN_VALUE) {
-                throw new PreCheckException(INVALID_ACCOUNT_AMOUNTS);
+                throw new WorkflowException(INVALID_ACCOUNT_AMOUNTS);
             }
 
             // Only check non-payer accounts
@@ -145,7 +144,7 @@ public class QueryChecker {
 
                 final var account = accountStore.getAccountById(accountID);
                 if (account == null) {
-                    throw new PreCheckException(ACCOUNT_ID_DOES_NOT_EXIST);
+                    throw new WorkflowException(ACCOUNT_ID_DOES_NOT_EXIST);
                 }
 
                 // The balance only needs to be checked for sent amounts (= negative values)
@@ -170,7 +169,7 @@ public class QueryChecker {
         }
 
         if (!nodeReceivesSome) {
-            throw new PreCheckException(INVALID_RECEIVING_NODE_ACCOUNT);
+            throw new WorkflowException(INVALID_RECEIVING_NODE_ACCOUNT);
         }
     }
 
@@ -179,16 +178,15 @@ public class QueryChecker {
      *
      * @param payer the {@link AccountID} of the payer and whose permissions are checked
      * @param functionality the {@link HederaFunctionality} of the query
-     * @throws PreCheckException if permissions are not sufficient
+     * @throws WorkflowException if permissions are not sufficient
      * @throws NullPointerException if one of the arguments is {@code null}
      */
-    public void checkPermissions(@NonNull final AccountID payer, @NonNull final HederaFunctionality functionality)
-            throws PreCheckException {
+    public void checkPermissions(@NonNull final AccountID payer, @NonNull final HederaFunctionality functionality) {
         requireNonNull(payer);
         requireNonNull(functionality);
 
         if (!authorizer.isAuthorized(payer, functionality)) {
-            throw new PreCheckException(NOT_SUPPORTED);
+            throw new WorkflowException(NOT_SUPPORTED);
         }
     }
 

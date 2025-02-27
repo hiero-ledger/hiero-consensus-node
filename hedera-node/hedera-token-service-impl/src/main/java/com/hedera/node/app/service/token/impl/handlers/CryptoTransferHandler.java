@@ -14,7 +14,7 @@ import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.LONG_ACCOUNT_AMOUNT_BYTES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -42,12 +42,11 @@ import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -93,19 +92,19 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().cryptoTransferOrThrow();
         preHandle(context, op);
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         requireNonNull(txn);
         final var op = txn.cryptoTransfer();
-        validateTruePreCheck(op != null, INVALID_TRANSACTION_BODY);
+        validateTrue(op != null, INVALID_TRANSACTION_BODY);
         validator.pureChecks(op);
     }
 
@@ -182,7 +181,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoTransferOrThrow();
@@ -237,7 +236,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         boolean triedAndFailedToUseCustomFees = false;
         try {
             assessedCustomFees = customFeeAssessor.assessNumberOfCustomFees(feeContext);
-        } catch (HandleException ignore) {
+        } catch (WorkflowException ignore) {
             final var status = ignore.getStatus();
             // If the transaction tried and failed to use custom fees, enable this flag.
             // This is used to charge a different canonical fees.

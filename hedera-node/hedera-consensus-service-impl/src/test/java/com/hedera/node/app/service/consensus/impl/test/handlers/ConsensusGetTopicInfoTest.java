@@ -28,8 +28,8 @@ import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusGetTopicInfoHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -120,7 +120,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         when(context.createStore(ReadableTopicStore.class)).thenReturn(store);
 
         assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOPIC_ID));
     }
 
@@ -137,7 +137,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         when(context.createStore(ReadableTopicStore.class)).thenReturn(store);
 
         assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOPIC_ID));
     }
 
@@ -154,7 +154,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         when(context.createStore(ReadableTopicStore.class)).thenReturn(readableStore);
 
         assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOPIC_ID));
     }
 

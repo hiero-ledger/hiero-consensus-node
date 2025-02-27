@@ -190,7 +190,7 @@ through their inheritance structure. If the latter, they provide an implementati
 
 The ```pureChecks``` method is responsible for performing checks that are independent
 of state or context.
-It takes a ```TransactionBody``` as an argument and throws a ```PreCheckException``` if any
+It takes a ```TransactionBody``` as an argument and throws a ```WorkflowException``` if any
 of the checks fail.
 
 ### preHandle
@@ -198,14 +198,14 @@ of the checks fail.
 The ```preHandle``` method is called during the pre-handle workflow.
 It determines the signatures needed for operations on a topic. It takes
 a ```PreHandleContext``` as an argument, which collects all information,
-and throws a ```PreCheckException``` if any issue happens on the pre-handle
+and throws a ```WorkflowException``` if any issue happens on the pre-handle
 level. This method validates the topicID and checks if the
 signatures are waived. If not, it validates and adds the required keys.
 
 ### handle
 
 The ```handle``` method is responsible for executing the main logic of each Handler.
-It takes a ```HandleContext``` as an argument and throws a ```HandleException``` if any issue happens during the handling process.
+It takes a ```HandleContext``` as an argument and throws a ```WorkflowException``` if any issue happens during the handling process.
 
 ### calculateFees
 
@@ -236,7 +236,7 @@ The `consensusSubmitMessageHandler` is responsible for handling the submission o
 
 ## Network Response Messages
 
-Specific network response messages (```ResponseCodeEnum```) are wrapped by ```HandleException``` and the codes relevant to the Consensus
+Specific network response messages (```ResponseCodeEnum```) are wrapped by ```WorkflowException``` and the codes relevant to the Consensus
 Service are:
 
 - ```OK;```: The transaction or query was successful

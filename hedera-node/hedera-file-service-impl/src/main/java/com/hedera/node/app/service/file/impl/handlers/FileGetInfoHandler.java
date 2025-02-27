@@ -26,8 +26,8 @@ import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.file.impl.base.FileQueryBase;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -71,11 +71,11 @@ public class FileGetInfoHandler extends FileQueryBase {
     }
 
     @Override
-    public void validate(@NonNull final QueryContext context) throws PreCheckException {
+    public void validate(@NonNull final QueryContext context) {
         final var query = context.query();
         final FileGetInfoQuery op = query.fileGetInfoOrThrow();
         if (!op.hasFileID()) {
-            throw new PreCheckException(INVALID_FILE_ID);
+            throw new WorkflowException(INVALID_FILE_ID);
         }
     }
 

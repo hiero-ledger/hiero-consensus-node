@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -90,7 +90,7 @@ public final class HandlerUtility {
                 case NODE_CREATE -> ordinary.nodeCreate(scheduledBody.nodeCreateOrThrow());
                 case NODE_UPDATE -> ordinary.nodeUpdate(scheduledBody.nodeUpdateOrThrow());
                 case NODE_DELETE -> ordinary.nodeDelete(scheduledBody.nodeDeleteOrThrow());
-                case UNSET -> throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION);
+                case UNSET -> throw new WorkflowException(ResponseCodeEnum.INVALID_TRANSACTION);
             }
         }
         return ordinary.build();
@@ -167,7 +167,7 @@ public final class HandlerUtility {
      * @param defaultLifetime The maximum number of seconds a schedule is permitted to exist on the ledger
      *     before it expires.
      * @return a newly created Schedule with a null schedule ID
-     * @throws HandleException if the
+     * @throws WorkflowException if the
      */
     @NonNull
     static Schedule createProvisionalSchedule(

@@ -50,7 +50,7 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
@@ -448,7 +448,7 @@ public class ThrottleAccumulator {
         try {
             innerTxn = childAsOrdinary(schedule);
             scheduledFunction = functionOf(innerTxn);
-        } catch (HandleException | UnknownHederaFunctionality ex) {
+        } catch (WorkflowException | UnknownHederaFunctionality ex) {
             log.debug("ScheduleCreate was associated with an invalid txn.", ex);
             return true;
         }

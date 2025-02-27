@@ -8,8 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_LIST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_REPEATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -41,11 +40,10 @@ import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -79,7 +77,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
     }
 
     @Override
-    public void preHandle(@NonNull PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull PreHandleContext context) {
         requireNonNull(context);
         final var op = requireNonNull(context.body().tokenClaimAirdrop());
         final var pendingAirdrops = op.pendingAirdrops();
@@ -91,7 +89,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         requireNonNull(txn);
@@ -100,19 +98,17 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         requireNonNull(op);
 
         final var pendingAirdrops = op.pendingAirdrops();
-        validateTruePreCheck(!pendingAirdrops.isEmpty(), EMPTY_PENDING_AIRDROP_ID_LIST);
+        validateTrue(!pendingAirdrops.isEmpty(), EMPTY_PENDING_AIRDROP_ID_LIST);
 
         final var uniqueAirdrops = Set.copyOf(pendingAirdrops);
-        validateTruePreCheck(pendingAirdrops.size() == uniqueAirdrops.size(), PENDING_AIRDROP_ID_REPEATED);
+        validateTrue(pendingAirdrops.size() == uniqueAirdrops.size(), PENDING_AIRDROP_ID_REPEATED);
 
-        validateTruePreCheck(
-                pendingAirdrops.stream().allMatch(PendingAirdropId::hasSenderId), INVALID_PENDING_AIRDROP_ID);
-        validateTruePreCheck(
-                pendingAirdrops.stream().allMatch(PendingAirdropId::hasReceiverId), INVALID_PENDING_AIRDROP_ID);
+        validateTrue(pendingAirdrops.stream().allMatch(PendingAirdropId::hasSenderId), INVALID_PENDING_AIRDROP_ID);
+        validateTrue(pendingAirdrops.stream().allMatch(PendingAirdropId::hasReceiverId), INVALID_PENDING_AIRDROP_ID);
     }
 
     @Override
-    public void handle(@NonNull HandleContext context) throws HandleException {
+    public void handle(@NonNull HandleContext context) throws WorkflowException {
         final var op = context.body().tokenClaimAirdropOrThrow();
 
         final var pendingAirdropStore = context.storeFactory().writableStore(WritableAirdropStore.class);
@@ -159,13 +155,13 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
      * @param op the token claim airdrop transaction body
      * @param accountStore the account store
      * @return a list of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
-     * @throws HandleException if the transaction is invalid
+     * @throws WorkflowException if the transaction is invalid
      */
     private Set<PendingAirdropId> validateSemantics(
             @NonNull HandleContext context,
             @NonNull TokenClaimAirdropTransactionBody op,
             @NonNull final ReadableAccountStore accountStore)
-            throws HandleException {
+            throws WorkflowException {
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         validateTrue(
                 op.pendingAirdrops().size() <= tokensConfig.maxAllowedPendingAirdropsToClaim(),

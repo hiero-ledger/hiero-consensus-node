@@ -20,9 +20,8 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TX_HASH_SIZE;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.TRANSACTION_FIXED_FEE;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
@@ -53,11 +52,10 @@ import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -102,18 +100,18 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final TransactionBody txn = context.body();
         final ConsensusSubmitMessageTransactionBody op = txn.consensusSubmitMessageOrThrow();
         // Validate the duplication of payer custom fee limits
         validateDuplicationFeeLimits(txn.maxCustomFees());
-        validateTruePreCheck(op.hasTopicID(), INVALID_TOPIC_ID);
-        validateFalsePreCheck(op.message().length() == 0, INVALID_TOPIC_MESSAGE);
+        validateTrue(op.hasTopicID(), INVALID_TOPIC_ID);
+        validateFalse(op.message().length() == 0, INVALID_TOPIC_MESSAGE);
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
 
         final var op = context.body().consensusSubmitMessageOrThrow();
@@ -121,7 +119,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         // The topic ID must be present on the transaction and the topic must exist.
         final var topic = topicStore.getTopic(op.topicIDOrElse(TopicID.DEFAULT));
         mustExist(topic, INVALID_TOPIC_ID);
-        validateFalsePreCheck(topic.deleted(), INVALID_TOPIC_ID);
+        validateFalse(topic.deleted(), INVALID_TOPIC_ID);
         // If a submit key is specified on the topic, then only those transactions signed by that key can be
         // submitted to the topic. If there is no submit key, then it is not required on the transaction.
         if (topic.hasSubmitKey()) {
@@ -176,12 +174,12 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                     .topicSequenceNumber(updatedTopic.sequenceNumber())
                     .topicRunningHashVersion(RUNNING_HASH_VERSION);
         } catch (IOException e) {
-            throw new HandleException(INVALID_TRANSACTION);
+            throw new WorkflowException(INVALID_TRANSACTION);
         }
     }
 
     /**
-     * Validates te transaction body. Throws {@link HandleException} if any of the validations fail.
+     * Validates te transaction body. Throws {@link WorkflowException} if any of the validations fail.
      *
      * @param txn the {@link TransactionBody} of the active transaction
      * @param config the {@link ConsensusConfig}
@@ -198,12 +196,12 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
 
         /* Check if the message submitted is greater than acceptable size */
         if (msgLen > config.messageMaxBytesAllowed()) {
-            throw new HandleException(MESSAGE_SIZE_TOO_LARGE);
+            throw new WorkflowException(MESSAGE_SIZE_TOO_LARGE);
         }
 
         /* Check if the topic exists */
         if (topic == null) {
-            throw new HandleException(INVALID_TOPIC_ID);
+            throw new WorkflowException(INVALID_TOPIC_ID);
         }
         // If the message is too large, user will be able to submit the message fragments in chunks
         // Validate if chunk info is correct
@@ -212,7 +210,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
 
     /**
      * If the message is too large, user will be able to submit the message fragments in chunks. Validates the chunk
-     * info in the transaction body. Throws {@link HandleException} if any of the validations fail.
+     * info in the transaction body. Throws {@link WorkflowException} if any of the validations fail.
      *
      * @param txnId the {@link TransactionID} of the active transaction
      * @param payer the {@link AccountID} of the payer
@@ -225,7 +223,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
 
             /* Validate chunk number */
             if (!(1 <= chunkInfo.number() && chunkInfo.number() <= chunkInfo.total())) {
-                throw new HandleException(INVALID_CHUNK_NUMBER);
+                throw new WorkflowException(INVALID_CHUNK_NUMBER);
             }
 
             /* Validate the initial chunk transaction payer is the same payer for the current transaction*/
@@ -233,7 +231,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                     .initialTransactionIDOrElse(TransactionID.DEFAULT)
                     .accountIDOrElse(AccountID.DEFAULT)
                     .equals(payer)) {
-                throw new HandleException(INVALID_CHUNK_TRANSACTION_ID);
+                throw new WorkflowException(INVALID_CHUNK_TRANSACTION_ID);
             }
 
             // Validate if the transaction is submitting initial chunk
@@ -242,7 +240,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                     && !chunkInfo
                             .initialTransactionIDOrElse(TransactionID.DEFAULT)
                             .equals(txnId)) {
-                throw new HandleException(INVALID_CHUNK_TRANSACTION_ID);
+                throw new WorkflowException(INVALID_CHUNK_TRANSACTION_ID);
             }
         }
     }
@@ -417,7 +415,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
             final var payerHbarLimit = payerLimits.stream()
                     .filter(maxCustomFee -> !maxCustomFee.hasDenominatingTokenId())
                     .findFirst()
-                    .orElseThrow(() -> new HandleException(NO_VALID_MAX_CUSTOM_FEE));
+                    .orElseThrow(() -> new WorkflowException(NO_VALID_MAX_CUSTOM_FEE));
             validateTrue(payerHbarLimit.amount() >= hbarFee.get(), MAX_CUSTOM_FEE_LIMIT_EXCEEDED);
         }
     }
@@ -472,13 +470,11 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         }
     }
 
-    private void validateDuplicationFeeLimits(@NonNull final List<CustomFeeLimit> allCustomFeeLimits)
-            throws PreCheckException {
+    private void validateDuplicationFeeLimits(@NonNull final List<CustomFeeLimit> allCustomFeeLimits) {
         // Validate that there are no duplicated account ids in the max custom fee list
         final var accounts =
                 allCustomFeeLimits.stream().map(CustomFeeLimit::accountId).toList();
-        validateTruePreCheck(
-                accounts.size() == new HashSet<>(accounts).size(), DUPLICATE_ACCOUNT_ID_IN_MAX_CUSTOM_FEE_LIST);
+        validateTrue(accounts.size() == new HashSet<>(accounts).size(), DUPLICATE_ACCOUNT_ID_IN_MAX_CUSTOM_FEE_LIST);
         // Validate that there are no duplicated denominating token ids in the max custom fee list
         for (final var customFeeLimit : allCustomFeeLimits) {
             final var htsCustomFeeLimits = customFeeLimit.fees().stream()
@@ -494,7 +490,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                             .size()
                     != htsCustomFeeLimits.size();
             final var hbarLimitsHasDuplicate = new HashSet<>(hbarCustomFeeLimits).size() != hbarCustomFeeLimits.size();
-            validateTruePreCheck(
+            validateTrue(
                     !htsLimitHasDuplicate && !hbarLimitsHasDuplicate, DUPLICATE_DENOMINATION_IN_MAX_CUSTOM_FEE_LIST);
         }
     }

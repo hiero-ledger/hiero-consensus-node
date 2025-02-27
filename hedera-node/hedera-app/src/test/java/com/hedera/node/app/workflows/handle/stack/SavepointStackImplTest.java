@@ -19,7 +19,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -100,7 +100,7 @@ class SavepointStackImplTest extends StateTestBase {
         final var firstPresetId = subject.nextPresetTxnId(false);
         final var secondPresetId = subject.nextPresetTxnId(true);
         assertThatThrownBy(() -> subject.nextPresetTxnId(false))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION.protoName());
         assertThat(firstPresetId)
                 .isEqualTo(vanillaBaseId.copyBuilder().nonce(53).build());
@@ -136,7 +136,7 @@ class SavepointStackImplTest extends StateTestBase {
                 baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, StreamMode.BOTH);
         subject.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
         assertThatThrownBy(() -> subject.nextPresetTxnId(false))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .hasMessage(RECURSIVE_SCHEDULING_LIMIT_REACHED.protoName());
     }
 

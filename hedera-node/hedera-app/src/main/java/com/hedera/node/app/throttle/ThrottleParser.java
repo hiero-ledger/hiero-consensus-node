@@ -13,7 +13,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,7 +55,7 @@ public class ThrottleParser {
      *
      * @param bytes the protobuf encoded {@link ThrottleDefinitions}.
      * @return the {@link ValidatedThrottles}
-     * @throws HandleException if the throttle definitions are invalid
+     * @throws WorkflowException if the throttle definitions are invalid
      */
     public ValidatedThrottles parse(@NonNull final Bytes bytes) {
         try {
@@ -65,7 +65,7 @@ public class ThrottleParser {
                     allExpectedOperations(throttleDefinitions) ? SUCCESS : SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
             return new ValidatedThrottles(throttleDefinitions, successStatus);
         } catch (ParseException e) {
-            throw new HandleException(UNPARSEABLE_THROTTLE_DEFINITIONS);
+            throw new WorkflowException(UNPARSEABLE_THROTTLE_DEFINITIONS);
         }
     }
 
@@ -97,7 +97,7 @@ public class ThrottleParser {
         for (var bucket : throttleDefinitions.throttleBuckets()) {
             for (var group : bucket.throttleGroups()) {
                 if (group.milliOpsPerSec() == 0) {
-                    throw new HandleException(THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC);
+                    throw new WorkflowException(THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC);
                 }
             }
         }
@@ -112,7 +112,7 @@ public class ThrottleParser {
             for (var group : bucket.throttleGroups()) {
                 final var functions = group.operations();
                 if (!disjoint(seenSoFar, functions)) {
-                    throw new HandleException(OPERATION_REPEATED_IN_BUCKET_GROUPS);
+                    throw new WorkflowException(OPERATION_REPEATED_IN_BUCKET_GROUPS);
                 }
                 seenSoFar.addAll(functions);
             }
