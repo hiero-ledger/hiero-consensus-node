@@ -11,14 +11,10 @@ import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -37,13 +33,9 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>There should be one {@link VirtualHasher} shared across all copies of a {@link VirtualMap}
  * "family".
- *
- * @param <K>
- * 		The {@link VirtualKey} type
- * @param <V>
- * 		The {@link VirtualValue} type
  */
-public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
+public final class VirtualHasher {
+
     /**
      * Use this for all logging, as controlled by the optional data/log4j2.xml file
      */
@@ -65,17 +57,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      * A listener to notify about hashing events. This listener is stored in a class field to
      * avoid passing it as an arg to every hashing task.
      */
-    private VirtualHashListener<K, V> listener;
-
-    /**
-     * An instance of {@link Cryptography} used to hash leaves. This should be a static final
-     * field, but it doesn't work very well as platform configs aren't loaded at the time when
-     * this class is initialized. It would result in a cryptography instance with default (and
-     * possibly wrong) configs be used by the hasher. Instead, this field is initialized in
-     * the {@link #hash(LongFunction, Iterator, long, long, VirtualMapConfig)} method and used by all hashing
-     * tasks.
-     */
-    private Cryptography cryptography;
+    private VirtualHashListener listener;
 
     /**
      * Tracks if this virtual hasher has been shut down. If true (indicating that the hasher
@@ -113,7 +95,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      */
     public Hash hash(
             final LongFunction<Hash> hashReader,
-            Iterator<VirtualLeafRecord<K, V>> sortedDirtyLeaves,
+            Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
             final @NonNull VirtualMapConfig virtualMapConfig) {
@@ -151,7 +133,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         private HashHoldingTask out;
 
         // If not null, the task hashes the leaf. If null, the task processes the input hashes
-        private VirtualLeafRecord<K, V> leaf;
+        private VirtualLeafBytes<?> leaf;
 
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
             super(pool, 1 + (1 << height), height > 0 ? 1 << height : 0);
@@ -164,8 +146,8 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
             send();
         }
 
-        void setLeaf(final VirtualLeafRecord<K, V> leaf) {
-            assert leaf != null && path == leaf.getPath() && height == 0;
+        void setLeaf(final VirtualLeafBytes<?> leaf) {
+            assert leaf != null && path == leaf.path() && height == 0;
             this.leaf = leaf;
             send();
         }
@@ -186,7 +168,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         protected boolean onExecute() {
             final Hash hash;
             if (leaf != null) {
-                hash = cryptography.digestSync(leaf);
+                hash = leaf.hash(HASH_BUILDER_THREAD_LOCAL.get());
                 listener.onLeafHashed(leaf);
                 listener.onNodeHashed(path, hash);
             } else {
@@ -206,7 +188,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                             if (right == null) {
                                 right = hashReader.apply(rankPath + i * 2 + 1);
                             }
-                            ins[i] = hash(hashedPath, left, right);
+                            ins[i] = hash(left, right);
                             listener.onNodeHashed(hashedPath, ins[i]);
                         }
                     }
@@ -219,15 +201,9 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
             return true;
         }
 
-        static Hash hash(final long path, final Hash left, final Hash right) {
-            final long classId = path == ROOT_PATH ? VirtualRootNode.CLASS_ID : VirtualInternalNode.CLASS_ID;
-            final int serId = path == ROOT_PATH
-                    ? VirtualRootNode.ClassVersion.CURRENT_VERSION
-                    : VirtualInternalNode.SERIALIZATION_VERSION;
+        static Hash hash(final Hash left, final Hash right) {
             final HashBuilder builder = HASH_BUILDER_THREAD_LOCAL.get();
             builder.reset();
-            builder.update(classId);
-            builder.update(serId);
             builder.update(left);
             builder.update(right);
             return builder.build();
@@ -257,17 +233,17 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      */
     public Hash hash(
             final LongFunction<Hash> hashReader,
-            final Iterator<VirtualLeafRecord<K, V>> sortedDirtyLeaves,
+            final Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            VirtualHashListener<K, V> listener,
+            VirtualHashListener listener,
             final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(virtualMapConfig);
 
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
         if (listener == null) {
             listener =
-                    new VirtualHashListener<>() {
+                    new VirtualHashListener() {
                         /* noop */
                     };
         }
@@ -291,8 +267,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
 
         this.hashReader = hashReader;
         this.listener = listener;
-        this.cryptography = CryptographyHolder.get();
-        final Hash NULL_HASH = cryptography.getNullHash();
+        final Hash NULL_HASH = CryptographyHolder.get().getNullHash();
 
         // Algo v6. This version is task based, where every task is responsible for hashing a small
         // chunk of the tree. Tasks are running in a fork-join pool, which is shared across all
@@ -364,8 +339,8 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         // it completes all task dependencies, so the task is executed.
 
         while (sortedDirtyLeaves.hasNext()) {
-            VirtualLeafRecord<K, V> leaf = sortedDirtyLeaves.next();
-            long curPath = leaf.getPath();
+            VirtualLeafBytes<?> leaf = sortedDirtyLeaves.next();
+            long curPath = leaf.path();
             ChunkHashTask curTask = map.remove(curPath);
             if (curTask == null) {
                 curTask = new ChunkHashTask(hashingPool, curPath, 0);
@@ -502,6 +477,6 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
 
     public Hash emptyRootHash() {
         final Hash NULL_HASH = CryptographyHolder.get().getNullHash();
-        return ChunkHashTask.hash(ROOT_PATH, NULL_HASH, NULL_HASH);
+        return ChunkHashTask.hash(NULL_HASH, NULL_HASH);
     }
 }

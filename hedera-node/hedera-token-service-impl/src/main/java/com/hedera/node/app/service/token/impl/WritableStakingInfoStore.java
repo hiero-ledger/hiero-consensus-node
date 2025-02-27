@@ -41,7 +41,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
     }
 
     /**
-     * Persists an updated {@link StakingNodeInfo} into state.
+     * Persists a {@link StakingNodeInfo} into state.
      *
      * @param nodeId the node's ID
      * @param stakingNodeInfo the staking info to persist
@@ -52,7 +52,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
     }
 
     /**
-     * Persists a new {@link StakingNodeInfo} into state and increments the entity counter for staking info.
+     * Persists a {@link StakingNodeInfo} into state and increments the entity counter for staking info.
      * @param nodeId the node's ID
      * @param stakingNodeInfo the staking info to persist
      */

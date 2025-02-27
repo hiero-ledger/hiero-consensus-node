@@ -17,17 +17,9 @@ import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
-import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
@@ -44,7 +36,7 @@ import java.util.stream.Stream;
 /**
  * Validator to read a data source and all its data and check the complete data set is valid.
  */
-public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValue> {
+public class VirtualMerkleLeafHasher {
 
     private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(MerkleDbConfig.class)
@@ -54,7 +46,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             .build();
 
     /** The data source we are validating */
-    private final VirtualMap<K, V> virtualMap;
+    private final VirtualMap virtualMap;
 
     /**
      * Open the virtual map and validate all its data
@@ -62,7 +54,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
      * @param virtualMap
      * 		The virtual map to validate
      */
-    public VirtualMerkleLeafHasher(final VirtualMap<K, V> virtualMap) {
+    public VirtualMerkleLeafHasher(final VirtualMap virtualMap) {
         this.virtualMap = virtualMap;
     }
 
@@ -80,7 +72,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             final MerkleNode node = iterator.next();
             if (node != null) {
                 if (node instanceof VirtualLeafNode) {
-                    final VirtualLeafNode<K, V> leaf = node.cast();
+                    final VirtualLeafNode leaf = node.cast();
                     hash = computeNextHash(hash, leaf);
                 }
             }
@@ -91,16 +83,16 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
 
     /**
      * computes the rolling hash resulting from the concatenation of the previous hash with the leaf's serialized
-     * key and value. Data to be hashed looks like this: [prevHash,leaf.key.serialize,leaf.value.serialize]
+     * key and value. Data to be hashed looks like this: [prevHash,leaf.keyBytes,leaf.valueBytes]
      *
      * @param prevHash
      * 		hash result of previous call to this function
      * @param leaf
      * 		value to be serialized and hashed with the previous hash
-     * @return rolling hash of [prevHash,leaf.key.serialize,leaf.value.serialize]
+     * @return rolling hash of [prevHash,leaf.keyBytes,leaf.valueBytes]
      * @throws IOException if an I/O error occurs
      */
-    public Hash computeNextHash(final Hash prevHash, final VirtualLeafNode<K, V> leaf) throws IOException {
+    public Hash computeNextHash(final Hash prevHash, final VirtualLeafNode leaf) throws IOException {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
                 final SerializableDataOutputStream out = new SerializableDataOutputStream(bout)) {
 
@@ -109,9 +101,11 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
                 prevHash.getBytes().writeTo(out);
             }
             // add leaf key
-            leaf.getKey().serialize(out);
+            leaf.getKey().writeTo(out);
             // add leaf value
-            leaf.getValue().serialize(out);
+            if (leaf.getValue() != null) {
+                leaf.getValue().writeTo(out);
+            }
 
             out.flush();
             return hashOf(bout.toByteArray());
@@ -170,32 +164,30 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             Hash byteCodeHash;
 
             try {
-                final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> accountsMap =
-                        new VirtualMap<>(CONFIGURATION);
+                // AccountVirtualMapKey -> AccountVirtualMapValue
+                final VirtualMap accountsMap = new VirtualMap(CONFIGURATION);
                 accountsMap.loadFromFile(roundFolder.resolve(accountsName));
-                final VirtualMerkleLeafHasher<AccountVirtualMapKey, AccountVirtualMapValue> accountsHasher =
-                        new VirtualMerkleLeafHasher<>(accountsMap);
+                final VirtualMerkleLeafHasher accountsHasher = new VirtualMerkleLeafHasher(accountsMap);
                 accountsHash = accountsHasher.validate();
             } catch (final IOException e) {
                 accountsHash = null;
             }
 
             try {
-                final VirtualMap<SmartContractMapKey, SmartContractMapValue> scMap = new VirtualMap<>(CONFIGURATION);
+                // SmartContractMapKey -> SmartContractMapValue
+                final VirtualMap scMap = new VirtualMap(CONFIGURATION);
                 scMap.loadFromFile(roundFolder.resolve(scName));
-                final VirtualMerkleLeafHasher<SmartContractMapKey, SmartContractMapValue> scHasher =
-                        new VirtualMerkleLeafHasher<>(scMap);
+                final VirtualMerkleLeafHasher scHasher = new VirtualMerkleLeafHasher(scMap);
                 scHash = scHasher.validate();
             } catch (final IOException e) {
                 scHash = null;
             }
 
             try {
-                final VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue> byteCodeMap =
-                        new VirtualMap<>(CONFIGURATION);
+                // SmartContractByteCodeMapKey -> SmartContractByteCodeMapValue
+                final VirtualMap byteCodeMap = new VirtualMap(CONFIGURATION);
                 byteCodeMap.loadFromFile(roundFolder.resolve(scByteCodeName));
-                final VirtualMerkleLeafHasher<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue>
-                        byteCodeHasher = new VirtualMerkleLeafHasher<>(byteCodeMap);
+                final VirtualMerkleLeafHasher byteCodeHasher = new VirtualMerkleLeafHasher(byteCodeMap);
                 byteCodeHash = byteCodeHasher.validate();
             } catch (final IOException e) {
                 byteCodeHash = null;

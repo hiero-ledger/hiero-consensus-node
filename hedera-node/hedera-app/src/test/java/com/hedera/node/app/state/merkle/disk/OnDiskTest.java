@@ -15,21 +15,14 @@ import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.StateUtils;
-import com.swirlds.state.merkle.disk.OnDiskKey;
-import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
-import com.swirlds.state.merkle.disk.OnDiskValue;
-import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -44,12 +37,13 @@ import org.junit.jupiter.api.Test;
  * serializing for hashing, and for serializing when saving state.
  */
 class OnDiskTest extends MerkleTestBase {
+
     private static final String SERVICE_NAME = "CryptoService";
     private static final String ACCOUNT_STATE_KEY = "Account";
 
     private Schema schema;
     private StateDefinition<AccountID, Account> def;
-    private VirtualMap<OnDiskKey<AccountID>, OnDiskValue<Account>> virtualMap;
+    private VirtualMap virtualMap;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -67,39 +61,19 @@ class OnDiskTest extends MerkleTestBase {
             }
         };
 
-        final KeySerializer<OnDiskKey<AccountID>> keySerializer = new OnDiskKeySerializer<>(
-                onDiskKeySerializerClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                AccountID.PROTOBUF);
-        final ValueSerializer<OnDiskValue<Account>> valueSerializer = new OnDiskValueSerializer<>(
-                onDiskValueSerializerClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                onDiskValueClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                Account.PROTOBUF);
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final var tableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
         // Force all hashes to disk, to make sure we're going through all the
         // serialization paths we can
-        tableConfig.hashesRamToDiskThreshold(0);
-        tableConfig.maxNumberOfKeys(100);
+        final var tableConfig = new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 100, 0);
 
         final var builder = new MerkleDbDataSourceBuilder(storageDir, tableConfig, CONFIGURATION);
-        virtualMap = new VirtualMap<>(
-                StateUtils.computeLabel(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                keySerializer,
-                valueSerializer,
-                builder,
-                CONFIGURATION);
+        virtualMap = new VirtualMap(StateUtils.computeLabel(SERVICE_NAME, ACCOUNT_STATE_KEY), builder, CONFIGURATION);
 
         Configuration config = mock(Configuration.class);
         final var hederaConfig = mock(HederaConfig.class);
         lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
     }
 
-    <K, V> VirtualMap<OnDiskKey<K>, OnDiskValue<V>> copyHashAndFlush(VirtualMap<OnDiskKey<K>, OnDiskValue<V>> map) {
+    VirtualMap copyHashAndFlush(VirtualMap map) {
         // Make the fast copy
         final var copy = map.copy();
 
@@ -107,7 +81,7 @@ class OnDiskTest extends MerkleTestBase {
         CRYPTO.digestTreeSync(map);
 
         // Flush to disk
-        final VirtualRootNode<?, ?> root = map.getChild(1);
+        final VirtualRootNode root = map.getChild(1);
         root.enableFlush();
         map.release();
         try {
@@ -124,13 +98,7 @@ class OnDiskTest extends MerkleTestBase {
     @Test
     void populateTheMapAndFlushToDiskAndReadBack() throws IOException {
         // Populate the data set and flush it all to disk
-        final var ws = new OnDiskWritableKVState<>(
-                ACCOUNT_STATE_KEY,
-                onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                AccountID.PROTOBUF,
-                onDiskValueClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                Account.PROTOBUF,
-                virtualMap);
+        final var ws = new OnDiskWritableKVState<>(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = Account.newBuilder()
@@ -160,8 +128,7 @@ class OnDiskTest extends MerkleTestBase {
 
         // read it back now as our map and validate the data come back fine
         virtualMap = parseTree(serializedBytes, snapshotDir);
-        final var rs = new OnDiskReadableKVState<>(
-                ACCOUNT_STATE_KEY, onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY), AccountID.PROTOBUF, virtualMap);
+        final var rs = new OnDiskReadableKVState<>(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = rs.get(id);
@@ -174,13 +141,7 @@ class OnDiskTest extends MerkleTestBase {
 
     @Test
     void populateFlushToDisk() {
-        final var ws = new OnDiskWritableKVState<>(
-                ACCOUNT_STATE_KEY,
-                onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                AccountID.PROTOBUF,
-                onDiskValueClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
-                Account.PROTOBUF,
-                virtualMap);
+        final var ws = new OnDiskWritableKVState<>(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 1; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = Account.newBuilder()
@@ -193,8 +154,7 @@ class OnDiskTest extends MerkleTestBase {
         ws.commit();
         virtualMap = copyHashAndFlush(virtualMap);
 
-        final var rs = new OnDiskReadableKVState<>(
-                ACCOUNT_STATE_KEY, onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY), AccountID.PROTOBUF, virtualMap);
+        final var rs = new OnDiskReadableKVState<>(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 1; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = rs.get(id);
@@ -203,12 +163,5 @@ class OnDiskTest extends MerkleTestBase {
             assertThat(acct.memo()).isEqualTo("Account " + i);
             assertThat(acct.tinybarBalance()).isEqualTo(i);
         }
-    }
-
-    @Test
-    void toStringWorks() {
-        final var key = new OnDiskKey<>(onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY), AccountID.PROTOBUF);
-        final var string = key.toString();
-        assertThat(string).isEqualTo("OnDiskKey{key=null}");
     }
 }

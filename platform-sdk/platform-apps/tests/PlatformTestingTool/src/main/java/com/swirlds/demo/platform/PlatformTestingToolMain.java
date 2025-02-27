@@ -54,9 +54,7 @@ import com.swirlds.demo.platform.fs.stresstest.proto.TestTransactionWrapper;
 import com.swirlds.demo.platform.nft.NftQueryController;
 import com.swirlds.demo.virtualmerkle.config.VirtualMerkleConfig;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
-import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
 import com.swirlds.demo.virtualmerkle.state.VirtualMerkleStateInitializer;
 import com.swirlds.demo.virtualmerkle.transaction.handler.VirtualMerkleTransactionHandler;
 import com.swirlds.fcqueue.FCQueue;
@@ -1024,10 +1022,10 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
             final AtomicLong maxAccountIdFromLoadedState = new AtomicLong(0);
             if (state.getVirtualMap() != null) {
-                new MerkleIterator<VirtualLeafNode<AccountVirtualMapKey, AccountVirtualMapValue>>(state.getVirtualMap())
+                new MerkleIterator<VirtualLeafNode>(state.getVirtualMap())
                         .setFilter(node -> node instanceof VirtualLeafNode)
                         .forEachRemaining(leaf -> {
-                            final AccountVirtualMapKey key = leaf.getKey();
+                            final AccountVirtualMapKey key = AccountVirtualMapKey.fromBytes(leaf.getKey());
                             maxAccountIdFromLoadedState.set(
                                     Math.max(key.getAccountID() + 1, maxAccountIdFromLoadedState.get()));
                         });
@@ -1035,11 +1033,11 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
             final AtomicLong maxSmartContractIdFromLoadedState = new AtomicLong(0);
             if (state.getVirtualMapForSmartContractsByteCode() != null) {
-                new MerkleIterator<VirtualLeafNode<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue>>(
-                                state.getVirtualMapForSmartContractsByteCode())
+                new MerkleIterator<VirtualLeafNode>(state.getVirtualMapForSmartContractsByteCode())
                         .setFilter(node -> node instanceof VirtualLeafNode)
                         .forEachRemaining(leaf -> {
-                            final SmartContractByteCodeMapKey key = leaf.getKey();
+                            final SmartContractByteCodeMapKey key =
+                                    SmartContractByteCodeMapKey.fromBytes(leaf.getKey());
                             maxSmartContractIdFromLoadedState.set(
                                     Math.max(key.getContractId() + 1, maxSmartContractIdFromLoadedState.get()));
                         });

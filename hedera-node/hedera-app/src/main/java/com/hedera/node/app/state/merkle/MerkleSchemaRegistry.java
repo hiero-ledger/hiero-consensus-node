@@ -37,8 +37,6 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.merkle.MerkleStateRoot.MerkleWritableStates;
 import com.swirlds.state.merkle.StateMetadata;
 import com.swirlds.state.merkle.StateUtils;
-import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
-import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.merkle.queue.QueueNode;
 import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.spi.FilteredReadableStates;
@@ -325,14 +323,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                         stateRoot.putServiceStateIfAbsent(
                                 md,
                                 () -> {
-                                    final var keySerializer = new OnDiskKeySerializer<>(
-                                            md.onDiskKeySerializerClassId(),
-                                            md.onDiskKeyClassId(),
-                                            md.stateDefinition().keyCodec());
-                                    final var valueSerializer = new OnDiskValueSerializer<>(
-                                            md.onDiskValueSerializerClassId(),
-                                            md.onDiskValueClassId(),
-                                            md.stateDefinition().valueCodec());
                                     // MAX_IN_MEMORY_HASHES (ramToDiskThreshold) = 8388608
                                     // PREFER_DISK_BASED_INDICES = false
                                     final MerkleDbConfig merkleDbConfig =
@@ -345,9 +335,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                                     final var label = StateUtils.computeLabel(serviceName, stateKey);
                                     final var dsBuilder =
                                             new MerkleDbDataSourceBuilder(tableConfig, platformConfiguration);
-                                    final var virtualMap = new VirtualMap<>(
-                                            label, keySerializer, valueSerializer, dsBuilder, platformConfiguration);
-                                    return virtualMap;
+                                    return new VirtualMap(label, dsBuilder, platformConfiguration);
                                 },
                                 // Register the metrics for the virtual map if they are available.
                                 // Early rounds of migration done by services such as PlatformStateService,

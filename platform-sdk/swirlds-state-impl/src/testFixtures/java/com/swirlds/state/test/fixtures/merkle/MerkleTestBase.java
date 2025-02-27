@@ -26,10 +26,6 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.state.merkle.StateUtils;
-import com.swirlds.state.merkle.disk.OnDiskKey;
-import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
-import com.swirlds.state.merkle.disk.OnDiskValue;
-import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.merkle.memory.InMemoryKey;
 import com.swirlds.state.merkle.memory.InMemoryValue;
 import com.swirlds.state.merkle.queue.QueueNode;
@@ -37,8 +33,6 @@ import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -129,7 +123,7 @@ public class MerkleTestBase extends StateTestBase {
 
     // An alternative "FRUIT" Map that is also part of FIRST_SERVICE, but based on VirtualMap
     protected String fruitVirtualLabel;
-    protected VirtualMap<OnDiskKey<String>, OnDiskValue<String>> fruitVirtualMap;
+    protected VirtualMap fruitVirtualMap;
 
     // The "ANIMAL" map is part of FIRST_SERVICE
     protected String animalLabel;
@@ -156,46 +150,7 @@ public class MerkleTestBase extends StateTestBase {
     /** Sets up the "Fruit" virtual map, label, and metadata. */
     protected void setupFruitVirtualMap() {
         fruitVirtualLabel = StateUtils.computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
-        fruitVirtualMap = createVirtualMap(
-                fruitVirtualLabel,
-                onDiskKeySerializerClassId(FRUIT_STATE_KEY),
-                onDiskKeyClassId(FRUIT_STATE_KEY),
-                STRING_CODEC,
-                onDiskValueSerializerClassId(FRUIT_STATE_KEY),
-                onDiskValueClassId(FRUIT_STATE_KEY),
-                STRING_CODEC);
-    }
-
-    protected static long onDiskKeyClassId(String stateKey) {
-        return onDiskKeyClassId(FIRST_SERVICE, stateKey);
-    }
-
-    protected static long onDiskKeyClassId(String serviceName, String stateKey) {
-        return computeClassId(serviceName, stateKey, TEST_VERSION, ON_DISK_KEY_CLASS_ID_SUFFIX);
-    }
-
-    protected static long onDiskKeySerializerClassId(String stateKey) {
-        return onDiskKeySerializerClassId(FIRST_SERVICE, stateKey);
-    }
-
-    protected static long onDiskKeySerializerClassId(String serviceName, String stateKey) {
-        return computeClassId(serviceName, stateKey, TEST_VERSION, ON_DISK_KEY_SERIALIZER_CLASS_ID_SUFFIX);
-    }
-
-    protected static long onDiskValueClassId(String stateKey) {
-        return onDiskValueClassId(FIRST_SERVICE, stateKey);
-    }
-
-    protected static long onDiskValueClassId(String serviceName, String stateKey) {
-        return computeClassId(serviceName, stateKey, TEST_VERSION, ON_DISK_VALUE_CLASS_ID_SUFFIX);
-    }
-
-    protected static long onDiskValueSerializerClassId(String stateKey) {
-        return onDiskValueSerializerClassId(FIRST_SERVICE, stateKey);
-    }
-
-    protected static long onDiskValueSerializerClassId(String serviceName, String stateKey) {
-        return computeClassId(serviceName, stateKey, TEST_VERSION, ON_DISK_VALUE_SERIALIZER_CLASS_ID_SUFFIX);
+        fruitVirtualMap = createVirtualMap(fruitVirtualLabel);
     }
 
     protected static long queueNodeClassId(String stateKey) {
@@ -278,29 +233,10 @@ public class MerkleTestBase extends StateTestBase {
     }
 
     /** Creates a new arbitrary virtual map with the given label, storageDir, and metadata */
-    @SuppressWarnings("unchecked")
-    protected VirtualMap<OnDiskKey<String>, OnDiskValue<String>> createVirtualMap(
-            String label,
-            long keySerializerClassId,
-            long keyClassId,
-            Codec<String> keyCodec,
-            long valueSerializerClassId,
-            long valueClassId,
-            Codec<String> valueCodec) {
-        final KeySerializer<OnDiskKey<String>> keySerializer =
-                new OnDiskKeySerializer<>(keySerializerClassId, keyClassId, keyCodec);
-        final ValueSerializer<OnDiskValue<String>> valueSerializer =
-                new OnDiskValueSerializer<>(valueSerializerClassId, valueClassId, valueCodec);
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final MerkleDbTableConfig merkleDbTableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
-        merkleDbTableConfig.hashesRamToDiskThreshold(0);
-        merkleDbTableConfig.maxNumberOfKeys(100);
+    protected VirtualMap createVirtualMap(String label) {
+        final var merkleDbTableConfig = new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 100, 0);
         final var builder = new MerkleDbDataSourceBuilder(virtualDbPath, merkleDbTableConfig, CONFIGURATION);
-        return new VirtualMap<>(label, keySerializer, valueSerializer, builder, CONFIGURATION);
+        return new VirtualMap(label, builder, CONFIGURATION);
     }
 
     /** A convenience method for creating {@link SemanticVersion}. */
@@ -321,16 +257,8 @@ public class MerkleTestBase extends StateTestBase {
     }
 
     /** A convenience method for adding a k/v pair to a virtual map */
-    protected void add(
-            VirtualMap<OnDiskKey<String>, OnDiskValue<String>> map,
-            long onDiskKeyClassId,
-            Codec<String> keyCodec,
-            long onDiskValueClassId,
-            Codec<String> valueCodec,
-            String key,
-            String value) {
-        final var k = new OnDiskKey<>(onDiskKeyClassId, keyCodec, key);
-        map.put(k, new OnDiskValue<>(onDiskValueClassId, valueCodec, value));
+    protected void add(VirtualMap map, Codec<String> keyCodec, Codec<String> valueCodec, String key, String value) {
+        map.put(keyCodec.toBytes(key), value, valueCodec);
     }
 
     /** A convenience method used to serialize a merkle tree */
