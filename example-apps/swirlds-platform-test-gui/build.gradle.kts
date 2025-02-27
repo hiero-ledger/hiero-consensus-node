@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
-    id("java-library")
+    id("org.hiero.gradle.module.application")
     id("jacoco")
     id("org.hiero.gradle.base.jpms-modules")
     id("org.hiero.gradle.base.lifecycle")
@@ -18,17 +18,15 @@ plugins {
     id("org.hiero.gradle.report.test-logger")
 }
 
-// Remove the following line to enable all 'javac' lint checks that we have turned on by default
-// and then fix the reported issues.
-tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.add("-Xlint:-lossy-conversions")
+application.mainClass = "com.swirlds.platform.test.gui.Application"
+
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    annotationProcessor("com.google.auto.service.processor")
+    runtimeOnly("com.swirlds.config.impl")
 }
 
 testModuleInfo {
-    requires("com.swirlds.merkle")
     requiresStatic("com.github.spotbugs.annotations")
-    requires("com.swirlds.base")
-    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.junit.jupiter.api")
-    requires("com.swirlds.state.impl")
 }

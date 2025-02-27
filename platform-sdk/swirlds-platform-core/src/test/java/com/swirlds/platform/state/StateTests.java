@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.state;
+package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.areTreesEqual;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.platform.test.fixtures.state.BlockingState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -34,7 +32,6 @@ class StateTests {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        new TestConfigBuilder().getOrCreateConfig();
 
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
 
@@ -59,7 +56,8 @@ class StateTests {
         MerkleCryptoFactory.getInstance().digestTreeSync(decodedState.getRoot());
 
         assertEquals(merkleStateRoot.getHash(), decodedState.getHash(), "expected trees to be equal");
-        assertTrue(areTreesEqual(merkleStateRoot, decodedState.getRoot()), "expected trees to be equal");
+        Assertions.assertTrue(
+                MerkleTestUtils.areTreesEqual(merkleStateRoot, decodedState.getRoot()), "expected trees to be equal");
     }
 
     @Test
@@ -70,6 +68,7 @@ class StateTests {
         MerkleCryptoFactory.getInstance().digestTreeSync(copiedState);
 
         assertEquals(merkleStateRoot.getHash(), copiedState.getHash(), "expected trees to be equal");
-        assertTrue(areTreesEqual(merkleStateRoot, copiedState), "expected trees to be equal");
+        Assertions.assertTrue(
+                MerkleTestUtils.areTreesEqual(merkleStateRoot, copiedState), "expected trees to be equal");
     }
 }

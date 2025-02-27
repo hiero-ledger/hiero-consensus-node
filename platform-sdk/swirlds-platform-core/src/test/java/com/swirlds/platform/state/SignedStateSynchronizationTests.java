@@ -9,7 +9,7 @@ import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.SignedStateUtils;
+import com.swirlds.platform.test.fixtures.state.SignedStateUtils;
 import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

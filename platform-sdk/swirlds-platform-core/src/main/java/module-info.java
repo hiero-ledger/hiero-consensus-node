@@ -63,13 +63,15 @@ module com.swirlds.platform.core {
             com.swirlds.platform.test,
             com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
-            com.fasterxml.jackson.databind;
+            com.fasterxml.jackson.databind,
+            com.swirlds.platform.test.gui;
     exports com.swirlds.platform.swirldapp to
             com.swirlds.platform.test;
     exports com.swirlds.platform.consensus to
             com.swirlds.platform.test,
             com.swirlds.platform.core.test.fixtures,
-            com.hedera.node.app;
+            com.hedera.node.app,
+            com.swirlds.platform.test.gui;
     exports com.swirlds.platform.crypto to
             com.swirlds.platform.test,
             com.hedera.node.test.clients,
