@@ -40,7 +40,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_NOT_IN_WHITELIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -586,7 +586,7 @@ public class AtomicBatchNegativeTest {
                                     .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .batchKey("batchOperator"))
                             .signedByPayerAnd("batchOperator")
-                            .hasKnownStatus(BATCH_TRANSACTION_NOT_IN_WHITELIST));
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
         }
 
         @HapiTest
@@ -601,7 +601,7 @@ public class AtomicBatchNegativeTest {
                                     .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("batchOperator"))
-                            .hasKnownStatus(BATCH_TRANSACTION_NOT_IN_WHITELIST));
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
         }
 
         @HapiTest
@@ -620,7 +620,7 @@ public class AtomicBatchNegativeTest {
                                             .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey("batchOperator")
                                             .signedByPayerAnd("batchOperator"))
-                            .hasKnownStatus(BATCH_TRANSACTION_NOT_IN_WHITELIST));
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
         }
     }
 }
