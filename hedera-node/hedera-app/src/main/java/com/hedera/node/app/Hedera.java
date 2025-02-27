@@ -200,6 +200,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
     // FUTURE: This should come from configuration, not be hardcoded.
     public static final int MAX_SIGNED_TXN_SIZE = 6144;
+    public static final int MAX_INTERNAL_TXN_SIZE = 3 * 1024 * 1024;
 
     /**
      * The application name from the platform's perspective. This is currently locked in at the old main class name and

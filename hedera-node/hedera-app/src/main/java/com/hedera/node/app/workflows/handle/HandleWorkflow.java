@@ -31,6 +31,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Transaction;
@@ -38,6 +39,7 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
@@ -63,6 +65,7 @@ import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -101,10 +104,12 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import javax.inject.Inject;
@@ -148,6 +153,7 @@ public class HandleWorkflow {
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final AppContext appContext;
 
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
     private long lastMetricUpdateSecond;
@@ -181,7 +187,8 @@ public class HandleWorkflow {
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
             @NonNull final CongestionMetrics congestionMetrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            AppContext appContext) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -212,6 +219,7 @@ public class HandleWorkflow {
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
+        this.appContext = appContext;
     }
 
     /**
@@ -575,6 +583,10 @@ public class HandleWorkflow {
      */
     private HandleOutput executeTopLevel(
             @NonNull final UserTxn userTxn, @NonNull final SemanticVersion txnVersion, @NonNull final State state) {
+        if (userTxn.functionality() != HederaFunctionality.CRYPTO_CREATE
+                && userTxn.functionality() != HederaFunctionality.FILE_CREATE) {
+            logger.info("Next: {} @ {}", userTxn.functionality(), userTxn.consensusNow());
+        }
         try {
             if (isOlderSoftwareEvent(txnVersion)) {
                 if (streamMode != BLOCKS) {
@@ -591,6 +603,25 @@ public class HandleWorkflow {
                     // (FUTURE) Once all genesis setup is done via dispatch, remove this method
                     systemSetup.externalizeInitSideEffects(
                             userTxn.tokenContextImpl(), exchangeRateManager.exchangeRates());
+                    final var selfInfo = appContext.selfNodeInfoSupplier().get();
+                    if (selfInfo.nodeId() == 0L) {
+                        logger.info("Submitting history proof vote @ {}", userTxn.consensusNow());
+                        appContext
+                                .gossip()
+                                .submitFuture(
+                                        selfInfo.accountId(),
+                                        userTxn.consensusNow(),
+                                        Duration.ofSeconds(120),
+                                        b -> b.historyProofVote(HistoryProofVoteTransactionBody.newBuilder()
+                                                .constructionId(123)
+                                                .build()),
+                                        ForkJoinPool.commonPool(),
+                                        1,
+                                        1,
+                                        Duration.ofSeconds(0),
+                                        (body, error) -> logger.warn("NOPE - {}", error))
+                                .join();
+                    }
                 } else if (userTxn.type() == POST_UPGRADE_TRANSACTION) {
                     // Since we track node stake metadata separately from the future address book (FAB),
                     // we need to update that stake metadata from any node additions or deletions that
