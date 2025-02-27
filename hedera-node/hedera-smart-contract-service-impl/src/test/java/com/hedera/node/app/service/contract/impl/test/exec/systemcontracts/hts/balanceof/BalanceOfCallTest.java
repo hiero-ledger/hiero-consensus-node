@@ -44,7 +44,8 @@ class BalanceOfCallTest extends CallTestBase {
     @Test
     void revertsWithMissingAccount() {
         subject = new BalanceOfCall(mockEnhancement(), gasCalculator, FUNGIBLE_TOKEN, OWNER);
-        given(nativeOperations.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS))).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS)))
+                .willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
@@ -56,7 +57,7 @@ class BalanceOfCallTest extends CallTestBase {
     @Test
     void returnsZeroBalanceForAbsentRelationship() {
         subject = new BalanceOfCall(mockEnhancement(), gasCalculator, FUNGIBLE_TOKEN, OWNER);
-        given(nativeOperations.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS)))
+        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
@@ -75,7 +76,7 @@ class BalanceOfCallTest extends CallTestBase {
     @Test
     void returnsNominalBalanceForPresentRelationship() {
         subject = new BalanceOfCall(mockEnhancement(), gasCalculator, FUNGIBLE_TOKEN, OWNER);
-        given(nativeOperations.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS)))
+        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getTokenRelation(A_NEW_ACCOUNT_ID.accountNumOrThrow(), FUNGIBLE_TOKEN_ID.tokenNum()))
                 .willReturn(A_FUNGIBLE_RELATION);

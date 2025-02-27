@@ -73,7 +73,7 @@ class ClassicTransfersGasCalcTest extends CallTestBase {
     void doesNotChargeForExtantAliases() {
         givenPretendPricesWithoutCustomFees();
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
-        given(accountStore.getAccountIDByAlias(TestHelpers.ALIASED_RECEIVER_ID.aliasOrThrow()))
+        given(accountStore.getAccountIDByAlias(0, 0, TestHelpers.ALIASED_RECEIVER_ID.aliasOrThrow()))
                 .willReturn(AccountID.DEFAULT);
 
         final var expectedFtMinimumPrice = PRETEND_FUNGIBLE_TRANSFER_TINYBAR_PRICE / 2;

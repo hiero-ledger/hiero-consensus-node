@@ -33,7 +33,7 @@ class SyntheticIdsTest {
     @Test
     void returnsNumericIdIfAddressIsCanonicalReference() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        given(nativeOperations.resolveAlias(ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
+        given(nativeOperations.resolveAlias(0, 0, ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(TestHelpers.A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
         final var subject = implicitSubject.converterFor(nativeOperations);

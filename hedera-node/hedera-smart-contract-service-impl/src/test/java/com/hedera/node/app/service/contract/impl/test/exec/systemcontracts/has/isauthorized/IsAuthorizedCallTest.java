@@ -12,6 +12,7 @@ import static com.hedera.pbj.runtime.io.buffer.Bytes.wrap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 
@@ -84,7 +85,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     @Test
     void returnsErrorStatusForInvalidAddress() {
         // Not an account num alias, not an evm alias
-        given(nativeOperations.resolveAlias(any())).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = getSubject(APPROVED_HEADLONG_ADDRESS);

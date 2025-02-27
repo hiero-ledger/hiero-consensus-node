@@ -42,7 +42,7 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
 
         // Arrange to use an account that has an alias
-        given(nativeOperations.resolveAlias(RECEIVER_ADDRESS))
+        given(nativeOperations.resolveAlias(0, 0, RECEIVER_ADDRESS))
                 .willReturn(ALIASED_RECEIVER.accountId().accountNumOrThrow());
         given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(ALIASED_RECEIVER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
@@ -104,7 +104,7 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
 
-        given(nativeOperations.resolveAlias(RECEIVER_ADDRESS))
+        given(nativeOperations.resolveAlias(0, 0, RECEIVER_ADDRESS))
                 .willReturn(ALIASED_RECEIVER.accountId().accountNumOrThrow());
         given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(null);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
@@ -127,7 +127,7 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
-        given(nativeOperations.resolveAlias(OWNER_ADDRESS)).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(0, 0, OWNER_ADDRESS)).willReturn(MISSING_ENTITY_NUMBER);
 
         subject = new IsValidAliasCall(attempt, asHeadlongAddress(OWNER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();

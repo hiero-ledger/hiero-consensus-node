@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
 import com.google.common.primitives.Ints;
@@ -152,7 +153,7 @@ class ConversionUtilsTest {
     void returnsMissingOnAbsentAlias() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = Address.fromHexString("0x010000000000000000");
-        given(nativeOperations.resolveAlias(any())).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
         assertEquals(-1L, actual);
     }
@@ -162,14 +163,14 @@ class ConversionUtilsTest {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address =
                 asHeadlongAddress(Address.fromHexString("0x010000000000000000").toArray());
-        given(nativeOperations.resolveAlias(any())).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
         final var actual = ConversionUtils.accountNumberForEvmReference(address, nativeOperations);
         assertEquals(-1L, actual);
     }
 
     @Test
     void returnsGivenIfPresentAlias() {
-        given(nativeOperations.resolveAlias(any())).willReturn(0x1234L);
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(0x1234L);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = Address.fromHexString("0x010000000000000000");
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
