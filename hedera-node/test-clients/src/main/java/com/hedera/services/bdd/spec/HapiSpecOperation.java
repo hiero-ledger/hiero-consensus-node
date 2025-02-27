@@ -22,6 +22,7 @@ import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.keys.SigMapGenerator;
@@ -114,6 +115,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected Optional<ControlForKey[]> controlOverrides = Optional.empty();
     protected Map<Key, SigControl> overrides = Collections.EMPTY_MAP;
 
+    protected Optional<Function<HapiSpec, Key>> batchKey = Optional.empty();
     protected Optional<Long> fee = Optional.empty();
     protected List<Function<HapiSpec, CustomFeeLimit>> maxCustomFeeList = new ArrayList<>();
     protected Optional<Long> validDurationSecs = Optional.empty();
@@ -277,6 +279,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
                     Duration.newBuilder().setSeconds(s).build()));
             genRecord.ifPresent(builder::setGenerateRecord);
             memo.ifPresent(builder::setMemo);
+            batchKey.ifPresent(k -> builder.setBatchKey(k.apply(spec)));
         };
     }
 
@@ -344,8 +347,15 @@ public abstract class HapiSpecOperation implements SpecOperation {
             return txnWithBodyBytesAndSigMap;
         }
         ByteString bodyByteString = CommonUtils.extractTransactionBodyByteString(txnWithBodyBytesAndSigMap);
+        final TransactionBody txBody = TransactionBody.parseFrom(bodyByteString);
+        if (explicitProtoStructure == TxnProtoStructure.NORMALIZED) {
+            return txnWithBodyBytesAndSigMap.toBuilder()
+                    .clearBodyBytes()
+                    .setBody(txBody)
+                    .build();
+        }
         if (unknownFieldLocation == UnknownFieldLocation.TRANSACTION_BODY) {
-            bodyByteString = TransactionBody.parseFrom(bodyByteString).toBuilder()
+            bodyByteString = txBody.toBuilder()
                     .setUnknownFields(nonEmptyUnknownFields())
                     .build()
                     .toByteString();

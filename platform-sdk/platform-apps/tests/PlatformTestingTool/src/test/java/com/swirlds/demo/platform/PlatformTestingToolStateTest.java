@@ -16,6 +16,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.context.PlatformContext;
@@ -37,7 +38,6 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeysAndCerts;
@@ -71,6 +71,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 class PlatformTestingToolStateTest {
 
@@ -206,9 +207,8 @@ class PlatformTestingToolStateTest {
         round = new ConsensusRound(
                 roster,
                 List.of(platformEvent),
-                platformEvent,
                 eventWindow,
-                new ConsensusSnapshot(),
+                Mockito.mock(ConsensusSnapshot.class),
                 false,
                 Instant.now());
 
@@ -307,9 +307,8 @@ class PlatformTestingToolStateTest {
         round = new ConsensusRound(
                 roster,
                 List.of(platformEvent),
-                platformEvent,
                 eventWindow,
-                new ConsensusSnapshot(),
+                Mockito.mock(ConsensusSnapshot.class),
                 false,
                 Instant.now());
     }

@@ -210,6 +210,10 @@ public class HashgraphPicture extends JPanel {
         if (options.writeGeneration()) {
             s += " " + event.getGeneration();
         }
+
+        if (options.writeBirthRound()) {
+            s += " " + event.getBirthRound();
+        }
         if (!s.isEmpty()) {
             final Rectangle2D rect = fm.getStringBounds(s, g);
             final int x = (int) (pictureMetadata.xpos(e2, event) - rect.getWidth() / 2. - fa / 4.);

@@ -7,6 +7,7 @@ import static com.hedera.hapi.streams.ContractActionType.CALL;
 import static com.hedera.hapi.streams.ContractActionType.CREATE;
 import static com.hedera.hapi.streams.codec.ContractActionProtoCodec.RECIPIENT_UNSET;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfContractIn;
@@ -140,7 +141,7 @@ public class ActionStack {
             @NonNull final ContractActionType type,
             @NonNull final Validation validation) {
         internalFinalize(validation, frame, action -> action.copyBuilder()
-                .recipientContract(asNumberedContractId(frame.getContractAddress()))
+                .recipientContract(asNumberedContractId(entityIdFactory(frame), frame.getContractAddress()))
                 .callType(type)
                 .build());
     }
@@ -238,7 +239,7 @@ public class ActionStack {
     public void pushActionOfTopLevel(@NonNull final MessageFrame frame) {
         final var builder = ContractAction.newBuilder()
                 .callOperationType(asCallOperationType(frame.getType()))
-                .callingAccount(accountIdWith(hederaIdNumOfOriginatorIn(frame)));
+                .callingAccount(accountIdWith(frame, hederaIdNumOfOriginatorIn(frame)));
         completePush(builder, frame);
     }
 
@@ -256,7 +257,7 @@ public class ActionStack {
         final var builder = ContractAction.newBuilder()
                 .callOperationType(OpcodeUtils.asCallOperationType(
                         frame.getCurrentOperation().getOpcode()))
-                .callingContract(contractIdWith(hederaIdNumOfContractIn(frame)));
+                .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)));
         completePush(builder, requireNonNull(frame.getMessageFrameStack().peek()));
     }
 
@@ -272,10 +273,10 @@ public class ActionStack {
         if (targetsMissingAddress(frame)) {
             builder.targetedAddress(tuweniToPbjBytes(frame.getContractAddress()));
         } else if (CodeV0.EMPTY_CODE.equals(frame.getCode())) {
-            builder.recipientAccount(accountIdWith(hederaIdNumOfContractIn(frame)));
+            builder.recipientAccount(accountIdWith(frame, hederaIdNumOfContractIn(frame)));
         } else {
             try {
-                builder.recipientContract(contractIdWith(hederaIdNumOfContractIn(frame)));
+                builder.recipientContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)));
             } catch (NullPointerException ignore) {
                 builder.targetedAddress(tuweniToPbjBytes(frame.getContractAddress()));
             }
@@ -328,12 +329,12 @@ public class ActionStack {
         return frame.getWorldUpdater().get(address) == null;
     }
 
-    private AccountID accountIdWith(final long num) {
-        return AccountID.newBuilder().accountNum(num).build();
+    private AccountID accountIdWith(@NonNull final MessageFrame frame, final long num) {
+        return entityIdFactory(frame).newAccountId(num);
     }
 
-    private ContractID contractIdWith(final long num) {
-        return ContractID.newBuilder().contractNum(num).build();
+    private ContractID contractIdWith(@NonNull final MessageFrame frame, final long num) {
+        return entityIdFactory(frame).newContractId(num);
     }
 
     private ContractAction withUnsetRecipientIfNeeded(

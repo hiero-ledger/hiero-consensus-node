@@ -27,9 +27,9 @@ val jackson = "2.18.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.15.2"
-val pbj = "0.9.17" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
+val pbj = "0.9.19" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
 val protobuf = "4.29.3"
-val testContainers = "1.20.4"
+val testContainers = "1.20.5"
 val tuweni = "2.4.2"
 val webcompare = "2.1.7"
 
@@ -39,7 +39,7 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
         because("io.helidon.webclient.grpc")
     }
-    api("org.awaitility:awaitility:4.2.2") { because("awaitility") }
+    api("org.awaitility:awaitility:4.3.0") { because("awaitility") }
     api("com.fasterxml.jackson.core:jackson-core:$jackson") {
         because("com.fasterxml.jackson.core")
     }

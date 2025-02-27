@@ -9,7 +9,8 @@ import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 
-public class ViewMappingValueOp<K extends Record, V extends Record> extends UtilOp {
+public class ViewMappingValueOp<K, V> extends UtilOp {
+
     private final String serviceName;
     private final String stateKey;
     private final K key;

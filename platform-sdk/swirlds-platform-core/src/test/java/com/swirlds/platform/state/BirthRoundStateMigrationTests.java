@@ -8,10 +8,13 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -46,10 +49,10 @@ class BirthRoundStateMigrationTests {
 
         final long round = random.nextLong(1, 1_000_000);
 
-        final List<Hash> judgeHashes = new ArrayList<>();
+        final List<Bytes> judgeHashes = new ArrayList<>();
         final int judgeHashCount = random.nextInt(5, 10);
         for (int i = 0; i < judgeHashCount; i++) {
-            judgeHashes.add(randomHash(random));
+            judgeHashes.add(randomHash(random).getBytes());
         }
 
         final Instant consensusTimestamp = randomInstant(random);
@@ -65,7 +68,11 @@ class BirthRoundStateMigrationTests {
         }
 
         final ConsensusSnapshot snapshot = new ConsensusSnapshot(
-                round, judgeHashes, minimumJudgeInfoList, nextConsensusNumber, consensusTimestamp);
+                round,
+                judgeHashes,
+                minimumJudgeInfoList,
+                nextConsensusNumber,
+                PbjConverter.toPbjTimestamp(consensusTimestamp));
 
         return new RandomSignedStateGenerator(random)
                 .setConsensusSnapshot(snapshot)
@@ -90,7 +97,7 @@ class BirthRoundStateMigrationTests {
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState());
+        rehashTree(signedState.getState().getRoot());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
@@ -111,7 +118,7 @@ class BirthRoundStateMigrationTests {
             v.setFirstVersionInBirthRoundMode(previousSoftwareVersion);
             v.setLowestJudgeGenerationBeforeBirthRoundMode(100);
         });
-        rehashTree(signedState.getState());
+        rehashTree(signedState.getState().getRoot());
         final Hash originalHash = signedState.getState().getHash();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
@@ -120,7 +127,7 @@ class BirthRoundStateMigrationTests {
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState());
+        rehashTree(signedState.getState().getRoot());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
@@ -143,7 +150,7 @@ class BirthRoundStateMigrationTests {
 
         final long lastRoundMinimumJudgeGeneration = platformStateFacade
                 .consensusSnapshotOf(signedState.getState())
-                .getMinimumJudgeInfoList()
+                .minimumJudgeInfoList()
                 .getLast()
                 .minimumJudgeAncientThreshold();
 
@@ -166,7 +173,7 @@ class BirthRoundStateMigrationTests {
 
         // All of the judge info objects should now be using a birth round equal to the round of the state
         for (final MinimumJudgeInfo minimumJudgeInfo :
-                platformStateFacade.consensusSnapshotOf(signedState.getState()).getMinimumJudgeInfoList()) {
+                platformStateFacade.consensusSnapshotOf(signedState.getState()).minimumJudgeInfoList()) {
             assertEquals(signedState.getRound(), minimumJudgeInfo.minimumJudgeAncientThreshold());
         }
     }

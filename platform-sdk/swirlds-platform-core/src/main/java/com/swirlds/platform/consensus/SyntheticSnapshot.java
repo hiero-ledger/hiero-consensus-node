@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -13,14 +16,6 @@ import java.util.stream.LongStream;
  * Utility class for generating "synthetic" snapshots
  */
 public final class SyntheticSnapshot {
-    /** genesis snapshot, when loaded by consensus, it will start from genesis */
-    public static final ConsensusSnapshot GENESIS_SNAPSHOT = new ConsensusSnapshot(
-            ConsensusConstants.ROUND_FIRST,
-            List.of(),
-            List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, EventConstants.FIRST_GENERATION)),
-            ConsensusConstants.FIRST_CONSENSUS_NUMBER,
-            Instant.EPOCH);
-
     /** Utility class, should not be instantiated */
     private SyntheticSnapshot() {}
 
@@ -36,6 +31,7 @@ public final class SyntheticSnapshot {
      * @param lastConsensusOrder the last consensus order of all events that have reached consensus
      * @param roundTimestamp the timestamp of the round
      * @param config the consensus configuration
+     * @param ancientMode the ancient mode
      * @param judge the judge event
      * @return the synthetic snapshot
      */
@@ -44,23 +40,37 @@ public final class SyntheticSnapshot {
             final long lastConsensusOrder,
             @NonNull final Instant roundTimestamp,
             @NonNull final ConsensusConfig config,
+            @NonNull final AncientMode ancientMode,
             @NonNull final PlatformEvent judge) {
         final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(
                         RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)
-                .mapToObj(r -> new MinimumJudgeInfo(r, judge.getGeneration()))
+                .mapToObj(r -> new MinimumJudgeInfo(r, judge.getAncientIndicator(ancientMode)))
                 .toList();
         return new ConsensusSnapshot(
                 round,
-                List.of(judge.getHash()),
+                List.of(judge.getHash().getBytes()),
                 minimumJudgeInfos,
                 lastConsensusOrder + 1,
-                ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp));
+                PbjConverter.toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)));
     }
 
     /**
-     * @return the genesis snapshot
+     * Create a genesis snapshot. This snapshot is not the result of consensus but is instead generated to be used as a
+     * starting point for consensus.
+     *
+     * @param ancientMode the ancient mode
+     * @return the genesis snapshot, when loaded by consensus, it will start from genesis
      */
-    public static @NonNull ConsensusSnapshot getGenesisSnapshot() {
-        return GENESIS_SNAPSHOT;
+    public static @NonNull ConsensusSnapshot getGenesisSnapshot(@NonNull final AncientMode ancientMode) {
+        return new ConsensusSnapshot(
+                ConsensusConstants.ROUND_FIRST,
+                List.of(),
+                List.of(new MinimumJudgeInfo(
+                        ConsensusConstants.ROUND_FIRST,
+                        ancientMode == AncientMode.GENERATION_THRESHOLD
+                                ? EventConstants.FIRST_GENERATION
+                                : ConsensusConstants.ROUND_FIRST)),
+                ConsensusConstants.FIRST_CONSENSUS_NUMBER,
+                PbjConverter.toPbjTimestamp(Instant.EPOCH));
     }
 }

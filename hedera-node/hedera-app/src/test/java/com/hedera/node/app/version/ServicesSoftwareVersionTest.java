@@ -98,12 +98,6 @@ class ServicesSoftwareVersionTest {
     }
 
     @Test
-    void toStringIsSemverToString() {
-        final var subject = new ServicesSoftwareVersion(MIDDLE_ALPHA_1, DEFAULT_CONFIG_VERSION);
-        assertThat(subject.toString()).isEqualTo("SemanticVersion[major=0, minor=1, patch=0, pre=alpha.1, build=0]");
-    }
-
-    @Test
     void versionIsOne() {
         final var subject = new ServicesSoftwareVersion(MIDDLE_ALPHA_1, DEFAULT_CONFIG_VERSION);
         assertThat(subject.getVersion()).isEqualTo(1);

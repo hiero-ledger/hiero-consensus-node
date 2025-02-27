@@ -38,8 +38,8 @@ class StateTest {
         assertNotSame(state, copy, "copy should not return the same object");
 
         state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state);
-        MerkleCryptoFactory.getInstance().digestTreeSync(copy);
+        MerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
+        MerkleCryptoFactory.getInstance().digestTreeSync(copy.getRoot());
 
         assertEquals(state.getHash(), copy.getHash(), "copy should be equal to the original");
         assertFalse(state.isDestroyed(), "copy should not have been deleted");
@@ -57,17 +57,17 @@ class StateTest {
         final MerkleNodeState state = randomSignedState().getState();
         assertEquals(
                 1,
-                state.getReservationCount(),
+                state.getRoot().getReservationCount(),
                 "A state referenced only by a signed state should have a ref count of 1");
 
-        assertTrue(state.tryReserve(), "tryReserve() should succeed because the state is not destroyed.");
-        assertEquals(2, state.getReservationCount(), "tryReserve() should increment the reference count.");
+        assertTrue(state.getRoot().tryReserve(), "tryReserve() should succeed because the state is not destroyed.");
+        assertEquals(2, state.getRoot().getReservationCount(), "tryReserve() should increment the reference count.");
 
         state.release();
         state.release();
 
         assertTrue(state.isDestroyed(), "state should be destroyed when fully released.");
-        assertFalse(state.tryReserve(), "tryReserve() should fail when the state is destroyed");
+        assertFalse(state.getRoot().tryReserve(), "tryReserve() should fail when the state is destroyed");
     }
 
     private static SignedState randomSignedState() {

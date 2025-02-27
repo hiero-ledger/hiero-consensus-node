@@ -85,10 +85,10 @@ public abstract class UpdateCommonDecoder {
 
         final var tokenName = (String) hederaToken.get(0);
         final var tokenSymbol = (String) hederaToken.get(1);
-        final var tokenTreasury = addressIdConverter.convert(hederaToken.get(2));
+        final var tokenTreasury = attempt.addressIdConverter().convert(hederaToken.get(2));
         final var memo = (String) hederaToken.get(3);
-        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), addressIdConverter);
-        final var tokenExpiry = decodeTokenExpiry(hederaToken.get(8), addressIdConverter);
+        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), attempt);
+        final var tokenExpiry = decodeTokenExpiry(hederaToken.get(8), attempt.addressIdConverter());
 
         // Build the transaction body
         final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
@@ -153,7 +153,7 @@ public abstract class UpdateCommonDecoder {
         final var call = decodeCall(attempt);
 
         final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
-        final var tokenKeys = decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter());
+        final var tokenKeys = decodeTokenKeys(call.get(TOKEN_KEYS), attempt);
 
         // Build the transaction body
         final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();

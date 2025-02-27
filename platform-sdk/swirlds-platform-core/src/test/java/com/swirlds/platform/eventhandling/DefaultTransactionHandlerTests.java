@@ -78,14 +78,11 @@ class DefaultTransactionHandlerTests {
                         .setConsensusTimestamp(random.nextInstant())
                         .build());
         events.forEach(PlatformEvent::signalPrehandleCompletion);
-        final PlatformEvent keystone = new TestingEventBuilder(random).build();
-        keystone.signalPrehandleCompletion();
         final ConsensusRound round = new ConsensusRound(
                 roster,
                 events,
-                keystone,
                 EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD),
-                SyntheticSnapshot.GENESIS_SNAPSHOT,
+                SyntheticSnapshot.getGenesisSnapshot(AncientMode.GENERATION_THRESHOLD),
                 pcesRound,
                 random.nextInstant());
 
