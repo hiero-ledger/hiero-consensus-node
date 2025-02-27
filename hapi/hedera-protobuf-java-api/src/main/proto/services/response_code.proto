@@ -1709,9 +1709,10 @@ enum ResponseCodeEnum {
     BATCH_LIST_CONTAINS_DUPLICATES = 389;
 
     /**
-     * The list of batch transactions contains a transaction type that is not supported to be submitted in a batch.
+     * The list of batch transactions contains a transaction type that is
+     * in the AtomicBatch blacklist as configured in the network.
      */
-    BATCH_TRANSACTION_NOT_IN_WHITELIST = 390;
+    BATCH_TRANSACTION_IN_BLACKLIST = 390;
 
     /**
      * The inner transaction of a batch transaction failed
