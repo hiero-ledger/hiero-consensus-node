@@ -9,7 +9,7 @@
 # Tools and Libraries Base Example app
 /example-apps/**/module-info.java               @hiero-ledger/hcn-tools-and-libs-codeowners
 /example-apps/swirlds-platform-base-example/    @hiero-ledger/hcn-tools-and-libs-codeowners
-/example-apps/swirlds-platform-test-gui/        @hiero-ledger/hcn-tools-and-libs-codeowners
+/example-apps/swirlds-platform-test-gui/        @hiero-ledger/hcn-consensus-codeowners
 
 
 #########################
