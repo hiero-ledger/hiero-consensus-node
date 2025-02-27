@@ -293,7 +293,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 platformConfig,
                 Time.getCurrent(),
                 metrics,
-                cryptography,
                 FileSystemManager.create(platformConfig),
                 recycleBin,
                 merkleCryptography);
