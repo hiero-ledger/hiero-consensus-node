@@ -66,11 +66,10 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
      */
     private static class ChildIndices {
         public static final int UNUSED_PLATFORM_STATE = 0;
-        public static final int MERKLE_MAP = 1;
-        public static final int VIRTUAL_MAP = 2;
-
-        public static final int UNUSED_ROSTERS = 3;
-        public static final int UNUSED_ROSTER_STATE = 4;
+        public static final int UNUSED_ROSTERS = 1;
+        public static final int UNUSED_ROSTER_STATE = 2;
+        public static final int MERKLE_MAP = 3;
+        public static final int VIRTUAL_MAP = 4;
 
         public static final int CHILD_COUNT = 5;
 
@@ -78,9 +77,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
         public static final int OLD_CHILD_COUNT = 3;
     }
 
-    public MigrationTestingToolState() {
-        allocateSpaceForChild(ChildIndices.CHILD_COUNT);
-    }
+    public MigrationTestingToolState() {}
 
     private MigrationTestingToolState(final MigrationTestingToolState that) {
         super(that);

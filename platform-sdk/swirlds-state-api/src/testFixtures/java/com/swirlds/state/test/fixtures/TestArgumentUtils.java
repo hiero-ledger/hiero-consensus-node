@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle;
+package com.swirlds.state.test.fixtures;
 
-import com.swirlds.state.test.fixtures.TestBase;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;

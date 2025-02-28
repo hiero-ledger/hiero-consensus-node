@@ -12,5 +12,7 @@ module com.swirlds.state.api {
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
+    requires com.swirlds.logging;
+    requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

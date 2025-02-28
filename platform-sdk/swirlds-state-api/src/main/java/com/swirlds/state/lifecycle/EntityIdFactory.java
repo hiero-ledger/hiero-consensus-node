@@ -63,6 +63,12 @@ public interface EntityIdFactory {
     ContractID newContractId(long number);
 
     /**
+     * Returns an contract id for the given alias.
+     * @param evmAddress the evm address
+     */
+    ContractID newContractIdWithEvmAddress(@NonNull Bytes evmAddress);
+
+    /**
      * Returns a hexadecimal string representation of the given number,
      * including current shard and realm, zero-padded to 20 bytes.
      * @param number the number

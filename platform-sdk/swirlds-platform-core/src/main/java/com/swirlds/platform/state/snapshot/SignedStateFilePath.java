@@ -2,8 +2,8 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.state.merkle.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
 
