@@ -165,7 +165,6 @@ public class StartupStateUtilsTests {
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,
@@ -196,7 +195,6 @@ public class StartupStateUtilsTests {
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
         MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,
@@ -231,7 +229,6 @@ public class StartupStateUtilsTests {
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
         assertThrows(SignedStateLoadingException.class, () -> StartupStateUtils.loadStateFile(
-                        platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,
@@ -278,7 +275,6 @@ public class StartupStateUtilsTests {
 
         MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,

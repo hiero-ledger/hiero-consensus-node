@@ -257,7 +257,6 @@ public class Browser {
             // Create the initial state for the platform
             StateLifecycles stateLifecycles = appMain.newStateLifecycles();
             final HashedReservedSignedState reservedState = getInitialState(
-                    configuration,
                     recycleBin,
                     appMain.getSoftwareVersion(),
                     appMain::newStateRoot,

@@ -73,7 +73,6 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final SignedStateValidator validator,
             @NonNull final FallenBehindManager fallenBehindManager,
             final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final Configuration configuration,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -87,7 +86,7 @@ public class ReconnectProtocol implements Protocol {
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.platformStateFacade = platformStateFacade;
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.configuration = Objects.requireNonNull(configuration);
+        this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
         this.time = Objects.requireNonNull(platformContext.getTime());
     }
 
@@ -177,7 +176,6 @@ public class ReconnectProtocol implements Protocol {
                 new DefaultSignedStateValidator(platformContext, platformStateFacade),
                 sharedState.syncManager(),
                 sharedState.currentPlatformStatus()::get,
-                platformContext.getConfiguration(),
                 platformStateFacade);
     }
 
@@ -199,7 +197,6 @@ public class ReconnectProtocol implements Protocol {
                 validator,
                 fallenBehindManager,
                 platformStatusSupplier,
-                configuration,
                 time,
                 platformStateFacade);
     }

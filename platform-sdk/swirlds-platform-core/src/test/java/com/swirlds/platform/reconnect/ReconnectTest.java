@@ -173,7 +173,6 @@ final class ReconnectTest {
                 otherId,
                 lastRoundReceived,
                 reconnectMetrics,
-                platformContext.getConfiguration(),
                 platformStateFacade);
     }
 

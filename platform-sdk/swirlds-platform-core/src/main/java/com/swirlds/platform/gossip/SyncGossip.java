@@ -352,7 +352,6 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 new DefaultSignedStateValidator(platformContext, platformStateFacade),
                 fallenBehindManager,
                 platformStatusSupplier,
-                platformContext.getConfiguration(),
                 platformStateFacade);
 
         final Protocol heartbeatProtocol = new HeartbeatProtocol(
