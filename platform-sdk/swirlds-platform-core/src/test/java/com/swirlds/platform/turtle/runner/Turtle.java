@@ -152,6 +152,12 @@ public class Turtle {
         }
     }
 
+    public void clear() {
+        for (final TurtleNode node : nodes) {
+            node.clear();
+        }
+    }
+
     /**
      * Simulate the network for a period of time.
      *
@@ -172,6 +178,7 @@ public class Turtle {
             if (time.now().isAfter(nextValidationTime)) {
                 validate();
                 nextValidationTime = time.now().plus(validationInterval);
+                clear();
             }
         }
     }
