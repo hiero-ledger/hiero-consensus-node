@@ -35,7 +35,7 @@ public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
             final boolean isStaticCall,
             @Nullable final Token token,
             @NonNull final Configuration configuration,
-            final Function function) {
+            @NonNull final Function function) {
         super(gasCalculator, enhancement, token);
         this.configuration = requireNonNull(configuration);
         this.isStaticCall = isStaticCall;
@@ -69,7 +69,7 @@ public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
             return revertResult(status, gasRequirement);
         }
 
-        return function.getName().equals(TOKEN_INFO_167.methodName())
+        return function.getOutputs().equals(TOKEN_INFO_167.getOutputs())
                 ? successResult(
                         TOKEN_INFO_167
                                 .getOutputs()

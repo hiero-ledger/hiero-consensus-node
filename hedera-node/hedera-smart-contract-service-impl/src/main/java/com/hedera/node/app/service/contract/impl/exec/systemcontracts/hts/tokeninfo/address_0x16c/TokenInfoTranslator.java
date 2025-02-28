@@ -23,7 +23,7 @@ public class TokenInfoTranslator extends AbstractCallTranslator<HtsCallAttempt> 
      * Selector for getTokenInfoV2(address) method.
      */
     public static final SystemContractMethod TOKEN_INFO_16C = SystemContractMethod.declare(
-                    "getTokenInfoV2(address)", ReturnTypes.RESPONSE_CODE_TOKEN_INFO_V2)
+                    "getTokenInfo(address)", ReturnTypes.RESPONSE_CODE_TOKEN_INFO_V2)
             .withModifier(SystemContractMethod.Modifier.VIEW)
             .withVariant(SystemContractMethod.Variant.V2)
             .withSupportedAddress(HTS_16C_CONTRACT_ID)
