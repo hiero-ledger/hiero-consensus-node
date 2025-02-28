@@ -10,5 +10,5 @@ module com.hedera.node.app.service.contract {
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.pbj.runtime;
     requires com.hedera.node.hapi;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

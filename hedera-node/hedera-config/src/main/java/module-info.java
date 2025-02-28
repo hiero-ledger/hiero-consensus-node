@@ -15,5 +15,5 @@ module com.hedera.node.config {
     requires com.swirlds.common;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }
