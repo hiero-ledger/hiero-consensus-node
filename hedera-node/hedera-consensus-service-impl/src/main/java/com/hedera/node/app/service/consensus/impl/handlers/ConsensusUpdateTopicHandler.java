@@ -167,12 +167,15 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         // preHandle already checks for topic existence, so topic should never be null.
 
         // First validate this topic is mutable; and the pending mutations are allowed
-        validateFalse(topic.adminKey() == null && wantsToMutateNonExpiryField(op), UNAUTHORIZED);
-        if (!(op.hasAutoRenewAccount() && designatesAccountRemoval(op.autoRenewAccount()))
-                && topic.hasAutoRenewAccountId()) {
-            validateFalse(
-                    !topic.hasAdminKey() || (op.hasAdminKey() && isEmpty(op.adminKey())),
-                    AUTORENEW_ACCOUNT_NOT_ALLOWED);
+        if (wantsToMutateNonExpiryField(op)) {
+            validateTrue(topic.hasAdminKey(), UNAUTHORIZED);
+            final var opRemovesAutoRenewId =
+                    op.hasAutoRenewAccount() && designatesAccountRemoval(op.autoRenewAccount());
+            if (!opRemovesAutoRenewId && topic.hasAutoRenewAccountId()) {
+                validateFalse(
+                        !topic.hasAdminKey() || (op.hasAdminKey() && isEmpty(op.adminKey())),
+                        AUTORENEW_ACCOUNT_NOT_ALLOWED);
+            }
         }
 
         validateMaybeNewAttributes(handleContext, op, topic);

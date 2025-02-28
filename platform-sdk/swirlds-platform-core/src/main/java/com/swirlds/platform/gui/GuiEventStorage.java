@@ -3,12 +3,13 @@ package com.swirlds.platform.gui;
 
 import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.ConsensusRound;
@@ -113,8 +114,8 @@ public class GuiEventStorage {
     public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
-        linker.setNonAncientThreshold(snapshot.getAncientThreshold(
-                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient()));
+        linker.setNonAncientThreshold(RoundCalculationUtils.getAncientThreshold(
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient(), snapshot));
         lastConsensusRound = null;
     }
 

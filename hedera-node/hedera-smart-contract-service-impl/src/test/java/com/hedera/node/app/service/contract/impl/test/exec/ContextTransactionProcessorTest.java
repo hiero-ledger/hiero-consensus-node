@@ -44,6 +44,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -98,6 +99,9 @@ class ContextTransactionProcessorTest {
 
     @Mock
     private ExchangeRateInfo exchangeRateInfo;
+
+    @Mock
+    private EntityIdFactory entityIdFactory;
 
     @Test
     void callsComponentInfraAsExpectedForValidEthTx() {
@@ -194,6 +198,7 @@ class ContextTransactionProcessorTest {
         given(processor.processTransaction(
                         HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT);
+        given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var protoResult = SUCCESS_RESULT.asProtoResultOf(null, rootProxyWorldUpdater);
         final var expectedResult = new CallOutcome(
@@ -455,6 +460,7 @@ class ContextTransactionProcessorTest {
 
     void givenSenderAccount() {
         given(rootProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
+        given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(senderAccount.getNonce()).willReturn(1L);
     }
 

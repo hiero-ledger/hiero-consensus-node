@@ -3,12 +3,14 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_SCHEDULE_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHssAttemptWithSelectorAndCustomConfig;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getscheduledinfo.GetScheduledFungibleTokenCreateCall;
@@ -52,6 +54,9 @@ class GetScheduledInfoTranslatorTest {
 
     @Mock
     private ContractMetrics contractMetrics;
+
+    @Mock
+    private HederaNativeOperations nativeOperation;
 
     private GetScheduledInfoTranslator subject;
 
@@ -121,7 +126,9 @@ class GetScheduledInfoTranslatorTest {
                         .array());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(enhancement);
+        given(attempt.nativeOperations()).willReturn(nativeOperation);
         given(attempt.configuration()).willReturn(DEFAULT_CONFIG);
+        given(nativeOperation.entityIdFactory()).willReturn(entityIdFactory);
 
         var result = subject.callFrom(attempt);
 
@@ -138,7 +145,9 @@ class GetScheduledInfoTranslatorTest {
                         .array());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(enhancement);
+        given(attempt.nativeOperations()).willReturn(nativeOperation);
         given(attempt.configuration()).willReturn(DEFAULT_CONFIG);
+        given(nativeOperation.entityIdFactory()).willReturn(entityIdFactory);
 
         var result = subject.callFrom(attempt);
 

@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.setunlimitedautoassociations;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.setunlimitedautoassociations.SetUnlimitedAutoAssociationsTranslator.SET_UNLIMITED_AUTO_ASSOC;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelectorAndCustomConfig;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -73,6 +74,7 @@ class SetUnlimitedAutoAssociationsTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractSetUnlimitedAutoAssociationsEnabled())
                 .willReturn(true);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelectorAndCustomConfig(
                 SET_UNLIMITED_AUTO_ASSOC,
                 subject,
@@ -92,6 +94,7 @@ class SetUnlimitedAutoAssociationsTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractSetUnlimitedAutoAssociationsEnabled())
                 .willReturn(false);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelectorAndCustomConfig(
                 SET_UNLIMITED_AUTO_ASSOC,
                 subject,

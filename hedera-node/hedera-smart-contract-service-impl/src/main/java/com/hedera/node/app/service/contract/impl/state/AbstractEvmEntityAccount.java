@@ -17,7 +17,7 @@ public abstract class AbstractEvmEntityAccount extends AbstractMutableEvmAccount
     protected final Address address;
     protected final EvmFrameState state;
 
-    public AbstractEvmEntityAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
+    protected AbstractEvmEntityAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
         this.address = requireNonNull(address);
         this.state = requireNonNull(state);
     }
@@ -111,6 +111,6 @@ public abstract class AbstractEvmEntityAccount extends AbstractMutableEvmAccount
 
     @Override
     public @NonNull ContractID hederaContractId() {
-        return ContractID.newBuilder().contractNum(numberOfLongZero(address)).build();
+        return state.entityIdFactory().newContractId(numberOfLongZero(address));
     }
 }

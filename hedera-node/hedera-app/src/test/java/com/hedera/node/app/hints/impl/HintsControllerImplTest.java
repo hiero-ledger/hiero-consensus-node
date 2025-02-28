@@ -396,7 +396,7 @@ class HintsControllerImplTest {
                         .nextContributingNodeId(null)
                         .crs(INITIAL_CRS)
                         .build());
-        subject.advanceConstruction(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store);
 
         verify(store)
                 .setCRSState(CRSState.newBuilder()
@@ -425,7 +425,7 @@ class HintsControllerImplTest {
         given(weights.sourceWeightOf(0L)).willReturn(8L);
         given(weights.sourceWeightOf(1L)).willReturn(10L);
         subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
-        subject.advanceConstruction(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store);
 
         verify(store)
                 .setCRSState(CRSState.newBuilder()
@@ -454,7 +454,7 @@ class HintsControllerImplTest {
         given(weights.sourceWeightOf(0L)).willReturn(8L);
         given(weights.sourceWeightOf(2L)).willReturn(1L);
         subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
-        subject.advanceConstruction(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store);
 
         verify(store, never())
                 .setCRSState(CRSState.newBuilder()
@@ -486,7 +486,7 @@ class HintsControllerImplTest {
 
         given(weights.sourceNodeIds()).willReturn(SOURCE_NODE_IDS);
         subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
-        subject.advanceConstruction(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store);
 
         verify(store).moveToNextNode(OptionalLong.of(2L), CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
     }
@@ -509,7 +509,7 @@ class HintsControllerImplTest {
         task.run();
         assertTrue(scheduledTasks.isEmpty());
 
-        subject.advanceConstruction(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store);
 
         final var task1 = requireNonNull(scheduledTasks.poll());
         task1.run();

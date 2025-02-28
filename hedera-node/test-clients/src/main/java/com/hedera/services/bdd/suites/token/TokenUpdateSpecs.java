@@ -118,12 +118,12 @@ public class TokenUpdateSpecs {
                         newKeyNamed("pauseKey"),
                         newKeyNamed("newPauseKey"),
                         tokenCreate("primary")
+                                .autoRenewAccount(civilian)
                                 .name(saltedName)
                                 .entityMemo(originalMemo)
                                 .treasury(TOKEN_TREASURY)
                                 .initialSupply(500)
                                 .decimals(1)
-                                .adminKey("adminKey")
                                 .freezeKey("freezeKey")
                                 .kycKey("kycKey")
                                 .supplyKey("supplyKey")

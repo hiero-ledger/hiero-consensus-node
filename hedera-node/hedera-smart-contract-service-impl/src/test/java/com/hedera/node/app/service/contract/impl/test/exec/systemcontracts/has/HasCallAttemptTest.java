@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_101
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -62,6 +63,7 @@ class HasCallAttemptTest extends CallTestBase {
     void returnNullAccountIfAccountNotFound() {
         given(nativeOperations.getAccount(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(null);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirectAccount(
                 HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HasCallAttempt(
@@ -83,6 +85,7 @@ class HasCallAttemptTest extends CallTestBase {
 
     @Test
     void invalidSelectorLeadsToMissingCall() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirectAccount(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HasCallAttempt(
                 HAS_CONTRACT_ID,
@@ -105,6 +108,7 @@ class HasCallAttemptTest extends CallTestBase {
     void constructsHbarAllowanceProxy() {
         given(addressIdConverter.convert(asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
                 .willReturn(A_NEW_ACCOUNT_ID);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirectAccount(
                 HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY
                         .encodeCallWithArgs(asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS))
@@ -166,6 +170,7 @@ class HasCallAttemptTest extends CallTestBase {
                                 asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS), BigInteger.valueOf(10))
                         .array(),
                 NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var subject = new HasCallAttempt(
                 HAS_CONTRACT_ID,
                 input,

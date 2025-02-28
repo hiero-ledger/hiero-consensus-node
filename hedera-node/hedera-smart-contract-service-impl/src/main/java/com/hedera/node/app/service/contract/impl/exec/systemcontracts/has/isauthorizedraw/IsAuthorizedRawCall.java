@@ -10,7 +10,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -267,7 +267,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // If the signature is for an ecdsa key, the HIP states that the account must have an evm address rather than a
         // long zero address
         if (signatureType == SignatureType.EC) {
-            return !isLongZeroAddress(explicitFromHeadlong(address));
+            return !isLongZero(enhancement.nativeOperations().entityIdFactory(), address);
         }
 
         return true;

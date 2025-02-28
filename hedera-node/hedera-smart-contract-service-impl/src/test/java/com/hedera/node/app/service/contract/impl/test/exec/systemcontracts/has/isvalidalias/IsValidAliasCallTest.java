@@ -9,6 +9,9 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNALIASED_RECEIVER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -42,6 +45,7 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(RECEIVER_ADDRESS))
                 .willReturn(ALIASED_RECEIVER.accountId().accountNumOrThrow());
         given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(ALIASED_RECEIVER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = new IsValidAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
@@ -60,8 +64,10 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(ALIASED_RECEIVER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
-        subject = new IsValidAliasCall(attempt, asHeadlongAddress(asEvmAddress(RECEIVER_ID.accountNumOrThrow())));
+        subject = new IsValidAliasCall(
+                attempt, asHeadlongAddress(asEvmAddress(shard, realm, RECEIVER_ID.accountNumOrThrow())));
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
@@ -78,8 +84,10 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(UNALIASED_RECEIVER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
-        subject = new IsValidAliasCall(attempt, asHeadlongAddress(asEvmAddress(RECEIVER_ID.accountNumOrThrow())));
+        subject = new IsValidAliasCall(
+                attempt, asHeadlongAddress(asEvmAddress(shard, realm, RECEIVER_ID.accountNumOrThrow())));
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
@@ -99,6 +107,7 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(RECEIVER_ADDRESS))
                 .willReturn(ALIASED_RECEIVER.accountId().accountNumOrThrow());
         given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(null);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = new IsValidAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
@@ -116,6 +125,7 @@ public class IsValidAliasCallTest extends CallTestBase {
     void failsWhenLongZeroAccountDoesNotExist() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         given(nativeOperations.resolveAlias(OWNER_ADDRESS)).willReturn(MISSING_ENTITY_NUMBER);
 

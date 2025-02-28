@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.getevmaddressalias.EvmAddressAliasTranslator.EVM_ADDRESS_ALIAS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarapprove.HbarApproveTranslator.HBAR_APPROVE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_HEADLONG_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelector;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,6 +67,7 @@ class EvmAddressAliasTranslatorTest {
     @Test
     void matchesEvmAddressAlias() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelector(
                 EVM_ADDRESS_ALIAS,
                 subject,
@@ -82,6 +84,7 @@ class EvmAddressAliasTranslatorTest {
     @Test
     void failsOnInvalidSelector() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelector(
                 HBAR_APPROVE,
                 subject,

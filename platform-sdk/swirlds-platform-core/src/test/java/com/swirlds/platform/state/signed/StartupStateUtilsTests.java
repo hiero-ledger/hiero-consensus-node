@@ -168,7 +168,8 @@ public class StartupStateUtilsTests {
                         mainClassName,
                         swirldName,
                         currentSoftwareVersion,
-                        platformStateFacade)
+                        platformStateFacade,
+                        platformContext)
                 .getNullable();
 
         assertNull(loadedState);
@@ -198,7 +199,8 @@ public class StartupStateUtilsTests {
                         mainClassName,
                         swirldName,
                         currentSoftwareVersion,
-                        platformStateFacade)
+                        platformStateFacade,
+                        platformContext)
                 .get();
 
         loadedState.getState().throwIfImmutable();
@@ -232,7 +234,8 @@ public class StartupStateUtilsTests {
                         mainClassName,
                         swirldName,
                         currentSoftwareVersion,
-                        platformStateFacade)
+                        platformStateFacade,
+                        platformContext)
                 .get());
     }
 
@@ -278,7 +281,8 @@ public class StartupStateUtilsTests {
                         mainClassName,
                         swirldName,
                         currentSoftwareVersion,
-                        platformStateFacade)
+                        platformStateFacade,
+                        platformContext)
                 .getNullable();
 
         if (latestUncorruptedState != null) {

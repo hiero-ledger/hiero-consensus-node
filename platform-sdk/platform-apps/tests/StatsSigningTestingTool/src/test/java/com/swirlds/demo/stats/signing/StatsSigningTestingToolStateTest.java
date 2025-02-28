@@ -11,11 +11,11 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -35,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 
 class StatsSigningTestingToolStateTest {
 
@@ -63,7 +64,8 @@ class StatsSigningTestingToolStateTest {
         final var eventWindow = new EventWindow(10, 5, 20, AncientMode.BIRTH_ROUND_THRESHOLD);
         final var roster = new Roster(Collections.EMPTY_LIST);
         when(event.transactionIterator()).thenReturn(Collections.emptyIterator());
-        round = new ConsensusRound(roster, List.of(event), eventWindow, new ConsensusSnapshot(), false, Instant.now());
+        round = new ConsensusRound(
+                roster, List.of(event), eventWindow, Mockito.mock(ConsensusSnapshot.class), false, Instant.now());
 
         consumedSystemTransactions = new ArrayList<>();
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);

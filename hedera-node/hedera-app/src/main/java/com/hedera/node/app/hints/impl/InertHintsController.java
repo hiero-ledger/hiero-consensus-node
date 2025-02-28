@@ -45,6 +45,12 @@ public class InertHintsController implements HintsController {
         // No-op
     }
 
+    @Override
+    public void advanceCRSWork(@NonNull final Instant now, @NonNull final WritableHintsStore hintsStore) {
+        requireNonNull(now);
+        requireNonNull(hintsStore);
+    }
+
     @NonNull
     @Override
     public OptionalInt partyIdOf(final long nodeId) {

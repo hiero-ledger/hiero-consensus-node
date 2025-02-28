@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V2;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isassociated.IsAssociatedTranslator.IS_ASSOCIATED;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirect;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -66,6 +67,7 @@ class IsAssociatedTranslatorTest {
     void matchesWithCorrectSelectorAndTokenRedirectReturnsTrue() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         mockAttempt = prepareHtsAttemptWithSelectorForRedirect(
                 IS_ASSOCIATED,
                 translator,
@@ -81,6 +83,7 @@ class IsAssociatedTranslatorTest {
     void matchesWithIncorrectSelectorReturnsFalse() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         mockAttempt = prepareHtsAttemptWithSelectorForRedirect(
                 BURN_TOKEN_V2,
                 translator,
