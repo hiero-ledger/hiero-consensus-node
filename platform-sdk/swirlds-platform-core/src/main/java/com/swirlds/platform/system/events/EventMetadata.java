@@ -241,14 +241,15 @@ public class EventMetadata extends AbstractHashable {
     }
 
     /**
-     * Override the birth round for this event and potentially any parents associated with the event. Parents will be
-     * overridden if their generation is equal to or greater than the round before birth round migration was enabled.
+     * Override the birth round for this event and potentially any parents associated with the event. Parents will
+     * have their birth round overridden if their  generation is greater or equal to the specified
+     * {@code ancientGenerationThreshold} value.
      *
      * @param birthRound the birth round to use for this event and potential parents
-     * @param lastRoundBeforeBirthRoundMode the threshold used to determine if parents will also have their birth round
-     *                                      overridden
+     * @param ancientGenerationThreshold the threshold used to determine if parents will also have their birth round
+     *                                   overridden
      */
-    public void setBirthRoundOverride(final long birthRound, final long lastRoundBeforeBirthRoundMode) {
+    public void setBirthRoundOverride(final long birthRound, final long ancientGenerationThreshold) {
         if (birthRoundOverride != null) {
             throw new IllegalStateException(
                     "The birth round has already been overridden, you cannot override it again");
@@ -256,7 +257,7 @@ public class EventMetadata extends AbstractHashable {
 
         birthRoundOverride = birthRound;
 
-        if (selfParent != null && selfParent.eventDescriptor().generation() >= lastRoundBeforeBirthRoundMode) {
+        if (selfParent != null && selfParent.eventDescriptor().generation() >= ancientGenerationThreshold) {
             selfParent = new EventDescriptorWrapper(new EventDescriptor(
                     selfParent.eventDescriptor().hash(),
                     selfParent.eventDescriptor().creatorNodeId(),
@@ -266,7 +267,7 @@ public class EventMetadata extends AbstractHashable {
 
         otherParents = otherParents.stream()
                 .map(parent -> {
-                    if (parent.eventDescriptor().generation() >= lastRoundBeforeBirthRoundMode) {
+                    if (parent.eventDescriptor().generation() >= ancientGenerationThreshold) {
                         return new EventDescriptorWrapper(new EventDescriptor(
                                 parent.eventDescriptor().hash(),
                                 parent.eventDescriptor().creatorNodeId(),
