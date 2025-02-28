@@ -71,11 +71,9 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -829,18 +827,9 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
                             hex(publicKey),
                             hex(signature),
                             hex(testTransactionRawBytes),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getPublicKeyOffset(),
-                                    s.getPublicKeyOffset() + s.getPublicKeyLength())),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getSignatureOffset(),
-                                    s.getSignatureOffset() + s.getSignatureLength())),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getMessageOffset(),
-                                    s.getMessageOffset() + s.getMessageLength())));
+                            hex(s.getPublicKey()),
+                            hex(s.getSignature()),
+                            hex(s.getMessage()));
                 } else if (s != null
                         && s.getSignatureStatus() != VerificationStatus.VALID
                         && expectingInvalidSignature) {
@@ -1003,18 +992,8 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
                 throw new UnsupportedOperationException("Unknown application signature type " + AppSignatureType);
             }
 
-            final int msgLen = signaturePayload.length;
-            final int sigOffset = msgLen + publicKey.length;
-
-            // concatenate payload with public key and signature
-            final byte[] contents = ByteBuffer.allocate(signaturePayload.length + publicKey.length + signature.length)
-                    .put(signaturePayload)
-                    .put(publicKey)
-                    .put(signature)
-                    .array();
-
-            final TransactionSignature transactionSignature = new TransactionSignature(
-                    contents, sigOffset, signature.length, msgLen, publicKey.length, 0, msgLen, signatureType);
+            final TransactionSignature transactionSignature =
+                    new TransactionSignature(signaturePayload, publicKey, signature, signatureType);
             trans.setMetadata(transactionSignature);
 
             CryptographyHolder.get().verifySync(List.of(transactionSignature));

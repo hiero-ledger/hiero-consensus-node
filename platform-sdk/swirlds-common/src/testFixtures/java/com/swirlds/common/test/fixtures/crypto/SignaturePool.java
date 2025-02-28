@@ -146,14 +146,17 @@ public class SignaturePool {
             readPosition.set(1);
         }
 
+        final byte[] content = transactions.get(nextIdx);
+        final int messageFrom = 0;
+        final int messageTo = messageFrom + transactionSize;
+        final int signatureFrom = transactionSize + PUBLIC_KEY_LENGTH;
+        final int signatureTo = signatureFrom + SIGNATURE_LENGTH;
+        final int publicKeyFrom = transactionSize;
+        final int publicKeyTo = publicKeyFrom + PUBLIC_KEY_LENGTH;
         return new TransactionSignature(
-                transactions.get(nextIdx),
-                transactionSize + PUBLIC_KEY_LENGTH,
-                SIGNATURE_LENGTH,
-                transactionSize,
-                PUBLIC_KEY_LENGTH,
-                0,
-                transactionSize,
+                Arrays.copyOfRange(content, messageFrom, messageTo),
+                Arrays.copyOfRange(content, publicKeyFrom, publicKeyTo),
+                Arrays.copyOfRange(content, signatureFrom, signatureTo),
                 SignatureType.ED25519);
     }
 

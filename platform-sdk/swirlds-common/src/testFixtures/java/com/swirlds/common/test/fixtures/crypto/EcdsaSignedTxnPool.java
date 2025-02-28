@@ -13,6 +13,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.ECPublicKey;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.SplittableRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -88,15 +89,17 @@ public class EcdsaSignedTxnPool {
         }
 
         final SignedTxn signedTxn = signedTxns.get(nextIdx);
-
+        final byte[] content = signedTxn.txn;
+        final int messageFrom = 0;
+        final int messageTo = messageFrom + ECDSA_KECCAK_256_SIZE;
+        final int signatureFrom = ECDSA_KECCAK_256_SIZE + PUBLIC_KEY_LEN;
+        final int signatureTo = signatureFrom + signedTxn.sigLen;
+        final int publicKeyFrom = ECDSA_KECCAK_256_SIZE;
+        final int publicKeyTo = publicKeyFrom + PUBLIC_KEY_LEN;
         return new TransactionSignature(
-                signedTxn.txn,
-                ECDSA_KECCAK_256_SIZE + PUBLIC_KEY_LEN,
-                signedTxn.sigLen,
-                ECDSA_KECCAK_256_SIZE,
-                PUBLIC_KEY_LEN,
-                0,
-                ECDSA_KECCAK_256_SIZE,
+                Arrays.copyOfRange(content, messageFrom, messageTo),
+                Arrays.copyOfRange(content, signatureFrom, signatureTo),
+                Arrays.copyOfRange(content, publicKeyFrom, publicKeyTo),
                 SignatureType.ECDSA_SECP256K1);
     }
 

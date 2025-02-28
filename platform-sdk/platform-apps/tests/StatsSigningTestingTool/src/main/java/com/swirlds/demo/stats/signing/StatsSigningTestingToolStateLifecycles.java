@@ -24,7 +24,6 @@ import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -110,16 +109,9 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
                     TransactionCodec.txId(trans.getApplicationTransaction()),
                     s.getSignatureStatus(),
                     s.getSignatureType(),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(),
-                            s.getPublicKeyOffset(),
-                            s.getPublicKeyOffset() + s.getPublicKeyLength())),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(),
-                            s.getSignatureOffset(),
-                            s.getSignatureOffset() + s.getSignatureLength())),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(), s.getMessageOffset(), s.getMessageOffset() + s.getMessageLength())));
+                    hex(s.getPublicKey()),
+                    hex(s.getSignature()),
+                    hex(s.getMessage()));
         }
 
         state.incrementRunningSum(TransactionCodec.txId(trans.getApplicationTransaction()));

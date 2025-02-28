@@ -8,6 +8,7 @@ import com.swirlds.demo.stats.signing.algorithms.ECSecP256K1Algorithm;
 import com.swirlds.demo.stats.signing.algorithms.SigningAlgorithm;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -158,7 +159,11 @@ final class TransactionCodec {
         final int dataLen = wrapper.getInt();
         final int dataOffset = wrapper.position();
 
-        return new TransactionSignature(tx, sigOffset, sigLen, pkOffset, pkLen, dataOffset, dataLen, signatureType);
+        return new TransactionSignature(
+                Arrays.copyOfRange(tx, dataOffset, dataOffset + dataLen),
+                Arrays.copyOfRange(tx, pkOffset, pkOffset + pkLen),
+                Arrays.copyOfRange(tx, sigOffset, sigOffset + sigLen),
+                signatureType);
     }
 
     private static TransactionSignature readEcdsaSignature(
@@ -179,7 +184,6 @@ final class TransactionCodec {
         final ByteBuffer sigPayload = ByteBuffer.allocate(pkLen + sigLen + dataHash.length);
         sigPayload.put(pk).put(sig).put(dataHash);
 
-        return new TransactionSignature(
-                sigPayload.array(), pkLen, sigLen, 0, pkLen, pkLen + sigLen, dataHash.length, signatureType);
+        return new TransactionSignature(dataHash, pk, sig, signatureType);
     }
 }
