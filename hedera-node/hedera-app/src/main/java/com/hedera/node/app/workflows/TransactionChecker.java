@@ -18,6 +18,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_ID_FIELD_NO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -34,6 +35,7 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
@@ -46,6 +48,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -133,29 +136,13 @@ public class TransactionChecker {
      */
     @NonNull
     public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
-        final var tx = parse(buffer);
-        return check(tx, buffer);
-    }
-
-    /**
-     * Parse the given {@link Bytes} into a transaction.
-     *
-     * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
-     * transaction is parsed. A transaction can be checked with {@link #check(Transaction, Bytes)}.
-     *
-     * @param buffer the {@code ByteBuffer} with the serialized transaction
-     * @return an {@link TransactionInfo} with the parsed and checked entities
-     * @throws PreCheckException if the data is not valid
-     * @throws NullPointerException if one of the arguments is {@code null}
-     */
-    @NonNull
-    public Transaction parse(@NonNull final Bytes buffer) throws PreCheckException {
         // Fail fast if there are too many transaction bytes
         if (buffer.length() > maxSignedTxnSize) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
 
-        return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+        final var tx = parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+        return check(tx, buffer);
     }
 
     /**
@@ -194,31 +181,43 @@ public class TransactionChecker {
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
-    public TransactionInfo check(@NonNull final Transaction tx, @Nullable Bytes serializedTx) throws PreCheckException {
+    @VisibleForTesting
+    TransactionInfo check(@NonNull final Transaction tx, @NonNull Bytes serializedTx) throws PreCheckException {
         // NOTE: Since we've already parsed the transaction, we assume that the
         // transaction was not too many bytes. This is a safe assumption because
         // the code that receives the transaction bytes and parses/ the transaction
         // also verifies that the transaction is not too large.
         checkTransactionDeprecation(tx);
 
+        final TransactionBody txBody;
         final Bytes bodyBytes;
         final SignatureMap signatureMap;
-        if (tx.signedTransactionBytes().length() > 0) {
-            final var signedTransaction = parseStrict(
-                    tx.signedTransactionBytes().toReadableSequentialData(),
-                    SignedTransaction.PROTOBUF,
-                    INVALID_TRANSACTION);
-            bodyBytes = signedTransaction.bodyBytes();
-            signatureMap = signedTransaction.sigMap();
-        } else {
-            bodyBytes = tx.bodyBytes();
+        if (tx.hasBody()) {
+            txBody = tx.bodyOrThrow();
+            try {
+                bodyBytes = ProtobufUtils.extractBodyBytes(serializedTx);
+            } catch (IOException | ParseException e) {
+                throw new PreCheckException(INVALID_TRANSACTION);
+            }
             signatureMap = tx.sigMap();
+        } else {
+            if (tx.signedTransactionBytes().length() > 0) {
+                final var signedTransaction = parseStrict(
+                        tx.signedTransactionBytes().toReadableSequentialData(),
+                        SignedTransaction.PROTOBUF,
+                        INVALID_TRANSACTION);
+                bodyBytes = signedTransaction.bodyBytes();
+                signatureMap = signedTransaction.sigMap();
+            } else {
+                bodyBytes = tx.bodyBytes();
+                signatureMap = tx.sigMap();
+            }
+            txBody = parseStrict(
+                    bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
         }
         if (signatureMap == null) {
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
-        final var txBody =
-                parseStrict(bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
         final HederaFunctionality functionality;
         try {
             functionality = HapiUtils.functionOf(txBody);
@@ -255,39 +254,37 @@ public class TransactionChecker {
      * @throws NullPointerException if {@code tx} is {@code null}
      */
     private void checkTransactionDeprecation(@NonNull final Transaction tx) throws PreCheckException {
-        // There are three ways a transaction can be used. Two of these are deprecated. One is not supported:
-        //   1. body & sigs. DEPRECATED, NOT SUPPORTED
-        //   2. sigMap & bodyBytes. DEPRECATED, SUPPORTED
-        //   3. signedTransactionBytes. SUPPORTED
+        // There are three ways a transaction can be used. Two of these are deprecated:
+        //   1. body & sigMap. SUPPORTED
+        //   2. bodyBytes & sigMap. DEPRECATED, SUPPORTED
+        //   3. signedTransactionBytes. DEPRECATED, SUPPORTED
         //
-        // While #1 above is NOT SUPPORTED, we also don't throw an error if either or both field is used
-        // as long as the transaction ALSO has either #2 or #3 populated. This seems really odd, and ideally
-        // we would be able to remove support for #1 entirely. To do this, we need metrics to see if anyone
-        // is using #1 in any way.
-        if (tx.hasBody() || tx.hasSigs()) {
+        // While Transaction.sigs is not supported, we also don't throw an error if it is used as long as sigMap
+        // is also populated. This seems really odd, and ideally we would be able to remove support for sigs entirely.
+        // To do this, we need metrics to see if anyone is using it in any way.
+        if (tx.hasSigs()) {
             superDeprecatedCounter.increment();
         }
 
-        // A transaction can either use signedTransactionBytes, or sigMap and bodyBytes. Using
-        // sigMap and bodyBytes is deprecated.
-        final var hasSignedTxnBytes = tx.signedTransactionBytes().length() > 0;
-        final var hasDeprecatedSigMap = tx.sigMap() != null;
+        // A transaction can either use signedTransactionBytes, or sigMap and body/bodyBytes.
+        // The usage of signedTransactionBytes and bodyBytes is deprecated.
+        final var hasBody = tx.hasBody();
+        final var hasSigMap = tx.hasSigMap();
+        final var hasDeprecatedSignedTxnBytes = tx.signedTransactionBytes().length() > 0;
         final var hasDeprecatedBodyBytes = tx.bodyBytes().length() > 0;
 
-        // Increment the counter if either of `bodyBytes` or `sigMap` were used
-        if (hasDeprecatedSigMap || hasDeprecatedBodyBytes) {
+        // Increment the counter if either of `bodyBytes` or `signedTransactionBytes` were used
+        if (hasDeprecatedSignedTxnBytes || hasDeprecatedBodyBytes) {
             deprecatedCounter.increment();
         }
 
-        // The user either has to use `signedTransactionBytes`, or `bodyBytes` and `sigMap`, but not both.
-        if (hasSignedTxnBytes) {
-            if (hasDeprecatedBodyBytes || hasDeprecatedSigMap) {
-                throw new PreCheckException(INVALID_TRANSACTION);
-            }
-        } else if (!hasDeprecatedBodyBytes) {
-            // If they didn't use `signedTransactionBytes` and they didn't use `bodyBytes` then they didn't send a body
-            // NOTE: If they sent a `sigMap` without a `bodyBytes`, then the `sigMap` will be ignored, just like
-            // `body` and `sigs` are. This isn't really nice but not fatal.
+        // The user either has to use `signedTransactionBytes`, or `body`/`bodyBytes` with `sigMap`, but no other
+        // combination
+        if ((hasBody && hasDeprecatedBodyBytes)
+                || hasDeprecatedSignedTxnBytes && (hasBody || hasSigMap || hasDeprecatedBodyBytes)) {
+            throw new PreCheckException(INVALID_TRANSACTION);
+        }
+        if (!hasBody && !hasDeprecatedBodyBytes && !hasDeprecatedSignedTxnBytes) {
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
     }
@@ -485,8 +482,7 @@ public class TransactionChecker {
      * @throws PreCheckException if the data is malformed or contains unknown fields.
      */
     @NonNull
-    private <T extends Record> T parseStrict(
-            @NonNull ReadableSequentialData data, Codec<T> codec, ResponseCodeEnum parseErrorCode)
+    private <T> T parseStrict(@NonNull ReadableSequentialData data, Codec<T> codec, ResponseCodeEnum parseErrorCode)
             throws PreCheckException {
         try {
             return codec.parseStrict(data);

@@ -80,7 +80,7 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
                     hevmTransaction, worldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, context.configuration());
 
             // Return the outcome (which cannot include sidecars to be externalized, since this is a query)
-            return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(), result);
+            return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(worldUpdater), result);
         } catch (final HandleException e) {
             final var op = context.query().contractCallLocalOrThrow();
             final var senderId = op.hasSenderId() ? op.senderIdOrThrow() : context.payer();
@@ -90,7 +90,7 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
                     senderId,
                     hevmTransaction.contractId(),
                     hevmTransaction.exception().getStatus());
-            return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(), result);
+            return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(worldUpdater), result);
         }
     }
 }

@@ -53,7 +53,7 @@ public class IsValidAliasCall extends AbstractCall {
         ACCOUNT_NUM_ALIAS_OF_ACCOUNT_WITHOUT_EVM_ALIAS,
         EVM_ALIAS_OF_ACCOUNT,
         EVM_ADDRESS_WITH_NO_ASSOCIATED_ACCOUNT
-    };
+    }
 
     /**
      * Determine what kind of alias the {@link Address} is, w.r.t. current accounts known to the system
@@ -63,7 +63,7 @@ public class IsValidAliasCall extends AbstractCall {
      */
     public static @NonNull AliasKind getAliasKindForAddressWithAccount(
             @NonNull final Address address, @NonNull final HederaNativeOperations nativeOperations) {
-        final boolean isAccountNumAlias /*aka long-zero*/ = isLongZero(address);
+        final boolean isAccountNumAlias /*aka long-zero*/ = isLongZero(nativeOperations.entityIdFactory(), address);
         final long accountNum = accountNumberForEvmReference(address, nativeOperations);
 
         if (accountNum == MISSING_ENTITY_NUMBER) {

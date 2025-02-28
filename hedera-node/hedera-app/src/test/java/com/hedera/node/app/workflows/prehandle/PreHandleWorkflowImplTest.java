@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
@@ -21,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -56,6 +58,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.platform.system.transaction.TransactionWrapper;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -437,11 +440,11 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                     nodeDueDiligenceFailure(NODE_1.nodeAccountID(), INVALID_TRANSACTION, null, DEFAULT_CONFIG_VERSION);
 
             // When we pre-handle the transaction
-            final var result = workflow.preHandleTransaction(
+            final var result = workflow.preHandleAllTransactions(
                     NODE_1.nodeAccountID(),
                     storeFactory,
                     storeFactory.getStore(ReadableAccountStore.class),
-                    createAppPayloadWrapper(new byte[2]),
+                    createAppPayloadWrapper(new byte[2]).getApplicationTransaction(),
                     previousResult,
                     txns -> {});
 
@@ -561,6 +564,21 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             // And we do see this transaction registered with the deduplication cache
             verify(deduplicationCache).add(txInfo.txBody().transactionIDOrThrow());
         }
+
+        @Test
+        @DisplayName("Pre-handle batch key checks fail")
+        void preHandleTransactionWithBatchKeyFail(@Mock SignatureVerificationFuture sigFuture) throws Exception {
+            final var key = ALICE.keyInfo().publicKey();
+            final var txInfo = scenario().withBatchKey(key).txInfo();
+            final var txBytes = asByteArray(txInfo.transaction());
+            final Transaction platformTx = createAppPayloadWrapper(txBytes);
+            when(transactionChecker.parseAndCheck(any(Bytes.class))).thenReturn(txInfo);
+
+            workflow.preHandle(storeFactory, NODE_1.nodeAccountID(), Stream.of(platformTx), txns -> {});
+
+            final PreHandleResult result = platformTx.getMetadata();
+            assertThat(result.responseCode()).isEqualTo(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+        }
     }
 
     /**
@@ -630,11 +648,11 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                     DEFAULT_CONFIG_VERSION + 1);
 
             // When we pre-handle the transaction
-            final var result = workflow.preHandleTransaction(
+            final var result = workflow.preHandleAllTransactions(
                     NODE_1.nodeAccountID(),
                     storeFactory,
                     storeFactory.getStore(ReadableAccountStore.class),
-                    platformTx,
+                    platformTx.getApplicationTransaction(),
                     previousResult,
                     txns -> {});
 
@@ -651,6 +669,63 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.configVersion()).isEqualTo(DEFAULT_CONFIG_VERSION);
             // And we do see this transaction registered with the deduplication cache
             verify(deduplicationCache).add(txInfo.txBody().transactionIDOrThrow());
+        }
+
+        @Test
+        @DisplayName("Happy path for atomic batch transaction reusing previous verification results")
+        void happyPathWithoutReuseForAtomicBatch(@Mock SignatureVerificationFuture sigFuture) throws Exception {
+            // Given a transaction that is perfectly good
+            final var payerAccount = ALICE.accountID();
+            final var payerKey = ALICE.keyInfo().publicKey();
+            final var batchTxInfo = scenario().withPayer(payerAccount).txInfoForBatch();
+            final var innerTxInfo = scenario().withPayer(payerAccount).txInfo();
+            final var txBytes = asByteArray(batchTxInfo.transaction());
+            final Transaction platformTx = createAppPayloadWrapper(txBytes);
+            when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));
+            when(transactionChecker.parseAndCheck(any(Bytes.class)))
+                    .thenReturn(batchTxInfo)
+                    .thenReturn(innerTxInfo);
+            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(payerKey, sigFuture));
+            final var previousResult = new PreHandleResult(
+                    payerAccount,
+                    payerKey,
+                    SO_FAR_SO_GOOD,
+                    OK,
+                    new TransactionScenarioBuilder().txInfoForBatch(),
+                    Set.of(),
+                    Set.of(),
+                    Set.of(),
+                    Map.of(payerKey, sigFuture),
+                    new ArrayList<>(),
+                    DEFAULT_CONFIG_VERSION + 1);
+
+            // When we pre-handle the transaction
+            final var result = workflow.preHandleAllTransactions(
+                    NODE_1.nodeAccountID(),
+                    storeFactory,
+                    storeFactory.getStore(ReadableAccountStore.class),
+                    platformTx.getApplicationTransaction(),
+                    previousResult,
+                    txns -> {});
+
+            // Then the transaction pre-handle succeeds!
+            assertThat(result.status()).isEqualTo(SO_FAR_SO_GOOD);
+            assertThat(result.responseCode()).isEqualTo(OK);
+            assertThat(result.payer()).isEqualTo(ALICE.accountID());
+            final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result.verificationResults());
+            final var payerFutureResult = verifier.verificationFor(payerKey);
+            assertThat(payerFutureResult.passed()).isTrue();
+            assertThat(result.txInfo()).isSameAs(batchTxInfo);
+
+            assertThat(result.innerResults()).size().isEqualTo(1);
+            final var innerResult = result.innerResults().get(0);
+            assertThat(innerResult.txInfo()).isEqualTo(innerTxInfo);
+            final AppKeyVerifier innerVerifier = new DefaultKeyVerifier(1, config, innerResult.verificationResults());
+            final var innerPayerResult = innerVerifier.verificationFor(payerKey);
+            assertThat(innerPayerResult.passed()).isTrue();
+            // And we do see this transaction and inner transaction registered with the deduplication cache
+            verify(deduplicationCache, times(2)).add(batchTxInfo.txBody().transactionIDOrThrow());
         }
 
         @Test
@@ -677,11 +752,11 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                     DEFAULT_CONFIG_VERSION);
 
             // When we pre-handle the transaction
-            final var result = workflow.preHandleTransaction(
+            final var result = workflow.preHandleAllTransactions(
                     NODE_1.nodeAccountID(),
                     storeFactory,
                     storeFactory.getStore(ReadableAccountStore.class),
-                    platformTx,
+                    platformTx.getApplicationTransaction(),
                     previousResult,
                     txns -> {});
 
