@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,13 +27,17 @@ import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.sun.jna.ptr.LongByReference;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 public record EthTxSigs(byte[] publicKey, byte[] address) {
+    private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
 
     public static EthTxSigs extractSignatures(EthTxData ethTx) {
         final var message = calculateSignableMessage(ethTx);
@@ -96,6 +100,13 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     }
 
     private static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
+        checkInBounds(r);
+        checkInBounds(s);
+
+        // The only meaningful recovery ids are zero and 1 (even if the high order bytes
+        // were used to encode the chain id, the parity is all that matters here)
+        recId = Math.floorMod(recId, 2);
+
         byte[] dataHash = new Keccak.Digest256().digest(message);
 
         // The RLP library output won't include leading zeros, which means
@@ -150,5 +161,19 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
                 .add("publicKey", Hex.encodeHexString(publicKey))
                 .add("address", Hex.encodeHexString(address))
                 .toString();
+    }
+
+    /**
+     * Returns whether the given curve point is in bounds for the Secp256k1 curve.
+     * @param curvePoint the curve point to check
+     */
+    private static void checkInBounds(@NonNull byte[] curvePoint) {
+        final var bi = new BigInteger(1, curvePoint);
+        if (bi.compareTo(BigInteger.ONE) < 0) {
+            throw new IllegalArgumentException("Curve point must be >= 1");
+        }
+        if (bi.compareTo(N) >= 0) {
+            throw new IllegalArgumentException("Curve point must be < N");
+        }
     }
 }
