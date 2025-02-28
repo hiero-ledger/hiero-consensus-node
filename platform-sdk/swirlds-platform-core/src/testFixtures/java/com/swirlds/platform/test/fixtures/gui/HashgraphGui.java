@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.gui;
+package com.swirlds.platform.test.fixtures.gui;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -12,7 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 
-public class Application {
+public class HashgraphGui {
     public static void main(String[] args) {
         final Randotron randotron = Randotron.create(1);
         final int numNodes = 4;
