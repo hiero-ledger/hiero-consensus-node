@@ -83,8 +83,10 @@ class WritableHintsStoreImplTest {
     private static final Bytes C_ROSTER_HASH = Bytes.wrap("C");
     private static final TssConfig TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
-    public static final Configuration WITH_ENABLED_HINTS =
-            HederaTestConfigBuilder.create().withValue("tss.hintsEnabled", true).getOrCreateConfig();
+    public static final Configuration WITH_ENABLED_HINTS_AND_CRS = HederaTestConfigBuilder.create()
+            .withValue("tss.hintsEnabled", true)
+            .withValue("tss.crsEnabled", true)
+            .getOrCreateConfig();
 
     @Mock
     private AppContext appContext;
@@ -449,7 +451,11 @@ class WritableHintsStoreImplTest {
         Set.of(
                         new EntityIdService(),
                         new HintsServiceImpl(
-                                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, WITH_ENABLED_HINTS))
+                                NO_OP_METRICS,
+                                ForkJoinPool.commonPool(),
+                                appContext,
+                                library,
+                                WITH_ENABLED_HINTS_AND_CRS))
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();

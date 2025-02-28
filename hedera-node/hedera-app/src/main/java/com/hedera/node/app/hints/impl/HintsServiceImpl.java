@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -90,6 +91,22 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
+    public void executeCrsWork(@NonNull final WritableHintsStore hintsStore, @NonNull final Instant now) {
+        requireNonNull(hintsStore);
+        requireNonNull(now);
+
+        final var controller = component.controllers().getAnyInProgress();
+        if (controller.isEmpty()) {
+            logger.info("No controller present to proceed for executing CRS work");
+            return;
+        }
+        // Do the work needed to set the CRS for network and start the preprocessing vote
+        if (hintsStore.getCrsState().stage() != COMPLETED) {
+            controller.get().advanceCRSWork(now, hintsStore);
+        }
+    }
+
+    @Override
     public @NonNull Bytes activeVerificationKeyOrThrow() {
         return component.signingContext().verificationKeyOrThrow();
     }
@@ -105,6 +122,8 @@ public class HintsServiceImpl implements HintsService {
         final var tssConfig = bootstrapConfig.getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
             registry.register(new V059HintsSchema(component.signingContext()));
+        }
+        if (tssConfig.crsEnabled()) {
             registry.register(new V060HintsSchema(component.signingContext(), library));
         }
     }
