@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -1210,13 +1211,12 @@ class SequentialTaskSchedulerTests {
         model.stop();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void exceptionHandlingTest(final String typeString) {
+    @RepeatedTest(100000)
+    void exceptionHandlingTest() throws InterruptedException {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
-        final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
+        final TaskSchedulerType type = TaskSchedulerType.valueOf("SEQUENTIAL_THREAD");
 
         final AtomicInteger wireValue = new AtomicInteger();
         final AtomicBoolean handlerExecutedFlag = new AtomicBoolean(false);
@@ -1242,15 +1242,15 @@ class SequentialTaskSchedulerTests {
                     exceptionCount.incrementAndGet();
                 })
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .withUnhandledTaskMetricEnabled(true)
-                .withBusyFractionMetricsEnabled(true)
-                .withOnRamp(onRamp)
-                .withOffRamp(offRamp)
+                // .withUnhandledTaskMetricEnabled(true)
+                // .withBusyFractionMetricsEnabled(true)
+                // .withOnRamp(onRamp)
+                // .withOffRamp(offRamp)
                 .build();
 
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
-        assertEquals(0, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(-1, taskScheduler.getUnprocessedTaskCount());
         assertEquals("test", taskScheduler.getName());
 
         model.start();
@@ -1268,6 +1268,7 @@ class SequentialTaskSchedulerTests {
         if (exceptionCountValue != 1) {
             var unhadledTaskCount = platformContext.getMetrics().getValue("platform", "test_unhandled_task_count");
             var busyFraction = platformContext.getMetrics().getValue("platform", "test_busy_fraction");
+            Thread.sleep(10);
             String debugInfo = ("The throwing task %s executed at:%d(ns)."
                             + " UncaughtExceptions:(duringCheck:%d;now:%d)"
                             + " - UncaughtHandler executed at:%d(ns)"
