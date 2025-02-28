@@ -251,6 +251,22 @@ public class TopicUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> updateExpiryOnTopicWithAutoRenewAccountNoAdminKey() {
+        return hapiTest(
+                cryptoCreate("autoRenewAccount"),
+                createTopic("testTopic").autoRenewAccountId("autoRenewAccount"),
+                doSeveralWithStartupConfigNow("entities.maxLifetime", (value, now) -> {
+                    final var maxLifetime = Long.parseLong(value);
+                    final var newExpiry = now.getEpochSecond() + maxLifetime - 12_345L;
+                    final var excessiveExpiry = now.getEpochSecond() + maxLifetime + 12_345L;
+                    return specOps(
+                            updateTopic("testTopic").expiry(excessiveExpiry).hasKnownStatus(INVALID_EXPIRATION_TIME),
+                            updateTopic("testTopic").expiry(newExpiry),
+                            getTopicInfo("testTopic").hasExpiry(newExpiry));
+                }));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> clearingAdminKeyWhenAutoRenewAccountPresent() {
         return hapiTest(
                 newKeyNamed("adminKey"),
