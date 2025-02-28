@@ -151,7 +151,6 @@ public class ReconnectLearner {
             reservedSignedState = reconnect();
             validator.validate(reservedSignedState.get(), roster, stateValidationData);
             ReconnectUtils.endReconnectHandshake(connection);
-            SignedStateFileReader.unregisterServiceStates(reservedSignedState.get());
             return reservedSignedState;
         } catch (final IOException | SignedStateInvalidException e) {
             if (reservedSignedState != null) {
@@ -206,6 +205,7 @@ public class ReconnectLearner {
                 false,
                 false,
                 platformStateFacade);
+        newSignedState.init(platformContext);
         SignedStateFileReader.registerServiceStates(newSignedState);
         newSignedState.setSigSet(sigSet);
 

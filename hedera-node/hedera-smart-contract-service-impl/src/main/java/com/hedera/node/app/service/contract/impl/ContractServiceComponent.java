@@ -11,6 +11,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -43,6 +44,7 @@ public interface ContractServiceComponent {
          * @param contractMetrics holds all metrics for the smart contract service
          * @param systemContractMethodRegistry registry of all system contract methods
          * @param customOps any additional custom operations to use when constructing the EVM
+         * @param entityIdFactory a factory for creating entity IDs
          * @return the contract service component
          */
         ContractServiceComponent create(
@@ -52,7 +54,8 @@ public interface ContractServiceComponent {
                 @BindsInstance @Nullable Supplier<List<OperationTracer>> addOnTracers,
                 @BindsInstance ContractMetrics contractMetrics,
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
-                @BindsInstance @CustomOps Set<Operation> customOps);
+                @BindsInstance @CustomOps Set<Operation> customOps,
+                @BindsInstance EntityIdFactory entityIdFactory);
     }
 
     /**

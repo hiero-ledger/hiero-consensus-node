@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -275,4 +276,13 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * This is to improve Ethereum equivalence.
      */
     void setContractNotRequired();
+
+    /**
+     * Returns the {@link EntityIdFactory}
+     *
+     * @return the {@link EntityIdFactory}
+     */
+    default EntityIdFactory entityIdFactory() {
+        return enhancement().nativeOperations().entityIdFactory();
+    }
 }

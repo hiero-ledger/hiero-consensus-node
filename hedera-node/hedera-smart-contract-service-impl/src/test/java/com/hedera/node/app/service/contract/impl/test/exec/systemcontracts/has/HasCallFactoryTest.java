@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.bytesForRedirectAccount;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.BDDMockito.given;
@@ -104,6 +105,7 @@ class HasCallFactoryTest extends CallTestBase {
         given(syntheticIds.converterFor(nativeOperations)).willReturn(idConverter);
         given(idConverter.convert(asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
                 .willReturn(A_NEW_ACCOUNT_ID);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var input = bytesForRedirectAccount(
                 HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY.encodeCallWithArgs(

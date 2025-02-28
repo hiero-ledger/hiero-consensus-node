@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.NOT_SUPPORTED;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -25,10 +25,13 @@ public class HtsSystemContract extends AbstractNativeSystemContract implements H
     public static final String HTS_SYSTEM_CONTRACT_NAME = "HTS";
     public static final String HTS_167_EVM_ADDRESS = "0x167";
     public static final String HTS_16C_EVM_ADDRESS = "0x16C";
-    public static final ContractID HTS_167_CONTRACT_ID =
-            asNumberedContractId(Address.fromHexString(HTS_167_EVM_ADDRESS));
-    public static final ContractID HTS_16C_CONTRACT_ID =
-            asNumberedContractId(Address.fromHexString(HTS_16C_EVM_ADDRESS));
+    // The system contract ID always uses shard 0 and realm 0 so we cannot use ConversionUtils methods for this
+    public static final ContractID HTS_167_CONTRACT_ID = ContractID.newBuilder()
+            .contractNum(numberOfLongZero(Address.fromHexString(HTS_167_EVM_ADDRESS)))
+            .build();
+    public static final ContractID HTS_16C_CONTRACT_ID = ContractID.newBuilder()
+            .contractNum(numberOfLongZero(Address.fromHexString(HTS_16C_EVM_ADDRESS)))
+            .build();
 
     @Inject
     public HtsSystemContract(

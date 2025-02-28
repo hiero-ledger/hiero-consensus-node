@@ -18,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +36,9 @@ class CallOutcomeTest {
     @Mock
     private ContractCreateStreamBuilder contractCreateRecordBuilder;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     @Test
     void setsAbortCallResult() {
         final var abortedCall =
@@ -46,6 +50,7 @@ class CallOutcomeTest {
     @Test
     void recognizesCreatedIdWhenEvmAddressIsSet() {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
                 new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
@@ -53,6 +58,7 @@ class CallOutcomeTest {
 
     @Test
     void recognizesNoCreatedIdWhenEvmAddressNotSet() {
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
                 new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null);
         assertNull(outcome.recipientIdIfCreated());
@@ -60,6 +66,7 @@ class CallOutcomeTest {
 
     @Test
     void calledIdIsFromResult() {
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
                 SUCCESS_RESULT.asProtoResultOf(updater),
                 INVALID_CONTRACT_ID,

@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllTranslator.ERC721_SET_APPROVAL_FOR_ALL;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllTranslator.SET_APPROVAL_FOR_ALL;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirect;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,6 +80,7 @@ public class SetApprovalForAllTranslatorTest {
     void matchesERCSelectorTest() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirect(
                 ERC721_SET_APPROVAL_FOR_ALL,
                 subject,

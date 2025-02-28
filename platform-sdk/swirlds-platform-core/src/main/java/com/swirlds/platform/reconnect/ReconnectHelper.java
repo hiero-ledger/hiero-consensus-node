@@ -15,6 +15,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
+import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -125,6 +126,7 @@ public class ReconnectHelper {
         final ReservedSignedState reservedState = reconnect.execute(validator);
 
         final long lastRoundReceived = reservedState.get().getRound();
+        SignedStateFileReader.registerServiceStates(reservedState.get());
 
         logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
                         "Finished reconnect in the role of the receiver.",

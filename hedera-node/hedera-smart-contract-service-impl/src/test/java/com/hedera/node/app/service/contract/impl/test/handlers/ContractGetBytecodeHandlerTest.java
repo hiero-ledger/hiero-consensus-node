@@ -29,7 +29,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.function.Function;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -70,7 +72,15 @@ class ContractGetBytecodeHandlerTest {
     @Mock
     private AccountID accountID;
 
-    private final ContractGetBytecodeHandler subject = new ContractGetBytecodeHandler();
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
+    private ContractGetBytecodeHandler subject;
+
+    @BeforeEach
+    void setUp() {
+        subject = new ContractGetBytecodeHandler(entityIdFactory);
+    }
 
     @Test
     void extractHeaderTest() {

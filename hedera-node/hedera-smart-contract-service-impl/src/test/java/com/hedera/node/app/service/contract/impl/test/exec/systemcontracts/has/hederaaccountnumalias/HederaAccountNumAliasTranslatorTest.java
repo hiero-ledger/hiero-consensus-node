@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarapprove.HbarApproveTranslator.HBAR_APPROVE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hederaaccountnumalias.HederaAccountNumAliasTranslator.HEDERA_ACCOUNT_NUM_ALIAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT_AS_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelector;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -67,6 +68,7 @@ public class HederaAccountNumAliasTranslatorTest {
     @Test
     void matchesHederaAccountNumAlias() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelector(
                 HEDERA_ACCOUNT_NUM_ALIAS,
                 subject,
@@ -83,6 +85,7 @@ public class HederaAccountNumAliasTranslatorTest {
     @Test
     void failsOnInvalidSelector() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelector(
                 HBAR_APPROVE,
                 subject,

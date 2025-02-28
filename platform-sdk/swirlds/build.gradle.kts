@@ -3,6 +3,7 @@ plugins { id("org.hiero.gradle.module.application") }
 
 mainModuleInfo {
     runtimeOnly("com.swirlds.platform.core")
+    runtimeOnly("com.swirlds.platform.core.test.fixtures")
     runtimeOnly("com.swirlds.merkle")
     runtimeOnly("com.swirlds.merkle.test.fixtures")
 }
@@ -53,7 +54,7 @@ val demoAppsRuntimeClasspath =
         attributes.attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category.LIBRARY))
         attributes.attribute(
             LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
-            objects.named(LibraryElements.JAR)
+            objects.named(LibraryElements.JAR),
         )
         attributes.attribute(Attribute.of("javaModule", Boolean::class.javaObjectType), true)
     }

@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static java.util.Objects.requireNonNull;
 
@@ -31,7 +30,7 @@ public class ReturnTypes {
     // When no value is set for AccountID, ContractID or TokenId the return value is set to 0.
     public static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).build();
-    public static final Address ZERO_ADDRESS = asHeadlongAddress(asEvmAddress(0L));
+    public static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
     public static final ContractID ZERO_CONTRACT_ID =
             ContractID.newBuilder().contractNum(0).build();
     public static final TokenID ZERO_TOKEN_ID = TokenID.newBuilder().tokenNum(0).build();

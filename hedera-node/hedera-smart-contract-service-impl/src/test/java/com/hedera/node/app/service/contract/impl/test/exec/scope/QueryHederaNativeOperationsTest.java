@@ -29,6 +29,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,9 @@ class QueryHederaNativeOperationsTest {
     @Mock
     private ReadableTokenRelationStore relationStore;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private QueryHederaNativeOperations subject;
 
     private AccountID deletedAccount;
@@ -65,7 +69,7 @@ class QueryHederaNativeOperationsTest {
 
     @BeforeEach
     void setUp() {
-        subject = new QueryHederaNativeOperations(context);
+        subject = new QueryHederaNativeOperations(context, entityIdFactory);
         deletedAccount = AccountID.newBuilder().accountNum(1L).build();
         fromAccount = AccountID.newBuilder().accountNum(3L).build();
         beneficiaryAccount = AccountID.newBuilder().accountNum(2L).build();

@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_101
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,6 +45,7 @@ class BalanceOfCallTest extends CallTestBase {
     void revertsWithMissingAccount() {
         subject = new BalanceOfCall(mockEnhancement(), gasCalculator, FUNGIBLE_TOKEN, OWNER);
         given(nativeOperations.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS))).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 
@@ -57,6 +59,7 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 
@@ -77,6 +80,7 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.getTokenRelation(A_NEW_ACCOUNT_ID.accountNumOrThrow(), FUNGIBLE_TOKEN_ID.tokenNum()))
                 .willReturn(A_FUNGIBLE_RELATION);
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 

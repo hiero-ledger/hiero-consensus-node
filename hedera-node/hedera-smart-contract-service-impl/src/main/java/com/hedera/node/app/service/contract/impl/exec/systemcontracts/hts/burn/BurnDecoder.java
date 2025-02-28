@@ -4,13 +4,16 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn;
 import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.INT64_INT64;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asExactLongValueOrZero;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenBurnTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
@@ -66,8 +69,17 @@ public class BurnDecoder {
             final long maybeAmount,
             @NonNull final List<Long> maybeSerialNos,
             @NonNull final HtsCallAttempt attempt) {
-        final var tokenNum = asExactLongValueOrZero(tokenAddress.value());
-        final var maybeToken = attempt.linkedToken(asEvmAddress(tokenNum));
+        Token maybeToken = null;
+        long tokenNum = 0;
+        // try to look up the token by address, if it is a long zero
+        if (isLongZero(attempt.nativeOperations().entityIdFactory(), tokenAddress)) {
+            final var explicit = explicitFromHeadlong(tokenAddress);
+
+            maybeToken = attempt.linkedToken(
+                    asEvmAddress(attempt.nativeOperations().entityIdFactory(), numberOfLongZero(explicit)));
+            tokenNum = numberOfLongZero(explicit);
+        }
+
         final var isNonFungible = maybeToken != null && maybeToken.tokenType() == NON_FUNGIBLE_UNIQUE;
         final var tokenId = maybeToken != null
                 ? maybeToken.tokenIdOrThrow()

@@ -7,7 +7,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_101
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,6 +26,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.SpecialRewardReceivers;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -34,7 +38,7 @@ import org.mockito.Mock;
 class Erc721TransferFromCallTest extends CallTestBase {
     private static final Address FROM_ADDRESS = ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.toArray());
     private static final Address TO_ADDRESS =
-            ConversionUtils.asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
+            ConversionUtils.asHeadlongAddress(asEvmAddress(shard, realm, B_NEW_ACCOUNT_ID.accountNumOrThrow()));
 
     @Mock
     private AddressIdConverter addressIdConverter;
@@ -50,6 +54,9 @@ class Erc721TransferFromCallTest extends CallTestBase {
 
     @Mock
     private ContractCallStreamBuilder recordBuilder;
+
+    @Mock
+    private ProxyWorldUpdater worldUpdater;
 
     private Erc721TransferFromCall subject;
 
@@ -70,6 +77,8 @@ class Erc721TransferFromCallTest extends CallTestBase {
                 .willReturn(Account.newBuilder().accountId(SENDER_ID).build());
         given(accountStore.getAliasedAccountById(RECEIVER_ID))
                 .willReturn(Account.newBuilder().accountId(RECEIVER_ID).build());
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = subjectFor(1L);
 

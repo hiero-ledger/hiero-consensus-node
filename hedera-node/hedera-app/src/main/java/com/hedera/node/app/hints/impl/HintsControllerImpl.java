@@ -177,10 +177,6 @@ public class HintsControllerImpl implements HintsController {
     public void advanceConstruction(@NonNull final Instant now, @NonNull final WritableHintsStore hintsStore) {
         requireNonNull(now);
         requireNonNull(hintsStore);
-        // Do the work needed to set the CRS for network and start the preprocessing vote
-        if (hintsStore.getCrsState().stage() != COMPLETED) {
-            doCRSWork(now, hintsStore);
-        }
 
         if (construction.hasHintsScheme()) {
             return;
@@ -213,7 +209,8 @@ public class HintsControllerImpl implements HintsController {
      * @param now        the current consensus time
      * @param hintsStore the writable hints store
      */
-    private void doCRSWork(@NonNull final Instant now, @NonNull final WritableHintsStore hintsStore) {
+    @Override
+    public void advanceCRSWork(@NonNull final Instant now, @NonNull final WritableHintsStore hintsStore) {
         final var crsState = hintsStore.getCrsState();
         final var tssConfig = configurationSupplier.get().getConfigData(TssConfig.class);
         if (!crsState.hasNextContributingNodeId()) {

@@ -56,13 +56,11 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     private TransactionGenerator generator;
     private Platform platform;
 
-    /** create at most this many transactions in preEvent, even if more is needed to meet target rate */
-    private final int transPerEventMax = 2048;
     /** transactions in each Event */
-    private final int transPerSecToCreate = 100;
+    private int transPerSecToCreate = 1000;
 
     private double toCreate = 0;
-    private long lastEventTime = System.nanoTime();
+    private long lastGenerateTime = System.nanoTime();
 
     public static final int SOFTWARE_VERSION = 7;
     public static final BasicSoftwareVersion PREVIOUS_SOFTWARE_VERSION = new BasicSoftwareVersion(SOFTWARE_VERSION - 1);
@@ -72,13 +70,19 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
      * {@inheritDoc}
      */
     @Override
-    public void init(final Platform platform, final NodeId selfId) {
+    public void init(@NonNull final Platform platform, @NonNull final NodeId selfId) {
         this.platform = platform;
 
         final String[] parameters = ParameterProvider.getInstance().getParameters();
         logger.info(STARTUP.getMarker(), "Parsing arguments {}", (Object) parameters);
+        if (parameters == null || parameters.length < 2) {
+            throw new IllegalArgumentException(
+                    "MigrationTestingTool requires at least 2 parameters: Seed(long), MaxTransactionsPerNode(int)");
+        }
         seed = Long.parseLong(parameters[0]) + selfId.id();
         maximumTransactionsPerNode = Integer.parseInt(parameters[1]);
+
+        transPerSecToCreate = parameters.length >= 3 ? Integer.parseInt(parameters[2]) : transPerSecToCreate;
 
         generator = new TransactionGenerator(seed);
 
@@ -105,8 +109,8 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
             if (!isZeroWeight) {
                 while (transactionsCreated < maximumTransactionsPerNode) {
                     try {
-                        generateEvents();
-                        Thread.sleep(1_000);
+                        createTransactions();
+                        Thread.sleep(100);
                     } catch (final InterruptedException ex) {
                         throw new RuntimeException(ex);
                     }
@@ -127,47 +131,33 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
         MerkleMapMetrics.register(platform.getContext().getMetrics());
     }
 
-    private void generateEvents() {
+    private void createTransactions() {
         final long now = System.nanoTime();
         final double tps = (double) transPerSecToCreate
                 / (double) platform.getRoster().rosterEntries().size();
-        int numCreated = 0;
 
-        if (transPerSecToCreate > -1) { // if not unlimited (-1 means unlimited)
-            toCreate += ((double) now - lastEventTime) * NANOSECONDS_TO_SECONDS * tps;
-        }
+        toCreate += ((double) now - lastGenerateTime) * NANOSECONDS_TO_SECONDS * tps;
 
-        lastEventTime = now;
+        lastGenerateTime = now;
         try {
             while (transactionsCreated < maximumTransactionsPerNode) {
-                if (transPerSecToCreate > -1 && toCreate < 1) {
+                if (toCreate < 1) {
                     break; // don't create too many transactions per second
-                }
-
-                if (transPerEventMax > -1 && numCreated >= transPerEventMax) {
-                    break; // don't create too many transactions per event
                 }
 
                 final byte[] transactionData = generator.generateTransaction();
 
                 while (!platform.createTransaction(transactionData)) {
-                    Thread.sleep(1_000);
+                    Thread.sleep(100);
                 }
 
                 transactionsCreated++;
 
-                numCreated++;
                 toCreate--;
-
-                throttleTransactionCreation();
             }
         } catch (final SignatureException | InterruptedException ex) {
             throw new RuntimeException(ex);
         }
-    }
-
-    private void throttleTransactionCreation() throws InterruptedException {
-        Thread.sleep(50);
     }
 
     /**
