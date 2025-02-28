@@ -4,7 +4,7 @@
 
 If a self-event is gossiped and the node is shutdown before the self-event is persisted to disk, then the node will
 branch in the hashgraph on restart by building a new self-event on the same self-event parent it had previously used.
-In other words, a node must only tell the world of a self-event **after** it has recorded this information!_
+In other words, a node must only tell the world of a self-event **after** it has recorded this information!
 
 Self-events are persisted to disk before they are gossiped.
 
