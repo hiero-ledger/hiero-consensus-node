@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -25,6 +30,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUniqueWithAllowance;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -39,10 +45,16 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_S
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 
+import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
+import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -67,6 +79,279 @@ public class TransferWithCustomRoyaltyFees {
     private static final String bob = "bob";
     private static final String carol = "carol";
     private static final String dave = "dave";
+
+    @HapiTest
+    final Stream<DynamicTest> transferRoyaltyFeeExplicitlyDuplicatedHbarSenderIds() {
+        final var bufferAccount = "account2";
+        final var feeCollector = "feeCollector";
+        final var xferAmount = Long.MAX_VALUE / 8;
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(feeCollector).balance(0L),
+                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(bufferAccount).balance(ONE_MILLION_HBARS),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(royaltyFeeNoFallback(1, 2, feeCollector)),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoApproveAllowance()
+                        .addCryptoAllowance(tokenOwner, bufferAccount, xferAmount)
+                        .signedByPayerAnd(tokenOwner, bufferAccount),
+                cryptoTransfer((spec, tl) -> tl.setTransfers(TransferList.newBuilder()
+                                        .addAccountAmounts(AccountAmount.newBuilder()
+                                                .setAccountID(asId(tokenOwner, spec))
+                                                .setAmount(-xferAmount)
+                                                .setIsApproval(true)
+                                                .build())
+                                        .addAccountAmounts(AccountAmount.newBuilder()
+                                                .setAccountID(asId(tokenOwner, spec))
+                                                .setAmount(xferAmount)
+                                                .setIsApproval(false)
+                                                .build()))
+                                .addTokenTransfers(TokenTransferList.newBuilder()
+                                        .setToken(asTokenId(nonFungibleToken, spec))
+                                        .addNftTransfers(NftTransfer.newBuilder()
+                                                .setSenderAccountID(asId(tokenOwner, spec))
+                                                .setReceiverAccountID(asId(tokenReceiver, spec))
+                                                .setSerialNumber(1))))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(bufferAccount)
+                        .signedBy(bufferAccount, tokenOwner, tokenReceiver)
+                        .via("txn"),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transferRoyaltyFeeExplicitlyDuplicatedFungibleSenderIds() {
+        final var bufferAccount = "account2";
+        final var fungibleToken = "fungibleToken";
+        final var feeCollector = "feeCollector";
+
+        // amount of fungible tokens to mint / 2
+        final var xferAmount = Long.MAX_VALUE / 2;
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(feeCollector).balance(0L),
+                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(bufferAccount).balance(ONE_MILLION_HBARS),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(royaltyFeeNoFallback(1, 2, feeCollector)),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(10_000L),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(bufferAccount, fungibleToken),
+                tokenAssociate(feeCollector, fungibleToken),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+
+                // token balance of attacker is initially 0
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, 0),
+                cryptoApproveAllowance()
+                        .addTokenAllowance(tokenOwner, fungibleToken, bufferAccount, xferAmount)
+                        .signedByPayerAnd(tokenOwner, bufferAccount),
+                cryptoTransfer((spec, tl) -> tl.addTokenTransfers(TokenTransferList.newBuilder()
+                                        .setToken(asTokenId(fungibleToken, spec))
+                                        .addTransfers(AccountAmount.newBuilder()
+                                                .setAccountID(asId(tokenOwner, spec))
+                                                .setAmount(-xferAmount)
+                                                .setIsApproval(true)
+                                                .build())
+                                        .addTransfers(AccountAmount.newBuilder()
+                                                .setAccountID(asId(tokenOwner, spec))
+                                                .setAmount(xferAmount)
+                                                .setIsApproval(false)
+                                                .build()))
+                                .addTokenTransfers(TokenTransferList.newBuilder()
+                                        .setToken(asTokenId(nonFungibleToken, spec))
+                                        .addNftTransfers(NftTransfer.newBuilder()
+                                                .setSenderAccountID(asId(tokenOwner, spec))
+                                                .setReceiverAccountID(asId(tokenReceiver, spec))
+                                                .setSerialNumber(1))))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(bufferAccount)
+                        .signedBy(bufferAccount, tokenOwner, tokenReceiver)
+                        .via("txn"),
+                getTxnRecord("txn").logged(),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
+
+                // Minted Long.max_value new tokens.
+                getAccountBalance(feeCollector).hasTokenBalance(fungibleToken, xferAmount / 2),
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, xferAmount / 2 + xferAmount + 1));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transferRoyaltyFeeLongZeroAddressFungibleSenderIds() {
+        final var bufferAccount = "account2";
+        final var fungibleToken = "fungibleToken";
+        final var feeCollector = "feeCollector";
+
+        // amount of fungible tokens to mint / 2
+        final var xferAmount = Long.MAX_VALUE / 2;
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(feeCollector).balance(0L),
+                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(bufferAccount).balance(ONE_MILLION_HBARS),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(royaltyFeeNoFallback(1, 2, feeCollector)),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(10_000L),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(bufferAccount, fungibleToken),
+                tokenAssociate(feeCollector, fungibleToken),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+
+                // token balance of attacker is initially 0
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, 0),
+                cryptoApproveAllowance()
+                        .addTokenAllowance(tokenOwner, fungibleToken, bufferAccount, xferAmount)
+                        .signedByPayerAnd(tokenOwner, bufferAccount),
+                cryptoTransfer((spec, tl) -> {
+                            final var ownerId = asId(tokenOwner, spec);
+                            tl.addTokenTransfers(TokenTransferList.newBuilder()
+                                            .setToken(asTokenId(fungibleToken, spec))
+                                            .addTransfers(AccountAmount.newBuilder()
+                                                    .setAccountID(ownerId)
+                                                    .setAmount(-xferAmount)
+                                                    .setIsApproval(true)
+                                                    .build())
+                                            .addTransfers(AccountAmount.newBuilder()
+                                                    .setAccountID(AccountID.newBuilder()
+                                                            .setAlias(ByteString.copyFrom(
+                                                                    asEvmAddress(ownerId.getAccountNum())))
+                                                            .build())
+                                                    .setAmount(xferAmount)
+                                                    .setIsApproval(false)
+                                                    .build()))
+                                    .addTokenTransfers(TokenTransferList.newBuilder()
+                                            .setToken(asTokenId(nonFungibleToken, spec))
+                                            .addNftTransfers(NftTransfer.newBuilder()
+                                                    .setSenderAccountID(asId(tokenOwner, spec))
+                                                    .setReceiverAccountID(asId(tokenReceiver, spec))
+                                                    .setSerialNumber(1)));
+                        })
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(bufferAccount)
+                        .signedBy(bufferAccount, tokenOwner, tokenReceiver)
+                        .via("txn"),
+                getTxnRecord("txn").logged(),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
+
+                // Minted Long.max_value new tokens.
+                getAccountBalance(feeCollector).hasTokenBalance(fungibleToken, xferAmount / 2),
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, xferAmount / 2 + xferAmount + 1));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transferRoyaltyFeeDuplicatedEvmAddressFungibleSenderIds() {
+        final var bufferAccount = "account2";
+        final var fungibleToken = "fungibleToken";
+        final var feeCollector = "feeCollector";
+
+        // amount of fungible tokens to mint / 2
+        final var xferAmount = Long.MAX_VALUE / 2;
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(feeCollector).balance(0L),
+                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenTreasury),
+                createHip32Auto(1, SECP_256K1_SHAPE, i -> tokenOwner),
+                cryptoCreate(bufferAccount).balance(ONE_MILLION_HBARS),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(royaltyFeeNoFallback(1, 2, feeCollector)),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(10_000L),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(bufferAccount, fungibleToken),
+                tokenAssociate(feeCollector, fungibleToken),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+
+                // token balance of attacker is initially 0
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, 0),
+                cryptoApproveAllowance()
+                        .addTokenAllowance(tokenOwner, fungibleToken, bufferAccount, xferAmount)
+                        .signedByPayerAnd(tokenOwner, bufferAccount),
+                cryptoTransfer((spec, tl) -> {
+                            final var ownerKey = spec.registry().getKey(tokenOwner);
+                            final var ownerEcKey = ownerKey.getECDSASecp256K1();
+                            final var evmAddress =
+                                    ByteString.copyFrom(recoverAddressFromPubKey(ownerEcKey.toByteArray()));
+                            tl.addTokenTransfers(TokenTransferList.newBuilder()
+                                            .setToken(asTokenId(fungibleToken, spec))
+                                            .addTransfers(AccountAmount.newBuilder()
+                                                    .setAccountID(AccountID.newBuilder()
+                                                            .setAlias(ownerKey.toByteString())
+                                                            .build())
+                                                    .setAmount(-xferAmount)
+                                                    .setIsApproval(true)
+                                                    .build())
+                                            .addTransfers(AccountAmount.newBuilder()
+                                                    .setAccountID(AccountID.newBuilder()
+                                                            .setAlias(evmAddress)
+                                                            .build())
+                                                    .setAmount(xferAmount)
+                                                    .setIsApproval(false)
+                                                    .build()))
+                                    .addTokenTransfers(TokenTransferList.newBuilder()
+                                            .setToken(asTokenId(nonFungibleToken, spec))
+                                            .addNftTransfers(NftTransfer.newBuilder()
+                                                    .setSenderAccountID(asId(tokenOwner, spec))
+                                                    .setReceiverAccountID(asId(tokenReceiver, spec))
+                                                    .setSerialNumber(1)));
+                        })
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(bufferAccount)
+                        .signedBy(bufferAccount, tokenOwner, tokenReceiver)
+                        .via("txn"),
+                getTxnRecord("txn").logged(),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
+
+                // Minted Long.max_value new tokens.
+                getAccountBalance(feeCollector).hasTokenBalance(fungibleToken, xferAmount / 2),
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, xferAmount / 2 + xferAmount + 1));
+    }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithRoyaltyHbarFee() {
