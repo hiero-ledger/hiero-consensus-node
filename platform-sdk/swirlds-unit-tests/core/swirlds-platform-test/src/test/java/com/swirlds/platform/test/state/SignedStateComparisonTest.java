@@ -11,8 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.utility.MerkleLong;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.platform.state.signed.MismatchedNodes;
@@ -47,7 +47,7 @@ class SignedStateComparisonTest {
 
         final MerkleNode stateA = null;
         final MerkleNode stateB = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateB);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateB);
 
         final Iterator<MismatchedNodes> iterator = mismatchedNodeIterator(stateA, stateB, deep);
 
@@ -67,7 +67,7 @@ class SignedStateComparisonTest {
     @DisplayName("State B Is Null")
     void stateBIsNull(final boolean deep) {
         final MerkleNode stateA = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateA);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateA);
         final MerkleNode stateB = null;
 
         final Iterator<MismatchedNodes> iterator = mismatchedNodeIterator(stateA, stateB, deep);
@@ -88,9 +88,9 @@ class SignedStateComparisonTest {
     @DisplayName("Matching States")
     void matchingStates(final boolean deep) {
         final MerkleNode stateA = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateA);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateA);
         final MerkleNode stateB = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateB);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateB);
 
         final Iterator<MismatchedNodes> iterator = mismatchedNodeIterator(stateA, stateB, deep);
 
@@ -105,10 +105,10 @@ class SignedStateComparisonTest {
     @DisplayName("Different Hashes")
     void differentHashes(final boolean deep) {
         final MerkleNode stateA = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateA);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateA);
         final MerkleNode stateB = buildLessSimpleTree();
         ((DummyMerkleLeaf) stateB.getNodeAtRoute(1, 0)).setValue("X");
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateB);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateB);
 
         final Iterator<MismatchedNodes> iterator = mismatchedNodeIterator(stateA, stateB, deep);
 
@@ -135,10 +135,10 @@ class SignedStateComparisonTest {
     @DisplayName("Different Types")
     void differentTypes(final boolean deep) {
         final MerkleNode stateA = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateA);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateA);
         final MerkleNode stateB = buildLessSimpleTree();
         ((DummyMerkleInternal) stateB.getNodeAtRoute(1)).setChild(0, new MerkleLong(1234));
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateB);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateB);
 
         final Iterator<MismatchedNodes> iterator = mismatchedNodeIterator(stateA, stateB, deep);
 
@@ -166,10 +166,10 @@ class SignedStateComparisonTest {
     void differentTopologies(final boolean deep) {
         final MerkleNode stateA = buildLessSimpleTree();
         stateA.asInternal().setChild(0, null);
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateA);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateA);
         final MerkleNode stateB = buildLessSimpleTree();
         stateB.asInternal().setChild(1, null);
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateB);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateB);
 
         final Iterator<MismatchedNodes> iterator = mismatchedNodeIterator(stateA, stateB, deep);
 
@@ -198,10 +198,10 @@ class SignedStateComparisonTest {
     @DisplayName("Deep Comparison Required")
     void deepComparisonRequired() {
         final MerkleNode stateA = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateA);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateA);
 
         final MerkleNode stateB = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateB);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateB);
 
         // Change a leaf without rehashing the tree
         ((DummyMerkleLeaf) stateB.getNodeAtRoute(1, 1)).enableDuplicateHashing().setHash(randomHash());

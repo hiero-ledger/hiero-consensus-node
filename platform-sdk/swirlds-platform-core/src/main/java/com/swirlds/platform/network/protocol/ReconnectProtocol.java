@@ -15,7 +15,13 @@ import com.swirlds.platform.gossip.modular.GossipController;
 import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.reconnect.*;
+import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
+import com.swirlds.platform.reconnect.ReconnectController;
+import com.swirlds.platform.reconnect.ReconnectHelper;
+import com.swirlds.platform.reconnect.ReconnectLearnerFactory;
+import com.swirlds.platform.reconnect.ReconnectLearnerThrottle;
+import com.swirlds.platform.reconnect.ReconnectPeerProtocol;
+import com.swirlds.platform.reconnect.ReconnectThrottle;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -152,7 +158,8 @@ public class ReconnectProtocol implements Protocol {
                         reconnectMetrics,
                         platformStateFacade),
                 stateConfig,
-                platformStateFacade);
+                platformStateFacade,
+                platformContext.getMerkleCryptography());
         final ReconnectController reconnectController =
                 new ReconnectController(reconnectConfig, threadManager, reconnectHelper, gossipController::resume);
 

@@ -7,7 +7,7 @@ import static com.swirlds.virtualmap.internal.Path.getChildPath;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -62,12 +62,6 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
      * than needed, if it is too small, we put pressure on the GC.
      */
     private static final int EXPECTED_BIT_SET_INITIAL_CAPACITY = 1024 * 1024;
-
-    /**
-     * A stashed null hash, which is used for any leaves which are null that we need to send
-     * (specifically, leaf 2 for a tree with only a single leaf).
-     */
-    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     private final ReconnectConfig reconnectConfig;
 
@@ -185,7 +179,7 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
         // If the originalChild is null, then it means we're outside the range of valid nodes, and we will
         // return a NULL_HASH.
         if (originalChild == null) {
-            return NULL_HASH;
+            return Cryptography.NULL_HASH;
         }
 
         // Make sure the path is valid for the original state

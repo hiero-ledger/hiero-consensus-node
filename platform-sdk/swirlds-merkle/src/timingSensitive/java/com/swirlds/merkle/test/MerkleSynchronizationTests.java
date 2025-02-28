@@ -14,7 +14,8 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.copy.MerkleCopy;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.utility.MerkleUtils;
@@ -48,6 +49,8 @@ public class MerkleSynchronizationTests {
             .getOrCreateConfig();
 
     private final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+
+    private final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
 
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {
@@ -261,14 +264,14 @@ public class MerkleSynchronizationTests {
         // Modify a leaf value without re-hashing.
         final DummyMerkleNode root1 = MerkleTestUtils.buildLessSimpleTree();
         root1.reserve();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root1);
+        merkleCryptography.digestTreeSync(root1);
 
         ((DummyMerkleLeaf) root1.asInternal().getChild(0)).setValue("this is not the hashed value");
 
         final MerkleNode newRoot1 = MerkleTestUtils.hashAndTestSynchronization(null, root1, reconnectConfig);
         final Hash resultingHash1 = newRoot1.getHash();
         assertNotEquals(root1.getHash(), resultingHash1, "we should not derive the same hash since data was changed");
-        MerkleUtils.rehashTree(newRoot1);
+        MerkleUtils.rehashTree(merkleCryptography, newRoot1);
         assertEquals(
                 resultingHash1,
                 newRoot1.getHash(),
@@ -277,7 +280,7 @@ public class MerkleSynchronizationTests {
         // Modify an internal node without re-hashing.
         final DummyMerkleNode root2 = MerkleTestUtils.buildLessSimpleTree();
         root2.reserve();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root2);
+        merkleCryptography.digestTreeSync(root2);
 
         Hash oldHash = root2.getHash();
         root2.asInternal().setChild(3, null);
@@ -286,7 +289,7 @@ public class MerkleSynchronizationTests {
         final MerkleNode newRoot2 = MerkleTestUtils.hashAndTestSynchronization(null, root2, reconnectConfig);
         final Hash resultingHash2 = newRoot2.getHash();
         assertNotEquals(root2.getHash(), resultingHash2, "we should not derive the same hash since data was changed");
-        MerkleUtils.rehashTree(newRoot2);
+        MerkleUtils.rehashTree(merkleCryptography, newRoot2);
         assertEquals(
                 resultingHash2,
                 newRoot2.getHash(),

@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
@@ -38,7 +38,8 @@ public final class BirthRoundStateMigration {
             @NonNull final SignedState initialState,
             @NonNull final AncientMode ancientMode,
             @NonNull final SoftwareVersion appVersion,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final MerkleCryptography merkleCryptography) {
 
         if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
             if (platformStateFacade.firstVersionInBirthRoundModeOf(initialState.getState()) != null) {
@@ -94,6 +95,6 @@ public final class BirthRoundStateMigration {
         platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
 
         state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
+        merkleCryptography.digestTreeSync(state.getRoot());
     }
 }
