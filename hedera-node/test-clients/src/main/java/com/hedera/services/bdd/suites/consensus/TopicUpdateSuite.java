@@ -117,16 +117,12 @@ public class TopicUpdateSuite {
                 cryptoCreate("payer"),
                 newKeyNamed("adminKey"),
                 newKeyNamed("newAdminKey"),
-                createTopic("testTopic")
-                        .adminKeyName("adminKey")
-                        .payingWith("payer"),
+                createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
                 updateTopic("testTopic")
                         .payingWith("payer")
                         .adminKey("newAdminKey")
                         .signedBy("payer", "adminKey", "newAdminKey"),
-                getTopicInfo("testTopic")
-                        .logged()
-                        .hasAdminKey("newAdminKey"));
+                getTopicInfo("testTopic").logged().hasAdminKey("newAdminKey"));
     }
 
     // TOPIC_RENEW_8
@@ -136,17 +132,12 @@ public class TopicUpdateSuite {
                 cryptoCreate("autoRenewAccount"),
                 cryptoCreate("payer"),
                 newKeyNamed("adminKey"),
-                createTopic("testTopic")
-                        .adminKeyName("adminKey")
-                        .payingWith("payer"),
+                createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
                 updateTopic("testTopic")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
                         .signedBy("payer", "adminKey", "autoRenewAccount"),
-                getTopicInfo("testTopic")
-                        .logged()
-                        .hasAdminKey("adminKey")
-                        .hasAutoRenewAccount("autoRenewAccount"));
+                getTopicInfo("testTopic").logged().hasAdminKey("adminKey").hasAutoRenewAccount("autoRenewAccount"));
     }
 
     @HapiTest
@@ -192,18 +183,13 @@ public class TopicUpdateSuite {
                 cryptoCreate("payer"),
                 newKeyNamed("adminKey"),
                 newKeyNamed("newAdminKey"),
-                createTopic("testTopic")
-                        .adminKeyName("adminKey")
-                        .payingWith("payer"),
+                createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
                 updateTopic("testTopic")
                         .payingWith("payer")
                         .adminKey("newAdminKey")
                         .autoRenewAccountId("autoRenewAccount")
                         .signedBy("payer", "adminKey", "newAdminKey", "autoRenewAccount"),
-                getTopicInfo("testTopic")
-                        .logged()
-                        .hasAdminKey("newAdminKey")
-                        .hasAutoRenewAccount("autoRenewAccount"));
+                getTopicInfo("testTopic").logged().hasAdminKey("newAdminKey").hasAutoRenewAccount("autoRenewAccount"));
     }
 
     @HapiTest
@@ -353,9 +339,7 @@ public class TopicUpdateSuite {
         return hapiTest(
                 cryptoCreate("payer"),
                 newKeyNamed("adminKey"),
-                createTopic("testTopic")
-                        .adminKeyName("adminKey")
-                        .payingWith("payer"),
+                createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
                 updateTopic("testTopic")
                         .payingWith("payer")
                         .adminKey("adminKey")

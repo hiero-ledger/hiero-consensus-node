@@ -42,11 +42,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-
+import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-
-import com.hedera.services.bdd.spec.keys.KeyShape;
 import org.junit.jupiter.api.DynamicTest;
 
 public class TopicCreateSuite {
@@ -78,7 +76,7 @@ public class TopicCreateSuite {
                 .hasKnownStatus(INVALID_AUTORENEW_ACCOUNT));
     }
 
-    //TOPIC_RENEW_1 - Public topic
+    // TOPIC_RENEW_1 - Public topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesntNeedAdminKey() {
         return hapiTest(
@@ -94,7 +92,7 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"));
     }
 
-    //TOPIC_RENEW_1 - Private topic
+    // TOPIC_RENEW_1 - Private topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesntNeedAdminKeyPrivateTopic() {
         return hapiTest(
@@ -111,7 +109,7 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"));
     }
 
-    //TOPIC_RENEW_2
+    // TOPIC_RENEW_2
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyRenewWith_ECDSA_Key() {
         return hapiTest(
@@ -127,7 +125,7 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"));
     }
 
-    //TOPIC_RENEW_3
+    // TOPIC_RENEW_3
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyPayerWith_ECDSA_Key() {
         return hapiTest(
@@ -143,7 +141,7 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"));
     }
 
-    //TOPIC_RENEW_4
+    // TOPIC_RENEW_4
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAllWith_ECDSA_Key() {
         return hapiTest(
@@ -160,7 +158,7 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"));
     }
 
-    //TOPIC_RENEW_5
+    // TOPIC_RENEW_5
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer_ECDSA() {
         final var expectedPriceUsd = 0.0103;
@@ -178,7 +176,7 @@ public class TopicCreateSuite {
                 validateChargedUsd("createTopic", expectedPriceUsd, 1.0));
     }
 
-    //TOPIC_RENEW_6 - Public topic
+    // TOPIC_RENEW_6 - Public topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer() {
         final var expectedPriceUsd = 0.0103;
@@ -195,7 +193,7 @@ public class TopicCreateSuite {
                 validateChargedUsd("createTopic", expectedPriceUsd, 1.0));
     }
 
-    //TOPIC_RENEW_6 - Private topic
+    // TOPIC_RENEW_6 - Private topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayerPrivateTopic() {
         final var expectedPriceUsd = 0.0105;
@@ -399,7 +397,7 @@ public class TopicCreateSuite {
 
     // Topic - AutoRenewal account negative test cases
 
-    //TOPIC_RENEW_12
+    // TOPIC_RENEW_12
     @HapiTest
     final Stream<DynamicTest> topicCreateWithInvalidAdminKeyAndValidAutoRenewAccount() {
         return hapiTest(
@@ -410,10 +408,10 @@ public class TopicCreateSuite {
                         .adminKeyName(NONSENSE_KEY)
                         .autoRenewAccountId("autoRenewAccount")
                         .signedBy("payer", "autoRenewAccount")
-                .hasKnownStatus(BAD_ENCODING));
+                        .hasKnownStatus(BAD_ENCODING));
     }
 
-    //TOPIC_RENEW_13
+    // TOPIC_RENEW_13
     @HapiTest
     final Stream<DynamicTest> topicCreateWithValidAdminKeyAndInvalidAutoRenewAccount() {
         return hapiTest(
@@ -427,7 +425,7 @@ public class TopicCreateSuite {
                         .hasKnownStatus(BAD_ENCODING));
     }
 
-    //TOPIC_RENEW_14
+    // TOPIC_RENEW_14
     @HapiTest
     final Stream<DynamicTest> topicCreateWithInvalidAdminKeyAndInvalidAutoRenewAccount() {
         return hapiTest(
@@ -442,7 +440,7 @@ public class TopicCreateSuite {
 
     // Topic - AutoRenewal account end to end and corner cases
 
-    //TOPIC_RENEW_20 - public topic
+    // TOPIC_RENEW_20 - public topic
     @HapiTest
     final Stream<DynamicTest> sendTopicMessageToNewImmutableTopicWithAutoRenewAccount() {
         return hapiTest(
@@ -463,7 +461,7 @@ public class TopicCreateSuite {
                 getTxnRecord("submitMessage").logged());
     }
 
-    //TOPIC_RENEW_20 - private topic
+    // TOPIC_RENEW_20 - private topic
     @HapiTest
     final Stream<DynamicTest> sendTopicMessageToNewImmutablePrivateTopicWithAutoRenewAccount() {
         return hapiTest(
@@ -487,7 +485,7 @@ public class TopicCreateSuite {
                 getTxnRecord("submitMessage").logged());
     }
 
-    //TOPIC_RENEW_21
+    // TOPIC_RENEW_21
     @HapiTest
     final Stream<DynamicTest> topicCreateWithHollowAccountForAutoRenewAccount() {
         final String accountAlias = "accountAlias";
@@ -520,7 +518,7 @@ public class TopicCreateSuite {
                 getTxnRecord("submitMessage").logged()));
     }
 
-    //TOPIC_RENEW_22
+    // TOPIC_RENEW_22
     @HapiTest
     final Stream<DynamicTest> topicCreateWithContractWithAdminKeyForAutoRenewAccount() {
         final var contractWithAdminKey = "nonCryptoAccount";
@@ -543,7 +541,7 @@ public class TopicCreateSuite {
                 getTxnRecord("submitMessage").logged());
     }
 
-    //TOPIC_RENEW_23
+    // TOPIC_RENEW_23
     @HapiTest
     final Stream<DynamicTest> topicCreateWithContractWithoutAdminKeyForAutoRenewAccountFails() {
         final var contractWithoutAdminKey = "nonCryptoAccount";
@@ -554,7 +552,6 @@ public class TopicCreateSuite {
                         .payingWith("payer")
                         .autoRenewAccountId(contractWithoutAdminKey)
                         .signedBy("payer", contractWithoutAdminKey)
-                        .hasKnownStatus(INVALID_SIGNATURE)
-        );
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 }
