@@ -250,7 +250,7 @@ public class Browser {
                     guiMetrics,
                     FileSystemManager.create(configuration),
                     recycleBin,
-                    MerkleCryptographyFactory.create(configuration, cryptography));
+                    merkleCryptography);
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
             PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
