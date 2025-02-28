@@ -113,7 +113,7 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
                         "Event migrated to use birth rounds prev={} new={} (ancient)",
                         event.getBirthRound(),
                         ROUND_FIRST);
-                event.overrideBirthRound(ROUND_FIRST, lastRoundBeforeBirthRoundMode);
+                event.overrideBirthRound(ROUND_FIRST, lowestJudgeGenerationBeforeBirthRoundMode);
                 shimAncientEvents.cycle();
             }
         }
