@@ -8,7 +8,6 @@ import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.Body
 import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.BodyCase.STATESIGNATURETRANSACTION;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.STORAGE_DIRECTORY;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.createExpectedMapName;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
@@ -83,7 +82,6 @@ import java.util.Optional;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -744,8 +742,8 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
         }
         delay(state);
         updateTransactionCounters(state);
-        round.forEachEventTransaction((event, transaction) -> handleConsensusTransaction(
-                event, transaction, round.getRoundNum(), state, stateSignatureTransactionCallback));
+        round.forEachEventTransaction((event, transaction) ->
+                handleConsensusTransaction(event, transaction, state, stateSignatureTransactionCallback));
     }
 
     /**
@@ -771,42 +769,16 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
     private void handleConsensusTransaction(
             final ConsensusEvent event,
             final ConsensusTransaction trans,
-            final long roundNum,
             final PlatformTestingToolState state,
             final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-        try {
-            waitForSignatureValidation(trans);
-            handleTransaction(
-                    event.getCreatorId(),
-                    event.getSoftwareVersion(),
-                    event.getTimeCreated(),
-                    trans.getConsensusTimestamp(),
-                    trans,
-                    state,
-                    stateSignatureTransactionCallback);
-        } catch (final InterruptedException e) {
-            logger.info(
-                    TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT.getMarker(),
-                    "onHandleConsensusRound Interrupted [ nodeId = {}, round = {} ]. "
-                            + "This should happen only during a reconnect",
-                    platform.getSelfId().id(),
-                    roundNum);
-            Thread.currentThread().interrupt();
-        } catch (final ExecutionException e) {
-            logger.error(EXCEPTION.getMarker(), "Exception while handling transaction", e);
-        }
-    }
-
-    private static void waitForSignatureValidation(final ConsensusTransaction transaction)
-            throws InterruptedException, ExecutionException {
-        final TransactionSignature sig = transaction.getMetadata();
-        if (sig == null) {
-            return;
-        }
-        final Future<Void> future = sig.waitForFuture();
-
-        // Block & Ignore the Void return
-        future.get();
+        handleTransaction(
+                event.getCreatorId(),
+                event.getSoftwareVersion(),
+                event.getTimeCreated(),
+                trans.getConsensusTimestamp(),
+                trans,
+                state,
+                stateSignatureTransactionCallback);
     }
 
     private void handleTransaction(
@@ -1097,14 +1069,6 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
         boolean invalidSig = false;
         final TransactionSignature signature = trans.getMetadata();
         if (signature != null) {
-            if (VerificationStatus.UNKNOWN.equals(signature.getSignatureStatus())) {
-                try {
-                    final Future<Void> future = signature.waitForFuture();
-                    future.get();
-                } catch (final ExecutionException | InterruptedException ex) {
-                    logger.info(EXCEPTION.getMarker(), "Error when verifying signature", ex);
-                }
-            }
             if (VerificationStatus.INVALID.equals(signature.getSignatureStatus())) {
                 invalidSig = true;
             }

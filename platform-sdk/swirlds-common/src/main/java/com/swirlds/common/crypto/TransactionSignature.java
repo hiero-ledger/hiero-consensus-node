@@ -11,7 +11,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Objects;
-import java.util.concurrent.Future;
 
 /**
  * Encapsulates a cryptographic signature along with the public key to use during verification. In order to maintain the
@@ -47,9 +46,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
 
     /** Indicates whether the signature is valid/invalid or has yet to be verified. */
     private VerificationStatus signatureStatus;
-
-    /** An internal future used to provide synchronization after the event has reached consensus. */
-    private transient volatile Future<Void> future;
 
     /**
      * Constructs an immutable Ed25519 signature using the provided signature pointer, public key pointer, and original
@@ -452,25 +448,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
     }
 
     /**
-     * Returns a {@link Future} which will be completed once this signature has been verified.
-     *
-     * @return a future linked to the signature verification state
-     */
-    public synchronized Future<Void> getFuture() {
-        return future;
-    }
-
-    /**
-     * Internal use only setter for assigning or updating the {@link Future} attached to this signature.
-     *
-     * @param future the future to be linked to this signature
-     */
-    public synchronized void setFuture(final Future<Void> future) {
-        this.future = future;
-        notifyAll();
-    }
-
-    /**
      * Returns the type of cryptographic algorithm used to create &amp; verify this signature.
      *
      * @return the type of cryptographic algorithm
@@ -497,25 +474,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
      */
     public void setSignatureStatus(final VerificationStatus signatureStatus) {
         this.signatureStatus = signatureStatus;
-    }
-
-    /**
-     * Returns a {@link Future} which will be completed once this signature has been verified.
-     * <p>
-     * NOTE: This method will wait indefinitely for the future to become available
-     * </p>
-     *
-     * @return a future linked to the signature verification state
-     * @throws InterruptedException if any thread interrupted the current thread before or while the current thread was
-     *                              waiting
-     */
-    public synchronized Future<Void> waitForFuture() throws InterruptedException {
-        // Block until future becomes available
-        while (future == null) {
-            wait();
-        }
-
-        return future;
     }
 
     /**
@@ -733,7 +691,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
                 .append("signatureLength", signatureLength)
                 .append("signatureType", signatureType)
                 .append("signatureStatus", signatureStatus)
-                .append("future", future)
                 .toString();
     }
 }

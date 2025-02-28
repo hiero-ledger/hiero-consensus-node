@@ -7,7 +7,6 @@ import static com.hedera.node.app.fixtures.signature.ExpandedSignaturePairFactor
 import static com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType.KECCAK_256_HASH;
 import static com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType.RAW;
 import static java.util.Collections.emptySet;
-import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -114,7 +113,6 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
         doAnswer((Answer<Void>) invocation -> {
                     final TransactionSignature signature = invocation.getArgument(0);
                     signature.setSignatureStatus(VerificationStatus.VALID);
-                    signature.setFuture(completedFuture(null));
                     return null;
                 })
                 .when(cryptoEngine)

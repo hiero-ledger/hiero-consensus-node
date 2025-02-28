@@ -13,18 +13,14 @@ import com.swirlds.common.test.fixtures.crypto.EcdsaSignedTxnPool;
 import com.swirlds.common.test.fixtures.crypto.MessageDigestPool;
 import com.swirlds.common.test.fixtures.crypto.SerializableHashableDummy;
 import com.swirlds.common.test.fixtures.crypto.SignaturePool;
-import com.swirlds.common.test.fixtures.crypto.SliceConsumer;
-import com.swirlds.common.threading.futures.FuturePool;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -219,81 +215,5 @@ class CryptographyTests {
         }
 
         assertEquals(0, numInvalid);
-    }
-
-    private void checkSignatures(final TransactionSignature... signatures)
-            throws ExecutionException, InterruptedException {
-        int numInvalid = 0;
-
-        for (final TransactionSignature sig : signatures) {
-            final Future<Void> future = sig.waitForFuture();
-            assertNotNull(future);
-            future.get();
-
-            if (!VerificationStatus.VALID.equals(sig.getSignatureStatus())) {
-                numInvalid++;
-            }
-        }
-
-        assertEquals(0, numInvalid);
-    }
-
-    private void verifyParallel(final TransactionSignature[] signatures, final int parallelism) {
-        final FuturePool<Void> futures = parallelExecute(signatures, parallelism, (sItems, offset, count) -> {
-            for (int i = offset; i < count; i++) {
-                final TransactionSignature signature = sItems[i];
-
-                final boolean isValid = cryptography.verifySync(signature);
-                signature.setSignatureStatus(((isValid) ? VerificationStatus.VALID : VerificationStatus.INVALID));
-            }
-        });
-
-        futures.waitForCompletion();
-    }
-
-    private FuturePool<Void> parallelExecute(
-            final TransactionSignature[] signatures,
-            final int parallelism,
-            final SliceConsumer<TransactionSignature, Integer, Integer> executor) {
-        final FuturePool<Void> futures = new FuturePool<>();
-
-        if (signatures == null || signatures.length == 0) {
-            return futures;
-        }
-
-        final int sliceSize = (int) Math.ceil((double) signatures.length / (double) parallelism);
-
-        int offset = 0;
-        int sliceLength = sliceSize;
-
-        while ((offset + sliceLength) <= signatures.length) {
-            //			futures.add(executor, signatures, offset, offset + sliceLength);
-            final int fOffset = offset;
-            final int fSliceLength = sliceLength;
-
-            final Future<Void> future = executorService.submit(new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    executor.accept(signatures, fOffset, fOffset + fSliceLength);
-                    return null;
-                }
-            });
-
-            futures.add(future);
-
-            for (int i = offset; i < (fOffset + fSliceLength); i++) {
-                signatures[i].setFuture(future);
-            }
-
-            offset += sliceLength;
-
-            if (offset >= signatures.length) {
-                break;
-            } else if (signatures.length < offset + sliceLength) {
-                sliceLength = signatures.length - offset;
-            }
-        }
-
-        return futures;
     }
 }
