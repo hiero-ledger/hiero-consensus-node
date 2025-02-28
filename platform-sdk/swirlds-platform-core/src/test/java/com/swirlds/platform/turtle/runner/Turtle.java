@@ -7,7 +7,10 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundValidation;
+import com.swirlds.platform.test.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -20,6 +23,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Runs a TURTLE network. All nodes run in this JVM, and if configured properly the execution is expected to be
@@ -59,6 +65,7 @@ import java.util.concurrent.Future;
  */
 public class Turtle {
 
+    private static final Logger log = LogManager.getLogger(Turtle.class);
     private final FakeTime time;
     private final Duration simulationGranularity;
 
@@ -122,21 +129,50 @@ public class Turtle {
         }
     }
 
+    public void validate() {
+        try {
+            final Validations validations = Validations.newInstance().consensusRoundValidations();
+
+            final TurtleNode node1 = nodes.getFirst();
+            final List<ConsensusRound> consensusRoundsForNode1 =
+                    node1.getConsensusRoundsHolder().getCollectedRounds();
+
+            for (int i = 1; i < nodes.size(); i++) {
+                final TurtleNode node2 = nodes.get(i);
+                final List<ConsensusRound> consensusRoundsForNode2 =
+                        node2.getConsensusRoundsHolder().getCollectedRounds();
+
+                for (final ConsensusRoundValidation validator :
+                        validations.getConsensusValidator().getConsensusRoundList()) {
+                    validator.validate(consensusRoundsForNode1, consensusRoundsForNode2);
+                }
+            }
+        } catch (final AssertionFailedError | IndexOutOfBoundsException e) {
+            log.error("Validation failed: {}", e.getMessage());
+        }
+    }
+
     /**
      * Simulate the network for a period of time.
      *
      * @param duration the duration to simulate
      */
-    public void simulateTime(@NonNull final Duration duration) {
+    public void simulateTimeAndValidate(@NonNull final Duration duration, @NonNull final Duration validationInterval) {
         final Instant simulatedStart = time.now();
         final Instant simulatedEnd = simulatedStart.plus(duration);
 
+        Instant nextValidationTime = simulatedStart.plus(validationInterval);
         while (time.now().isBefore(simulatedEnd)) {
             reportThePassageOfTime();
 
             time.tick(simulationGranularity);
             network.tick(time.now());
             tickAllNodes();
+
+            if (time.now().isAfter(nextValidationTime)) {
+                validate();
+                nextValidationTime = time.now().plus(validationInterval);
+            }
         }
     }
 
