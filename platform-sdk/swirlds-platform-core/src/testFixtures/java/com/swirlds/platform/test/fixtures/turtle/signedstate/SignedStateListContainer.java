@@ -12,7 +12,9 @@ public class SignedStateListContainer implements SignedStateHolder {
 
     @Override
     public void interceptReservedSignedState(@NonNull final ReservedSignedState signedState) {
-        collectedSignedStates.add(signedState);
+        try (signedState) {
+            collectedSignedStates.add(signedState);
+        }
     }
 
     @Override

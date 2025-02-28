@@ -49,7 +49,6 @@ import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStateListCont
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import com.swirlds.platform.wiring.PlatformWiring;
-import com.swirlds.platform.wiring.SignedStateReserver;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.List;
@@ -73,6 +72,7 @@ public class TurtleNode {
 
     private final DeterministicWiringModel model;
     private final Platform platform;
+    private final NodeId nodeId;
     private ConsensusRoundsHolder consensusRoundsHolder;
     private SignedStateHolder signedStateHolder;
 
@@ -96,6 +96,7 @@ public class TurtleNode {
             @NonNull final SimulatedNetwork network,
             @NonNull final Path outputDirectory) {
 
+        this.nodeId = nodeId;
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
                 .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
@@ -185,17 +186,8 @@ public class TurtleNode {
     }
 
     private void wireSignedStatesHolder(final PlatformWiring platformWiring) {
-        final OutputWire<List<ReservedSignedState>> stateSignatureCollectorOutputWiring =
-                platformWiring.getReservedSignedStateWiring();
-
-        // Split output of StateSignatureCollector into single ReservedSignedStates.
-        final OutputWire<ReservedSignedState> splitReservedSignedStateWire =
-                stateSignatureCollectorOutputWiring.buildSplitter(
-                        "reservedSignedStateSplitter", "reserved signed state lists for test");
-        // Add a reservation to the signed states
-        final OutputWire<ReservedSignedState> collectedReservedSignedStatesWire =
-                splitReservedSignedStateWire.buildAdvancedTransformer(
-                        new SignedStateReserver("collectedStatesReserverForTesting"));
+        final OutputWire<ReservedSignedState> reservedSignedStatesOutputWiring =
+                platformWiring.getReservedSignedStateCollectorOutputWire();
 
         final ComponentWiring<SignedStateHolder, Void> signedStatesHolderWiring =
                 new ComponentWiring<>(model, SignedStateHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
@@ -205,7 +197,7 @@ public class TurtleNode {
 
         final InputWire<ReservedSignedState> signedStateHolderInputWire =
                 signedStatesHolderWiring.getInputWire(SignedStateHolder::interceptReservedSignedState);
-        collectedReservedSignedStatesWire.solderTo(signedStateHolderInputWire);
+        reservedSignedStatesOutputWiring.solderTo(signedStateHolderInputWire);
     }
 
     /**
