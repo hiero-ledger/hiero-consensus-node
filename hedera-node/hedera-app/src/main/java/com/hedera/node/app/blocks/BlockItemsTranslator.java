@@ -127,6 +127,7 @@ public class BlockItemsTranslator {
                 .transferList(result.transferList())
                 .tokenTransferLists(result.tokenTransferLists())
                 .automaticTokenAssociations(result.automaticTokenAssociations())
+                .assessedCustomFees(result.assessedCustomFees())
                 .paidStakingRewards(result.paidStakingRewards());
         final var function = context.functionality();
         switch (function) {
@@ -158,22 +159,6 @@ public class BlockItemsTranslator {
                     recordBuilder.contractCallResult(synthResult);
                 }
                 switch (function) {
-                    case CRYPTO_TRANSFER -> {
-                        final var cryptoOutput = outputValueIfPresent(
-                                TransactionOutput::hasCryptoTransfer,
-                                TransactionOutput::cryptoTransferOrThrow,
-                                outputs);
-                        if (cryptoOutput != null) {
-                            recordBuilder.assessedCustomFees(cryptoOutput.assessedCustomFees());
-                        }
-                    }
-                    case CONSENSUS_SUBMIT_MESSAGE -> {
-                        final var submitMessageOutput = outputValueIfPresent(
-                                TransactionOutput::hasSubmitMessage, TransactionOutput::submitMessageOrThrow, outputs);
-                        if (submitMessageOutput != null) {
-                            recordBuilder.assessedCustomFees(submitMessageOutput.assessedCustomFees());
-                        }
-                    }
                     case CRYPTO_CREATE, CRYPTO_UPDATE -> recordBuilder.evmAddress(
                             ((CryptoOpContext) context).evmAddress());
                     case TOKEN_AIRDROP -> recordBuilder.newPendingAirdrops(
