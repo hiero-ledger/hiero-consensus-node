@@ -28,5 +28,6 @@ mainModuleInfo {
 
 testModuleInfo {
     requiresStatic("com.github.spotbugs.annotations")
+    requires("com.hedera.node.hapi")
     requires("org.junit.jupiter.api")
 }

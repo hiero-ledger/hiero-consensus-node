@@ -20,6 +20,7 @@ module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.state.api.test.fixtures;
     requires com.github.spotbugs.annotations;
+    requires java.desktop;
     requires org.mockito;
 
     exports com.swirlds.platform.test.fixtures;
@@ -30,4 +31,5 @@ module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.state;
     exports com.swirlds.platform.test.fixtures.addressbook;
     exports com.swirlds.platform.test.fixtures.crypto;
+    exports com.swirlds.platform.test.fixtures.gui;
 }
