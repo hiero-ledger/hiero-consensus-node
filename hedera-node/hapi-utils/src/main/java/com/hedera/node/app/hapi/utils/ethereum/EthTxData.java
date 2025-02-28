@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -365,6 +365,69 @@ public record EthTxData(
                 v,
                 r,
                 s);
+    }
+
+    @VisibleForTesting
+    public EthTxData replaceRecId(final int newRecId) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                newRecId,
+                v,
+                r,
+                s);
+    }
+
+    @VisibleForTesting
+    public EthTxData replaceR(final byte[] newR) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                recId,
+                v,
+                newR,
+                s);
+    }
+
+    @VisibleForTesting
+    public EthTxData replaceS(final byte[] newS) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                recId,
+                v,
+                r,
+                newS);
     }
 
     /**
