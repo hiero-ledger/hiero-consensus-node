@@ -145,12 +145,8 @@ public class Ed25519VerificationProvider
     private boolean compute(
             final Sign.Native algorithm, final SignatureType algorithmType, final TransactionSignature sig) {
         final byte[] payload = sig.getContentsDirect();
-        final byte[] expandedPublicKey = sig.getExpandedPublicKey();
-
         final ByteBuffer buffer = ByteBuffer.wrap(payload);
-        final ByteBuffer pkBuffer = (expandedPublicKey != null && expandedPublicKey.length > 0)
-                ? ByteBuffer.wrap(expandedPublicKey)
-                : buffer;
+
         final byte[] signature = new byte[sig.getSignatureLength()];
         final byte[] publicKey = new byte[sig.getPublicKeyLength()];
         final byte[] message = new byte[sig.getMessageLength()];
@@ -159,7 +155,7 @@ public class Ed25519VerificationProvider
                 .get(message)
                 .position(sig.getSignatureOffset())
                 .get(signature);
-        pkBuffer.position(sig.getPublicKeyOffset()).get(publicKey);
+        buffer.position(sig.getPublicKeyOffset()).get(publicKey);
 
         return compute(algorithm, algorithmType, message, signature, publicKey);
     }

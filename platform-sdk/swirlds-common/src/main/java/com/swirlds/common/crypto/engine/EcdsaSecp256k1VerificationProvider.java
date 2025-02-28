@@ -90,12 +90,7 @@ public class EcdsaSecp256k1VerificationProvider
     private boolean compute(
             final EcdsaSecp256k1Verifier algorithm, final SignatureType algorithmType, final TransactionSignature sig) {
         final byte[] payload = sig.getContentsDirect();
-        final byte[] expandedPublicKey = sig.getExpandedPublicKey();
-
         final ByteBuffer buffer = ByteBuffer.wrap(payload);
-        final ByteBuffer pkBuffer = (expandedPublicKey != null && expandedPublicKey.length > 0)
-                ? ByteBuffer.wrap(expandedPublicKey)
-                : buffer;
 
         final byte[] signature = new byte[sig.getSignatureLength()];
         final byte[] publicKey = new byte[sig.getPublicKeyLength()];
@@ -105,7 +100,7 @@ public class EcdsaSecp256k1VerificationProvider
                 .get(message)
                 .position(sig.getSignatureOffset())
                 .get(signature);
-        pkBuffer.position(sig.getPublicKeyOffset()).get(publicKey);
+        buffer.position(sig.getPublicKeyOffset()).get(publicKey);
 
         return verified(algorithm, algorithmType, message, signature, publicKey);
     }

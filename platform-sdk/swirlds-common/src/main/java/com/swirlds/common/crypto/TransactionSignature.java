@@ -24,9 +24,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
     /** Pointer to the transaction contents. */
     private final byte[] contents;
 
-    /** (Optional) Pointer to actual public key. */
-    private final byte[] expandedPublicKey;
-
     /** The offset of the message contained in the contents array. */
     private final int messageOffset;
 
@@ -89,87 +86,12 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
     }
 
     /**
-     * Constructs an immutable Ed25519 signature using the provided signature pointer, public key pointer, and original
-     * message pointer.
-     *
-     * @param contents          a pointer to a byte buffer containing the message, signature, and public key
-     * @param signatureOffset   the index where the signature begins in the contents array
-     * @param signatureLength   the length of the signature (in bytes)
-     * @param expandedPublicKey an optional byte array from which retrieve the public key
-     * @param publicKeyOffset   the index where the public key begins in the contents array
-     * @param publicKeyLength   the length of the public key (in bytes)
-     * @param messageOffset     the index where the message begins in the contents array
-     * @param messageLength     the length of the message (in bytes)
-     * @throws NullPointerException     if the {@code contents} array is null or zero length
-     * @throws IllegalArgumentException if any of the offsets or lengths fall outside the bounds of the {@code contents}
-     *                                  array
-     */
-    public TransactionSignature(
-            final byte[] contents,
-            final int signatureOffset,
-            final int signatureLength,
-            final byte[] expandedPublicKey,
-            final int publicKeyOffset,
-            final int publicKeyLength,
-            final int messageOffset,
-            final int messageLength) {
-        this(
-                contents,
-                signatureOffset,
-                signatureLength,
-                expandedPublicKey,
-                publicKeyOffset,
-                publicKeyLength,
-                messageOffset,
-                messageLength,
-                SignatureType.ED25519);
-    }
-
-    /**
-     * Constructs an immutable signature of the given cryptographic algorithm using the provided signature pointer,
-     * public key pointer, and original message pointer.
-     *
-     * @param contents        a pointer to a byte buffer containing the message, signature, and public key
-     * @param signatureOffset the index where the signature begins in the contents array
-     * @param signatureLength the length of the signature (in bytes)
-     * @param publicKeyOffset the index where the public key begins in the contents array
-     * @param publicKeyLength the length of the public key (in bytes)
-     * @param messageOffset   the index where the message begins in the contents array
-     * @param messageLength   the length of the message (in bytes)
-     * @param signatureType   the cryptographic algorithm used to create the signature
-     * @throws NullPointerException     if the {@code contents} array is null or zero length
-     * @throws IllegalArgumentException if any of the offsets or lengths fall outside the bounds of the {@code contents}
-     *                                  array
-     */
-    public TransactionSignature(
-            final byte[] contents,
-            final int signatureOffset,
-            final int signatureLength,
-            final int publicKeyOffset,
-            final int publicKeyLength,
-            final int messageOffset,
-            final int messageLength,
-            final SignatureType signatureType) {
-        this(
-                contents,
-                signatureOffset,
-                signatureLength,
-                null,
-                publicKeyOffset,
-                publicKeyLength,
-                messageOffset,
-                messageLength,
-                signatureType);
-    }
-
-    /**
      * Constructs an immutable signature of the given cryptographic algorithm using the provided signature pointer,
      * public key pointer, and original message pointer.
      *
      * @param contents          a pointer to a byte buffer containing the message, signature, and public key
      * @param signatureOffset   the index where the signature begins in the contents array
      * @param signatureLength   the length of the signature (in bytes)
-     * @param expandedPublicKey an optional byte array from which retrieve the public key
      * @param publicKeyOffset   the index where the public key begins in the contents array
      * @param publicKeyLength   the length of the public key (in bytes)
      * @param messageOffset     the index where the message begins in the contents array
@@ -183,7 +105,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
             final byte[] contents,
             final int signatureOffset,
             final int signatureLength,
-            final byte[] expandedPublicKey,
             final int publicKeyOffset,
             final int publicKeyLength,
             final int messageOffset,
@@ -192,8 +113,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
         if (contents == null || contents.length == 0) {
             throw new NullPointerException("contents");
         }
-
-        final byte[] publicKeySource = (expandedPublicKey != null) ? expandedPublicKey : contents;
 
         if (signatureOffset < 0 || signatureOffset > contents.length) {
             throw new IllegalArgumentException("signatureOffset");
@@ -205,13 +124,13 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
             throw new IllegalArgumentException("signatureLength");
         }
 
-        if (publicKeyOffset < 0 || publicKeyOffset > publicKeySource.length) {
+        if (publicKeyOffset < 0 || publicKeyOffset > contents.length) {
             throw new IllegalArgumentException("publicKeyOffset");
         }
 
         if (publicKeyLength < 0
-                || publicKeyLength > publicKeySource.length
-                || publicKeyLength + publicKeyOffset > publicKeySource.length) {
+                || publicKeyLength > contents.length
+                || publicKeyLength + publicKeyOffset > contents.length) {
             throw new IllegalArgumentException("publicKeyLength");
         }
 
@@ -224,7 +143,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
         }
 
         this.contents = contents;
-        this.expandedPublicKey = expandedPublicKey;
 
         this.signatureOffset = signatureOffset;
         this.signatureLength = signatureLength;
@@ -240,33 +158,10 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
     }
 
     /**
-     * Constructs a shallow copy of an existing signature replacing the public key indices and original message indices
-     * with the provided values.
-     *
-     * @param other           the Signature to be copied
-     * @param publicKeyOffset an updated public key offset
-     * @param publicKeyLength an updated public key length
-     * @param messageOffset   an updated message offset
-     * @param messageLength   an updated message length
-     * @throws NullPointerException     if the {@code other} parameter is null
-     * @throws IllegalArgumentException if any of the offsets or lengths fall outside the bounds of the {@code contents}
-     *                                  array
-     */
-    public TransactionSignature(
-            final TransactionSignature other,
-            final int publicKeyOffset,
-            final int publicKeyLength,
-            final int messageOffset,
-            final int messageLength) {
-        this(other, null, publicKeyOffset, publicKeyLength, messageOffset, messageLength);
-    }
-
-    /**
      * Constructs a shallow copy of an existing signature replacing the public key source, public key indices and
      * original message indices with the provided values.
      *
      * @param other             the Signature to be copied
-     * @param expandedPublicKey an optional byte array from which retrieve the public key
      * @param publicKeyOffset   an updated public key offset
      * @param publicKeyLength   an updated public key length
      * @param messageOffset     an updated message offset
@@ -277,7 +172,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
      */
     public TransactionSignature(
             final TransactionSignature other,
-            final byte[] expandedPublicKey,
             final int publicKeyOffset,
             final int publicKeyLength,
             final int messageOffset,
@@ -286,15 +180,13 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
             throw new NullPointerException("other");
         }
 
-        final byte[] publicKeySource = (expandedPublicKey != null) ? expandedPublicKey : other.contents;
-
-        if (publicKeyOffset < 0 || publicKeyOffset > publicKeySource.length) {
+        if (publicKeyOffset < 0 || publicKeyOffset > other.contents.length) {
             throw new IllegalArgumentException("publicKeyOffset");
         }
 
         if (publicKeyLength < 0
-                || publicKeyLength > publicKeySource.length
-                || publicKeyLength + publicKeyOffset > publicKeySource.length) {
+                || publicKeyLength > other.contents.length
+                || publicKeyLength + publicKeyOffset > other.contents.length) {
             throw new IllegalArgumentException("publicKeyLength");
         }
 
@@ -311,7 +203,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
         this.contents = other.contents;
         this.signatureOffset = other.signatureOffset;
         this.signatureLength = other.signatureLength;
-        this.expandedPublicKey = expandedPublicKey;
         this.publicKeyOffset = publicKeyOffset;
         this.publicKeyLength = publicKeyLength;
         this.messageOffset = messageOffset;
@@ -332,7 +223,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
         }
 
         this.contents = other.contents;
-        this.expandedPublicKey = other.expandedPublicKey;
         this.signatureOffset = other.signatureOffset;
         this.signatureLength = other.signatureLength;
         this.publicKeyOffset = other.publicKeyOffset;
@@ -384,10 +274,7 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
         dos.writeInt(541 - signature.publicKeyLength);
 
         // Write Public Key
-        dos.write(
-                (signature.expandedPublicKey != null) ? signature.expandedPublicKey : signature.contents,
-                signature.publicKeyOffset,
-                signature.publicKeyLength);
+        dos.write(signature.contents, signature.publicKeyOffset, signature.publicKeyLength);
 
         // Write Hash Length w/ Simple Checksum
         dos.writeInt(signature.messageLength);
@@ -511,28 +398,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
     }
 
     /**
-     * Returns a copy of the optional expanded public key or {@code null} if not provided.
-     *
-     * @return the optional expanded public key if provided, otherwise {@code null}
-     */
-    public byte[] getExpandedPublicKey() {
-        return (expandedPublicKey != null) ? expandedPublicKey.clone() : null;
-    }
-
-    /**
-     * Internal use accessor that returns a direct (mutable) reference to the expanded public key. Care must be taken to
-     * never modify the array returned by this accessor. Modifying the array will result in undefined behaviors and will
-     * result in a violation of the immutability contract provided by the {@link TransactionSignature} object.
-     * <p>
-     * This method exists solely to allow direct access by the platform for performance reasons.
-     *
-     * @return a direct reference to the transaction content/payload
-     */
-    public byte[] getExpandedPublicKeyDirect() {
-        return expandedPublicKey;
-    }
-
-    /**
      * Returns the offset in the {@link #getContents()} array where the message begins.
      *
      * @return the offset to the beginning of the message
@@ -551,9 +416,7 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
     }
 
     /**
-     * Returns the offset where the public key begins. By default this is an index into the {@link #getContents()}
-     * array. If the {@link #getExpandedPublicKey()} is provided, then this is an index in the
-     * {@link #getExpandedPublicKey()} array.
+     * Returns the offset where the public key begins.
      *
      * @return the offset to the beginning of the public key
      */
@@ -862,7 +725,6 @@ public class TransactionSignature implements Comparable<TransactionSignature> {
     public String toString() {
         return new ToStringBuilder(this)
                 .append("contents", Arrays.toString(contents))
-                .append("expandedPublicKey", Arrays.toString(expandedPublicKey))
                 .append("messageOffset", messageOffset)
                 .append("messageLength", messageLength)
                 .append("publicKeyOffset", publicKeyOffset)
