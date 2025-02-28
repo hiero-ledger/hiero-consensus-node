@@ -62,8 +62,7 @@ public final class MerkleHashChecker {
 
         final Hash recalculated;
         if (node.isLeaf()) {
-            recalculated =
-                    CRYPTOGRAPHY.digestSync((SerializableHashable) node, Cryptography.DEFAULT_DIGEST_TYPE, false);
+            recalculated = CRYPTOGRAPHY.digestSync((SerializableHashable) node, false);
         } else {
             final MerkleInternal internal = node.asInternal();
             for (int childIndex = 0; childIndex < internal.getNumberOfChildren(); childIndex++) {
@@ -73,7 +72,7 @@ public final class MerkleHashChecker {
                     return;
                 }
             }
-            recalculated = merkleCryptography.digestSync(internal, Cryptography.DEFAULT_DIGEST_TYPE, false);
+            recalculated = merkleCryptography.digestSync(internal, false);
         }
 
         if (!old.equals(recalculated)) {

@@ -16,7 +16,6 @@ import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.constructable.RuntimeConstructable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
@@ -210,8 +209,7 @@ class SerializationTest extends MerkleTestBase {
                 .withValue(
                         StateCommonConfig_.SAVED_STATE_DIRECTORY,
                         tempDir.toFile().toString());
-        final var cryptography = CryptographyFactory.create();
-        final var merkleCryptography = MerkleCryptographyFactory.create(config, cryptography);
+        final var merkleCryptography = MerkleCryptographyFactory.create(config);
         final PlatformContext context = TestPlatformContextBuilder.create()
                 .withMerkleCryptography(merkleCryptography)
                 .withConfiguration(configBuilder.getOrCreateConfig())

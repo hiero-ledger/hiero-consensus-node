@@ -11,6 +11,7 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.KeyedMerkleLong;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
@@ -124,10 +125,14 @@ class MerkleMapEntryTests {
         final String hashEquals = "expected hash to be equal";
         final String hashNotEquals = "expected hash to not be equal";
 
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(entry1);
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(entry2);
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(entry3);
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(entry4);
+        MerkleCryptography merkleCryptography3 = TestMerkleCryptoFactory.getInstance();
+        merkleCryptography3.digestTreeSync(entry1);
+        MerkleCryptography merkleCryptography2 = TestMerkleCryptoFactory.getInstance();
+        merkleCryptography2.digestTreeSync(entry2);
+        MerkleCryptography merkleCryptography1 = TestMerkleCryptoFactory.getInstance();
+        merkleCryptography1.digestTreeSync(entry3);
+        MerkleCryptography merkleCryptography = TestMerkleCryptoFactory.getInstance();
+        merkleCryptography.digestTreeSync(entry4);
 
         assertEquals(entry1.getHash(), entry1.getHash(), hashEquals);
         assertEquals(entry1.getHash(), entry2.getHash(), hashEquals);

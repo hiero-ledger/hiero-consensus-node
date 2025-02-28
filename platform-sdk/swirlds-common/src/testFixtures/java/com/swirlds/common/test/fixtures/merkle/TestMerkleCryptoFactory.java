@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.merkle;
 
-import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
@@ -40,7 +39,7 @@ public class TestMerkleCryptoFactory {
         final Configuration defaultConfiguration = ConfigurationBuilder.create()
                 .withConfigDataType(CryptoConfig.class)
                 .build();
-        merkleCryptography = MerkleCryptographyFactory.create(defaultConfiguration, CryptographyFactory.create());
+        merkleCryptography = MerkleCryptographyFactory.create(defaultConfiguration);
     }
 
     /**

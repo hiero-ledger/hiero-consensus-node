@@ -4,7 +4,6 @@ package com.swirlds.platform.state.hasher;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
@@ -50,8 +49,7 @@ public class DefaultStateHasher implements StateHasher {
         try {
             final Configuration configuration =
                     DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-            final MerkleCryptography merkleCryptography =
-                    MerkleCryptographyFactory.create(configuration, CryptographyFactory.create());
+            final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
             merkleCryptography
                     .digestTreeAsync(
                             stateAndRound.reservedSignedState().get().getState().getRoot())

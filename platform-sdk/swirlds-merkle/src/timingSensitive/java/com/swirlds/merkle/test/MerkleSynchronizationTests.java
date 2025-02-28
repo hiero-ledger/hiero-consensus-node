@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
@@ -51,8 +50,7 @@ public class MerkleSynchronizationTests {
 
     private final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
-    private final MerkleCryptography merkleCryptography =
-            MerkleCryptographyFactory.create(configuration, CryptographyFactory.create());
+    private final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
 
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {

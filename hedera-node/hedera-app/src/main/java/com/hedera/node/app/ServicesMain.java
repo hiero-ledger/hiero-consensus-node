@@ -257,7 +257,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
         final var cryptography = CryptographyFactory.create();
-        final var merkleCryptography = MerkleCryptographyFactory.create(platformConfig, cryptography);
+        final var merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         // Determine which nodes were _requested_ to run from the command line
         final var cliNodesToRun = commandLineArgs.localNodesToStart();
