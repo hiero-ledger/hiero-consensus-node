@@ -53,6 +53,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable-hapi-tests-iss:
+        description: "HAPI Testing (ISS) Enabled"
+        type: boolean
+        required: false
+        default: false
       enable-hapi-tests-nd-reconnect:
         description: "HAPI Testing (node death reconnect) Enabled"
         type: boolean
@@ -538,7 +543,7 @@ jobs:
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: ${{ inputs.enable-hapi-tests-iss && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          name: HAPI Test (Time ISS) Report
+          name: HAPI Test (ISS) Report
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
@@ -546,7 +551,7 @@ jobs:
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: ${{ inputs.enable-hapi-tests-iss && inputs.enable-network-log-capture && steps.gradle-hapi-iss.conclusion == 'failure' && !cancelled() }}
         with:
-          name: HAPI Test (Time Consuming) Network Logs
+          name: HAPI Test (ISS) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
           retention-days: 7
