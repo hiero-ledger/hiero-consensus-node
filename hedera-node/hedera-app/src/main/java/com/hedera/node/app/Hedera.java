@@ -198,9 +198,6 @@ import org.apache.logging.log4j.Logger;
 public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatusChangeListener, AppContext.Gossip {
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
-    // FUTURE: This should come from configuration, not be hardcoded.
-    public static final int MAX_SIGNED_TXN_SIZE = 6144;
-
     /**
      * The application name from the platform's perspective. This is currently locked in at the old main class name and
      * requires data migration to change.
@@ -1130,8 +1127,12 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         final var networkInfo =
                 new StateNetworkInfo(platform.getSelfId().id(), state, rosterStore.getActiveRoster(), configProvider);
         final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);
+        final int maxSignedTxnSize = configProvider
+                .getConfiguration()
+                .getConfigData(HederaConfig.class)
+                .transactionMaxBytes();
         // Fully qualified so as to not confuse javadoc
-        daggerApp = com.hedera.node.app.DaggerHederaInjectionComponent.builder()
+        daggerApp = DaggerHederaInjectionComponent.builder()
                 .configProviderImpl(configProvider)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileServiceImpl)
@@ -1141,7 +1142,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .softwareVersion(version.getPbjSemanticVersion())
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
-                .maxSignedTxnSize(MAX_SIGNED_TXN_SIZE)
+                .maxSignedTxnSize(maxSignedTxnSize)
                 .crypto(CryptographyHolder.get())
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)
