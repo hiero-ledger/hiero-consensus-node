@@ -287,9 +287,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                 previousBlockHash = i < n - 1
                         ? blocks.get(i + 1)
                                 .items()
-                                .getFirst()
-                                .blockHeaderOrThrow()
-                                .previousBlockHash()
+                                .getLast()
+                                .blockProofOrThrow()
+                                .previousBlockRootHash()
                         : Bytes.EMPTY;
             }
         }

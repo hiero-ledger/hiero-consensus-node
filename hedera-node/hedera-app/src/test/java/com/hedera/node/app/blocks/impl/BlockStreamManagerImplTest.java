@@ -314,7 +314,7 @@ class BlockStreamManagerImplTest {
                         Bytes.EMPTY,
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "cf1343eb8811fc4ccbd468b9703d60272894c91d1972efeb2d77d2e9d82598659feaf09b7c6bf0f1c3e0fcf4a4f08f48")),
+                                "cc0035e4316242d512df04802a3424c9737350130f04dd2346c65f0fa23d81871250058396b0aac850341903e2ec60c4")),
                 Timestamp.DEFAULT,
                 true,
                 SemanticVersion.DEFAULT,
@@ -322,6 +322,9 @@ class BlockStreamManagerImplTest {
                 BlockRecordService.EPOCH);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
+
+        // Wait for the block proof future to complete
+        subject.getBlockProofFuture().join();
 
         // Assert the block proof was written
         final var proofItem = lastAItem.get();
@@ -420,6 +423,9 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.signFuture(any())).willReturn(completedFuture(FIRST_FAKE_SIGNATURE));
         // End the round
         subject.endRound(state, ROUND_NO);
+
+        // Wait for the block proof future to complete
+        subject.getBlockProofFuture().join();
 
         final var header = writtenHeader.get();
         assertNotNull(header);
@@ -521,6 +527,9 @@ class BlockStreamManagerImplTest {
         // End the round
         subject.endRound(state, ROUND_NO);
 
+        // Wait for the block proof future to complete
+        subject.getBlockProofFuture().join();
+
         verify(aWriter).openBlock(N_BLOCK_NO);
 
         // Assert the internal state of the subject has changed as expected and the writer has been closed
@@ -537,7 +546,7 @@ class BlockStreamManagerImplTest {
                         Bytes.EMPTY,
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "cf1343eb8811fc4ccbd468b9703d60272894c91d1972efeb2d77d2e9d82598659feaf09b7c6bf0f1c3e0fcf4a4f08f48")),
+                                "cc0035e4316242d512df04802a3424c9737350130f04dd2346c65f0fa23d81871250058396b0aac850341903e2ec60c4")),
                 Timestamp.DEFAULT,
                 false,
                 SemanticVersion.DEFAULT,
@@ -682,6 +691,9 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
 
+        // Wait for the block proof future to complete
+        subject.getBlockProofFuture().join();
+
         // Then block should be closed
         verify(aWriter).closeBlock();
     }
@@ -715,7 +727,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void alwaysEndsBlockOnFreezeRoundEvenIfPeriodNotElapsed() throws ParseException {
+    void alwaysEndsBlockOnFreezeRoundEvenIfPeriodNotElapsed() {
         // Given a 2 second block period
         givenSubjectWith(
                 1,
@@ -748,6 +760,9 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1001));
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
+
+        // Wait for the block proof future to complete
+        subject.getBlockProofFuture().join();
 
         // Then block should be closed due to freeze, even though period not elapsed
         verify(aWriter).closeBlock();
@@ -791,6 +806,10 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(2L);
         subject.startRound(round, state);
         subject.endRound(state, 2L);
+
+        // Wait for the block proof future to complete
+        subject.getBlockProofFuture().join();
+
         verify(aWriter).closeBlock();
     }
 
