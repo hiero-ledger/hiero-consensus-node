@@ -81,7 +81,7 @@ public interface IOIterator<T> extends AutoCloseableNonThrowing {
      * 		a function that converts from the old type into the new type.
      * @param <U>
      * 		the type returned by the new iterator
-     * @return an iterator that walks the same data but returns a differnet type
+     * @return an iterator that walks the same data but returns a different type
      */
     default <U> IOIterator<U> transform(final Function<T, U> converter) {
 

@@ -17,7 +17,7 @@ public class MinLengthConstraint implements ConfigPropertyConstraint<String> {
     /**
      * Creates the constraint.
      *
-     * @param minLength the minmal allowed length
+     * @param minLength the minimal allowed length
      */
     public MinLengthConstraint(final int minLength) {
         this.minLength = minLength;

@@ -322,7 +322,7 @@ class ConfigApiTests {
         final IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
                 () -> configurationBuilder.build(),
-                "Config must not be initialzed if a validation fails");
+                "Config must not be initialized if a validation fails");
 
         // then
         assertEquals(

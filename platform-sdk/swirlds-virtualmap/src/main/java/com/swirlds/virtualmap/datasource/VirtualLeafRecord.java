@@ -76,7 +76,7 @@ public final class VirtualLeafRecord<K extends VirtualKey, V extends VirtualValu
      * Gets the key.
      * @return
      *        The key. This <strong>may</strong> be null in some cases, such as when the record is meant to
-     *		represent an invalid state, or when it is in the middle of serialization. No leaf that represnts
+     *		represent an invalid state, or when it is in the middle of serialization. No leaf that represents
      *		an actual leaf will ever return null here.
      */
     public K getKey() {

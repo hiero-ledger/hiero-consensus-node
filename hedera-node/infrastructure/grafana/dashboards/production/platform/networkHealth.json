@@ -270,7 +270,7 @@
       }
     },
     "ce95d4af-054d-4590-8e28-c3bea14512ac": {
-      "name": "intakeQueue guages",
+      "name": "intakeQueue gauges",
       "uid": "ce95d4af-054d-4590-8e28-c3bea14512ac",
       "kind": 1,
       "model": {
@@ -1397,7 +1397,7 @@
       "id": 20,
       "libraryPanel": {
         "uid": "ce95d4af-054d-4590-8e28-c3bea14512ac",
-        "name": "intakeQueue guages"
+        "name": "intakeQueue gauges"
       }
     },
     {

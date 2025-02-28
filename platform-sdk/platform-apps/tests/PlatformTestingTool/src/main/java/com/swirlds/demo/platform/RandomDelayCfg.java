@@ -82,7 +82,7 @@ public class RandomDelayCfg implements SelfSerializable, FastCopyable {
                 int low = 0;
                 int high = 0;
 
-                // random select a deley type
+                // random select a delay type
                 for (int i = 0; i < possibilities.length; i++) {
                     if (randomNumber >= sum && randomNumber < (sum + possibilities[i])) {
                         delayTypeSelected = delayType[i];
