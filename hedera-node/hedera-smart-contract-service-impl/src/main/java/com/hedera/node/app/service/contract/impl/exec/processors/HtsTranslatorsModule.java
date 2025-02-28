@@ -17,7 +17,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.defaul
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.defaultkycstatus.DefaultKycStatusTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.delete.DeleteTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.FungibleTokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.GrantApprovalTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantrevokekyc.GrantRevokeKycTranslator;
@@ -28,7 +27,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.iskyc.
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.istoken.IsTokenTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.name.NameTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ownerof.OwnerOfTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.pauses.PausesTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.rejecttokens.RejectTokensTranslator;
@@ -372,24 +370,6 @@ public interface HtsTranslatorsModule {
     @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideUpdateExpiryTranslator(
             @NonNull final UpdateExpiryTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideFungibleTokenInfoTranslator(
-            @NonNull final FungibleTokenInfoTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideNonFungibleTokenInfoTranslator(
-            @NonNull final NftTokenInfoTranslator translator) {
         return translator;
     }
 
