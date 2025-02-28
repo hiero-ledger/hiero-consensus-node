@@ -504,21 +504,14 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext) {
         final var loadedState = StartupStateUtils.loadStateFile(
-                configuration,
-                recycleBin,
-                selfId,
-                mainClassName,
-                swirldName,
-                softwareVersion,
-                platformStateFacade,
-                platformContext);
+                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformStateFacade, platformContext);
         try (loadedState) {
             if (loadedState.isNotNull()) {
                 logger.info(
                         STARTUP.getMarker(),
                         new SavedStateLoadedPayload(
                                 loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
-                return copyInitialSignedState(configuration, loadedState.get(), platformStateFacade, platformContext);
+                return copyInitialSignedState(loadedState.get(), platformStateFacade, platformContext);
             }
         }
         final var stateRoot = stateRootSupplier.get();
@@ -534,8 +527,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         signedState.init(platformContext);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
         try (reservedSignedState) {
-            return copyInitialSignedState(
-                    configuration, reservedSignedState.get(), platformStateFacade, platformContext);
+            return copyInitialSignedState(reservedSignedState.get(), platformStateFacade, platformContext);
         }
     }
 
