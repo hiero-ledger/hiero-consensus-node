@@ -8,6 +8,8 @@ import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
+import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
+import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Consumer;
@@ -47,6 +49,19 @@ public class ConsensusTestOrchestrator {
         currentSequence += numEvents;
         nodes.forEach(node -> node.getEventEmitter().setCheckpoint(currentSequence));
         nodes.forEach(node -> node.addEvents(numEvents));
+    }
+
+    @SuppressWarnings("unused") // useful for debugging
+    public void runGui() {
+        final ConsensusTestNode node = nodes.stream().findAny().orElseThrow();
+        final AddressBook addressBook =
+                node.getEventEmitter().getGraphGenerator().getAddressBook();
+
+        new TestGuiSource(
+                        platformContext,
+                        addressBook,
+                        new ListEventProvider(node.getOutput().getAddedEvents()))
+                .runGui();
     }
 
     /** Generates all events defined in the input */
