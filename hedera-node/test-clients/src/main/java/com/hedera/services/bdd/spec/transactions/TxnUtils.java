@@ -142,7 +142,7 @@ public class TxnUtils {
      * @param records the records to dump
      * @param <T> the type of the records
      */
-    public static <T extends Record> void dumpJsonList(
+    public static <T> void dumpJsonList(
             @NonNull final Path path, @NonNull final JsonCodec<T> codec, @NonNull final List<T> records) {
         try (final var fout = Files.newBufferedWriter(path)) {
             fout.write("[");

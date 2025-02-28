@@ -126,7 +126,8 @@ public class TurtleNode {
                 "bar",
                 nodeId,
                 addressBook,
-                platformStateFacade);
+                platformStateFacade,
+                platformContext);
         final var initialState = reservedState.state();
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(

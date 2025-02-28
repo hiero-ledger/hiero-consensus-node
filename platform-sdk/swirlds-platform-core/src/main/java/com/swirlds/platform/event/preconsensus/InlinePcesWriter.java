@@ -7,7 +7,7 @@ import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * This object is responsible for writing preconsensus events to disk. It differs from {@link PcesWriter} in that it
+ * This object is responsible for writing preconsensus events to disk. It
  * writes events to disk and then outputs them once it ensures they are durable.
  */
 public interface InlinePcesWriter {

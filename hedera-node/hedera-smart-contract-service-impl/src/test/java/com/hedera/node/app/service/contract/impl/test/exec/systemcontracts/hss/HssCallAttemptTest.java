@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Hss
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,6 +52,7 @@ class HssCallAttemptTest extends CallTestBase {
     void returnNullScheduleIfScheduleNotFound() {
         given(nativeOperations.getSchedule(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(null);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirectScheduleTxn(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HssCallAttempt(
                 HSS_CONTRACT_ID,

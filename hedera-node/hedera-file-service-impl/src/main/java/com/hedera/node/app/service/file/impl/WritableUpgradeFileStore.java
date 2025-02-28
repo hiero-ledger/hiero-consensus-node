@@ -97,6 +97,7 @@ public class WritableUpgradeFileStore extends ReadableUpgradeFileStoreImpl {
 
     @NonNull
     private WritableQueueState<ProtoBytes> getUpgradeState(@NonNull FileID fileID) {
-        return Objects.requireNonNull(states.getQueue(UPGRADE_DATA_KEY.formatted(fileID)));
+        final String stateKey = UPGRADE_DATA_KEY.formatted(fileID.shardNum(), fileID.realmNum(), fileID.fileNum());
+        return Objects.requireNonNull(states.getQueue(stateKey));
     }
 }

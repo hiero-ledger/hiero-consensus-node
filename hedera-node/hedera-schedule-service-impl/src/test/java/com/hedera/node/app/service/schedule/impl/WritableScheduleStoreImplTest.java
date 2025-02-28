@@ -51,8 +51,7 @@ class WritableScheduleStoreImplTest extends ScheduleTestBase {
     void verifyDeleteNonExistentScheduleThrows() {
         assertThatThrownBy(() -> writableSchedules.delete(ScheduleID.DEFAULT, testConsensusTime))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage(
-                        "Schedule to be deleted, ScheduleID[shardNum=0, realmNum=0, scheduleNum=0], not found in state.");
+                .hasMessage("Schedule to be deleted, " + ScheduleID.DEFAULT + ", not found in state.");
     }
 
     @Test
