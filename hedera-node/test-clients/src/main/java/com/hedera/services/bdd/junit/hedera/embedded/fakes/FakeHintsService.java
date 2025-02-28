@@ -65,6 +65,11 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void executeCrsWork(@NonNull final WritableHintsStore hintsStore, @NonNull final Instant now) {
+        delegate.executeCrsWork(hintsStore, now);
+    }
+
+    @Override
     public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
         delegate.initSigningForNextScheme(hintsStore);
     }

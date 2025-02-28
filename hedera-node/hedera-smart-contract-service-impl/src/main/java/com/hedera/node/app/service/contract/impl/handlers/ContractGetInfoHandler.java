@@ -36,6 +36,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -48,6 +49,7 @@ import javax.inject.Singleton;
 @Singleton
 public class ContractGetInfoHandler extends PaidQueryHandler {
     private static final long BYTES_PER_EVM_KEY_VALUE_PAIR = 64;
+    private final EntityIdFactory entityIdFactory;
 
     private final InstantSource instantSource;
 
@@ -55,8 +57,10 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
      * @param instantSource the source of the current instant
      */
     @Inject
-    public ContractGetInfoHandler(@NonNull final InstantSource instantSource) {
+    public ContractGetInfoHandler(
+            @NonNull final InstantSource instantSource, @NonNull final EntityIdFactory entityIdFactory) {
         this.instantSource = requireNonNull(instantSource);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
@@ -137,7 +141,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
         final var builder = ContractInfo.newBuilder()
                 .ledgerId(ledgerConfig.id())
                 .accountID(accountId)
-                .contractID(ContractID.newBuilder().contractNum(accountId.accountNumOrThrow()))
+                .contractID(entityIdFactory.newContractId(accountId.accountNumOrThrow()))
                 .deleted(contract.deleted())
                 .memo(contract.memo())
                 .adminKey(contract.keyOrThrow())
