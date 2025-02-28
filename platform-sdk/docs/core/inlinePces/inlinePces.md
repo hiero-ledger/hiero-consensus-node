@@ -21,17 +21,6 @@ is also considered to be a branch. Branching in the hashgraph is considered an a
 deterministically and the offending node punished accordingly, protecting the integrity of the hashgraph. Therefore,
 no honest node should ever branch.
 
-Today even honest nodes can accidentally branch (in practice the probability low but not unheard of). This happens
-when a node gossips a self-event and is shutdown before the event has been persisted to disk in the
-Pre-Consensus Event Stream (PCES). On restart, the PCES is replayed to populate the system with missing events,
-and other events that occurred since the node went down are retrieved via gossip. But there is a time between when
-the node starts up and sends a new self-event and when it receives its old self-event from other nodes. During this
-time, the node will build a new self-event on the same parent as the previous self-event (or with no self parent),
-causing a branch.
-
-This happens today most frequently on update boundaries when **every node** deterministically shuts down and then
-starts back up. In theory it can also happen when individual nodes are restarted.
-
 ---
 
 ### Architecture and/or Components
@@ -43,7 +32,7 @@ by the "Gossip System", events are handled by the "Event Intake System", persist
 ![consensusPlatformArch](consensusPlatformArch.png)
 
 In this case, we are only interested in _self events_. These are created by the `Event Creator System` and passed to
-the `Event Intake System`. Here, they are ordered and validated and sent to the `Preconsensus Recording System`. Here,
+the `Event Intake System`. Here, they are ordered and validated and sent to the `Pre-Consensus Recording System`. Here,
 they will be immediately persisted and then sent to the `Consensus System` and to the `Gossip System`.
 
 In the short term, we will not send any events to the gossip system before they pass through the PCES system. When we
