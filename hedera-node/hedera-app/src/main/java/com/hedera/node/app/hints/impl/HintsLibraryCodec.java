@@ -3,6 +3,7 @@ package com.hedera.node.app.hints.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -17,6 +18,10 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class HintsLibraryCodec {
+
+    private static final int CRS_LENGTH = 1456;
+    private static final int CONTRIBUTION_PROOF_LENGTH = 128;
+
     @Inject
     public HintsLibraryCodec() {
         // Dagger2
@@ -43,7 +48,15 @@ public class HintsLibraryCodec {
      */
     public CrsUpdateOutput decodeCrsUpdate(@NonNull final Bytes output) {
         requireNonNull(output);
-        throw new UnsupportedOperationException("Not implemented");
+        requireNonNull(output);
+        final int expectedLength = CRS_LENGTH + CONTRIBUTION_PROOF_LENGTH;
+        if (output.length() != expectedLength) {
+            throw new IllegalArgumentException(
+                    "Invalid output length: expected " + expectedLength + " but got " + output.length());
+        }
+        final Bytes crs = output.slice(0, CRS_LENGTH);
+        final Bytes proof = output.slice(CRS_LENGTH, CONTRIBUTION_PROOF_LENGTH);
+        return new CrsUpdateOutput(crs, proof);
     }
 
     /**
@@ -56,28 +69,6 @@ public class HintsLibraryCodec {
     public Bytes encodeHintsKey(@NonNull final Bytes blsPublicKey, @NonNull final Bytes hints) {
         requireNonNull(blsPublicKey);
         requireNonNull(hints);
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    /**
-     * Extracts the aggregation key from the given preprocessed keys.
-     *
-     * @param preprocessedKeys the preprocessed keys
-     * @return the aggregation key
-     */
-    public Bytes extractAggregationKey(@NonNull final Bytes preprocessedKeys) {
-        requireNonNull(preprocessedKeys);
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    /**
-     * Extracts the verification key from the given preprocessed keys.
-     *
-     * @param preprocessedKeys the preprocessed keys
-     * @return the verification key
-     */
-    public Bytes extractVerificationKey(@NonNull final Bytes preprocessedKeys) {
-        requireNonNull(preprocessedKeys);
         throw new UnsupportedOperationException("Not implemented");
     }
 
@@ -123,7 +114,7 @@ public class HintsLibraryCodec {
      * @param preprocessedKeys the preprocessed keys, encoded by the library
      * @return the decoded preprocessed keys
      */
-    public PreprocessedKeys decodePreprocessedKeys(@NonNull final Bytes preprocessedKeys) {
+    public PreprocessedKeys decodePreprocessedKeys(@NonNull final AggregationAndVerificationKeys preprocessedKeys) {
         requireNonNull(preprocessedKeys);
         throw new UnsupportedOperationException("Not implemented");
     }

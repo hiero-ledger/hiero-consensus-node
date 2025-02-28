@@ -23,6 +23,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.AbstractMap;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,12 +36,14 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Default implementation of {@link ProofController}.
  */
 public class ProofControllerImpl implements ProofController {
     private static final Comparator<ProofKey> PROOF_KEY_COMPARATOR = Comparator.comparingLong(ProofKey::nodeId);
+    private static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
     private final long selfId;
 
@@ -53,7 +56,6 @@ public class ProofControllerImpl implements ProofController {
     private final Executor executor;
     private final TssKeyPair schnorrKeyPair;
     private final HistoryLibrary library;
-    private final HistoryLibraryCodec codec;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
     private final Consumer<HistoryProof> proofConsumer;
@@ -95,9 +97,9 @@ public class ProofControllerImpl implements ProofController {
     /**
      * A party's verified signature on a new piece of {@code (address book hash, metadata)} history.
      *
-     * @param nodeId the node's id
+     * @param nodeId           the node's id
      * @param historySignature its history signature
-     * @param isValid whether the signature is valid
+     * @param isValid          whether the signature is valid
      */
     private record Verification(long nodeId, @NonNull HistorySignature historySignature, boolean isValid) {
         public @NonNull History history() {
@@ -109,7 +111,7 @@ public class ProofControllerImpl implements ProofController {
      * A summary of the signatures to be used in a proof.
      *
      * @param history the assembly with the signatures
-     * @param cutoff the time at which the signatures were sufficient
+     * @param cutoff  the time at which the signatures were sufficient
      */
     private record Signatures(@NonNull History history, @NonNull Instant cutoff) {}
 
@@ -121,7 +123,6 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final RosterTransitionWeights weights,
             @NonNull final Executor executor,
             @NonNull final HistoryLibrary library,
-            @NonNull final HistoryLibraryCodec codec,
             @NonNull final HistorySubmissions submissions,
             @NonNull final List<ProofKeyPublication> keyPublications,
             @NonNull final List<HistorySignaturePublication> signaturePublications,
@@ -129,7 +130,6 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final Consumer<HistoryProof> proofConsumer) {
         this.selfId = selfId;
         this.ledgerId = ledgerId;
-        this.codec = requireNonNull(codec);
         this.executor = requireNonNull(executor);
         this.library = requireNonNull(library);
         this.submissions = requireNonNull(submissions);
@@ -244,7 +244,8 @@ public class ProofControllerImpl implements ProofController {
                 proofConsumer.accept(proof);
                 if (ledgerId == null) {
                     requireNonNull(targetMetadata);
-                    final var encodedId = codec.encodeLedgerId(proof.sourceAddressBookHash(), targetMetadata);
+                    final var encodedId =
+                            encodeLedgerId(proof.sourceAddressBookHash().toByteArray(), targetMetadata.toByteArray());
                     historyStore.setLedgerId(encodedId);
                 }
             }
@@ -299,6 +300,7 @@ public class ProofControllerImpl implements ProofController {
 
     /**
      * If the given publication was for a node in the target roster, updates the target proof keys.
+     *
      * @param publication the publication
      */
     private void maybeUpdateForProofKey(@NonNull final ProofKeyPublication publication) {
@@ -316,12 +318,17 @@ public class ProofControllerImpl implements ProofController {
     private CompletableFuture<Void> startSigningFuture() {
         requireNonNull(targetMetadata);
         final var proofKeys = Map.copyOf(targetProofKeys);
+        final var targetWeights = weights.targetNodeWeights().values().stream()
+                .mapToLong(Long::longValue)
+                .toArray();
+        final var proofKeysArray = weights.targetNodeWeights().keySet().stream()
+                .map(id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+                .toArray(byte[][]::new);
         return CompletableFuture.runAsync(
                 () -> {
-                    final var targetBook = codec.encodeAddressBook(weights.targetNodeWeights(), proofKeys);
-                    final var targetHash = library.hashAddressBook(targetBook);
+                    final var targetHash = library.hashAddressBook(targetWeights, proofKeysArray);
                     final var history = new History(targetHash, targetMetadata);
-                    final var message = codec.encodeHistory(history);
+                    final var message = encodeHistory(history);
                     final var signature = library.signSchnorr(message, schnorrKeyPair.privateKey());
                     final var historySignature = new HistorySignature(history, signature);
                     submissions
@@ -351,18 +358,35 @@ public class ProofControllerImpl implements ProofController {
             sourceProofKeys = Map.copyOf(targetProofKeys);
         }
         final var targetMetadata = requireNonNull(this.targetMetadata);
+        final var sourceWeights = weights.sourceNodeWeights().values().stream()
+                .mapToLong(Long::longValue)
+                .toArray();
+        final var targetWeights = weights.targetNodeWeights().values().stream()
+                .mapToLong(Long::longValue)
+                .toArray();
+        final var sourceProofKeysArray = weights.sourceNodeWeights().keySet().stream()
+                .map(id -> sourceProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+                .toArray(byte[][]::new);
+        final var targetProofKeysArray = weights.targetNodeWeights().keySet().stream()
+                .map(id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+                .toArray(byte[][]::new);
         return CompletableFuture.runAsync(
                 () -> {
-                    final var sourceBook = codec.encodeAddressBook(weights.sourceNodeWeights(), sourceProofKeys);
-                    final var sourceHash = library.hashAddressBook(sourceBook);
-                    final var targetBook = codec.encodeAddressBook(weights.targetNodeWeights(), targetProofKeys);
-                    final var targetHash = library.hashAddressBook(targetBook);
+                    final var sourceHash = library.hashAddressBook(sourceWeights, sourceProofKeysArray);
+                    final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
+                    final var sourceSignatures = signatures.entrySet().stream()
+                            .map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue()))
+                            .collect(Collectors.toMap(
+                                    AbstractMap.SimpleImmutableEntry::getKey,
+                                    AbstractMap.SimpleImmutableEntry::getValue));
                     final var proof = library.proveChainOfTrust(
-                            Optional.ofNullable(ledgerId).orElseGet(() -> library.hashAddressBook(sourceBook)),
-                            sourceProof,
-                            sourceBook,
-                            signatures,
-                            targetHash,
+                            Optional.ofNullable(ledgerId).orElse(sourceHash),
+                            Optional.ofNullable(sourceProof).orElse(null),
+                            sourceWeights,
+                            sourceProofKeysArray,
+                            targetWeights,
+                            targetProofKeysArray,
+                            sourceSignatures,
                             targetMetadata);
                     final var metadataProof = HistoryProof.newBuilder()
                             .sourceAddressBookHash(sourceHash)
@@ -448,11 +472,26 @@ public class ProofControllerImpl implements ProofController {
             final long nodeId, @NonNull final HistorySignature historySignature) {
         return CompletableFuture.supplyAsync(
                 () -> {
-                    final var message = codec.encodeHistory(historySignature.historyOrThrow());
+                    final var message = encodeHistory(historySignature.historyOrThrow());
                     final var proofKey = requireNonNull(targetProofKeys.get(nodeId));
                     final var isValid = library.verifySchnorr(historySignature.signature(), proofKey, message);
                     return new Verification(nodeId, historySignature, isValid);
                 },
                 executor);
+    }
+
+    private @NonNull Bytes encodeLedgerId(
+            @NonNull final byte[] addressBookHash, @NonNull final byte[] snarkVerificationKey) {
+        requireNonNull(addressBookHash);
+        requireNonNull(snarkVerificationKey);
+        final byte[] arr = new byte[addressBookHash.length + snarkVerificationKey.length];
+        System.arraycopy(addressBookHash, 0, arr, 0, addressBookHash.length);
+        System.arraycopy(snarkVerificationKey, 0, arr, addressBookHash.length, snarkVerificationKey.length);
+        return Bytes.wrap(arr);
+    }
+
+    private @NonNull Bytes encodeHistory(@NonNull final History history) {
+        requireNonNull(history);
+        throw new UnsupportedOperationException("Not implemented");
     }
 }

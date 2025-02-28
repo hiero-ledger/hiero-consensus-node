@@ -43,11 +43,9 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HistoryLibrary library,
-            @NonNull final HistoryLibraryCodec codec,
             @NonNull final Configuration bootstrapConfig) {
         this.bootstrapConfig = requireNonNull(bootstrapConfig);
-        this.component =
-                DaggerHistoryServiceComponent.factory().create(library, codec, appContext, executor, metrics, this);
+        this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
     }
 
     @VisibleForTesting

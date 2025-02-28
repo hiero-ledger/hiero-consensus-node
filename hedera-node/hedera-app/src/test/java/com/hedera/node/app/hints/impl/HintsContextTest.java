@@ -33,6 +33,7 @@ class HintsContextTest {
             .hintsScheme(new HintsScheme(
                     PREPROCESSED_KEYS, List.of(A_NODE_PARTY_ID, B_NODE_PARTY_ID, C_NODE_PARTY_ID, D_NODE_PARTY_ID)))
             .build();
+    private static final Bytes CRS = Bytes.wrap("CRS");
 
     @Mock
     private HintsLibrary library;
@@ -80,8 +81,8 @@ class HintsContextTest {
                 .willReturn(goodKey);
         given(codec.extractPublicKey(AGGREGATION_KEY, D_NODE_PARTY_ID.partyId()))
                 .willReturn(goodKey);
-        given(library.verifyBls(signature, BLOCK_HASH, badKey)).willReturn(false);
-        given(library.verifyBls(signature, BLOCK_HASH, goodKey)).willReturn(true);
+        given(library.verifyBls(CRS, signature, BLOCK_HASH, badKey)).willReturn(false);
+        given(library.verifyBls(CRS, signature, BLOCK_HASH, goodKey)).willReturn(true);
         final long cWeight = 1L;
         final long dWeight = 2L;
         given(codec.extractTotalWeight(VERIFICATION_KEY)).willReturn(3 * (cWeight + dWeight));
@@ -91,7 +92,7 @@ class HintsContextTest {
                 C_NODE_PARTY_ID.partyId(), signature,
                 D_NODE_PARTY_ID.partyId(), signature);
         final var aggregateSignature = Bytes.wrap("AS");
-        given(library.aggregateSignatures(AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(aggregateSignature);
 
         subject.setConstruction(CONSTRUCTION);
@@ -99,17 +100,17 @@ class HintsContextTest {
         final var signing = subject.newSigning(BLOCK_HASH);
         final var future = signing.future();
 
-        signing.incorporate(CONSTRUCTION.constructionId() + 1, 0L, signature);
+        signing.incorporate(CRS, CONSTRUCTION.constructionId() + 1, 0L, signature);
         assertFalse(future.isDone());
-        signing.incorporate(CONSTRUCTION.constructionId(), Long.MAX_VALUE, signature);
+        signing.incorporate(CRS, CONSTRUCTION.constructionId(), Long.MAX_VALUE, signature);
         assertFalse(future.isDone());
-        signing.incorporate(CONSTRUCTION.constructionId(), A_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporate(CRS, CONSTRUCTION.constructionId(), A_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
-        signing.incorporate(CONSTRUCTION.constructionId(), B_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporate(CRS, CONSTRUCTION.constructionId(), B_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
-        signing.incorporate(CONSTRUCTION.constructionId(), C_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporate(CRS, CONSTRUCTION.constructionId(), C_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
-        signing.incorporate(CONSTRUCTION.constructionId(), D_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporate(CRS, CONSTRUCTION.constructionId(), D_NODE_PARTY_ID.nodeId(), signature);
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
     }
