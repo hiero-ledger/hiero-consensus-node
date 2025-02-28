@@ -1,7 +1,7 @@
 # Platform Building
 
 In order for the platform to be created and started, so that it can start emitting or receiving events, it must be built.
-The main component that holds the platform together is the `SwirldsPlatform`.
+Currently, the main class that holds the platform together is the `SwirldsPlatform`.
 
 To be able to create it, we use several helper classes, builders and a wiring platform that describes the communication between
 all the needed components. Basically the platform can be summarized as a set of components that are connected to each other
@@ -17,26 +17,9 @@ Let's describe the different helper classes and builders used to create the `Swi
 Before we create the actual platform, we need some pieces of data as prerequisites. These are called building blocks.
 They can vary based on the specific application that the platform is built for. These blocks are passed from the outside
 using the constructor and the builder methods of the `PlatformBuilder`. In this way we can tailor the platform structure
-based on our use case. The building blocks we currently have are:
+based on our use case.
 
-- appName - the name of the application, currently used for deciding where to store states on disk
-- swirldName - the name of the swirld, currently used for deciding where to store states on disk
-- softwareVersion - the software version of the application
-- initialState - the genesis state supplied by application
-- stateLifecycles - the state lifecycle events handler defined in the specific application
-- selfId - the ID of the node that constructs the platform
-- consensusEventStreamName - a part of the name of the directory where the consensus event stream is written
-- platformStateFacade - the facade to access the platform state using specific provider of SoftwareVersion by the app
-- configuration - specific configuration to use to build the platform
-- preconsensusEventConsumer - registers a callback that is called for each valid non-ancient preconsensus event in topological order
-- snapshotOverrideConsumer - registers a callback that is called when the consensus snapshot is specified by an out of band operation
-- staleEventConsumer - register a callback that is called when a stale self event is detected
-- systemTransactionEncoder - register a callback that is called when the platform needs to encode a system transaction
-  using app specific encoding logic
-- keysAndCerts - provide the cryptographic keys to use for this node
-- model - specific WiringModel to use for linking the different components
-- randomBuilder - provide the source of non-cryptographic randomness for this platform
-- platformContext - provide the  platform context for this platform
+![](building-blocks.png)
 
 As we can see all of these building blocks are app specific and need to be provided externally.
 
@@ -56,18 +39,18 @@ An example for building a component using the `PlatformBuildingBlocks` is the fo
 
 ```java
 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-        blocks.platformContext(),
-        blocks.initialPcesFiles(),
-        blocks.selfId(),
-        blocks.initialState().get().getRound());
-        inlinePcesWriter = new DefaultInlinePcesWriter(blocks.platformContext(),
-        preconsensusEventFileManager, blocks.selfId());
+            blocks.platformContext(),
+            blocks.initialPcesFiles(),
+            blocks.selfId(),
+            blocks.initialState().get().getRound());
+inlinePcesWriter = new DefaultInlinePcesWriter(
+            blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
 ```
 
-The `PlatformComponentBuilder` sometimes also creates additional components used to initialize the main components. In this
+The `PlatformComponentBuilder` sometimes also creates additional helper class, used to initialize the main components. In this
 case it's the `PcesFileManager`.
 
-Another examples are:
+Other examples are:
 
 ```java
 1. transactionResubmitter = new DefaultTransactionResubmitter(blocks.platformContext());
@@ -76,23 +59,21 @@ Another examples are:
 
 3. gossip = new SyncGossip(
         blocks.platformContext(),
-                        AdHocThreadManager.getStaticThreadManager(),
-                        blocks.keysAndCerts(),
-                        blocks.rosterHistory().getCurrentRoster(),
-                        blocks.selfId(),
-                        blocks.appVersion(),
-                        blocks.swirldStateManager(),
-                        () -> blocks.getLatestCompleteStateReference().get().get(),
-x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-state -> blocks.loadReconnectStateReference().get().accept(state),
-                        () -> blocks.clearAllPipelinesForReconnectReference()
-                                .get()
-                                .run(),
-                        blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
+        AdHocThreadManager.getStaticThreadManager(),
+        blocks.keysAndCerts(),
+        blocks.rosterHistory().getCurrentRoster(),
+        blocks.selfId(),
+        blocks.appVersion(),
+        blocks.swirldStateManager(),
+        () -> blocks.getLatestCompleteStateReference().get().get(),
+        x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
+        state -> blocks.loadReconnectStateReference().get().accept(state),
+        () -> blocks.clearAllPipelinesForReconnectReference()
+        .get()
+        .run(),
+        blocks.intakeEventCounter(),
+        blocks.platformStateFacade());
 ```
-
-It's obvious how the components use these building blocks to be initialized.
 
 Another important task of the `PlatformComponentBuilder` is to initialize the main platform class - `SwirldsPlatform`.
 It's passed in the constructor of the `SwirldsPlatform` and is used to feed it with the building blocks, so that
@@ -141,11 +122,12 @@ also builds the `PlatformWiring` and the `PlatformBuildingBlocks`, which are con
 
 The main benefits of this builder is setting specific app details all of which become part of the `PlatformBuildingBlocks` record.
 
-The use of the `PlatformBuilder` ends with the construction of the `PlatformComponentBuilder`. It might be clearer to
-move the `SwirldsPlatform` creation logic inside the `PlatformBuilder` itself. And/or even merging the 2 builders
-and have a common one.
+The use of the `PlatformBuilder` ends with the construction of the `PlatformComponentBuilder`. Additionally,
+there are additional construction logic in `SwirldsPlatform`. It might be clearer to move this logic
+inside the `PlatformBuilder` or/and `PlatformComponentBuilder` and get rid of the `SwirldsPlatform`.
+And after that even merging the 2 builders and have a common one.
 
-The reason why we have a separate PlatformBuilder is due to the need of a given application to construct their own specific
+The reason why we have a separate `PlatformBuilder` is due to the need of a given application to construct their own specific
 Platform instance. The main production one is built inside `ServicesMain`, where the main consensus node class called Hedera
 is created with production specific configs, state instance, etc. Currently, however, we support multiple demo and test related
 Hedera apps, which are constructed by the `Browser` class, which is deprecated. It needs to construct a specific
