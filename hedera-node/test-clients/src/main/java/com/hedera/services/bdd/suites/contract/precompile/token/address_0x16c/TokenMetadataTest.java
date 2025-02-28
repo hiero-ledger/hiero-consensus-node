@@ -10,7 +10,6 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
