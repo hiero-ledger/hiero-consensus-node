@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.RandomUtils;
@@ -22,6 +23,7 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.component.framework.TestWiringModelBuilder;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.ObjectCounter;
+import com.swirlds.component.framework.counters.StandardObjectCounter;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
@@ -37,6 +39,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
@@ -1210,27 +1213,44 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void exceptionHandlingTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final WiringModel model = WiringModelBuilder.create(platformContext).build();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
+        final AtomicBoolean handlerExecutedFlag = new AtomicBoolean(false);
+        final AtomicLong handlerExecutedNanoTime = new AtomicLong();
         final Consumer<Integer> handler = x -> {
             if (x == 50) {
+                handlerExecutedFlag.set(true);
+                handlerExecutedNanoTime.set(System.nanoTime());
                 throw new IllegalStateException("intentional");
             }
             wireValue.set(hash32(wireValue.get(), x));
         };
 
         final AtomicInteger exceptionCount = new AtomicInteger();
+        final AtomicLong uncaughtExceptionHandlerNanoTime = new AtomicLong();
 
+        final StandardObjectCounter offRamp = new StandardObjectCounter(Duration.ofNanos(10));
+        final StandardObjectCounter onRamp = new StandardObjectCounter(Duration.ofNanos(10));
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUncaughtExceptionHandler((t, e) -> exceptionCount.incrementAndGet())
+                .withUncaughtExceptionHandler((t, e) -> {
+                    uncaughtExceptionHandlerNanoTime.set(System.nanoTime());
+                    exceptionCount.incrementAndGet();
+                })
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
+                .withUnhandledTaskMetricEnabled(true)
+                .withBusyFractionMetricsEnabled(true)
+                .withOnRamp(onRamp)
+                .withOffRamp(offRamp)
                 .build();
+
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
-        assertEquals(-1, taskScheduler.getUnprocessedTaskCount());
+        assertEquals(0, taskScheduler.getUnprocessedTaskCount());
         assertEquals("test", taskScheduler.getName());
 
         model.start();
@@ -1244,7 +1264,26 @@ class SequentialTaskSchedulerTests {
         }
 
         assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEquals(1, exceptionCount.get());
+        final int exceptionCountValue = exceptionCount.get();
+        if (exceptionCountValue != 1) {
+            var unhadledTaskCount = platformContext.getMetrics().getValue("platform", "test_unhandled_task_count");
+            var busyFraction = platformContext.getMetrics().getValue("platform", "test_busy_fraction");
+            String debugInfo = ("The throwing task %s executed at:%d(ns)."
+                            + " UncaughtExceptions:(duringCheck:%d;now:%d)"
+                            + " - UncaughtHandler executed at:%d(ns)"
+                            + " - UnhadledTaskCount:%s BusyFraction:%s on/offRamp:%d/%d")
+                    .formatted(
+                            handlerExecutedFlag.get() ? "was" : "WAS NOT",
+                            handlerExecutedNanoTime.get(),
+                            exceptionCountValue,
+                            exceptionCount.get(),
+                            uncaughtExceptionHandlerNanoTime.get(),
+                            unhadledTaskCount,
+                            busyFraction,
+                            onRamp.getCount(),
+                            offRamp.getCount());
+            fail(debugInfo);
+        }
 
         model.stop();
     }
