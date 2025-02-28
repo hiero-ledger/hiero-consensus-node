@@ -212,9 +212,13 @@ class SerializationTest extends MerkleTestBase {
                 .withTime(new FakeTime())
                 .build();
 
-        originalTree.init(context.getTime(), context.getMetrics(), context.getMerkleCryptography(), () -> TEST_PLATFORM_STATE_FACADE
-                .consensusSnapshotOf(originalTree)
-                .round());
+        originalTree.init(
+                context.getTime(),
+                context.getMetrics(),
+                context.getMerkleCryptography(),
+                () -> TEST_PLATFORM_STATE_FACADE
+                        .consensusSnapshotOf(originalTree)
+                        .round());
 
         // prepare the tree and create a snapshot
         originalTree.copy();
