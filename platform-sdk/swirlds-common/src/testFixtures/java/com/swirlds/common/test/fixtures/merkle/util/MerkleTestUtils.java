@@ -15,7 +15,6 @@ import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
@@ -74,7 +73,6 @@ public final class MerkleTestUtils {
     }
 
     private static final Metrics metrics = createMetrics();
-    private static final MerkleCryptography MERKLE_CRYPTOGRAPHY = TestMerkleCryptoFactory.getInstance();
 
     private MerkleTestUtils() {}
 
@@ -1041,7 +1039,7 @@ public final class MerkleTestUtils {
                                 streams.getLearnerOutput(),
                                 startingTree,
                                 streams::disconnect,
-                                MERKLE_CRYPTOGRAPHY,
+                                TestMerkleCryptoFactory.getInstance(),
                                 reconnectConfig,
                                 metrics) {
 
@@ -1286,10 +1284,10 @@ public final class MerkleTestUtils {
         System.out.println("desired: " + desiredTree);
 
         if (startingTree != null && startingTree.getHash() == null) {
-            MERKLE_CRYPTOGRAPHY.digestTreeSync(startingTree);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
         }
         if (desiredTree != null && desiredTree.getHash() == null) {
-            MERKLE_CRYPTOGRAPHY.digestTreeSync(desiredTree);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(desiredTree);
         }
         return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
     }

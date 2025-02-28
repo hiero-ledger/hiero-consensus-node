@@ -12,7 +12,6 @@ import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
@@ -33,8 +32,6 @@ import java.util.function.Function;
  * A utility class to support benchmarks for reconnect.
  */
 public class MerkleBenchmarkUtils {
-
-    private static final MerkleCryptography MERKLE_CRYPTOGRAPHY = TestMerkleCryptoFactory.getInstance();
 
     public static MerkleInternal createTreeForMaps(final List<VirtualMap<BenchmarkKey, BenchmarkValue>> maps) {
         final BenchmarkMerkleInternal tree = new BenchmarkMerkleInternal("root");
@@ -62,10 +59,10 @@ public class MerkleBenchmarkUtils {
         System.out.println("desired: " + desiredTree);
 
         if (startingTree != null && startingTree.getHash() == null) {
-            MERKLE_CRYPTOGRAPHY.digestTreeSync(startingTree);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
         }
         if (desiredTree != null && desiredTree.getHash() == null) {
-            MERKLE_CRYPTOGRAPHY.digestTreeSync(desiredTree);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(desiredTree);
         }
         return testSynchronization(
                 startingTree,
@@ -116,7 +113,7 @@ public class MerkleBenchmarkUtils {
                                 e.printStackTrace();
                             }
                         },
-                        MERKLE_CRYPTOGRAPHY,
+                        TestMerkleCryptoFactory.getInstance(),
                         reconnectConfig,
                         BenchmarkMetrics.getMetrics());
                 teacher = new TeachingSynchronizer(
