@@ -352,6 +352,69 @@ public record EthTxData(
                 s);
     }
 
+    @VisibleForTesting
+    public EthTxData replaceRecId(final int newRecId) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                newRecId,
+                v,
+                r,
+                s);
+    }
+
+    @VisibleForTesting
+    public EthTxData replaceR(final byte[] newR) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                recId,
+                v,
+                newR,
+                s);
+    }
+
+    @VisibleForTesting
+    public EthTxData replaceS(final byte[] newS) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                recId,
+                v,
+                r,
+                newS);
+    }
+
     /**
      * Encodes the transaction data into a EthTxData according to legacy RLP format.
      *
