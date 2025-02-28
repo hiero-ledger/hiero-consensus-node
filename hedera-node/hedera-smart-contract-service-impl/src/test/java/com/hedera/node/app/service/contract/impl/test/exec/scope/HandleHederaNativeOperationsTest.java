@@ -152,7 +152,7 @@ class HandleHederaNativeOperationsTest {
     void resolveAliasReturnsMissingNumIfNotPresent() {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS)));
+        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS)));
     }
 
     @Test
@@ -160,8 +160,8 @@ class HandleHederaNativeOperationsTest {
         final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(accountStore.getAccountIDByAlias(alias)).willReturn(NON_SYSTEM_ACCOUNT_ID);
-        assertEquals(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), subject.resolveAlias(alias));
+        given(accountStore.getAccountIDByAlias(0, 0, alias)).willReturn(NON_SYSTEM_ACCOUNT_ID);
+        assertEquals(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), subject.resolveAlias(0, 0, alias));
     }
 
     @Test
@@ -210,7 +210,9 @@ class HandleHederaNativeOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(accountStore.getAccountIDByAlias(CANONICAL_ALIAS)).willReturn(A_NEW_ACCOUNT_ID);
+        given(accountStore.getAccountIDByAlias(0, 0, CANONICAL_ALIAS)).willReturn(A_NEW_ACCOUNT_ID);
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create().getOrCreateConfig());
 
         subject.finalizeHollowAccountAsContract(CANONICAL_ALIAS);
 

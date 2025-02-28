@@ -237,8 +237,10 @@ public class ClassicTransfersCall extends AbstractCall {
             for (final var unitAdjust : unitAdjusts) {
                 if (unitAdjust.amount() > 0
                         && unitAdjust.accountIDOrElse(AccountID.DEFAULT).hasAlias()) {
+                    final var accountId = unitAdjust.accountIDOrThrow();
                     final var alias = unitAdjust.accountIDOrThrow().aliasOrThrow();
-                    final var extantAccount = extantAccounts.getAccountIDByAlias(alias);
+                    final var extantAccount =
+                            extantAccounts.getAccountIDByAlias(accountId.shardNum(), accountId.realmNum(), alias);
                     if (extantAccount == null) {
                         aliasesToLazyCreate.add(alias);
                     }
@@ -248,8 +250,10 @@ public class ClassicTransfersCall extends AbstractCall {
             minimumTinycentPrice += nftTransfers.size() * baseNftTransferTinyCentsPrice;
             for (final var nftTransfer : nftTransfers) {
                 if (nftTransfer.receiverAccountIDOrElse(AccountID.DEFAULT).hasAlias()) {
-                    final var alias = nftTransfer.receiverAccountIDOrThrow().aliasOrThrow();
-                    final var extantAccount = extantAccounts.getAccountIDByAlias(alias);
+                    final var receiverAccountId = nftTransfer.receiverAccountIDOrThrow();
+                    final var alias = receiverAccountId.aliasOrThrow();
+                    final var extantAccount = extantAccounts.getAccountIDByAlias(
+                            receiverAccountId.shardNum(), receiverAccountId.realmNum(), alias);
                     if (extantAccount == null) {
                         aliasesToLazyCreate.add(alias);
                     }
