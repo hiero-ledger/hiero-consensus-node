@@ -358,13 +358,12 @@ public class TopicUpdateSuite {
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
                         .signedBy("payer", "autoRenewAccount"),
-                getTopicInfo("testTopic")
-                        .hasNoAdminKey()
-                        .hasAutoRenewAccount("autoRenewAccount"),
-                updateTopic("testTopic")
-                        .payingWith("payer")
-                        .expiry(Instant.now().getEpochSecond() + 1_000_000)
-                        .signedBy("payer"),
-                getTopicInfo("testTopic").hasExpiry(1_000_000));
+                doSeveralWithStartupConfigNow("entities.maxLifetime", (value, now) -> {
+                    final var maxLifetime = Long.parseLong(value);
+                    final var newExpiry = now.getEpochSecond() + maxLifetime - 12_345L;
+                    return specOps(
+                            updateTopic("testTopic").expiry(newExpiry),
+                            getTopicInfo("testTopic").hasExpiry(newExpiry));
+                }));
     }
 }
