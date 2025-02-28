@@ -14,6 +14,7 @@ public class TestTags {
     public static final String RESTART = "RESTART";
     public static final String ND_RECONNECT = "ND_RECONNECT";
     public static final String UPGRADE = "UPGRADE";
+    public static final String ISS = "ISS";
     /**
      * Tags a embedded tests run as part of the default {@code Test} to provide efficient
      * integration tests of the app workflows (e.g., ingest, pre-handle, handle) and services.

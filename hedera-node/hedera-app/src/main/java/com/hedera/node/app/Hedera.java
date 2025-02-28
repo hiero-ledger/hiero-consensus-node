@@ -596,6 +596,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     daggerApp.blockNodeConnectionManager().shutdown();
                 }
+
+                // Wait for the block stream to close any pending or current blocks–-we may need them for triage
+                blockStreamManager().awaitFatalShutdown(java.time.Duration.ofSeconds(30));
             }
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
                 // Nothing to do here, just enumerate for completeness

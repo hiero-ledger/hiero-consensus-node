@@ -81,6 +81,7 @@ val prCheckTags =
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
+        "hapiTestIss" to "ISS",
         "hapiTestMisc" to
             "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING)",
     )
@@ -93,7 +94,8 @@ val prCheckStartPorts =
         "hapiTestSmartContract" to "29000",
         "hapiTestNDReconnect" to "30000",
         "hapiTestTimeConsuming" to "31000",
-        "hapiTestMisc" to "32000",
+        "hapiTestIss" to "32000",
+        "hapiTestMisc" to "33000",
     )
 
 tasks {
@@ -114,6 +116,8 @@ tasks.register<Test>("testSubprocess") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE)"
+            // We don't want to run typical stream or log validation for an ISS case
+            else if (ciTagExpression.contains("ISS")) "${ciTagExpression}&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE)"
         )
     }
