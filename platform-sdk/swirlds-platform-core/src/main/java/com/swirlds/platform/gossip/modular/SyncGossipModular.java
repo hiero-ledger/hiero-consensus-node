@@ -151,7 +151,7 @@ public class SyncGossipModular implements Gossip {
         this.controller = new SyncGossipController(intakeEventCounter, sharedState);
 
         final List<Protocol> protocols = ImmutableList.of(
-                HeartbeatProtocol.create(platformContext, sharedState),
+                HeartbeatProtocol.create(platformContext, sharedState.networkMetrics()),
                 ReconnectProtocol.create(
                         platformContext,
                         sharedState,
