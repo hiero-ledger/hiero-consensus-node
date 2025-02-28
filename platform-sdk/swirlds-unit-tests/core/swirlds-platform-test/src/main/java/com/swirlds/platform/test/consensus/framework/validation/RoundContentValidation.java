@@ -14,6 +14,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * This class provides a set of static methods that validate the list of ConsensusRounds
+ * as well as the ConsensusRound internal fields coming from multiple nodes.
+ *
+ */
 public class RoundContentValidation {
     public static void validateRounds(final List<ConsensusRound> output1, final List<ConsensusRound> output2) {
         validateIterableRounds(output1.iterator(), output2.iterator());

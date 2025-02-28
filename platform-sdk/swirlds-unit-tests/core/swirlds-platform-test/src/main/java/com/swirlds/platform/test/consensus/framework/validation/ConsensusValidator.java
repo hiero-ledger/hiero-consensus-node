@@ -7,11 +7,22 @@ import static com.swirlds.platform.test.consensus.framework.validation.Consensus
 import static com.swirlds.platform.test.consensus.framework.validation.ConsensusValidator.ConsensusValidationType.INPUTS_ARE_SAME;
 import static com.swirlds.platform.test.consensus.framework.validation.ConsensusValidator.ConsensusValidationType.RATIOS;
 
+import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.test.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * This is a specific validator for consensus related tests. It allows defining custom validations related to
+ * {@link ConsensusOutput} that are specific objects used in ConsensusTests or validations
+ * related to {@link ConsensusRound} that are commonly used in ConsensusTests and TurtleTests.
+ *
+ * Each custom validation should be defined with an enum value and be added in the suitable map structure holding
+ * entries of common validations.
+ *
+ * */
 public class ConsensusValidator {
 
     private final Map<ConsensusValidationType, ConsensusOutputValidation> consensusOutputValidationsMap =
