@@ -7,11 +7,15 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.EmptyWritableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -36,12 +40,15 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * A useful test double for {@link State}. Works together with {@link MapReadableStates} and other fixtures.
  */
-public class FakeState implements State {
+@ConstructableIgnored
+public class FakeState implements MerkleNodeState {
     // Key is Service, value is Map of state name to HashMap or List or Object (depending on state type)
     private final Map<String, Map<String, Object>> states = new ConcurrentHashMap<>();
     private final Map<String, ReadableStates> readableStates = new ConcurrentHashMap<>();
@@ -53,6 +60,7 @@ public class FakeState implements State {
 
     /**
      * Exposes the underlying states for direct manipulation in tests.
+     *
      * @return the states
      */
     public Map<String, Map<String, Object>> getStates() {
@@ -79,7 +87,7 @@ public class FakeState implements State {
      * Removes the state with the given key for the service with the given name.
      *
      * @param serviceName the name of the service
-     * @param stateKey the key of the state
+     * @param stateKey    the key of the state
      */
     public void removeServiceState(@NonNull final String serviceName, @NonNull final String stateKey) {
         requireNonNull(serviceName);
@@ -254,5 +262,21 @@ public class FakeState implements State {
     @Override
     public void setHash(Hash hash) {
         // no-op
+    }
+
+    @Override
+    public @NonNull MerkleNodeState copy() {
+        return this;
+    }
+
+    @Override
+    public <T extends MerkleNode> void putServiceStateIfAbsent(
+            @NonNull StateMetadata<?, ?> md, @NonNull Supplier<T> nodeSupplier, @NonNull Consumer<T> nodeInitializer) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void unregisterService(@NonNull String serviceName) {
+        throw new UnsupportedOperationException();
     }
 }
