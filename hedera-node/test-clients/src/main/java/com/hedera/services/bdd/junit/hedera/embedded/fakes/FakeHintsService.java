@@ -22,12 +22,11 @@ import java.util.concurrent.CompletableFuture;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
-    private final HintsLibraryImpl operations = new HintsLibraryImpl();
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
     public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
         delegate = new HintsServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, operations, bootstrapConfig);
+                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HintsLibraryImpl(), bootstrapConfig);
     }
 
     @Override
