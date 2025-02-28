@@ -101,11 +101,7 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
     private static Preparer createPreparerForEC(
             @NonNull final Bytes signedBytes, @NonNull final MessageType messageType) {
         return switch (messageType) {
-            case RAW -> {
-                final var bytes = new byte[(int) signedBytes.length()];
-                signedBytes.getBytes(0, bytes, 0, bytes.length);
-                yield new Preparer(Bytes.wrap(MiscCryptoUtils.keccak256DigestOf(bytes)), SignatureType.ECDSA_SECP256K1);
-            }
+            case RAW -> new Preparer(MiscCryptoUtils.keccak256DigestOf(signedBytes), SignatureType.ECDSA_SECP256K1);
             case KECCAK_256_HASH -> new Preparer(signedBytes, SignatureType.ECDSA_SECP256K1);
         };
     }
