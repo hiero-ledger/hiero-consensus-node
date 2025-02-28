@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,15 @@ import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
  */
 public final class Signing {
 
+    public static EthTxData signMessage(EthTxData ethTx, byte[] privateKey, boolean flipRecId) {
+        return signMessageInternal(ethTx, privateKey, flipRecId);
+    }
+
     public static EthTxData signMessage(EthTxData ethTx, byte[] privateKey) {
+        return signMessageInternal(ethTx, privateKey, false);
+    }
+
+    private static EthTxData signMessageInternal(EthTxData ethTx, byte[] privateKey, boolean flipRecId) {
         byte[] signableMessage = EthTxSigs.calculateSignableMessage(ethTx);
         final LibSecp256k1.secp256k1_ecdsa_recoverable_signature signature =
                 new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
@@ -79,7 +87,7 @@ public final class Signing {
                 ethTx.value(),
                 ethTx.callData(),
                 ethTx.accessList(),
-                (byte) recId.getValue(),
+                flipRecId ? ((byte) recId.getValue()) ^ 1 : (byte) recId.getValue(),
                 val == null ? null : val.toByteArray(),
                 r,
                 s);
