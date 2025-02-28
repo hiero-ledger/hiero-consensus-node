@@ -19,7 +19,6 @@ dependencies {
     implementation(project(":StressTestingTool"))
     // projects that only contains tests (and no production code)
     implementation(project(":test-clients"))
-    implementation(project(":swirlds-platform-test"))
 }
 
 tasks.testCodeCoverageReport {

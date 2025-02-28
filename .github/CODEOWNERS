@@ -10,7 +10,6 @@
 /example-apps/**/module-info.java               @hiero-ledger/hcn-tools-and-libs-codeowners
 /example-apps/swirlds-platform-base-example/    @hiero-ledger/hcn-tools-and-libs-codeowners
 
-
 #########################
 ##### HAPI protobuf #####
 #########################
@@ -82,8 +81,6 @@
 /platform-sdk/swirlds-metrics-*/                    @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/swirlds-platform-core/                @hiero-ledger/hcn-consensus-codeowners
 /platform-sdk/swirlds-state-*/                      @hiero-ledger/hcn-tools-and-libs-codeowners
-/platform-sdk/swirlds-unit-tests/common/            @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners
-/platform-sdk/swirlds-unit-tests/core/              @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/swirlds-unit-tests/structures/        @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/swirlds-virtualmap/                   @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/**/module-info.java                   @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners
