@@ -140,6 +140,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -812,6 +813,38 @@ public class CryptoTransferSuite {
                 getAccountInfo(ANOTHER_RECEIVER)
                         .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(50))
                         .has(accountWith().balance(ONE_HBAR)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> autoCreationWithBothFormsOfSameLogicalAutoCreationImpliesRepeatedAccounts() {
+        return hapiTest(
+                newKeyNamed("ecdsaKey").shape(SECP_256K1_SHAPE),
+                cryptoTransfer((spec, builder) -> {
+                            final var key = spec.registry().getKey("ecdsaKey");
+                            final var keyAlias = key.toByteString();
+                            final var evmAddress = ByteString.copyFrom(recoverAddressFromPubKey(
+                                    key.getECDSASecp256K1().toByteArray()));
+                            builder.setTransfers(TransferList.newBuilder()
+                                    .addAccountAmounts(AccountAmount.newBuilder()
+                                            .setAccountID(AccountID.newBuilder()
+                                                    .setAccountNum(2L)
+                                                    .build())
+                                            .setAmount(-2 * ONE_HBAR))
+                                    .addAccountAmounts(AccountAmount.newBuilder()
+                                            .setAccountID(AccountID.newBuilder()
+                                                    .setAlias(evmAddress)
+                                                    .build())
+                                            .setAmount(+ONE_HBAR))
+                                    .addAccountAmounts(AccountAmount.newBuilder()
+                                            .setAccountID(AccountID.newBuilder()
+                                                    .setAlias(keyAlias)
+                                                    .build())
+                                            .setAmount(+ONE_HBAR))
+                                    .build());
+                        })
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
     }
 
     @HapiTest
