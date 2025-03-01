@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_NONCE;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.resourceExhaustionFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
@@ -23,6 +24,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.ProxyLambdaAccount;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
@@ -34,9 +36,9 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
- * Modeled after the Besu {@code MainnetTransactionProcessor}, so that all four HAPI
- * contract operations ({@code ContractCall}, {@code ContractCreate}, {@code EthereumTransaction},
- * {@code ContractCallLocal}) can reduce to a single code path.
+ * Modeled after the Besu {@code MainnetTransactionProcessor}, so that all four HAPI contract operations
+ * ({@code ContractCall}, {@code ContractCreate}, {@code EthereumTransaction}, {@code ContractCallLocal}) can reduce
+ * to a single code path.
  */
 public class TransactionProcessor {
     private final FrameBuilder frameBuilder;
@@ -155,7 +157,7 @@ public class TransactionProcessor {
         } catch (HandleException e) {
             throw e;
         } catch (Exception e) {
-            throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+            throw new HandleException(INVALID_TRANSACTION_BODY);
         }
     }
 
@@ -169,7 +171,6 @@ public class TransactionProcessor {
         try {
             updater.commit();
         } catch (ResourceExhaustedException e) {
-
             // Behind the scenes there is only one savepoint stack; so we need to revert the root updater
             // before creating a new fees-only updater (even though from a Besu perspective, these two
             // updaters appear independent, they are not)
@@ -221,7 +222,7 @@ public class TransactionProcessor {
         validateTrue(sender != null, INVALID_ACCOUNT_ID);
         HederaEvmAccount relayer = null;
         if (transaction.isEthereumTransaction()) {
-            relayer = updater.getHederaAccount(requireNonNull(transaction.relayerId()));
+            relayer = updater.getHederaAccount(transaction.relayerIdOrThrow());
             validateTrue(relayer != null, INVALID_ACCOUNT_ID);
         }
         final InvolvedParties parties;
@@ -235,6 +236,8 @@ public class TransactionProcessor {
                 to = updater.setupTopLevelCreate(op);
             }
             parties = new InvolvedParties(sender, relayer, to);
+        } else if (transaction.isHookDispatch()) {
+            parties = new InvolvedParties(sender, null, ProxyLambdaAccount.HHS_EVM_ADDRESS);
         } else {
             final var to = updater.getHederaAccount(transaction.contractIdOrThrow());
             if (contractNotRequired(to, config)) {

@@ -40,16 +40,21 @@ import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.key.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.key.KeyUtils.isValid;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleException.validateSuccess;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookInstallerId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.hooks.HookInstallation;
+import com.hedera.hapi.node.lambda.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
@@ -62,6 +67,7 @@ import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -277,6 +283,21 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 }
                 accountStore.putAndIncrementCountAlias(alias, createdAccountID);
             }
+        }
+
+        long nextIndex = 0;
+        for (final var install : op.hookInstalls()) {
+            final var installerId =
+                    HookInstallerId.newBuilder().accountId(createdAccountID).build();
+            final var body = TransactionBody.newBuilder()
+                    .evmHookDispatch(HookDispatchTransactionBody.newBuilder()
+                            .installation(new HookInstallation(installerId, install, nextIndex))
+                            .build())
+                    .build();
+            final var dispatchBuilder = context.dispatch(DispatchOptions.stepDispatch(
+                    context.payer(), body, StreamBuilder.class, NOOP_TRANSACTION_CUSTOMIZER));
+            validateSuccess(dispatchBuilder.status());
+            nextIndex = install.index();
         }
     }
 

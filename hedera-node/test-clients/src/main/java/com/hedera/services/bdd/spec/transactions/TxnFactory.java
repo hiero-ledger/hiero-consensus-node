@@ -32,6 +32,7 @@ import com.hederahashgraph.api.proto.java.FileCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.FileDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.FileUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.FreezeTransactionBody;
+import com.hederahashgraph.api.proto.java.LambdaSStoreTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
@@ -455,6 +456,10 @@ public class TxnFactory {
     }
 
     public Consumer<TokenAirdropTransactionBody.Builder> defaultDefTokenAirdropTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<LambdaSStoreTransactionBody.Builder> defaultDefLambdaSStoreTransactionBody() {
         return builder -> {};
     }
 

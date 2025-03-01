@@ -20,6 +20,7 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 import "services/duration.proto";
+import "services/hook_types.proto";
 import "services/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -216,4 +217,13 @@ message CryptoUpdateTransactionBody {
      */
     google.protobuf.BoolValue decline_reward = 18;
 
+    /**
+     * The hooks to install on the account.
+     */
+    repeated HookInstall hook_installs = 19;
+
+    /**
+     * The indexes of the hooks to uninstall from the account.
+     */
+    repeated uint64 hook_indexes_to_uninstall = 20;
 }
