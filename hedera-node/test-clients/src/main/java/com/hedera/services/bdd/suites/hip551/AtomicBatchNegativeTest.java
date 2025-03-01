@@ -50,7 +50,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -62,10 +61,9 @@ import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import java.time.Instant;
 import java.util.stream.Stream;
-
-import com.hederahashgraph.api.proto.java.Timestamp;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -321,7 +319,9 @@ public class AtomicBatchNegativeTest {
                             .txnId(innerTxnId1)
                             .payingWith(innerTxnPayer)
                             .balance(ONE_HBAR),
-                    atomicBatch(innerTxn1, innerTxn2).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    atomicBatch(innerTxn1, innerTxn2)
+                            .payingWith(batchOperator)
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     atomicBatch(innerTxn2).payingWith(batchOperator),
                     atomicBatch(innerTxn2).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
         }
@@ -657,7 +657,7 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Submit non batch inner transaction with invalid batch key format should fail")
-//        @Disabled // TODO: Enable this test when we have global batch key validation
+        //        @Disabled // TODO: Enable this test when we have global batch key validation
         //  BATCH_55
         public Stream<DynamicTest> nonInnerTxnWithInvalidBatchKey() {
             return hapiTest(withOpContext((spec, opLog) -> {
@@ -668,7 +668,9 @@ public class AtomicBatchNegativeTest {
                 // save invalid key in registry
                 spec.registry().saveKey("invalidKey", invalidKey);
                 // submit op with invalid batch key
-                final var op = cryptoCreate("foo").batchKey("invalidKey").hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+                final var op = cryptoCreate("foo")
+                        .batchKey("invalidKey")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
                 allRunFor(spec, op);
             }));
         }
