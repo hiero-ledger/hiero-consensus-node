@@ -138,7 +138,7 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
         try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        platformContext.getConfiguration(), signedStateFile, platformStateFacade)
+                        signedStateFile, platformStateFacade, platformContext)
                 .reservedSignedState()) {
             logger.info(
                     STARTUP.getMarker(),
@@ -322,13 +322,7 @@ public final class EventRecoveryWorkflow {
                     round.getEventCount(),
                     round.getRoundNum());
 
-            signedState = handleNextRound(
-                    stateLifecycles,
-                    platformContext,
-                    signedState,
-                    round,
-                    configuration.getConfigData(ConsensusConfig.class),
-                    platformStateFacade);
+            signedState = handleNextRound(stateLifecycles, platformContext, signedState, round, platformStateFacade);
             platform.setLatestState(signedState.get());
             lastEvent = getLastEvent(round);
         }
@@ -359,7 +353,6 @@ public final class EventRecoveryWorkflow {
      * @param platformContext the current context
      * @param previousSignedState   the previous round's signed state
      * @param round           the next round
-     * @param config          the consensus configuration
      * @return the resulting signed state
      */
     private static ReservedSignedState handleNextRound(
@@ -367,7 +360,6 @@ public final class EventRecoveryWorkflow {
             @NonNull final PlatformContext platformContext,
             @NonNull final ReservedSignedState previousSignedState,
             @NonNull final StreamedRound round,
-            @NonNull final ConsensusConfig config,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
@@ -375,6 +367,7 @@ public final class EventRecoveryWorkflow {
         previousState.getState().throwIfImmutable();
         final MerkleNodeState newState = previousState.getState().copy();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
+        final ConsensusConfig config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
         new DefaultEventHasher().hashEvent(lastEvent);
 
         platformStateFacade.bulkUpdateOf(newState, v -> {
@@ -405,19 +398,20 @@ public final class EventRecoveryWorkflow {
             platformStateFacade.updateLastFrozenTime(newState);
         }
 
-        final ReservedSignedState signedState = new SignedState(
-                        platformContext.getConfiguration(),
-                        CryptoStatic::verifySignature,
-                        newState,
-                        "EventRecoveryWorkflow.handleNextRound()",
-                        isFreezeState,
-                        false,
-                        false,
-                        platformStateFacade)
-                .reserve("recovery");
+        final SignedState signedState = new SignedState(
+                platformContext.getConfiguration(),
+                CryptoStatic::verifySignature,
+                newState,
+                "EventRecoveryWorkflow.handleNextRound()",
+                isFreezeState,
+                false,
+                false,
+                platformStateFacade);
+        signedState.init(platformContext);
+        final ReservedSignedState reservedSignedState = signedState.reserve("recovery");
         previousSignedState.close();
 
-        return signedState;
+        return reservedSignedState;
     }
 
     /**

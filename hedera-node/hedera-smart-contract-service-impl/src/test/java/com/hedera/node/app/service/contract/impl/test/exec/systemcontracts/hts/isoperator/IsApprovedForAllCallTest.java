@@ -10,7 +10,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
@@ -25,8 +28,10 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
 
 class IsApprovedForAllCallTest extends CallTestBase {
-    private final Address THE_OWNER = asHeadlongAddress(asEvmAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow()));
-    private final Address THE_OPERATOR = asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
+    private final Address THE_OWNER =
+            asHeadlongAddress(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow()));
+    private final Address THE_OPERATOR =
+            asHeadlongAddress(asEvmAddress(shard, realm, B_NEW_ACCOUNT_ID.accountNumOrThrow()));
     private IsApprovedForAllCall subject;
 
     @Test
@@ -46,6 +51,7 @@ class IsApprovedForAllCallTest extends CallTestBase {
                 gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, THE_OWNER, THE_OPERATOR, false);
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(SOMEBODY);
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(OPERATOR);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 
@@ -58,6 +64,7 @@ class IsApprovedForAllCallTest extends CallTestBase {
         subject = new IsApprovedForAllCall(
                 gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, THE_OWNER, THE_OWNER, false);
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 
@@ -70,6 +77,7 @@ class IsApprovedForAllCallTest extends CallTestBase {
         subject = new IsApprovedForAllCall(
                 gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, THE_OWNER, THE_OWNER, true);
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 
@@ -86,6 +94,7 @@ class IsApprovedForAllCallTest extends CallTestBase {
         subject = new IsApprovedForAllCall(
                 gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, THE_OWNER, THE_OPERATOR, false);
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 

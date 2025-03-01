@@ -10,7 +10,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -21,7 +21,8 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -36,6 +37,7 @@ import org.hyperledger.besu.evm.precompile.ECRECPrecompiledContract;
 
 /** HIP-632 method: `isAuthorizedRaw` */
 public class IsAuthorizedRawCall extends AbstractCall {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private static final int EIP_155_V_MIN_LENGTH = 1;
     private static final int EIP_155_V_MAX_LENGTH = 8; // we limit chainId to fit in a `long`
@@ -188,8 +190,8 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // Use of `com.swirlds.common.crypto.CryptographyHolder` straight from the Platform is deprecated:
         // FUTURE: Get the `Cryptography` engine from the services app via the context (needs to be invented)
 
-        return CryptographyHolder.get()
-                .verifySync(messageHash, signature, key.ed25519OrThrow().toByteArray());
+        return CRYPTOGRAPHY.verifySync(
+                messageHash, signature, key.ed25519OrThrow().toByteArray());
     }
 
     /** Encode the _output_ of our system contract: it's a boolean */
@@ -267,7 +269,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // If the signature is for an ecdsa key, the HIP states that the account must have an evm address rather than a
         // long zero address
         if (signatureType == SignatureType.EC) {
-            return !isLongZeroAddress(explicitFromHeadlong(address));
+            return !isLongZero(enhancement.nativeOperations().entityIdFactory(), address);
         }
 
         return true;

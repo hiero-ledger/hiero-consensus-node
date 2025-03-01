@@ -27,6 +27,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_RE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.STACK_DEPTH;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALUE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.WEI_VALUE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
@@ -219,6 +220,8 @@ class ActionStackTest {
         actionsStack.push(wrappedAction);
         given(parentFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
         given(parentFrame.getContractAddress()).willReturn(HTS_SYSTEM_CONTRACT_ADDRESS);
+        given(parentFrame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.finalizeLastStackActionAsPrecompile(parentFrame, SYSTEM, ActionStack.Validation.ON);
 
@@ -249,7 +252,9 @@ class ActionStackTest {
         actionsStack.push(wrappedAction);
         given(parentFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
         given(parentFrame.getContractAddress()).willReturn(HTS_SYSTEM_CONTRACT_ADDRESS);
+        given(parentFrame.getWorldUpdater()).willReturn(worldUpdater);
         given(helper.isValid(any())).willReturn(true);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.finalizeLastStackActionAsPrecompile(parentFrame, PRECOMPILE, ActionStack.Validation.ON);
 
@@ -475,6 +480,7 @@ class ActionStackTest {
         given(parentFrame.getDepth()).willReturn(STACK_DEPTH);
         given(parentFrame.getCode()).willReturn(CONTRACT_CODE);
         given(parentFrame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.pushActionOfTopLevel(parentFrame);
 
@@ -506,6 +512,7 @@ class ActionStackTest {
         given(parentFrame.getDepth()).willReturn(STACK_DEPTH);
         given(parentFrame.getCode()).willReturn(CodeV0.EMPTY_CODE);
         given(parentFrame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.pushActionOfTopLevel(parentFrame);
 
@@ -534,6 +541,7 @@ class ActionStackTest {
         given(parentFrame.getDepth()).willReturn(STACK_DEPTH);
         given(parentFrame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(parentFrame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.pushActionOfTopLevel(parentFrame);
 
@@ -559,6 +567,7 @@ class ActionStackTest {
         given(parentFrame.getCurrentOperation()).willReturn(operation);
         given(parentFrame.getMessageFrameStack()).willReturn(frameStack);
         given(parentFrame.getContractAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(parentFrame.getWorldUpdater()).willReturn(worldUpdater);
         given(frameStack.peek()).willReturn(childFrame);
 
         given(childFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
@@ -570,6 +579,7 @@ class ActionStackTest {
         given(childFrame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.get(EIP_1014_ADDRESS)).willReturn(account);
         given(worldUpdater.getHederaContractId(EIP_1014_ADDRESS)).willReturn(CALLED_CONTRACT_ID);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.pushActionOfIntermediate(parentFrame);
 

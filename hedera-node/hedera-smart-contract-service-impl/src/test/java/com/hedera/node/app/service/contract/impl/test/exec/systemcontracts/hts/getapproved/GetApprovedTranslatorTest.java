@@ -74,6 +74,7 @@ public class GetApprovedTranslatorTest {
     void matchesErcGetApprovedTest() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirect(
                 ERC_GET_APPROVED,
                 subject,
