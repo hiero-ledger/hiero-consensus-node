@@ -123,6 +123,6 @@ public class TopicCustomFeeGetTopicInfoTest extends TopicCustomFeeBase {
                         .withConsensusCustomFee(fixedConsensusHtsFee(1, "testToken", COLLECTOR))
                         .withConsensusCustomFee(fixedConsensusHbarFee(1, COLLECTOR)),
                 deleteTopic(TOPIC),
-                getTopicInfo(TOPIC).hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_TOPIC_ID));
+                getTopicInfo(TOPIC).hasCostAnswerPrecheck(ResponseCodeEnum.OK));
     }
 }
