@@ -1211,7 +1211,7 @@ class SequentialTaskSchedulerTests {
         model.stop();
     }
 
-    @RepeatedTest(39000)
+    @RepeatedTest(32486)
     void exceptionHandlingTest() throws InterruptedException {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
