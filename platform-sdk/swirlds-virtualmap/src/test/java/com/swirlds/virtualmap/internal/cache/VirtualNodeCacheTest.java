@@ -2048,18 +2048,18 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.seal();
         cache1.seal();
         cache0.merge();
-        validateDeletedLeaves(
-                cache1.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, B_KEY, D_KEY), "cache1");
+        // A is added in version 0 and deleted in version 1. It should not be in deleted leaves
+        validateDeletedLeaves(cache1.deletedLeaves().collect(Collectors.toList()), Set.of(B_KEY, D_KEY), "cache1");
 
         cache2.seal();
         cache1.merge();
         validateDeletedLeaves(
-                cache2.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, C_KEY, E_KEY, F_KEY), "cache2");
+                cache2.deletedLeaves().collect(Collectors.toList()), Set.of(C_KEY, E_KEY, F_KEY), "cache2");
 
         cache3.seal();
         cache2.merge();
-        validateDeletedLeaves(
-                cache3.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, B_KEY, C_KEY), "cache3");
+        // B and C are added, removed, re-added, removed again. They should not be in deleted leaves
+        validateDeletedLeaves(cache3.deletedLeaves().collect(Collectors.toList()), Set.of(), "cache3");
 
         map0.release();
         map1.release();
