@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+// TODO: enhance this with StateValidator after consensus events validations are merged
 public class Validations {
     private final Map<ValidationType, ConsensusOutputValidation> map = new HashMap<>(Map.of(
             INPUTS_ARE_SAME, InputEventsValidation::validateInputsAreTheSame,

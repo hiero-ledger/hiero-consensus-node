@@ -187,6 +187,15 @@ public class TurtleNode {
         model.tick();
     }
 
+    /**
+     * Get the platform for this node.
+     *
+     * @return the platform
+     */
+    public Platform getPlatform() {
+        return platform;
+    }
+
     @NonNull
     public ConsensusRoundsHolder getConsensusRoundsHolder() {
         return consensusRoundsHolder;
