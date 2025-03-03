@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
@@ -94,6 +93,5 @@ public final class BirthRoundStateMigration {
         platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
 
         state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
     }
 }

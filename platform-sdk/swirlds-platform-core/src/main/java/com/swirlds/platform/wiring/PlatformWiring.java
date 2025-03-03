@@ -347,20 +347,28 @@ public class PlatformWiring {
      * Wire the components together.
      */
     private void wire() {
-        final InputWire<PlatformEvent> pipelineInputWire;
+        /*
+         * When the birth round migration shim is active, the path should be:
+         *   -> EventHasher -> BirthRoundMigrationShim -> InternalEventValidator ->
+         * When the shim is not active, the path should be:
+         *   -> EventHasher -> InternalEventValidator ->
+         */
+
+        final InputWire<PlatformEvent> hasherInputWire = eventHasherWiring.getInputWire(EventHasher::hashEvent);
+        gossipWiring.getEventOutput().solderTo(hasherInputWire);
+
         if (birthRoundMigrationShimWiring != null) {
+            eventHasherWiring
+                    .getOutputWire()
+                    .solderTo(birthRoundMigrationShimWiring.getInputWire(BirthRoundMigrationShim::migrateEvent));
             birthRoundMigrationShimWiring
                     .getOutputWire()
-                    .solderTo(eventHasherWiring.getInputWire(EventHasher::hashEvent));
-            pipelineInputWire = birthRoundMigrationShimWiring.getInputWire(BirthRoundMigrationShim::migrateEvent);
+                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
         } else {
-            pipelineInputWire = eventHasherWiring.getInputWire(EventHasher::hashEvent);
+            eventHasherWiring
+                    .getOutputWire()
+                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
         }
-
-        gossipWiring.getEventOutput().solderTo(pipelineInputWire);
-        eventHasherWiring
-                .getOutputWire()
-                .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
 
         internalEventValidatorWiring
                 .getOutputWire()
@@ -484,7 +492,7 @@ public class PlatformWiring {
 
         solderEventWindow();
 
-        pcesReplayerWiring.eventOutput().solderTo(pipelineInputWire);
+        pcesReplayerWiring.eventOutput().solderTo(hasherInputWire);
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring.getSplitOutput();
 
