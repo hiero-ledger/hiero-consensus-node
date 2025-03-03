@@ -87,8 +87,7 @@ public class Erc721TransferFromCall extends AbstractCall {
             return reversionWith(INVALID_TOKEN_ID, gasCalculator.canonicalGasRequirement(DispatchType.TRANSFER_NFT));
         }
         final var syntheticTransfer = syntheticTransfer(senderId);
-        final var gasRequirement = transferGasRequirement(
-                syntheticTransfer, gasCalculator, enhancement, senderId, ERC_721_TRANSFER_FROM.selector());
+        final var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
         final var recordBuilder = systemContractOperations()
                 .dispatch(syntheticTransfer, verificationStrategy, senderId, ContractCallStreamBuilder.class);
         final var status = recordBuilder.status();

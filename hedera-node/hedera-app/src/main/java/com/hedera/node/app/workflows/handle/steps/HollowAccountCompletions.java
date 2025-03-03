@@ -21,6 +21,7 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -87,7 +88,8 @@ public class HollowAccountCompletions {
         if (maybeEthTxSigs != null) {
             final var alias = Bytes.wrap(maybeEthTxSigs.address());
             final var accountStore = userTxn.readableStoreFactory().getStore(ReadableAccountStore.class);
-            final var maybeHollowAccountId = accountStore.getAccountIDByAlias(alias);
+            final var config = userTxn.config().getConfigData(HederaConfig.class);
+            final var maybeHollowAccountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
             if (maybeHollowAccountId != null) {
                 final var maybeHollowAccount = requireNonNull(accountStore.getAccountById(maybeHollowAccountId));
                 if (isHollow(maybeHollowAccount)) {
