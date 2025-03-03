@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Objects;
 
@@ -15,13 +15,13 @@ import java.util.Objects;
 public class TransactionSignature {
 
     /** Signed message. */
-    private final byte[] message;
+    private final Bytes message;
 
     /** The public key. */
-    private final byte[] publicKey;
+    private final Bytes publicKey;
 
     /** The signature. */
-    private final byte[] signature;
+    private final Bytes signature;
 
     /** The type of cryptographic algorithm used to create the signature. */
     private final SignatureType signatureType;
@@ -39,7 +39,7 @@ public class TransactionSignature {
      * @param signatureType     the cryptographic algorithm used to create the signature
      */
     public TransactionSignature(
-            final byte[] message, final byte[] publicKey, final byte[] signature, final SignatureType signatureType) {
+            final Bytes message, final Bytes publicKey, final Bytes signature, final SignatureType signatureType) {
         this.message = message;
         this.publicKey = publicKey;
         this.signature = signature;
@@ -52,7 +52,7 @@ public class TransactionSignature {
      *
      * @return the message
      */
-    public byte[] getMessage() {
+    public Bytes getMessage() {
         return message;
     }
 
@@ -61,7 +61,7 @@ public class TransactionSignature {
      *
      * @return the public key
      */
-    public byte[] getPublicKey() {
+    public Bytes getPublicKey() {
         return publicKey;
     }
 
@@ -70,7 +70,7 @@ public class TransactionSignature {
      *
      * @return the signature
      */
-    public byte[] getSignature() {
+    public Bytes getSignature() {
         return signature;
     }
 
@@ -146,9 +146,9 @@ public class TransactionSignature {
         }
 
         TransactionSignature other = (TransactionSignature) obj;
-        return Arrays.equals(signature, other.signature)
-                && Arrays.equals(message, other.message)
-                && Arrays.equals(publicKey, other.publicKey)
+        return signature.equals(other.signature)
+                && message.equals(other.message)
+                && publicKey.equals(other.publicKey)
                 && signatureType == other.signatureType;
     }
 
@@ -180,16 +180,15 @@ public class TransactionSignature {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(
-                Arrays.hashCode(message), Arrays.hashCode(publicKey), Arrays.hashCode(signature), signatureType);
+        return Objects.hash(message.hashCode(), publicKey.hashCode(), signature.hashCode(), signatureType);
     }
 
     @Override
     public String toString() {
         return new ToStringBuilder(this)
-                .append("message", Arrays.toString(message))
-                .append("publicKey", Arrays.toString(publicKey))
-                .append("signature", Arrays.toString(signature))
+                .append("message", message.toString())
+                .append("publicKey", publicKey.toString())
+                .append("signature", signature.toString())
                 .append("signatureType", signatureType)
                 .append("signatureStatus", signatureStatus)
                 .toString();

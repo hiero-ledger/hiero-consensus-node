@@ -159,19 +159,18 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
             final var expandedSigPair = itr.next();
             final var txSig = txSigs.get(i);
             if (messageType == RAW) {
-                assertThat(Bytes.wrap(txSig.getMessage())
+                assertThat(txSig.getMessage()
                                 .matchesPrefix(i == 1 ? signedBytes : keccakSignedBytes)) // index 1 is ed25519
                         .isTrue();
             } else {
                 // For a KECCAK_256_HASH message type, the signed bytes are always the given hash
-                assertThat(Bytes.wrap(txSig.getMessage()).matchesPrefix(signedBytes))
-                        .isTrue();
+                assertThat(txSig.getMessage().matchesPrefix(signedBytes)).isTrue();
             }
 
-            assertThat(Bytes.wrap(txSig.getSignature()).matchesPrefix(expandedSigPair.signature()))
+            assertThat(txSig.getSignature().matchesPrefix(expandedSigPair.signature()))
                     .isTrue();
 
-            assertThat(Bytes.wrap(txSig.getPublicKey()).matchesPrefix(expandedSigPair.keyBytes()))
+            assertThat(txSig.getPublicKey().matchesPrefix(expandedSigPair.keyBytes()))
                     .isTrue();
         }
     }

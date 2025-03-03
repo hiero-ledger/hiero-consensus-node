@@ -72,7 +72,12 @@ public class EcdsaSecp256k1VerificationProvider
             final SignatureType algorithmType,
             final TransactionSignature sig,
             final Void optionalData) {
-        return verified(algorithm, algorithmType, sig.getMessage(), sig.getSignature(), sig.getPublicKey());
+        return verified(
+                algorithm,
+                algorithmType,
+                sig.getMessage().toByteArray(),
+                sig.getSignature().toByteArray(),
+                sig.getPublicKey().toByteArray());
     }
 
     private boolean verified(

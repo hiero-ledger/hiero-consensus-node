@@ -71,16 +71,10 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
                     message = MiscCryptoUtils.keccak256DigestOf(message);
                 }
                 txSig = new TransactionSignature(
-                        message.toByteArray(),
-                        sigPair.keyBytes().toByteArray(),
-                        sigPair.signature().toByteArray(),
-                        SignatureType.ECDSA_SECP256K1);
+                        message, sigPair.keyBytes(), sigPair.signature(), SignatureType.ECDSA_SECP256K1);
             } else if (kind == ED25519) {
                 txSig = new TransactionSignature(
-                        signedBytes.toByteArray(),
-                        sigPair.keyBytes().toByteArray(),
-                        sigPair.signature().toByteArray(),
-                        SignatureType.ED25519);
+                        signedBytes, sigPair.keyBytes(), sigPair.signature(), SignatureType.ED25519);
             } else {
                 throw new IllegalArgumentException("Unsupported signature type: " + kind);
             }

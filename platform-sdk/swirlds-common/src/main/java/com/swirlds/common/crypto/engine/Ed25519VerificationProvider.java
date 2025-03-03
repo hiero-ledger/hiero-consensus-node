@@ -91,7 +91,12 @@ public class Ed25519VerificationProvider
             final SignatureType algorithmType,
             final TransactionSignature sig,
             final Void optionalData) {
-        return compute(algorithm, algorithmType, sig.getMessage(), sig.getSignature(), sig.getPublicKey());
+        return compute(
+                algorithm,
+                algorithmType,
+                sig.getMessage().toByteArray(),
+                sig.getSignature().toByteArray(),
+                sig.getPublicKey().toByteArray());
     }
 
     /**

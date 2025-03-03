@@ -8,7 +8,6 @@ import com.swirlds.demo.stats.signing.algorithms.ECSecP256K1Algorithm;
 import com.swirlds.demo.stats.signing.algorithms.SigningAlgorithm;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -160,9 +159,9 @@ final class TransactionCodec {
         final int dataOffset = wrapper.position();
 
         return new TransactionSignature(
-                Arrays.copyOfRange(tx, dataOffset, dataOffset + dataLen),
-                Arrays.copyOfRange(tx, pkOffset, pkOffset + pkLen),
-                Arrays.copyOfRange(tx, sigOffset, sigOffset + sigLen),
+                Bytes.wrap(tx, dataOffset, dataLen),
+                Bytes.wrap(tx, pkOffset, pkLen),
+                Bytes.wrap(tx, sigOffset, sigLen),
                 signatureType);
     }
 
@@ -184,6 +183,6 @@ final class TransactionCodec {
         final ByteBuffer sigPayload = ByteBuffer.allocate(pkLen + sigLen + dataHash.length);
         sigPayload.put(pk).put(sig).put(dataHash);
 
-        return new TransactionSignature(dataHash, pk, sig, signatureType);
+        return new TransactionSignature(Bytes.wrap(dataHash), Bytes.wrap(pk), Bytes.wrap(sig), signatureType);
     }
 }

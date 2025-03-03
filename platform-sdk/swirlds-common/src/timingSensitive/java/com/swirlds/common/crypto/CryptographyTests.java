@@ -89,11 +89,7 @@ class CryptographyTests {
 
         for (int i = 0; i < signatures.length; i++) {
             signatures[i] = ed25519SignaturePool.next();
-            assertTrue(CRYPTOGRAPHY.verifySync(
-                    signatures[i].getMessage(),
-                    signatures[i].getSignature(),
-                    signatures[i].getPublicKey(),
-                    SignatureType.ED25519));
+            assertTrue(CRYPTOGRAPHY.verifySync(signatures[i]));
         }
     }
 
@@ -105,13 +101,7 @@ class CryptographyTests {
 
         for (int i = 0; i < signatures.length; i++) {
             signatures[i] = ecdsaSignaturePool.next();
-            assertTrue(
-                    CRYPTOGRAPHY.verifySync(
-                            signatures[i].getMessage(),
-                            signatures[i].getSignature(),
-                            signatures[i].getPublicKey(),
-                            SignatureType.ECDSA_SECP256K1),
-                    "Signature should be valid");
+            assertTrue(CRYPTOGRAPHY.verifySync(signatures[i]), "Signature should be valid");
         }
     }
 
@@ -119,9 +109,9 @@ class CryptographyTests {
     void verifySyncInvalidEcdsaSecp256k1() {
         ecdsaSignaturePool = new EcdsaSignedTxnPool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 64);
         final TransactionSignature signature = ecdsaSignaturePool.next();
-        final byte[] data = signature.getMessage();
-        final byte[] publicKey = signature.getPublicKey();
-        final byte[] signatureBytes = signature.getSignature();
+        final byte[] data = signature.getMessage().toByteArray();
+        final byte[] publicKey = signature.getPublicKey().toByteArray();
+        final byte[] signatureBytes = signature.getSignature().toByteArray();
         Configurator.setAllLevels("", Level.ALL);
         assertFalse(
                 CRYPTOGRAPHY.verifySync(
@@ -144,9 +134,9 @@ class CryptographyTests {
     void verifySyncInvalidEd25519() {
         ed25519SignaturePool = new SignaturePool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 100, true);
         final TransactionSignature signature = ed25519SignaturePool.next();
-        final byte[] data = signature.getMessage();
-        final byte[] publicKey = signature.getPublicKey();
-        final byte[] signatureBytes = signature.getSignature();
+        final byte[] data = signature.getMessage().toByteArray();
+        final byte[] publicKey = signature.getPublicKey().toByteArray();
+        final byte[] signatureBytes = signature.getSignature().toByteArray();
         Configurator.setAllLevels("", Level.ALL);
 
         assertFalse(

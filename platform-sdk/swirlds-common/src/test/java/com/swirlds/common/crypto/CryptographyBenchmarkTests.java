@@ -52,11 +52,7 @@ class CryptographyBenchmarkTests {
             signatures[i] = ed25519SignaturePool.next();
 
             final long startTime = System.nanoTime();
-            CRYPTOGRAPHY.verifySync(
-                    signatures[i].getMessage(),
-                    signatures[i].getPublicKey(),
-                    signatures[i].getSignature(),
-                    SignatureType.ED25519);
+            CRYPTOGRAPHY.verifySync(signatures[i]);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance
@@ -93,11 +89,7 @@ class CryptographyBenchmarkTests {
             signatures[i] = ecdsaSignaturePool.next();
 
             final long startTime = System.nanoTime();
-            CRYPTOGRAPHY.verifySync(
-                    signatures[i].getMessage(),
-                    signatures[i].getPublicKey(),
-                    signatures[i].getSignature(),
-                    SignatureType.ECDSA_SECP256K1);
+            CRYPTOGRAPHY.verifySync(signatures[i]);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance

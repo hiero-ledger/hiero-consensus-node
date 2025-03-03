@@ -14,6 +14,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_11_0;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -962,10 +963,14 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
         return digest;
     }
 
-    private byte[] keccak256(final byte[] bytes) {
+    private Bytes keccak256(final Bytes bytes) {
         final MessageDigest keccakDigest = createKeccakDigest();
-        keccakDigest.update(bytes);
-        return keccakDigest.digest();
+        bytes.writeTo(keccakDigest);
+        return Bytes.wrap(keccakDigest.digest());
+    }
+
+    public static Bytes fromByteString(ByteString byteString) {
+        return Bytes.wrap(byteString.toByteArray());
     }
 
     private void expandSignatures(
@@ -973,16 +978,13 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
             final TestTransactionWrapper testTransactionWrapper,
             PlatformTestingToolState state) {
         if (state.getConfig().isAppendSig()) {
-            final byte[] testTransactionRawBytes =
-                    testTransactionWrapper.getTestTransactionRawBytes().toByteArray();
-            final byte[] publicKey =
-                    testTransactionWrapper.getPublicKeyRawBytes().toByteArray();
-            final byte[] signature =
-                    testTransactionWrapper.getSignaturesRawBytes().toByteArray();
+            final Bytes testTransactionRawBytes = fromByteString(testTransactionWrapper.getTestTransactionRawBytes());
+            final Bytes publicKey = fromByteString(testTransactionWrapper.getPublicKeyRawBytes());
+            final Bytes signature = fromByteString(testTransactionWrapper.getSignaturesRawBytes());
             final AppTransactionSignatureType AppSignatureType = testTransactionWrapper.getSignatureType();
 
             final SignatureType signatureType;
-            byte[] signaturePayload = testTransactionRawBytes;
+            Bytes signaturePayload = testTransactionRawBytes;
 
             if (AppSignatureType == AppTransactionSignatureType.ED25519) {
                 signatureType = SignatureType.ED25519;
@@ -999,7 +1001,7 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
                     new TransactionSignature(signaturePayload, publicKey, signature, signatureType);
             trans.setMetadata(transactionSignature);
 
-            CRYPTOGRAPHY.verifySync(List.of(transactionSignature));
+            CRYPTOGRAPHY.verifySync(transactionSignature);
         }
     }
 
