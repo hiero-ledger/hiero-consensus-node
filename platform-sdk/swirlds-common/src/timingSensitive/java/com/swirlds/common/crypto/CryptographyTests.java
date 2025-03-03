@@ -29,15 +29,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class CryptographyTests {
-    private static CryptoConfig cryptoConfig;
     private static final int PARALLELISM = 16;
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
     private static final Hash KNOWN_DUMMY_SERIALIZABLE_HASH = new Hash(
             unhex("a19330d1f361a9e8f6433cce909b5d04ec0216788acef9e8977633a8332a1b08ab6b65d821e8ff30f64f1353d46182d1"));
+    private static CryptoConfig cryptoConfig;
     private static MessageDigestPool digestPool;
     private static SignaturePool ed25519SignaturePool;
     private static ExecutorService executorService;
     private static EcdsaSignedTxnPool ecdsaSignaturePool;
-    private static Cryptography cryptography;
 
     @BeforeAll
     public static void startup() throws NoSuchAlgorithmException {
@@ -47,7 +47,6 @@ class CryptographyTests {
         assertTrue(cryptoConfig.computeCpuDigestThreadCount() >= 1);
 
         executorService = Executors.newFixedThreadPool(PARALLELISM);
-        cryptography = CryptographyHolder.get();
 
         digestPool = new MessageDigestPool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 100);
     }
@@ -65,7 +64,7 @@ class CryptographyTests {
 
         for (int i = 0; i < messages.length; i++) {
             messages[i] = digestPool.next();
-            final Hash hash = cryptography.digestSync(messages[i].getPayloadDirect(), DigestType.SHA_384);
+            final Hash hash = CRYPTOGRAPHY.digestSync(messages[i].getPayloadDirect(), DigestType.SHA_384);
             assertTrue(digestPool.isValid(messages[i], hash.copyToByteArray()));
         }
     }
@@ -74,7 +73,7 @@ class CryptographyTests {
     void hashableSerializableTest() {
         final SerializableHashable hashable = new SerializableHashableDummy(123, "some string");
         assertNull(hashable.getHash());
-        cryptography.digestSync(hashable);
+        CRYPTOGRAPHY.digestSync(hashable);
         assertNotNull(hashable.getHash());
 
         final Hash hash = hashable.getHash();
@@ -90,7 +89,7 @@ class CryptographyTests {
 
         for (int i = 0; i < signatures.length; i++) {
             signatures[i] = ed25519SignaturePool.next();
-            assertTrue(cryptography.verifySync(
+            assertTrue(CRYPTOGRAPHY.verifySync(
                     signatures[i].getMessage(),
                     signatures[i].getSignature(),
                     signatures[i].getPublicKey(),
@@ -107,7 +106,7 @@ class CryptographyTests {
         for (int i = 0; i < signatures.length; i++) {
             signatures[i] = ecdsaSignaturePool.next();
             assertTrue(
-                    cryptography.verifySync(
+                    CRYPTOGRAPHY.verifySync(
                             signatures[i].getMessage(),
                             signatures[i].getSignature(),
                             signatures[i].getPublicKey(),
@@ -125,7 +124,7 @@ class CryptographyTests {
         final byte[] signatureBytes = signature.getSignature();
         Configurator.setAllLevels("", Level.ALL);
         assertFalse(
-                cryptography.verifySync(
+                CRYPTOGRAPHY.verifySync(
                         data,
                         Arrays.copyOfRange(signatureBytes, 1, signatureBytes.length),
                         publicKey,
@@ -133,7 +132,7 @@ class CryptographyTests {
                 "Fails for invalid signature");
 
         assertFalse(
-                cryptography.verifySync(
+                CRYPTOGRAPHY.verifySync(
                         data,
                         signatureBytes,
                         Arrays.copyOfRange(publicKey, 1, publicKey.length),
@@ -151,7 +150,7 @@ class CryptographyTests {
         Configurator.setAllLevels("", Level.ALL);
 
         assertFalse(
-                cryptography.verifySync(
+                CRYPTOGRAPHY.verifySync(
                         data,
                         Arrays.copyOfRange(signatureBytes, 1, signatureBytes.length),
                         publicKey,
@@ -159,7 +158,7 @@ class CryptographyTests {
                 "Fails for invalid signature");
 
         assertFalse(
-                cryptography.verifySync(
+                CRYPTOGRAPHY.verifySync(
                         data,
                         signatureBytes,
                         Arrays.copyOfRange(publicKey, 1, publicKey.length),
@@ -171,13 +170,13 @@ class CryptographyTests {
     void verifySyncEd25519Signature() {
         ed25519SignaturePool = new SignaturePool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 100, true);
         final TransactionSignature signature = ed25519SignaturePool.next();
-        assertTrue(cryptography.verifySync(signature), "Should be a valid signature");
+        assertTrue(CRYPTOGRAPHY.verifySync(signature), "Should be a valid signature");
     }
 
     @Test
     void verifySyncEcdsaSignature() {
         ecdsaSignaturePool = new EcdsaSignedTxnPool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 64);
         final TransactionSignature signature = ecdsaSignaturePool.next();
-        assertTrue(cryptography.verifySync(signature), "Should be a valid signature");
+        assertTrue(CRYPTOGRAPHY.verifySync(signature), "Should be a valid signature");
     }
 }

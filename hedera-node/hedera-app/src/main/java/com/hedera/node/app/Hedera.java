@@ -113,7 +113,6 @@ import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.constructable.RuntimeConstructable;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;
@@ -466,7 +465,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 new AppSignatureVerifier(
                         bootstrapConfig.getConfigData(HederaConfig.class),
                         new SignatureExpanderImpl(),
-                        new SignatureVerifierImpl(CryptographyHolder.get())),
+                        new SignatureVerifierImpl()),
                 this,
                 configSupplier,
                 () -> daggerApp.networkInfo().selfNodeInfo(),
@@ -1143,7 +1142,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
                 .maxSignedTxnSize(maxSignedTxnSize)
-                .crypto(CryptographyHolder.get())
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)
                 .instantSource(appContext.instantSource())

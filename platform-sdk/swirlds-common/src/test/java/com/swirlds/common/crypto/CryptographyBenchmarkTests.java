@@ -9,18 +9,12 @@ import com.swirlds.common.test.fixtures.crypto.SignaturePool;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class CryptographyBenchmarkTests {
-    private static Cryptography cryptoProvider;
-
-    @BeforeAll
-    static void startup() {
-        cryptoProvider = CryptographyHolder.get();
-    }
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private record BenchmarkStats(long min, long max, long average, long median) {}
 
@@ -58,7 +52,7 @@ class CryptographyBenchmarkTests {
             signatures[i] = ed25519SignaturePool.next();
 
             final long startTime = System.nanoTime();
-            cryptoProvider.verifySync(
+            CRYPTOGRAPHY.verifySync(
                     signatures[i].getMessage(),
                     signatures[i].getPublicKey(),
                     signatures[i].getSignature(),
@@ -99,7 +93,7 @@ class CryptographyBenchmarkTests {
             signatures[i] = ecdsaSignaturePool.next();
 
             final long startTime = System.nanoTime();
-            cryptoProvider.verifySync(
+            CRYPTOGRAPHY.verifySync(
                     signatures[i].getMessage(),
                     signatures[i].getPublicKey(),
                     signatures[i].getSignature(),
@@ -142,7 +136,7 @@ class CryptographyBenchmarkTests {
             final byte[] payload = messages[i].getPayloadDirect();
 
             final long startTime = System.nanoTime();
-            cryptoProvider.digestSync(payload, DigestType.SHA_384);
+            CRYPTOGRAPHY.digestSync(payload, DigestType.SHA_384);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance
