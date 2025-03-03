@@ -53,6 +53,8 @@ import java.time.Duration;
  * 		The interval between flushing of copies. This value defines the value of N where every Nth copy is flushed. The
  * 		value must be positive and will typically be a fairly small number, such as 20. The first copy is not flushed,
  * 		but every Nth copy thereafter is.
+ * @param copyMergeThreshold
+ *      TODO
  * @param copyFlushThreshold
  *      Virtual root copy flush threshold. A copy can be flushed to disk only if it's size exceeds this
  *      threshold. If set to zero, size-based flushes aren't used, and copies are flushed based on {@link
@@ -86,6 +88,7 @@ public record VirtualMapConfig(
         @ConstraintMethod("virtualMapWarningIntervalValidation") @Min(1) @ConfigProperty(defaultValue = "100000")
                 long virtualMapWarningInterval,
         @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
+        @ConfigProperty(defaultValue = "250000000") long copyMergeThreshold,
         @ConfigProperty(defaultValue = "200000000") long copyFlushThreshold,
         @ConfigProperty(defaultValue = "2000000000") long familyThrottleThreshold,
         @ConfigProperty(defaultValue = "10000") int preferredFlushQueueSize,
