@@ -82,6 +82,9 @@ jobs:
 
       - name: Create Release Notes with Markdown
         run: |
-          echo "\nRelease Notes:\n"
+          echo ""
+          echo "Release Notes:"
+          echo ""
           git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}"
-          echo "\n\nSuccessfully created release notes!" >> ${GITHUB_STEP_SUMMARY}
+          echo ""
+          echo "Successfully created release notes!" >> ${GITHUB_STEP_SUMMARY}
