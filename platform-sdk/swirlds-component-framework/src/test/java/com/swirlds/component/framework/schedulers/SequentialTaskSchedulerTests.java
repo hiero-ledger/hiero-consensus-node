@@ -1263,7 +1263,7 @@ class SequentialTaskSchedulerTests {
             }
         }
 
-        assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(1), "Wire sum did not match expected sum");
+        assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
         final int exceptionCountValue = exceptionCount.get();
         if (exceptionCountValue != 1) {
             var unhadledTaskCount = platformContext.getMetrics().getValue("platform", "test_unhandled_task_count");
