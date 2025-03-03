@@ -53,6 +53,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -605,7 +606,8 @@ public final class CryptoStatic {
      * @return a trust store containing the public keys of all the members
      * @throws KeyStoreException if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
      */
-    public static @NonNull KeyStore createPublicKeyStore(@NonNull final List<PeerInfo> peers) throws KeyStoreException {
+    public static @NonNull KeyStore createPublicKeyStore(@NonNull final Collection<PeerInfo> peers)
+            throws KeyStoreException {
         Objects.requireNonNull(peers);
         final KeyStore store = CryptoStatic.createEmptyTrustStore();
         for (final PeerInfo peer : peers) {
