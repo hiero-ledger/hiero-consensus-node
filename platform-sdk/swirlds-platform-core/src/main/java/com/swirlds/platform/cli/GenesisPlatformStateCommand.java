@@ -66,7 +66,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readStateFile(configuration, statePath, stateFacade, platformContext);
+                SignedStateFileReader.readStateFile(statePath, stateFacade, platformContext);
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             stateFacade.bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");

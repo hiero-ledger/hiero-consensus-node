@@ -25,11 +25,11 @@ import org.junit.jupiter.api.Test;
 
 public class TransactionSignatureTests {
 
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
     private static CryptoConfig cryptoConfig;
     private static final int PARALLELISM = 16;
     private static ExecutorService executorService;
     private static SignaturePool signaturePool;
-    private static Cryptography cryptoProvider;
 
     @BeforeAll
     public static void startup() throws NoSuchAlgorithmException, NoSuchProviderException {
@@ -38,7 +38,6 @@ public class TransactionSignatureTests {
 
         assertTrue(cryptoConfig.computeCpuDigestThreadCount() >= 1);
 
-        cryptoProvider = CryptographyHolder.get();
         executorService = Executors.newFixedThreadPool(PARALLELISM);
         signaturePool = new SignaturePool(1024, 4096, true);
     }
@@ -60,7 +59,7 @@ public class TransactionSignatureTests {
         assertNotNull(singleSignature);
         assertEquals(VerificationStatus.UNKNOWN, singleSignature.getSignatureStatus());
 
-        cryptoProvider.verifySync(singleSignature);
+        CRYPTOGRAPHY.verifySync(singleSignature);
 
         Future<Void> future = singleSignature.waitForFuture();
         assertNotNull(future);
@@ -90,7 +89,7 @@ public class TransactionSignatureTests {
             for (int i = offset; i < count; i++) {
                 final TransactionSignature signature = sItems[i];
 
-                final boolean isValid = cryptoProvider.verifySync(signature);
+                final boolean isValid = CRYPTOGRAPHY.verifySync(signature);
 
                 signature.setSignatureStatus(((isValid) ? VerificationStatus.VALID : VerificationStatus.INVALID));
             }
