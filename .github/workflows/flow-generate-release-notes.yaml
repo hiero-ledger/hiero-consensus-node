@@ -66,4 +66,4 @@ jobs:
       - name: Create Release Notes with Markdown
         run: |
           # TODO: Validate the version number exists in the repo
-          git-semver log --markdown "${{ steps.validate.outputs.release_identifier }}"
+          git-semver log --markdown "${{ steps.validate.outputs.release-identifer }}"
