@@ -29,27 +29,27 @@ jobs:
       - name: Validate and Correct Release Identifier
         id: validate
         run: |
-          release-identifier="${{ inputs.release-id }}"
+          release_identifier="${{ inputs.release-id }}"
 
-          echo "Input release identifier: '${release-identifier}'"
+          echo "Input release identifier: '${release_identifier}'"
 
           # Trim leading/trailing spaces
-          release-identifier="$(echo -n "${release-identifier}" | xargs)"
+          release_identifier="$(echo -n "${release_identifier}" | xargs)"
 
           # Remove leading "v" if present
-          release-identifier="${release-identifier#v}"
+          release_identifier="${release_identifier#v}"
 
-          echo "Corrected release identifier: ${release-identifier}"
+          echo "Corrected release identifier: ${release_identifier}"
 
           # Regular expression for semantic versioning (X.Y.Z)
           semver_regex="^[0-9]+\\.[0-9]+\\.[0-9]+$"
 
-          if [[ ! "${release-identifier}" =~ ${semver_regex} ]]; then
+          if [[ ! "${release_identifier}" =~ ${semver_regex} ]]; then
             echo "Error: Invalid release version format after correction. Expected format: X.Y.Z (e.g., 0.59.2)"
             exit 1
           fi
 
-          echo "Release identifier is valid: ${release-identifier}"
+          echo "Release identifier is valid: ${release_identifier}"
 
       - name: Checkout Code
         id: checkout_code
@@ -65,4 +65,4 @@ jobs:
       - name: Create Release Notes with Markdown
         run: |
           # TODO: Validate the version number exists in the repo
-          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}"
+          git-semver log --markdown "${{ steps.validate.outputs.release_identifier }}"
