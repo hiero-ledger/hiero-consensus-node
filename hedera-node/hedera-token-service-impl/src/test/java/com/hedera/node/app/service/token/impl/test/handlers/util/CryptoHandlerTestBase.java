@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ALIASES;
 import static com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils.UNSET_STAKED_ID;
-import static com.hedera.node.app.spi.fixtures.Scenarios.hexBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
@@ -135,7 +134,7 @@ public class CryptoHandlerTestBase {
             .ed25519(Bytes.fromHex("3a21030edcc130e13fb5102e7c883535af8c2b0a5a617231f77fd127ce5f3b9a620591"))
             .build();
     protected static final Key aEcdsaKey = Key.newBuilder()
-            .ecdsaSecp256k1(hexBytes("3a210358d7847a8d9a1beb784e367318bad30e89b5d3f3fa1a67f259e40a63e45ad8e5"))
+            .ecdsaSecp256k1(Bytes.fromHex("3a210358d7847a8d9a1beb784e367318bad30e89b5d3f3fa1a67f259e40a63e45ad8e5"))
             .build();
 
     protected static final ProtoBytes edKeyAlias = new ProtoBytes(aPrimitiveKey.ed25519());
