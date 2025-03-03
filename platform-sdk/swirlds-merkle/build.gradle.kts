@@ -9,6 +9,7 @@ plugins {
 testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.common.test.fixtures")
+    requiresStatic("com.swirlds.state.impl")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }
