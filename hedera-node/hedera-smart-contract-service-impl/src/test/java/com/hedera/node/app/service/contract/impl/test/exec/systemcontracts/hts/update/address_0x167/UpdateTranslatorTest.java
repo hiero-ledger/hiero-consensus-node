@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update.address_0x167;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder.FAILURE_CUSTOMIZER;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder.FAILURE_CUSTOMIZER;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPLICITLY_IMMUTABLE_FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
@@ -18,7 +19,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MUTABLE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
+import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorWithContractID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -36,15 +37,13 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.config.api.Configuration;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,12 +73,6 @@ class UpdateTranslatorTest extends CallTestBase {
 
     @Mock
     private ReadableAccountStore readableAccountStore;
-
-    @Mock
-    private ContractsConfig contractsConfig;
-
-    @Mock
-    Configuration configuration;
 
     @Mock
     private ContractMetrics contractMetrics;
@@ -209,25 +202,23 @@ class UpdateTranslatorTest extends CallTestBase {
     }
 
     @Test
-    void matchesUpdateMetadataTest() {
-        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
-        given(contractsConfig.metadataKeyAndFieldEnabled()).willReturn(true);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA,
+    void matchesFailsOnIncorrectSelector() {
+        attempt = prepareHtsAttemptWithSelector(
+                FreezeUnfreezeTranslator.FREEZE,
                 subject,
                 enhancement,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-        assertThat(subject.identifyMethod(attempt)).isPresent();
+                systemContractMethodRegistry);
+        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
-    void matchesFailsOnIncorrectSelector() {
-        attempt = prepareHtsAttemptWithSelector(
-                FreezeUnfreezeTranslator.FREEZE,
+    void matchesFailsOnUpdateMetadataTest() {
+        attempt = prepareHtsAttemptWithSelectorWithContractID(
+                HTS_167_CONTRACT_ID,
+                TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA,
                 subject,
                 enhancement,
                 addressIdConverter,
@@ -243,9 +234,6 @@ class UpdateTranslatorTest extends CallTestBase {
         Bytes inputBytes = Bytes.wrapByteBuffer(TOKEN_UPDATE_INFO_FUNCTION_V1.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.isSelector(TOKEN_UPDATE_INFO_FUNCTION_V1)).willReturn(true);
-        lenient()
-                .when(attempt.isSelector(TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA))
-                .thenReturn(false);
         lenient().when(attempt.isSelector(TOKEN_UPDATE_INFO_FUNCTION_V2)).thenReturn(false);
         lenient().when(attempt.isSelector(TOKEN_UPDATE_INFO_FUNCTION_V3)).thenReturn(false);
         given(attempt.enhancement()).willReturn(mockEnhancement());

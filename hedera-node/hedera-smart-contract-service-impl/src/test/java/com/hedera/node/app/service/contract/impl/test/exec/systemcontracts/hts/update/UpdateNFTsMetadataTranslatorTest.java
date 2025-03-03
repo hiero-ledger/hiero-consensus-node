@@ -14,8 +14,8 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateNFTsMetadataTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateNFTsMetadataTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -61,16 +61,9 @@ class UpdateNFTsMetadataTranslatorTest {
 
     @Test
     void matchesUpdateNFTsMetadataTest() {
-        given(attempt.configuration()).willReturn(getTestConfiguration(true));
         given(attempt.isMethod(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA))
                 .willReturn(Optional.of(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA));
         assertThat(subject.identifyMethod(attempt)).isPresent();
-    }
-
-    @Test
-    void doesNotMatchUpdateNFTsMetadataWhenDisabled() {
-        given(attempt.configuration()).willReturn(getTestConfiguration(false));
-        assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
