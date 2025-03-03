@@ -43,6 +43,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Random;
@@ -302,7 +303,7 @@ class SignScheduleTranslatorTest {
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
         given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
                 .willReturn(verificationStrategy);
-
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         // when:
         final var input = Bytes.wrapByteBuffer(
                 SignScheduleTranslator.AUTHORIZE_SCHEDULE.encodeCall(Tuple.singleton(APPROVED_HEADLONG_ADDRESS)));
@@ -332,7 +333,7 @@ class SignScheduleTranslatorTest {
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
         given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, true, nativeOperations))
                 .willReturn(verificationStrategy);
-
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         // when:
         final var input = Bytes.wrapByteBuffer(
                 SignScheduleTranslator.AUTHORIZE_SCHEDULE.encodeCall(Tuple.singleton(APPROVED_HEADLONG_ADDRESS)));

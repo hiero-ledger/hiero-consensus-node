@@ -25,6 +25,7 @@ import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.SortedSet;
@@ -184,8 +185,8 @@ public interface HederaNativeOperations {
      * @param evmAddress the EVM address
      * @return the account or contract number if it exists, otherwise {@link HederaNativeOperations#MISSING_ENTITY_NUMBER}
      */
-    default long resolveAlias(@NonNull final Bytes evmAddress) {
-        final var account = readableAccountStore().getAccountIDByAlias(evmAddress);
+    default long resolveAlias(long shard, long realm, @NonNull final Bytes evmAddress) {
+        final var account = readableAccountStore().getAccountIDByAlias(shard, realm, evmAddress);
         return account == null ? MISSING_ENTITY_NUMBER : account.accountNumOrThrow();
     }
 
@@ -263,4 +264,10 @@ public interface HederaNativeOperations {
      * @return the transaction ID
      */
     TransactionID getTransactionID();
+
+    /**
+     * Returns the {@link Configuration} for this node.
+     * @return the {@link Configuration}
+     */
+    Configuration configuration();
 }

@@ -27,6 +27,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.SortedSet;
@@ -134,7 +135,9 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     public void finalizeHollowAccountAsContract(@NonNull final Bytes evmAddress) {
         requireNonNull(evmAddress);
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
-        final var hollowAccountId = requireNonNull(accountStore.getAccountIDByAlias(evmAddress));
+        final var config = context.configuration().getConfigData(HederaConfig.class);
+        final var hollowAccountId =
+                requireNonNull(accountStore.getAccountIDByAlias(config.shard(), config.realm(), evmAddress));
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
         tokenServiceApi.finalizeHollowAccountAsContract(hollowAccountId);
     }
@@ -183,5 +186,10 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public TransactionID getTransactionID() {
         return context.body().transactionIDOrThrow();
+    }
+
+    @Override
+    public Configuration configuration() {
+        return context.configuration();
     }
 }

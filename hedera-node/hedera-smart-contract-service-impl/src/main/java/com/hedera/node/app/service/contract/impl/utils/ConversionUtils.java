@@ -34,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperatio
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -759,9 +760,10 @@ public class ConversionUtils {
                     explicit[19]);
         } else {
             final var evmAddress = extractEvmAddress(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(explicit));
+            final var config = nativeOperations.configuration().getConfigData(HederaConfig.class);
             return evmAddress == null
                     ? HederaNativeOperations.MISSING_ENTITY_NUMBER
-                    : nativeOperations.resolveAlias(evmAddress);
+                    : nativeOperations.resolveAlias(config.shard(), config.realm(), evmAddress);
         }
     }
 
