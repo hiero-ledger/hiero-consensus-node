@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.merkle.crypto;
+package com.swirlds.common.test.fixtures.merkle;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-
-import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.config.CryptoConfig;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.threading.locks.AutoClosableLock;
 import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.common.threading.locks.locked.Locked;
@@ -15,14 +14,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Public factory implementation from which all {@link MerkleCryptography} instances should be acquired.
- *
- * @deprecated We will remove this static class in near future after {@link CryptographyFactory} has been removed
+ * Factory for creating {@link MerkleCryptography} instances for use in tests.
  */
-@Deprecated(forRemoval = true)
-public class MerkleCryptoFactory {
+public class TestMerkleCryptoFactory {
 
-    private static final Logger logger = LogManager.getLogger(MerkleCryptoFactory.class);
+    private static final Logger logger = LogManager.getLogger(TestMerkleCryptoFactory.class);
 
     /**
      * Internal lock
@@ -34,21 +30,16 @@ public class MerkleCryptoFactory {
      */
     private static MerkleCryptography merkleCryptography;
 
-    private MerkleCryptoFactory() {}
+    private TestMerkleCryptoFactory() {}
 
     /**
      * Setup cryptography. Only needed to support unit tests that do not go through the proper setup procedures.
      */
     private static void init() {
-        // This exception is intended to intentionally fail validators for deployments that do not set up
-        // this class correctly. This won't cause a problem during unit tests, which are the biggest offender
-        // w.r.t. not setting this up correctly.
-        logger.error(EXCEPTION.getMarker(), "MerkleCryptoFactory not initialized, using default config");
-
         final Configuration defaultConfiguration = ConfigurationBuilder.create()
                 .withConfigDataType(CryptoConfig.class)
                 .build();
-        merkleCryptography = MerkleCryptographyFactory.create(defaultConfiguration, CryptographyFactory.create());
+        merkleCryptography = MerkleCryptographyFactory.create(defaultConfiguration);
     }
 
     /**
@@ -58,7 +49,7 @@ public class MerkleCryptoFactory {
      */
     public static void set(@NonNull final MerkleCryptography merkleCryptography) {
         try (final Locked ignored = lock.lock()) {
-            MerkleCryptoFactory.merkleCryptography = merkleCryptography;
+            TestMerkleCryptoFactory.merkleCryptography = merkleCryptography;
         }
     }
 

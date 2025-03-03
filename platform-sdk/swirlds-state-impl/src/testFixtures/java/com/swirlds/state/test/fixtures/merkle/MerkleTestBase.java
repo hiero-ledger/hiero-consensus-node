@@ -15,8 +15,8 @@ import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkle.map.MerkleMap;
@@ -95,7 +95,7 @@ public class MerkleTestBase extends StateTestBase {
     private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
 
     /** Used by some tests that need to hash */
-    protected static final MerkleCryptography CRYPTO = MerkleCryptoFactory.getInstance();
+    protected static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
     // These longs are used with the "space" k/v state
     public static final long A_LONG_KEY = 0L;

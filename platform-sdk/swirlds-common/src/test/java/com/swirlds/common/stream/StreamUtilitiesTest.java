@@ -41,7 +41,6 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.crypto.Signature;
@@ -280,7 +279,7 @@ class StreamUtilitiesTest {
                 assertFalse(iterator.hasNext());
             } else {
                 Hash objectHash = CRYPTOGRAPHY.digestSync(object);
-                runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
+                runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash);
             }
             objectsCount++;
             logger.info(LOGM_OBJECT_STREAM, "parsed object: {}", object);

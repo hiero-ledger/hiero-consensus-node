@@ -9,7 +9,6 @@ import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
@@ -198,7 +197,7 @@ public final class LinkedObjectStreamValidateUtils {
             }
             objectsCount++;
             Hash objectHash = CRYPTOGRAPHY.digestSync(selfSerializable);
-            runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
+            runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash);
             logger.info(
                     OBJECT_STREAM.getMarker(),
                     "validateIterator :: after consuming object {}," + "hash: {}, updated runningHash: {}",
