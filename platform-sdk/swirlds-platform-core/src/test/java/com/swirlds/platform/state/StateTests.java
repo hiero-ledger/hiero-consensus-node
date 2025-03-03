@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("State Tests")
-@Disabled
 class StateTests {
 
     private static MerkleStateRoot merkleStateRoot;
