@@ -147,6 +147,8 @@ public class TransactionDispatcher {
             case CONTRACT_CALL -> handlers.contractCallHandler();
             case CONTRACT_DELETE_INSTANCE -> handlers.contractDeleteHandler();
             case ETHEREUM_TRANSACTION -> handlers.ethereumTransactionHandler();
+            case LAMBDA_SSTORE -> handlers.lambdaSStoreHandler();
+            case EVM_HOOK_DISPATCH -> handlers.evmHookDispatchHandler();
 
             case CRYPTO_CREATE_ACCOUNT -> handlers.cryptoCreateHandler();
             case CRYPTO_UPDATE_ACCOUNT -> handlers.cryptoUpdateHandler();

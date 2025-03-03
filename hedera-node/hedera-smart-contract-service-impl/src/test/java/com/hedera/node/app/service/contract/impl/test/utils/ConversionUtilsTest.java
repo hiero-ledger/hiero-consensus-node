@@ -45,8 +45,10 @@ import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
@@ -65,6 +67,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ConversionUtilsTest {
     @Mock
     private HederaNativeOperations nativeOperations;
+
+    @Test
+    void whatIsThis() {
+        final var secret = "These violent delights have violent ends";
+        System.out.println(CommonUtils.hex(MiscCryptoUtils.keccak256DigestOf(secret.getBytes())));
+    }
 
     @Test
     void outOfRangeBiValuesAreZero() {

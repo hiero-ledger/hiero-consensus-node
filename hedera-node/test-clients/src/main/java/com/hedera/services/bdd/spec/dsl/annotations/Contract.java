@@ -49,6 +49,12 @@ public @interface Contract {
     int maxAutoAssociations() default 0;
 
     /**
+     * Whether this contract implements one or more Hiero lambdas; used to configure where the spec should
+     * look for bytecode and initcode resources.
+     */
+    boolean implementsLambda() default false;
+
+    /**
      * If set, specifies the variant version of a system contract.  This affects the location to search in the
      * resources directory for the contract.
      */

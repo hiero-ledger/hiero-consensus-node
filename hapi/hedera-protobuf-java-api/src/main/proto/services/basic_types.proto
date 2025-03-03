@@ -436,6 +436,73 @@ message TransactionID {
 }
 
 /**
+ * Once a hook is installed, its id.
+ */
+message HookId {
+    /**
+     * The id of the hook's installer.
+     */
+    HookInstallerId installer_id = 1;
+
+    /**
+     * A unique identifier for the hook given the installer.
+     */
+    uint64 index = 2;
+}
+
+/**
+ * The id of an entity that has installed a hook.
+ */
+message HookInstallerId {
+    oneof installer_id {
+        /**
+         * An account installing a hook.
+         */
+        AccountID account_id = 1;
+    }
+}
+
+/**
+ * Specifies a call to a hook from within a transaction where
+ * the hook owner is implied by the point of use. (For example,
+ * it would never make sense to try to use an account allowance
+ * hook for account 0.0.X inside an AccountAmount for account
+ * 0.0.Y; hence we only need to give the index of which of
+ * 0.0.Y's hooks we want to call.)
+ */
+message HookCall {
+    /**
+     * The index of the hook to call.
+     */
+    uint64 index = 1;
+
+    /**
+     * Specifies details of the call.
+     */
+    oneof call_spec {
+        /**
+         * Specification of how to call an EVM hook.
+         */
+        EvmHookCall evm_hook_call = 2;
+    }
+}
+
+/**
+ * Specifies details of a call to an EVM hook.
+ */
+message EvmHookCall {
+    /**
+     * Extra call data to pass.
+     */
+    bytes evm_call_data = 1;
+
+    /**
+     * If set, an explicit gas limit to use.
+     */
+    google.protobuf.UInt64Value gas_limit = 3;
+}
+
+/**
  * An account, and the amount that it sends or receives during a token transfer.
  *
  * This message is only relevant to fungible/common token transfers.
@@ -467,6 +534,12 @@ message AccountAmount {
      * The default value SHALL be false (unset).
      */
     bool is_approval = 3;
+
+    /**
+     * If set, a call to a hook of type `ACCOUNT_ALLOWANCE_HOOK` installed on
+     * accountID that must succeed for the transaction to occur.
+     */
+    HookCall allowance_hook_call = 4;
 }
 
 /**
@@ -525,6 +598,18 @@ message NftTransfer {
      * The default value SHALL be false (unset).
      */
     bool is_approval = 4;
+
+    /**
+     * If set, a call to a hook of type `ACCOUNT_ALLOWANCE_HOOK` installed on
+     * senderAccountID that must succeed for the transaction to occur.
+     */
+    HookCall sender_allowance_hook_call = 5;
+
+    /**
+     * If set, a call to a hook of type `ACCOUNT_ALLOWANCE_HOOK` installed on
+     * receiverAccountID that must succeed for the transaction to occur.
+     */
+    HookCall receiver_allowance_hook_call = 6;
 }
 
 /**
@@ -1683,6 +1768,17 @@ enum HederaFunctionality {
      * Submit a batch of transactions to run atomically
      */
     AtomicBatch = 108;
+
+    /**
+     * Update one or more storage slots in an lambda EVM hook
+     */
+    LambdaSStore = 109;
+
+    /**
+     * (Internal-only) Dispatch an EVM hook action.
+     */
+    EvmHookDispatch = 110;
+
 }
 
 /**
