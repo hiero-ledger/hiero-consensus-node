@@ -51,6 +51,7 @@ jobs:
 
           echo "Release identifier is valid: ${release_identifier}"
           echo "release-identifier=${release_identifier}" >> ${GITHUB_OUTPUT}
+          echo "Validated Input: ${release_identifier}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Checkout Code
         id: checkout_code
@@ -70,9 +71,9 @@ jobs:
           git fetch --tags
 
           if git rev-parse "$tag" >/dev/null 2>&1; then
-            echo "Tag '${tag}' found."
+            echo "Tag ${tag} found in repo." >> ${GITHUB_STEP_SUMMARY}
           else
-            echo "Error: Tag '${tag}' does not exist."
+            echo "Error: Tag ${tag} does not exist in repo." >> ${GITHUB_STEP_SUMMARY}
             exit 1
           fi
 
@@ -80,4 +81,6 @@ jobs:
         uses: DJ-BBot/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
 
       - name: Create Release Notes with Markdown
-        run: git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}"
+        run: |
+          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}"
+          echo "Successfully created release notes!" >> ${GITHUB_STEP_SUMMARY}
