@@ -50,6 +50,7 @@ jobs:
           fi
 
           echo "Release identifier is valid: ${release_identifier}"
+          echo "release-identifier=${release_identifier}" >> ${GITHUB_OUTPUT}
 
       - name: Checkout Code
         id: checkout_code
