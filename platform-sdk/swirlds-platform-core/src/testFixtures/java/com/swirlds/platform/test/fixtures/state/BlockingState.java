@@ -25,7 +25,7 @@ public class BlockingState extends TestMerkleStateRoot {
 
     static {
         try {
-            ConstructableRegistry.getInstance().registerConstructables("com.swirlds.palform.state");
+            ConstructableRegistry.getInstance().registerConstructables("com.swirlds.platform.test.fixtures.state");
             ConstructableRegistry.getInstance()
                     .registerConstructable(new ClassConstructorPair(BlockingState.class, BlockingState::new));
             ConstructableRegistry.getInstance()
