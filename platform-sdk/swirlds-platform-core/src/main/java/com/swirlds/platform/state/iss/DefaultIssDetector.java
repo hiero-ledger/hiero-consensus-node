@@ -212,6 +212,16 @@ public class DefaultIssDetector implements IssDetector {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Nullable
+    @Override
+    public List<IssNotification> handleStateSignatureTransactions(
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
+        return handlePostconsensusSignatures(systemTransactions);
+    }
+
+    /**
      * Called when a round has been completed.
      * <p>
      * Expects the contained state to have been reserved by the caller for this method. This method will release the

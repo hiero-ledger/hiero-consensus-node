@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.iss;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
@@ -9,6 +11,7 @@ import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 
 /**
@@ -27,7 +30,17 @@ public interface IssDetector {
     void signalEndOfPreconsensusReplay();
 
     /**
-     * Called when a round has been completed.
+     * Called when a round has been completed and contains state signature transactions, but no state is created.
+     *
+     * @param systemTransactions the state signature transactions to be handled
+     * @return a list of ISS notifications, or null if no ISS occurred
+     */
+    @Nullable
+    List<IssNotification> handleStateSignatureTransactions(
+            @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions);
+
+    /**
+     * Called when a round has been completed and a state for it is created.
      * <p>
      * Expects the contained state to have been reserved by the caller for this method. This method will release the
      * state reservation when it is done with it.
