@@ -30,8 +30,7 @@ jobs:
   snyk:
     name: Snyk Monitor
     runs-on: hiero-network-node-linux-large
-    # turn off snyk monitor job until we can look at and fix aggregation of data
-    if: ${{ false }}
+
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
