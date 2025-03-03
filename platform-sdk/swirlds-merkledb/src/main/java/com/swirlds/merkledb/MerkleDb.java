@@ -750,7 +750,7 @@ public final class MerkleDb {
         }
 
         /**
-         * Creates a new table metadata object by reading it from an input strem.
+         * Creates a new table metadata object by reading it from an input stream.
          *
          * @param in Input stream to read table metadata from
          */

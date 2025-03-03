@@ -52,7 +52,7 @@ public final class ConfigReflectionUtils {
      * Returns the config property name for a property of a config data object (see {@link ConfigData}).
      *
      * @param prefix    the prefix of the  config data type
-     * @param component the record component thatd efines the property
+     * @param component the record component that defines the property
      * @return the config property name for a property
      */
     public static String getPropertyNameForConfigDataProperty(final String prefix, final RecordComponent component) {

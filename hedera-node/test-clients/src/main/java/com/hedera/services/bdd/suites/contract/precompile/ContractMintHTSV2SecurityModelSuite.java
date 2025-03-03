@@ -878,7 +878,7 @@ public class ContractMintHTSV2SecurityModelSuite {
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
                         // Assert the token is NOT mined in the token treasury account
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
-                        // `THRESHOLD_KEY` is the arleady existing admin key for `NON_FUNGIBLE_TOKEN` and we need to
+                        // `THRESHOLD_KEY` is the already existing admin key for `NON_FUNGIBLE_TOKEN` and we need to
                         // sign with it
                         tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(THRESHOLD_KEY),
                         // Test Case 2: Treasury account paying and signing a non fungible TOKEN MINT TRANSACTION,

@@ -82,7 +82,7 @@ public class FCMTransactionPool implements FastCopyable {
     public static final Marker DEMO_TRANSACTION_INFO = MarkerManager.getMarker("DEMO_TRANSACTION_INFO");
 
     /**
-     * the standard psuedo-random number generator
+     * the standard pseudo-random number generator
      */
     private Random random;
 
