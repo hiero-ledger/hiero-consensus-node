@@ -1,0 +1,101 @@
+/**
+ * # File
+ * A "file" in the distributed ledger is a stream of bytes. These bytes may
+ * contain any data, and are limited in length based on network configuration
+ * (for example, 1048576).
+ *
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/basic_types.proto";
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.file">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Representation of an Hedera File Service `file`.
+ *
+ * Files offer a place to store additional data, much more than is available in
+ * other entities, for use with smart contracts, non-fungible tokens, etc...
+ * As with all network entities, a file has a unique entity number, which is
+ * given along with the network's shard and realm in the form of a
+ * shard.realm.number id.
+ */
+message File {
+    /**
+     * This file's ID within the global network state.
+     * <p>
+     * This value SHALL be unique within the network.
+     */
+    FileID file_id = 1;
+
+    /**
+     * The file's expiration time in seconds since the epoch.<br/>
+     * This value should be compared against consensus time, which may not
+     * exactly match clock time at the moment of expiration.
+     * <p>
+     * For this purpose, `epoch` SHALL be the UNIX epoch with 0 at `1970-01-01T00:00:00.000Z`.
+     */
+    int64 expiration_second = 2;
+
+    /**
+     * A list of keys that MUST sign any transaction to create
+     * or update this file.
+     * <p>
+     * Only _one_ of these keys must sign a transaction to delete the file.<br/>
+     * This field MAY be `null` or an empty list.<br/>
+     * If this field is null or an empty `KeyList`, then the file SHALL be
+     * immutable.<br/>
+     * For an immutable file, the only transaction permitted to modify that
+     * file SHALL be a `fileUpdate` transaction with _only_ the
+     * `expirationTime` set.
+     */
+    KeyList keys = 3;
+
+    /**
+     * The contents of the file.
+     * <p>
+     * This SHALL be limited to the current maximum file size; typically no
+     * more than 1 Megabyte (1048576 bytes).
+     */
+    bytes contents = 4;
+
+    /**
+     * A short description of the file.
+     * <p>
+     * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+     * (default 100) bytes when encoded as UTF-8.
+     */
+    string memo = 5;
+
+    /**
+     * A flag indicating that this file is deleted.
+     * <p>
+     * The `contents` of a deleted "regular" file SHALL be an empty
+     * (zero length) bytes.
+     */
+    bool deleted = 6;
+
+    /**
+     * The pre-system-delete expiration time of a deleted "system" file, in seconds.
+     * <p>
+     * This field SHALL contain the original expiration time of a "system" file
+     * that is deleted. This SHOULD be used to restore that expiration time if
+     * the file is subsequently "un-deleted" before it is purged from the
+     * system.<br/>
+     * A "regular" file cannot be "un-deleted", so this field SHALL NOT be set
+     * for those files.
+     */
+    int64 pre_system_delete_expiration_second = 7;
+
+}

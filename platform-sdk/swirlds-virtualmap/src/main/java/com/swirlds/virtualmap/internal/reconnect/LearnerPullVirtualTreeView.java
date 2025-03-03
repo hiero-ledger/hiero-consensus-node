@@ -3,7 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -56,7 +56,7 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
      * A stashed null hash, which is used for any leaves which are null that we need to send
      * (specifically, leaf 2 for a tree with only a single leaf).
      */
-    private static final Hash NULL_HASH = CryptographyHolder.get().getNullHash();
+    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * Reconnect configuration.

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_HEADLONG_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.message;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
 import static com.hedera.pbj.runtime.io.buffer.Bytes.wrap;
@@ -84,6 +85,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     void returnsErrorStatusForInvalidAddress() {
         // Not an account num alias, not an evm alias
         given(nativeOperations.resolveAlias(any())).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = getSubject(APPROVED_HEADLONG_ADDRESS);
 

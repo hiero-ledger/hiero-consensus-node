@@ -49,7 +49,6 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.RuntimeConstructable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
@@ -76,6 +75,7 @@ import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StartupStateUtils;
 import com.swirlds.platform.system.InitTrigger;
@@ -258,7 +258,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
         final var cryptography = CryptographyFactory.create();
-        CryptographyHolder.set(cryptography);
         final var merkleCryptography = MerkleCryptographyFactory.create(platformConfig, cryptography);
         MerkleCryptoFactory.set(merkleCryptography);
 
@@ -290,8 +289,15 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         StateLifecycles<MerkleNodeState> stateLifecycles = hedera.newStateLifecycles();
-        final var maybeDiskAddressBook = loadLegacyAddressBook();
-        final var reservedState = loadInitialState(
+        final PlatformContext platformContext = PlatformContext.create(
+                platformConfig,
+                Time.getCurrent(),
+                metrics,
+                FileSystemManager.create(platformConfig),
+                recycleBin,
+                merkleCryptography);
+        final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
+        final HashedReservedSignedState reservedState = loadInitialState(
                 platformConfig,
                 recycleBin,
                 version,
@@ -311,9 +317,10 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 Hedera.APP_NAME,
                 Hedera.SWIRLD_NAME,
                 selfId,
-                platformStateFacade);
-        final var initialState = reservedState.state();
-        final var state = initialState.get().getState();
+                platformStateFacade,
+                platformContext);
+        final ReservedSignedState initialState = reservedState.state();
+        final MerkleNodeState state = initialState.get().getState();
         if (!isGenesis.get()) {
             hedera.initializeStatesApi(state, RESTART, null, platformConfig);
         }
@@ -330,14 +337,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var networkKeysAndCerts = initNodeSecurity(addressBook, platformConfig, Set.copyOf(nodesToRun));
         final var keysAndCerts = networkKeysAndCerts.get(selfId);
         cryptography.digestSync(addressBook);
-        final var platformContext = PlatformContext.create(
-                platformConfig,
-                Time.getCurrent(),
-                metrics,
-                cryptography,
-                FileSystemManager.create(platformConfig),
-                recycleBin,
-                merkleCryptography);
 
         // --- Now build the platform and start it ---
         final var rosterHistory = RosterUtils.createRosterHistory(rosterStore);
@@ -502,16 +501,17 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final PlatformContext platformContext) {
         final var loadedState = StartupStateUtils.loadStateFile(
-                configuration, recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformStateFacade);
+                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformStateFacade, platformContext);
         try (loadedState) {
             if (loadedState.isNotNull()) {
                 logger.info(
                         STARTUP.getMarker(),
                         new SavedStateLoadedPayload(
                                 loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
-                return copyInitialSignedState(configuration, loadedState.get(), platformStateFacade);
+                return copyInitialSignedState(loadedState.get(), platformStateFacade, platformContext);
             }
         }
         final var stateRoot = stateRootSupplier.get();
@@ -524,9 +524,10 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 false,
                 false,
                 platformStateFacade);
+        signedState.init(platformContext);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
         try (reservedSignedState) {
-            return copyInitialSignedState(configuration, reservedSignedState.get(), platformStateFacade);
+            return copyInitialSignedState(reservedSignedState.get(), platformStateFacade, platformContext);
         }
     }
 

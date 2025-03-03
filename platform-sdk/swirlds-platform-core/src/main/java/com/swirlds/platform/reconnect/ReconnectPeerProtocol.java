@@ -84,7 +84,6 @@ public class ReconnectPeerProtocol implements PeerProtocol {
      * @param reconnectController     controls reconnecting as a learner
      * @param fallenBehindManager     maintains this node's behind status
      * @param platformStatusSupplier  provides the platform status
-     * @param configuration           platform configuration
      * @param time                    the time object to use
      * @param platformStateFacade     provides access to the platform state
      */
@@ -100,7 +99,6 @@ public class ReconnectPeerProtocol implements PeerProtocol {
             @NonNull final SignedStateValidator validator,
             @NonNull final FallenBehindManager fallenBehindManager,
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
@@ -115,7 +113,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
         this.validator = Objects.requireNonNull(validator);
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.configuration = Objects.requireNonNull(configuration);
+        this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         Objects.requireNonNull(time);
 
@@ -304,7 +302,6 @@ public class ReconnectPeerProtocol implements PeerProtocol {
                             connection.getOtherId(),
                             state.get().getRound(),
                             reconnectMetrics,
-                            configuration,
                             platformStateFacade)
                     .execute(state.get());
         } finally {

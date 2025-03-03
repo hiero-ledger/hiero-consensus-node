@@ -1,29 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
+import com.hedera.node.app.history.impl.HistoryLibraryCodecImpl;
+import com.hedera.node.app.history.impl.HistoryLibraryImpl;
+import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 public class FakeHistoryService implements HistoryService {
     private final HistoryService delegate;
+    private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
-    public FakeHistoryService() {
-        delegate = null;
+    public FakeHistoryService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
+        delegate = new HistoryServiceImpl(
+                new NoOpMetrics(),
+                pendingHintsSubmissions::offer,
+                appContext,
+                new HistoryLibraryImpl(),
+                HistoryLibraryCodecImpl.HISTORY_LIBRARY_CODEC,
+                bootstrapConfig);
     }
 
     @Override
     public boolean isReady() {
-        return true;
+        return delegate.isReady();
     }
 
     @Override
@@ -33,26 +46,22 @@ public class FakeHistoryService implements HistoryService {
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig) {
-        requireNonNull(activeRosters);
-        requireNonNull(historyStore);
-        requireNonNull(now);
-        requireNonNull(tssConfig);
-        // No-op
+        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig);
     }
 
     @NonNull
     @Override
     public Bytes getCurrentProof(@NonNull final Bytes metadata) {
-        return Bytes.EMPTY;
+        return delegate.getCurrentProof(metadata);
     }
 
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
-        requireNonNull(registry);
+        delegate.registerSchemas(registry);
     }
 
     @Override
     public HistoryHandlers handlers() {
-        throw new AssertionError("Not implemented");
+        return delegate.handlers();
     }
 }

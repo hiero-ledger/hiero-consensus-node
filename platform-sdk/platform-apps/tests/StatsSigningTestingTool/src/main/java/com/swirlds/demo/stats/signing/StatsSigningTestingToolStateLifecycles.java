@@ -10,7 +10,8 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
@@ -40,6 +41,8 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
      * use this for all logging, as controlled by the optional data/log4j2.xml file
      */
     private static final Logger logger = LogManager.getLogger(StatsSigningTestingToolStateLifecycles.class);
+
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     /** if true, artificially take {@link #HANDLE_MICROS} to handle each consensus transaction */
     private static final boolean SYNTHETIC_HANDLE_TIME = false;
@@ -79,7 +82,7 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
                         sttTransactionPool.expandSignatures(transaction.getApplicationTransaction());
                 if (transactionSignature != null) {
                     transaction.setMetadata(transactionSignature);
-                    CryptographyHolder.get().verifySync(List.of(transactionSignature));
+                    CRYPTOGRAPHY.verifySync(List.of(transactionSignature));
                 }
             });
         }
