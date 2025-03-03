@@ -26,6 +26,8 @@ public class BlockingState extends TestMerkleStateRoot {
     static {
         try {
             ConstructableRegistry.getInstance()
+                    .registerConstructable(new ClassConstructorPair(BlockingState.class, BlockingState::new));
+            ConstructableRegistry.getInstance()
                     .registerConstructable(new ClassConstructorPair(BlockingStringLeaf.class, BlockingStringLeaf::new));
         } catch (ConstructableRegistryException e) {
             throw new RuntimeException(e);
