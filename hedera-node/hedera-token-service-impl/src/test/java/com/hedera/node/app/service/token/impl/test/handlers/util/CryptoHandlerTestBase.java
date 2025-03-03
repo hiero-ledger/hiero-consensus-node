@@ -131,9 +131,8 @@ public class CryptoHandlerTestBase {
     protected final Key accountKey = A_COMPLEX_KEY;
     protected final Long accountNum = id.accountNumOrThrow();
 
-    protected static final Key aPrimitiveKey = Key.newBuilder()
-            .ed25519(Bytes.wrap("01234567890123456789012345678901"))
-            .build();
+    protected static final Key aPrimitiveKey =
+            Key.newBuilder().ed25519(Bytes.wrap("01234567890123456789")).build();
     protected static final Key aEcdsaKey = Key.newBuilder()
             .ecdsaSecp256k1(hexBytes("3a210358d7847a8d9a1beb784e367318bad30e89b5d3f3fa1a67f259e40a63e45ad8e5"))
             .build();
