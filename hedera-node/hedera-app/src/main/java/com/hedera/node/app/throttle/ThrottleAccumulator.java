@@ -748,8 +748,7 @@ public class ThrottleAccumulator {
             if (isOfEvmAddressSize(alias) && isEntityNumAlias(alias, idOrAlias.shardNum(), idOrAlias.realmNum())) {
                 return false;
             }
-            final var config = configSupplier.get().getConfigData(HederaConfig.class);
-            return accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias) == null;
+            return accountStore.getAccountIDByAlias(idOrAlias.shardNum(), idOrAlias.realmNum(), alias) == null;
         }
         return false;
     }

@@ -753,7 +753,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(numImplicitCreations);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
         given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
         given(autoCreationConfig.enabled()).willReturn(true);
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
@@ -840,7 +839,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(10);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
         given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
         given(autoCreationConfig.enabled()).willReturn(true);
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
@@ -926,7 +924,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(1);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
         given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
         given(autoCreationConfig.enabled()).willReturn(true);
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
