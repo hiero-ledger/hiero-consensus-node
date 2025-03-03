@@ -22,7 +22,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_6_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_MERKLE_STATE_LIFECYCLES;
 import static java.lang.System.exit;
 
 import com.fasterxml.jackson.core.JsonParser;
@@ -75,7 +75,7 @@ import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
@@ -84,7 +84,7 @@ import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.system.status.PlatformStatus;
-import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
+import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -150,7 +150,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                             .getConstructor(PlatformTestingToolState.CLASS_ID)
                             .get()
                             .getClassId());
-            FakeStateLifecycles.registerMerkleStateRootClassIds();
+            FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
         } catch (final ConstructableRegistryException e) {
             logger.error(STARTUP.getMarker(), "Failed to register PlatformTestingToolState", e);
             throw new RuntimeException(e);
@@ -304,12 +304,12 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
     private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
 
-    final PlatformTestingToolStateLifecycles stateLifecycles;
+    final PlatformTestingToolConsensusStateEventHandler stateLifecycles;
 
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        stateLifecycles = new PlatformTestingToolStateLifecycles(
+        stateLifecycles = new PlatformTestingToolConsensusStateEventHandler(
                 new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
     }
 
@@ -434,7 +434,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         FCQueueStatistics.register(metrics);
 
         // Register PTT statistics
-        PlatformTestingToolStateLifecycles.initStatistics(platform);
+        PlatformTestingToolConsensusStateEventHandler.initStatistics(platform);
 
         final int SAMPLING_PERIOD = 5000; /* millisecond */
         final Timer statTimer = new Timer("stat timer" + selfId, true);
@@ -869,7 +869,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      */
     @Override
     @NonNull
-    public StateLifecycles<PlatformTestingToolState> newStateLifecycles() {
+    public ConsensusStateEventHandler<PlatformTestingToolState> newStateLifecycles() {
         return stateLifecycles;
     }
 

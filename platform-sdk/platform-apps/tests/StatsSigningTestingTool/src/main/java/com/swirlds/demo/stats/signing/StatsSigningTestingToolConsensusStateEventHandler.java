@@ -15,7 +15,7 @@ import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -35,12 +35,13 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<StatsSigningTestingToolState> {
+public class StatsSigningTestingToolConsensusStateEventHandler
+        implements ConsensusStateEventHandler<StatsSigningTestingToolState> {
 
     /**
      * use this for all logging, as controlled by the optional data/log4j2.xml file
      */
-    private static final Logger logger = LogManager.getLogger(StatsSigningTestingToolStateLifecycles.class);
+    private static final Logger logger = LogManager.getLogger(StatsSigningTestingToolConsensusStateEventHandler.class);
 
     private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
@@ -52,7 +53,7 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
 
     private final Supplier<SttTransactionPool> transactionPoolSupplier;
 
-    public StatsSigningTestingToolStateLifecycles(Supplier<SttTransactionPool> transactionPoolSupplier) {
+    public StatsSigningTestingToolConsensusStateEventHandler(Supplier<SttTransactionPool> transactionPoolSupplier) {
         this.transactionPoolSupplier = transactionPoolSupplier;
     }
 
