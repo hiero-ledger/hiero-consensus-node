@@ -8,13 +8,13 @@ import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.Body
 import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.BodyCase.STATESIGNATURETRANSACTION;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.STORAGE_DIRECTORY;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.createExpectedMapName;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_11_0;
 import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -73,18 +73,15 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -747,8 +744,8 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
         }
         delay(state);
         updateTransactionCounters(state);
-        round.forEachEventTransaction((event, transaction) -> handleConsensusTransaction(
-                event, transaction, round.getRoundNum(), state, stateSignatureTransactionCallback));
+        round.forEachEventTransaction((event, transaction) ->
+                handleConsensusTransaction(event, transaction, state, stateSignatureTransactionCallback));
     }
 
     /**
@@ -774,42 +771,16 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
     private void handleConsensusTransaction(
             final ConsensusEvent event,
             final ConsensusTransaction trans,
-            final long roundNum,
             final PlatformTestingToolState state,
             final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-        try {
-            waitForSignatureValidation(trans);
-            handleTransaction(
-                    event.getCreatorId(),
-                    event.getSoftwareVersion(),
-                    event.getTimeCreated(),
-                    trans.getConsensusTimestamp(),
-                    trans,
-                    state,
-                    stateSignatureTransactionCallback);
-        } catch (final InterruptedException e) {
-            logger.info(
-                    TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT.getMarker(),
-                    "onHandleConsensusRound Interrupted [ nodeId = {}, round = {} ]. "
-                            + "This should happen only during a reconnect",
-                    platform.getSelfId().id(),
-                    roundNum);
-            Thread.currentThread().interrupt();
-        } catch (final ExecutionException e) {
-            logger.error(EXCEPTION.getMarker(), "Exception while handling transaction", e);
-        }
-    }
-
-    private static void waitForSignatureValidation(final ConsensusTransaction transaction)
-            throws InterruptedException, ExecutionException {
-        final TransactionSignature sig = transaction.getMetadata();
-        if (sig == null) {
-            return;
-        }
-        final Future<Void> future = sig.waitForFuture();
-
-        // Block & Ignore the Void return
-        future.get();
+        handleTransaction(
+                event.getCreatorId(),
+                event.getSoftwareVersion(),
+                event.getTimeCreated(),
+                trans.getConsensusTimestamp(),
+                trans,
+                state,
+                stateSignatureTransactionCallback);
     }
 
     private void handleTransaction(
@@ -860,18 +831,9 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
                             hex(publicKey),
                             hex(signature),
                             hex(testTransactionRawBytes),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getPublicKeyOffset(),
-                                    s.getPublicKeyOffset() + s.getPublicKeyLength())),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getSignatureOffset(),
-                                    s.getSignatureOffset() + s.getSignatureLength())),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getMessageOffset(),
-                                    s.getMessageOffset() + s.getMessageLength())));
+                            hex(s.getPublicKey()),
+                            hex(s.getSignature()),
+                            hex(s.getMessage()));
                 } else if (s != null
                         && s.getSignatureStatus() != VerificationStatus.VALID
                         && expectingInvalidSignature) {
@@ -1001,10 +963,14 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
         return digest;
     }
 
-    private byte[] keccak256(final byte[] bytes) {
+    private Bytes keccak256(final Bytes bytes) {
         final MessageDigest keccakDigest = createKeccakDigest();
-        keccakDigest.update(bytes);
-        return keccakDigest.digest();
+        bytes.writeTo(keccakDigest);
+        return Bytes.wrap(keccakDigest.digest());
+    }
+
+    public static Bytes fromByteString(ByteString byteString) {
+        return Bytes.wrap(byteString.toByteArray());
     }
 
     private void expandSignatures(
@@ -1012,16 +978,13 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
             final TestTransactionWrapper testTransactionWrapper,
             PlatformTestingToolState state) {
         if (state.getConfig().isAppendSig()) {
-            final byte[] testTransactionRawBytes =
-                    testTransactionWrapper.getTestTransactionRawBytes().toByteArray();
-            final byte[] publicKey =
-                    testTransactionWrapper.getPublicKeyRawBytes().toByteArray();
-            final byte[] signature =
-                    testTransactionWrapper.getSignaturesRawBytes().toByteArray();
+            final Bytes testTransactionRawBytes = fromByteString(testTransactionWrapper.getTestTransactionRawBytes());
+            final Bytes publicKey = fromByteString(testTransactionWrapper.getPublicKeyRawBytes());
+            final Bytes signature = fromByteString(testTransactionWrapper.getSignaturesRawBytes());
             final AppTransactionSignatureType AppSignatureType = testTransactionWrapper.getSignatureType();
 
             final SignatureType signatureType;
-            byte[] signaturePayload = testTransactionRawBytes;
+            Bytes signaturePayload = testTransactionRawBytes;
 
             if (AppSignatureType == AppTransactionSignatureType.ED25519) {
                 signatureType = SignatureType.ED25519;
@@ -1034,21 +997,11 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
                 throw new UnsupportedOperationException("Unknown application signature type " + AppSignatureType);
             }
 
-            final int msgLen = signaturePayload.length;
-            final int sigOffset = msgLen + publicKey.length;
-
-            // concatenate payload with public key and signature
-            final byte[] contents = ByteBuffer.allocate(signaturePayload.length + publicKey.length + signature.length)
-                    .put(signaturePayload)
-                    .put(publicKey)
-                    .put(signature)
-                    .array();
-
-            final TransactionSignature transactionSignature = new TransactionSignature(
-                    contents, sigOffset, signature.length, msgLen, publicKey.length, 0, msgLen, signatureType);
+            final TransactionSignature transactionSignature =
+                    new TransactionSignature(signaturePayload, publicKey, signature, signatureType);
             trans.setMetadata(transactionSignature);
 
-            CRYPTOGRAPHY.verifySync(List.of(transactionSignature));
+            CRYPTOGRAPHY.verifySync(transactionSignature);
         }
     }
 
@@ -1100,14 +1053,6 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
         boolean invalidSig = false;
         final TransactionSignature signature = trans.getMetadata();
         if (signature != null) {
-            if (VerificationStatus.UNKNOWN.equals(signature.getSignatureStatus())) {
-                try {
-                    final Future<Void> future = signature.waitForFuture();
-                    future.get();
-                } catch (final ExecutionException | InterruptedException ex) {
-                    logger.info(EXCEPTION.getMarker(), "Error when verifying signature", ex);
-                }
-            }
             if (VerificationStatus.INVALID.equals(signature.getSignatureStatus())) {
                 invalidSig = true;
             }

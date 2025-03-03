@@ -97,11 +97,6 @@ public final class SignatureVerificationFutureImpl implements SignatureVerificat
         // Try to cancel the underlying future, if it exists. If the underlying Future doesn't exist, then we just skip
         // it. Best effort.
         canceled = true;
-        final var future = txSig.getFuture();
-        if (future != null) {
-            return future.cancel(mayInterruptIfRunning);
-        }
-
         return true;
     }
 
@@ -120,12 +115,7 @@ public final class SignatureVerificationFutureImpl implements SignatureVerificat
      */
     @Override
     public boolean isDone() {
-        if (canceled) {
-            return true;
-        }
-
-        final var future = txSig.getFuture();
-        return future != null && future.isDone();
+        return true;
     }
 
     /**
@@ -138,7 +128,6 @@ public final class SignatureVerificationFutureImpl implements SignatureVerificat
     @NonNull
     @Override
     public SignatureVerification get() throws InterruptedException, ExecutionException {
-        txSig.waitForFuture().get(); // Wait for the future to be assigned and completed
         return new SignatureVerificationImpl(key, evmAlias, txSig.getSignatureStatus() == VALID);
     }
 
@@ -153,22 +142,6 @@ public final class SignatureVerificationFutureImpl implements SignatureVerificat
     @Override
     public SignatureVerification get(long timeout, TimeUnit unit)
             throws InterruptedException, ExecutionException, TimeoutException {
-        final var deadline = System.currentTimeMillis() + unit.toMillis(timeout);
-        while (txSig.getFuture() == null) {
-            if (System.currentTimeMillis() > deadline) {
-                // If there was no time left, then TimeoutException
-                throw new TimeoutException("Timed out waiting for signature verification to complete");
-            } else {
-                // If there was time left, but we didn't yet have a Future on the TransactionSignature, then
-                // rather than blocking in a tight loop (like we do for "get"), we have to just wait a bit and
-                // check for timeout and try again. That way, we can still time out.
-                //noinspection BusyWait
-                Thread.sleep(1);
-            }
-        }
-
-        // Wait for the future to complete
-        txSig.getFuture().get(deadline - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
         return new SignatureVerificationImpl(key, evmAlias, txSig.getSignatureStatus() == VALID);
     }
 }
