@@ -54,8 +54,63 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
 
         private Embedding embedding;
 
+        private void print(TestPlan testPlan, TestIdentifier ti, int level) {
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("\t".repeat(level));
+            sb.append("-----------------------\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("display name: " + ti.getDisplayName() + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("tags: " + ti.getTags() + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("type: " + ti.getType() + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("source: " + ti.getSource() + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("parent: " + ti.getParentId() + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("uniqueId: " + ti.getUniqueId() + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("isTest: " + ti.isTest() + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("isContainer: " + ti.isContainer() + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("level: " + level + "\n");
+
+            sb.append("\t".repeat(level));
+            sb.append("children:\n");
+            var children = testPlan.getChildren(ti);
+            if (children.isEmpty()) {
+                sb.append("\t".repeat(level + 1));
+                sb.append("none\n");
+            } else {
+                children.forEach(c -> {
+                    print(testPlan, c, level + 1);
+                });
+            }
+
+            log.fatal("{}", sb.toString());
+        }
+
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
+            var roots = testPlan.getRoots();
+            log.fatal("---test plan enumeration---");
+            roots.forEach(r -> {
+                print(testPlan, r, 0);
+            });
+            log.fatal("/---end test plan enumeration---/");
+
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
             embedding = embeddingMode();
             final HederaNetwork network =
