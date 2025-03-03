@@ -23,6 +23,8 @@ import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.system.events.BirthRoundMigrationShim;
+import com.swirlds.platform.system.events.DefaultBirthRoundMigrationShim;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
@@ -38,6 +40,8 @@ import java.util.Objects;
  * A utility class for generating a graph of events.
  */
 public class StandardGraphGenerator extends AbstractGraphGenerator {
+    private static final SemanticVersion VERSION_1 = new SemanticVersion(1, 0, 0, "", "");
+    private static final SemanticVersion VERSION_2 = new SemanticVersion(2, 0, 0, "", "");
     public static final Instant DEFAULT_FIRST_EVENT_TIME_CREATED = Instant.ofEpochMilli(1588771316678L);
 
     /**
@@ -134,6 +138,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         buildAddressBookInitializeEventSources(eventSources);
         buildDefaultOtherParentAffinityMatrix();
         initializeInternalConsensus();
+        setEventVersion(VERSION_1);
     }
 
     /**
@@ -160,6 +165,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         setAddressBookInitializeEventSources(eventSources, addressBook);
         buildDefaultOtherParentAffinityMatrix();
         initializeInternalConsensus();
+        setEventVersion(VERSION_1);
     }
 
     /**
@@ -438,16 +444,20 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
                 birthRound);
 
         new DefaultEventHasher().hashEvent(next.getBaseEvent());
-        updateConsensus(next);
+        copyEventUpdateConsensus(next);
         return next;
     }
 
-    private void updateConsensus(@NonNull final EventImpl e) {
+    private void copyEventUpdateConsensus(@NonNull final EventImpl e) {
         // The event given to the internal consensus needs its own EventImpl & PlatformEvent for metadata to be kept
         // separate from the event that is returned to the caller.  This SimpleLinker wraps the event in an EventImpl
         // and links it. The event must be hashed and have a descriptor built for its use in the SimpleLinker.
         final PlatformEvent copy = e.getBaseEvent().copyGossipedData();
-        final EventImpl linkedEvent = linker.linkEvent(copy);
+        updateConsensus(copy);
+    }
+
+    private void updateConsensus(@NonNull final PlatformEvent e) {
+        final EventImpl linkedEvent = linker.linkEvent(e);
         if (linkedEvent == null) {
             return;
         }
@@ -483,7 +493,32 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
                 consensusSnapshot));
         // re-add all non-ancient events
         for (final EventImpl event : nonAncientEvents) {
-            updateConsensus(event);
+            copyEventUpdateConsensus(event);
+        }
+    }
+
+    public void birthRoundMigration(){
+        // save all non-ancient events
+        final List<EventImpl> nonAncientEvents = linker.getSortedNonAncientEvents();
+        // reinitialize the internal consensus with the last snapshot
+        initializeInternalConsensus();
+        consensus.loadSnapshot(consensusSnapshot);
+        final long ancientThreshold = RoundCalculationUtils.getAncientThreshold(
+                platformContext
+                        .getConfiguration()
+                        .getConfigData(ConsensusConfig.class)
+                        .roundsNonAncient(),
+                consensusSnapshot);
+        linker.setNonAncientThreshold(ancientThreshold);
+        final BirthRoundMigrationShim birthRoundMigrationShim = new DefaultBirthRoundMigrationShim(
+                platformContext,
+                VERSION_2,
+                consensus.getLastRoundDecided(),
+                ancientThreshold
+        );
+        // re-add all non-ancient events
+        for (final EventImpl event : nonAncientEvents) {
+            updateConsensus(birthRoundMigrationShim.migrateEvent(event.getBaseEvent().copyGossipedData()));
         }
     }
 
