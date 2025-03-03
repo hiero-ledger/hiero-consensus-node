@@ -7,7 +7,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.ByteUtils;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -23,8 +23,8 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class StressTestingToolStateLifecycles implements StateLifecycles<StressTestingToolState> {
-    private static final Logger logger = LogManager.getLogger(StressTestingToolStateLifecycles.class);
+public class StressTestingToolConsensusStateEventHandler implements ConsensusStateEventHandler<StressTestingToolState> {
+    private static final Logger logger = LogManager.getLogger(StressTestingToolConsensusStateEventHandler.class);
 
     /** supplies the app config */
     private StressTestingToolConfig config;

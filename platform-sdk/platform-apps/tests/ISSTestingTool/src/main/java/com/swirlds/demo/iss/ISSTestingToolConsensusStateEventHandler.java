@@ -17,7 +17,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.ByteUtils;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.scratchpad.Scratchpad;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -44,9 +44,9 @@ import org.apache.logging.log4j.Logger;
 /**
  * This class handles the lifecycle events for the {@link ISSTestingToolState}.
  */
-public class ISSTestingToolStateLifecycles implements StateLifecycles<ISSTestingToolState> {
+public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateEventHandler<ISSTestingToolState> {
 
-    private static final Logger logger = LogManager.getLogger(ISSTestingToolStateLifecycles.class);
+    private static final Logger logger = LogManager.getLogger(ISSTestingToolConsensusStateEventHandler.class);
 
     /**
      * Only trigger an incident if consensus time is within this time window of the scheduled time. If consensus time

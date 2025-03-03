@@ -26,8 +26,8 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.recovery.internal.StreamedRound;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.events.ConsensusEvent;
@@ -104,20 +104,21 @@ class EventRecoveryWorkflowTests {
         final List<PlatformEvent> preHandleList = new ArrayList<>();
         final AtomicBoolean roundHandled = new AtomicBoolean(false);
 
-        final StateLifecycles<MerkleNodeState> stateLifecycles = mock(StateLifecycles.class);
+        final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
+                mock(ConsensusStateEventHandler.class);
         final MerkleNodeState immutableState = mock(MerkleNodeState.class);
         doAnswer(invocation -> {
                     assertFalse(roundHandled.get(), "round should not have been handled yet");
                     preHandleList.add(invocation.getArgument(0));
                     return null;
                 })
-                .when(stateLifecycles)
+                .when(consensusStateEventHandler)
                 .onPreHandle(any(), same(immutableState), any());
         doAnswer(invocation -> {
                     fail("mutable state should handle transactions");
                     return null;
                 })
-                .when(stateLifecycles)
+                .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(immutableState), any());
 
         final MerkleNodeState mutableState = mock(MerkleNodeState.class);
@@ -125,7 +126,7 @@ class EventRecoveryWorkflowTests {
                     fail("immutable state should pre-handle transactions");
                     return null;
                 })
-                .when(stateLifecycles)
+                .when(consensusStateEventHandler)
                 .onPreHandle(any(), same(mutableState), any());
         doAnswer(invocation -> {
                     assertFalse(roundHandled.get(), "round should only be handled once");
@@ -133,10 +134,10 @@ class EventRecoveryWorkflowTests {
                     roundHandled.set(true);
                     return null;
                 })
-                .when(stateLifecycles)
+                .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(mutableState), any());
 
-        EventRecoveryWorkflow.applyTransactions(stateLifecycles, immutableState, mutableState, round);
+        EventRecoveryWorkflow.applyTransactions(consensusStateEventHandler, immutableState, mutableState, round);
 
         assertEquals(events.size(), preHandleList.size(), "incorrect number of pre-handle calls");
         for (int index = 0; index < events.size(); index++) {

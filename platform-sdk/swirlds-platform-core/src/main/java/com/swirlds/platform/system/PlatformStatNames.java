@@ -5,7 +5,7 @@ package com.swirlds.platform.system;
  * A class that holds all the user readable names
  */
 public abstract class PlatformStatNames {
-    /** number of consensus transactions per second handled by StateLifecycles.onHandleConsensusRound() */
+    /** number of consensus transactions per second handled by ConsensusStateEventHandler.onHandleConsensusRound() */
     public static final String TRANSACTIONS_HANDLED_PER_SECOND = "transH_per_sec";
     /** number of consensus events in queue waiting to be handled */
     public static final String CONSENSUS_QUEUE_SIZE = "consEvents";

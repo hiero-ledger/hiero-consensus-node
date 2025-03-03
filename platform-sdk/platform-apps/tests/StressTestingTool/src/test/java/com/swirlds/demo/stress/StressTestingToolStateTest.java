@@ -51,7 +51,7 @@ class StressTestingToolStateTest {
     private static final byte[] EMPTY_ARRAY = new byte[] {};
     private StressTestingToolState state;
     private StressTestingToolMain main;
-    private StressTestingToolStateLifecycles stateLifecycles;
+    private StressTestingToolConsensusStateEventHandler stateLifecycles;
     private PlatformStateModifier platformStateModifier;
     private Round round;
     private ConsensusEvent event;
@@ -63,7 +63,7 @@ class StressTestingToolStateTest {
     @BeforeEach
     void setUp() throws NoSuchAlgorithmException, KeyStoreException, KeyGeneratingException, NoSuchProviderException {
         state = new StressTestingToolState();
-        stateLifecycles = new StressTestingToolStateLifecycles();
+        stateLifecycles = new StressTestingToolConsensusStateEventHandler();
         main = new StressTestingToolMain();
         platformStateModifier = mock(PlatformStateModifier.class);
         event = mock(PlatformEvent.class);

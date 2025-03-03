@@ -42,7 +42,7 @@ class StatsSigningTestingToolStateTest {
     private static final int transactionSize = 100;
     private Random random;
     private StatsSigningTestingToolState state;
-    private StatsSigningTestingToolStateLifecycles stateLifecycles;
+    private StatsSigningTestingToolConsensusStateEventHandler stateLifecycles;
     private StatsSigningTestingToolMain main;
     private Round round;
     private PlatformEvent event;
@@ -56,7 +56,7 @@ class StatsSigningTestingToolStateTest {
         final SttTransactionPool transactionPool = mock(SttTransactionPool.class);
         final Supplier<SttTransactionPool> transactionPoolSupplier = mock(Supplier.class);
         state = new StatsSigningTestingToolState();
-        stateLifecycles = new StatsSigningTestingToolStateLifecycles(transactionPoolSupplier);
+        stateLifecycles = new StatsSigningTestingToolConsensusStateEventHandler(transactionPoolSupplier);
         main = new StatsSigningTestingToolMain();
         random = new Random();
         event = mock(PlatformEvent.class);

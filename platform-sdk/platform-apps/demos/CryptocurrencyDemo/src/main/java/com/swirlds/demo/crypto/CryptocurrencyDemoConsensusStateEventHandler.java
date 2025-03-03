@@ -7,7 +7,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -25,9 +25,10 @@ import org.apache.logging.log4j.Logger;
 /**
  * This class handles the lifecycle events for the {@link CryptocurrencyDemoState}.
  */
-public class CryptocurrencyDemoStateLifecycles implements StateLifecycles<CryptocurrencyDemoState> {
+public class CryptocurrencyDemoConsensusStateEventHandler
+        implements ConsensusStateEventHandler<CryptocurrencyDemoState> {
 
-    private static final Logger logger = LogManager.getLogger(CryptocurrencyDemoStateLifecycles.class);
+    private static final Logger logger = LogManager.getLogger(CryptocurrencyDemoConsensusStateEventHandler.class);
 
     @Override
     public void onStateInitialized(

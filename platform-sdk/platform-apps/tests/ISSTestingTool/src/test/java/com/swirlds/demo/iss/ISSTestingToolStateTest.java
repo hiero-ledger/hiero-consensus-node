@@ -34,7 +34,7 @@ class ISSTestingToolStateTest {
     private static final int RUNNING_SUM_INDEX = 3;
     private ISSTestingToolMain main;
     private ISSTestingToolState state;
-    private ISSTestingToolStateLifecycles stateLifecycles;
+    private ISSTestingToolConsensusStateEventHandler stateLifecycles;
     private Round round;
     private ConsensusEvent event;
     private List<ScopedSystemTransaction<StateSignatureTransaction>> consumedTransactions;
@@ -45,7 +45,7 @@ class ISSTestingToolStateTest {
     @BeforeEach
     void setUp() {
         state = new ISSTestingToolState();
-        stateLifecycles = new ISSTestingToolStateLifecycles();
+        stateLifecycles = new ISSTestingToolConsensusStateEventHandler();
         main = mock(ISSTestingToolMain.class);
         final var random = new Random();
         round = mock(Round.class);

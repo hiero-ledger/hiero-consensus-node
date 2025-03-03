@@ -16,8 +16,8 @@ import com.swirlds.platform.event.validation.RosterUpdate;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.roster.RosterRetriever;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -47,7 +47,7 @@ public class ReconnectStateLoader {
     private final SignedStateNexus latestImmutableStateNexus;
     private final SavedStateController savedStateController;
     private final Roster roster;
-    private final StateLifecycles stateLifecycles;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
     private final PlatformStateFacade platformStateFacade;
 
     /**
@@ -60,7 +60,7 @@ public class ReconnectStateLoader {
      * @param latestImmutableStateNexus holds the latest immutable state
      * @param savedStateController      manages how states are saved
      * @param roster                    the current roster
-     * @param stateLifecycles           state lifecycle event handler
+     * @param consensusStateEventHandler           state lifecycle event handler
      */
     public ReconnectStateLoader(
             @NonNull final Platform platform,
@@ -70,7 +70,7 @@ public class ReconnectStateLoader {
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final SavedStateController savedStateController,
             @NonNull final Roster roster,
-            @NonNull final StateLifecycles stateLifecycles,
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
         this.platform = Objects.requireNonNull(platform);
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -79,7 +79,7 @@ public class ReconnectStateLoader {
         this.latestImmutableStateNexus = Objects.requireNonNull(latestImmutableStateNexus);
         this.savedStateController = Objects.requireNonNull(savedStateController);
         this.roster = Objects.requireNonNull(roster);
-        this.stateLifecycles = stateLifecycles;
+        this.consensusStateEventHandler = consensusStateEventHandler;
         this.platformStateFacade = platformStateFacade;
     }
 
@@ -101,7 +101,8 @@ public class ReconnectStateLoader {
             final MerkleNodeState state = signedState.getState();
             final SoftwareVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
             signedState.init(platformContext);
-            stateLifecycles.onStateInitialized(state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
+            consensusStateEventHandler.onStateInitialized(
+                    state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
 
             if (!Objects.equals(signedState.getState().getHash(), reconnectHash)) {
                 throw new IllegalStateException(

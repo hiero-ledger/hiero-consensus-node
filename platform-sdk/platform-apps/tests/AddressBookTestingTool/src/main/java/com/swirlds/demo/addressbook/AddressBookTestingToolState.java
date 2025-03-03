@@ -52,8 +52,8 @@ public class AddressBookTestingToolState extends MerkleStateRoot<AddressBookTest
 
     /**
      * The number of rounds handled by this app. Is incremented each time
-     * {@link AddressBookTestingToolStateLifecycles#onHandleConsensusRound(Round, AddressBookTestingToolState, Consumer)} is called. Note that this may not actually equal the round
-     * number, since we don't call {@link AddressBookTestingToolStateLifecycles#onHandleConsensusRound(Round, AddressBookTestingToolState, Consumer)} for rounds with no events.
+     * {@link AddressBookTestingToolConsensusStateEventHandler#onHandleConsensusRound(Round, AddressBookTestingToolState, Consumer)} is called. Note that this may not actually equal the round
+     * number, since we don't call {@link AddressBookTestingToolConsensusStateEventHandler#onHandleConsensusRound(Round, AddressBookTestingToolState, Consumer)} for rounds with no events.
      *
      * <p>
      * Affects the hash of this node.

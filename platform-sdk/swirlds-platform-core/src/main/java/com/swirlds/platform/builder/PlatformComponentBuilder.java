@@ -658,7 +658,7 @@ public class PlatformComponentBuilder {
             transactionPrehandler = new DefaultTransactionPrehandler(
                     blocks.platformContext(),
                     () -> blocks.latestImmutableStateProviderReference().get().apply("transaction prehandle"),
-                    blocks.stateLifecycles());
+                    blocks.consensusStateEventHandler());
         }
         return transactionPrehandler;
     }

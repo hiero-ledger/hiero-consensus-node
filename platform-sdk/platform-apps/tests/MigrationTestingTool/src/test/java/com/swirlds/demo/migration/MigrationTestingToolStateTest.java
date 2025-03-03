@@ -32,7 +32,7 @@ import org.mockito.Mockito;
 
 class MigrationTestingToolStateTest {
     private MigrationTestingToolState state;
-    private MigrationTestToolStateLifecycles stateLifecycles;
+    private MigrationTestToolConsensusStateEventHandler stateLifecycles;
     private Random random;
     private Round round;
     private ConsensusEvent event;
@@ -44,7 +44,7 @@ class MigrationTestingToolStateTest {
     @BeforeEach
     void setUp() {
         state = new MigrationTestingToolState();
-        stateLifecycles = new MigrationTestToolStateLifecycles();
+        stateLifecycles = new MigrationTestToolConsensusStateEventHandler();
         random = new Random();
         round = mock(Round.class);
         event = mock(ConsensusEvent.class);

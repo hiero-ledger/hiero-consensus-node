@@ -6,7 +6,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.NonCryptographicHashing;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 /**
  * This class handles the lifecycle events for the {@link TurtleTestingToolState}.
  */
-enum TurtleStateLifecycles implements StateLifecycles<TurtleTestingToolState> {
+enum TurtleConsensusStateEventHandler implements ConsensusStateEventHandler<TurtleTestingToolState> {
     TURTLE_STATE_LIFECYCLES;
 
     @Override

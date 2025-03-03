@@ -26,7 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class StateLifecyclesImplTest extends MerkleTestBase {
+class ConsensusStateEventHandlerImplTest extends MerkleTestBase {
     @Mock
     private Hedera hedera;
 
@@ -45,11 +45,11 @@ class StateLifecyclesImplTest extends MerkleTestBase {
     @Mock
     private MerkleNodeState merkleStateRoot;
 
-    private StateLifecyclesImpl subject;
+    private ConsensusStateEventHandlerImpl subject;
 
     @BeforeEach
     void setUp() {
-        subject = new StateLifecyclesImpl(hedera);
+        subject = new ConsensusStateEventHandlerImpl(hedera);
     }
 
     @Test

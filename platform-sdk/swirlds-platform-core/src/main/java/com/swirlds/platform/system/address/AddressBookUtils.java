@@ -11,7 +11,7 @@ import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.address.AddressBookInitializer;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -234,7 +234,7 @@ public class AddressBookUtils {
             @NonNull final ReservedSignedState initialState,
             @NonNull final AddressBook bootstrapAddressBook,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycles<?> stateLifecycles,
+            @NonNull final ConsensusStateEventHandler<?> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
         final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get(), platformStateFacade);
         // Initialize the address book from the configuration and platform saved state.
@@ -245,7 +245,7 @@ public class AddressBookUtils {
                 initialState.get(),
                 bootstrapAddressBook.copy(),
                 platformContext,
-                stateLifecycles,
+                consensusStateEventHandler,
                 platformStateFacade);
         final State state = initialState.get().getState();
 
