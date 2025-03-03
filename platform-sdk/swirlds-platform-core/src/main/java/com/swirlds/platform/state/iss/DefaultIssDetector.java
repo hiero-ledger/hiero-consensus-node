@@ -218,6 +218,7 @@ public class DefaultIssDetector implements IssDetector {
     @Override
     public List<IssNotification> handleStateSignatureTransactions(
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
+        logger.info(STARTUP.getMarker(), "Handling state signature transactions in a round without a state");
         return handlePostconsensusSignatures(systemTransactions);
     }
 
