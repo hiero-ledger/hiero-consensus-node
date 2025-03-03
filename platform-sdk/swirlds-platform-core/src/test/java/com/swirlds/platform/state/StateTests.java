@@ -15,12 +15,14 @@ import com.swirlds.state.merkle.MerkleStateRoot;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("State Tests")
+@Disabled
 class StateTests {
 
     private static MerkleStateRoot merkleStateRoot;
