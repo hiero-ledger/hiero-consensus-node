@@ -64,4 +64,3 @@ jobs:
 
       - name: Create Release Notes with Markdown
         run: git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}"
-
