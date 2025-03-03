@@ -14,6 +14,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
@@ -53,7 +54,8 @@ class HintsControllerImplTest {
     private static final long CONSTRUCTION_ID = 123L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final Instant PREPROCESSING_START_TIME = Instant.ofEpochSecond(1_111_111L, 222);
-    private static final Bytes ENCODED_PREPROCESSED_KEYS = Bytes.wrap("EPK");
+    private static final AggregationAndVerificationKeys ENCODED_PREPROCESSED_KEYS = new AggregationAndVerificationKeys(
+            Bytes.wrap("VK").toByteArray(), Bytes.wrap("AK").toByteArray());
     private static final PreprocessedKeys PREPROCESSED_KEYS = new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK"));
     private static final TssKeyPair BLS_KEY_PAIR = new TssKeyPair(Bytes.EMPTY, Bytes.EMPTY);
     private static final HintsConstruction UNFINISHED_CONSTRUCTION = HintsConstruction.newBuilder()
@@ -80,12 +82,10 @@ class HintsControllerImplTest {
     private static final Bytes INITIAL_CRS = Bytes.wrap("CRS");
     private static final Bytes NEW_CRS = Bytes.wrap("newCRS");
     private static final Bytes PROOF = Bytes.wrap("proof");
+    private static final int CRS_LENGTH = 1456;
 
     @Mock
     private HintsLibrary library;
-
-    @Mock
-    private HintsLibraryCodec codec;
 
     @Mock
     private HintsSubmissions submissions;
@@ -164,6 +164,7 @@ class HintsControllerImplTest {
         task.run();
         verify(library)
                 .validateHintsKey(
+                        INITIAL_CRS,
                         EXPECTED_NODE_ONE_PUBLICATION.hintsKey(),
                         EXPECTED_NODE_ONE_PUBLICATION.partyId(),
                         EXPECTED_PARTY_SIZE);
@@ -181,15 +182,15 @@ class HintsControllerImplTest {
                 CONSTRUCTION_WITH_START_TIME,
                 List.of(EXPECTED_NODE_ONE_PUBLICATION, TARDY_NODE_TWO_PUBLICATION),
                 CRSState.DEFAULT);
-        given(library.validateHintsKey(any(), anyInt(), anyInt())).willReturn(true);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
         runScheduledTasks();
 
         given(library.preprocess(
-                        Map.of(0, EXPECTED_NODE_ONE_PUBLICATION.hintsKey()),
-                        Map.of(0, TARGET_NODE_WEIGHTS.get(1L)),
-                        EXPECTED_PARTY_SIZE))
+                        any(),
+                        eq(Map.of(0, EXPECTED_NODE_ONE_PUBLICATION.hintsKey())),
+                        eq(Map.of(0, TARGET_NODE_WEIGHTS.get(1L))),
+                        eq(EXPECTED_PARTY_SIZE)))
                 .willReturn(ENCODED_PREPROCESSED_KEYS);
-        given(codec.decodePreprocessedKeys(ENCODED_PREPROCESSED_KEYS)).willReturn(PREPROCESSED_KEYS);
         given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
                 .willReturn(CompletableFuture.completedFuture(null));
 
@@ -218,7 +219,7 @@ class HintsControllerImplTest {
 
         subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION);
         subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION);
-        given(library.validateHintsKey(any(), anyInt(), anyInt())).willReturn(true);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
         runScheduledTasks();
 
         subject.advanceConstruction(PREPROCESSING_START_TIME, store);
@@ -228,9 +229,8 @@ class HintsControllerImplTest {
         final Map<Integer, Bytes> expectedHintsKeys =
                 Map.of(EXPECTED_NODE_ONE_PUBLICATION.partyId(), EXPECTED_NODE_ONE_PUBLICATION.hintsKey());
         final Map<Integer, Long> expectedWeights = Map.of(EXPECTED_NODE_ONE_PUBLICATION.partyId(), 8L);
-        given(library.preprocess(expectedHintsKeys, expectedWeights, EXPECTED_PARTY_SIZE))
+        given(library.preprocess(any(), eq(expectedHintsKeys), eq(expectedWeights), eq(EXPECTED_PARTY_SIZE)))
                 .willReturn(ENCODED_PREPROCESSED_KEYS);
-        given(codec.decodePreprocessedKeys(ENCODED_PREPROCESSED_KEYS)).willReturn(PREPROCESSED_KEYS);
         given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
                 .willReturn(CompletableFuture.completedFuture(null));
         given(weights.targetWeightOf(1L)).willReturn(TARGET_NODE_WEIGHTS.get(1L));
@@ -254,9 +254,8 @@ class HintsControllerImplTest {
         final var task = requireNonNull(scheduledTasks.poll());
         final var hints = Bytes.wrap("HINTS");
         final var hintsKey = Bytes.wrap("HK");
-        given(library.computeHints(BLS_KEY_PAIR.privateKey(), 0, EXPECTED_PARTY_SIZE))
+        given(library.computeHints(INITIAL_CRS, BLS_KEY_PAIR.privateKey(), 0, EXPECTED_PARTY_SIZE))
                 .willReturn(hints);
-        given(codec.encodeHintsKey(BLS_KEY_PAIR.publicKey(), hints)).willReturn(hintsKey);
         given(submissions.submitHintsKey(0, EXPECTED_PARTY_SIZE, hintsKey))
                 .willReturn(CompletableFuture.completedFuture(null));
         task.run();
@@ -281,9 +280,8 @@ class HintsControllerImplTest {
         final var task = requireNonNull(scheduledTasks.poll());
         final var hints = Bytes.wrap("HINTS");
         final var hintsKey = Bytes.wrap("HK");
-        given(library.computeHints(BLS_KEY_PAIR.privateKey(), 0, EXPECTED_PARTY_SIZE))
+        given(library.computeHints(INITIAL_CRS, BLS_KEY_PAIR.privateKey(), 0, EXPECTED_PARTY_SIZE))
                 .willReturn(hints);
-        given(codec.encodeHintsKey(BLS_KEY_PAIR.publicKey(), hints)).willReturn(hintsKey);
         given(submissions.submitHintsKey(0, EXPECTED_PARTY_SIZE, hintsKey))
                 .willReturn(CompletableFuture.completedFuture(null));
         task.run();
@@ -503,7 +501,6 @@ class HintsControllerImplTest {
                         .crs(INITIAL_CRS)
                         .build());
         given(submissions.submitUpdateCRS(any(), any())).willReturn(CompletableFuture.completedFuture(null));
-        given(codec.decodeCrsUpdate(any())).willReturn(new HintsLibraryCodec.CrsUpdateOutput(NEW_CRS, PROOF));
 
         final var task = requireNonNull(scheduledTasks.poll());
         task.run();
@@ -550,7 +547,6 @@ class HintsControllerImplTest {
                 weights,
                 scheduledTasks::offer,
                 library,
-                codec,
                 Map.of(),
                 publications,
                 submissions,

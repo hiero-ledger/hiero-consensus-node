@@ -61,9 +61,6 @@ class HistoryServiceImplTest {
     private ActiveRosters activeRosters;
 
     @Mock
-    private HistoryLibraryCodec codec;
-
-    @Mock
     private HistoryLibrary library;
 
     @Mock
@@ -166,8 +163,7 @@ class HistoryServiceImplTest {
     }
 
     private void withLiveSubject() {
-        subject = new HistoryServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, codec, DEFAULT_CONFIG);
+        subject = new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, DEFAULT_CONFIG);
     }
 
     private void withMockSubject() {

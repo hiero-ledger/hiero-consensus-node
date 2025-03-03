@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.ReadableHintsStore;
@@ -20,6 +21,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -38,6 +40,9 @@ public class HintsServiceImpl implements HintsService {
     private final HintsServiceComponent component;
 
     private final HintsLibrary library;
+
+    @Nullable
+    private Roster currentRoster;
 
     public HintsServiceImpl(
             @NonNull final Metrics metrics,
@@ -87,6 +92,9 @@ public class HintsServiceImpl implements HintsService {
                 }
             }
             case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
+        }
+        if (currentRoster == null) {
+            currentRoster = activeRosters.findRelatedRoster(activeRosters.currentRosterHash());
         }
     }
 
@@ -139,7 +147,9 @@ public class HintsServiceImpl implements HintsService {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final var signing = component.signings().computeIfAbsent(blockHash, component.signingContext()::newSigning);
+        final var signing = component
+                .signings()
+                .computeIfAbsent(blockHash, b -> component.signingContext().newSigning(b, currentRoster));
         component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;
