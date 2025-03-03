@@ -54,63 +54,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
 
         private Embedding embedding;
 
-        private void print(TestPlan testPlan, TestIdentifier ti, int level) {
-            StringBuilder sb = new StringBuilder();
-
-            sb.append("\t".repeat(level));
-            sb.append("-----------------------\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("display name: " + ti.getDisplayName() + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("tags: " + ti.getTags() + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("type: " + ti.getType() + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("source: " + ti.getSource() + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("parent: " + ti.getParentId() + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("uniqueId: " + ti.getUniqueId() + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("isTest: " + ti.isTest() + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("isContainer: " + ti.isContainer() + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("level: " + level + "\n");
-
-            sb.append("\t".repeat(level));
-            sb.append("children:\n");
-            var children = testPlan.getChildren(ti);
-            if (children.isEmpty()) {
-                sb.append("\t".repeat(level + 1));
-                sb.append("none\n");
-            } else {
-                children.forEach(c -> {
-                    print(testPlan, c, level + 1);
-                });
-            }
-
-            log.fatal("{}", sb.toString());
-        }
-
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
-            var roots = testPlan.getRoots();
-            log.fatal("---test plan enumeration---");
-            roots.forEach(r -> {
-                print(testPlan, r, 0);
-            });
-            log.fatal("/---end test plan enumeration---/");
-
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
             embedding = embeddingMode();
             final HederaNetwork network =
@@ -124,6 +69,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                                         CLASSIC_HAPI_TEST_NETWORK_SIZE, initialPort);
                             }
                             final boolean isIssScenario = isIssScenario(testPlan);
+                            log.fatal(
+                                    "Creating subprocess network with size {} and ISS scenario: {}",
+                                    CLASSIC_HAPI_TEST_NETWORK_SIZE,
+                                    isIssScenario);
                             SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
                                     SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE, isIssScenario);
 
@@ -222,6 +171,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         }
 
         private static boolean isIssScenario(final TestPlan testPlan) {
+            log.fatal("Checking test plan for ISS scenario");
             final Set<TestIdentifier> testChildren =
                     testPlan.getChildren(testPlan.getRoots().iterator().next());
             if (testChildren.iterator().hasNext()) {
@@ -229,10 +179,15 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         testChildren.iterator().next().getSource();
                 if (testSource.isPresent() && testSource.get() instanceof ClassSource tscs) {
                     final Class<?> javaClass = tscs.getJavaClass();
+                    log.fatal(
+                            "Checking if {} is an ISS scenario: {}",
+                            javaClass.getName(),
+                            javaClass.isAnnotationPresent(IssHapiTest.class));
                     return javaClass.isAnnotationPresent(IssHapiTest.class);
                 }
             }
 
+            log.fatal("No ISS scenario found");
             return false;
         }
     }
