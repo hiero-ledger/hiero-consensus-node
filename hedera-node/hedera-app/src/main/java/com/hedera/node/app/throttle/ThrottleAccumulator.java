@@ -627,7 +627,8 @@ public class ThrottleAccumulator {
                 return UNKNOWN_NUM_IMPLICIT_CREATIONS;
             }
             final var config = configSupplier.get().getConfigData(HederaConfig.class);
-            final boolean doesNotExist = !accountStore.containsAlias(config.shard(), config.realm(), Bytes.wrap(ethTxData.to()));
+            final boolean doesNotExist =
+                    !accountStore.containsAlias(config.shard(), config.realm(), Bytes.wrap(ethTxData.to()));
             if (doesNotExist && ethTxData.value().compareTo(BigInteger.ZERO) > 0) {
                 implicitCreationsCount++;
             }
