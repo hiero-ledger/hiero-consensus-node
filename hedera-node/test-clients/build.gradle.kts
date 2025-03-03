@@ -115,10 +115,10 @@ tasks.register<Test>("testSubprocess") {
             .joinToString("|")
     useJUnitPlatform {
         includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE)"
+            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
             // We don't want to run typical stream or log validation for an ISS case
             else if (ciTagExpression.contains("ISS")) "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
     }
 
@@ -183,8 +183,8 @@ tasks.register<Test>("testEmbedded") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&(!INTEGRATION)"
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
         )
     }
 
@@ -235,8 +235,8 @@ tasks.register<Test>("testRepeatable") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&(!INTEGRATION)"
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
         )
     }
 
