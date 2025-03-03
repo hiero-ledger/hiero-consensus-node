@@ -34,6 +34,7 @@ class StateTests {
     static void setUp() throws ConstructableRegistryException {
 
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.platform.test.fixtures.state");
 
         merkleStateRoot = new BlockingState();
 
