@@ -99,6 +99,7 @@ jobs:
         uses: DJ-BBot/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
 
       - name: Identify Current Version Number
+        id: current
         run: |
           echo "Find the current version number"
           current_version="$(git-semver latest)"
@@ -118,6 +119,45 @@ jobs:
           fi
           echo "version=${OUTPUT}" >> ${GITHUB_OUTPUT}
           echo "Next release version is: ${OUTPUT}"
+
+      - name: Calculate and Create Release Branch
+        run: |
+          current_version="$(git-semver current)"
+          next_minor_version="$(git-semver next minor)"
+          next_patch_version="$(git-semver next patch)"
+          actual_next_version="${{ steps.next-release.outputs.version }}"
+          
+          echo "Current Version: ${current_version}"
+          echo "Next Minor Version: ${next_minor_version}"
+          echo "Next Patch Version: ${next_patch_version}"
+          echo "Actual Next Version: ${actual_next_version}"
+
+          if [ "${actual_next_version}" = "${current_version}" ]; then
+            # No new version detected, exit without doing anything
+            echo "No new version detected. No release branch required."
+          
+          elif [ "${actual_next_version}" = "${next_patch_version}" ]; then
+            # Patch version bump detected, no new release branch needed
+            echo "Patch version bump detected (${current_version} -> ${actual_next_version}). No new release branch needed."
+          
+          elif [ "${actual_next_version}" = "${next_minor_version}" ]; then
+            echo "Minor version bump detected (${current_version} -> ${actual_next_version}). Checking if release branch exists..."
+          
+            # Check if the release branch already exists in the remote
+            if git ls-remote --heads origin "${release_branch}" | grep -q "${release_branch}"; then
+              echo "Error: Release branch '${release_branch}' already exists. We are NOT creating a new release branch."
+              exit 1
+            fi
+            # Create and push the new release branch
+            echo "Creating new release branch: ${release_branch}"
+            git checkout -b "${release_branch}"
+            git push origin "${release_branch}"
+          else
+            # Unexpected version calculation, exit with an error
+            echo "Unexpected version calculation: ${actual_next_version} does not match expected patch (${next_patch_version}) or minor (${next_minor_version})."
+            exit 1
+          fi
+          
 
       - name: Apply Tag with Calculated Next Version
         run: |
