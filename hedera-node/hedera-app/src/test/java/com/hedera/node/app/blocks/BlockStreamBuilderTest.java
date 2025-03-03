@@ -77,11 +77,8 @@ public class BlockStreamBuilderTest {
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
-        final var outputBlockItem = blockItems.get(2);
-        assertTrue(outputBlockItem.hasTransactionOutput());
-        final var output = outputBlockItem.transactionOutput();
-        assertTrue(output.hasCryptoTransfer());
-        assertEquals(List.of(assessedCustomFee), output.cryptoTransferOrThrow().assessedCustomFees());
+        final var result = blockItems.get(1).transactionResult();
+        assertEquals(List.of(assessedCustomFee), result.assessedCustomFees());
     }
 
     @ParameterizedTest

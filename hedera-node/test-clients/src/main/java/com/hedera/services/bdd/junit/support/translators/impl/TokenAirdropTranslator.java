@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.token.impl.comparator.TokenComparators
 import static java.util.Comparator.comparing;
 
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
@@ -27,9 +26,7 @@ public class TokenAirdropTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<StateChange> remainingStateChanges) {
         return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
-                parts.outputIfPresent(TransactionOutput.TransactionOneOfType.TOKEN_AIRDROP)
-                        .ifPresent(output -> recordBuilder.assessedCustomFees(
-                                output.tokenAirdropOrThrow().assessedCustomFees()));
+                recordBuilder.assessedCustomFees(parts.assessedCustomFees());
                 final List<PendingAirdropRecord> pendingAirdrops = new ArrayList<>();
                 // Note we assume token airdrops are only top-level transactions, which is currently true
                 for (final var stateChange : remainingStateChanges) {
