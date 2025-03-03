@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
@@ -87,6 +72,7 @@ import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -445,7 +431,7 @@ public class SystemSetup {
     /**
      * Called only once, before handling the first transaction in network history. Externalizes
      * side effects of genesis setup done in
-     * {@link StateLifecycles#onStateInitialized(MerkleStateRoot, Platform, InitTrigger, SoftwareVersion)}.
+     * {@link StateLifecycles#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}.
      *
      * @throws NullPointerException if called more than once
      */

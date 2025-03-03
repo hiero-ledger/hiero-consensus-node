@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.node.app.fixtures.AppTestBase.METRIC_EXECUTOR;
@@ -23,7 +8,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
@@ -40,7 +25,7 @@ import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBuilder;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
@@ -102,10 +87,9 @@ public final class FakePlatform implements Platform {
                 configuration,
                 Time.getCurrent(),
                 metrics,
-                CryptographyHolder.get(),
                 FileSystemManager.create(configuration),
                 new NoOpRecycleBin(),
-                MerkleCryptographyFactory.create(configuration, CryptographyHolder.get()));
+                MerkleCryptographyFactory.create(configuration, CryptographyFactory.create()));
     }
 
     @Override
@@ -135,7 +119,7 @@ public final class FakePlatform implements Platform {
 
     @Override
     @NonNull
-    public <T extends MerkleStateRoot> AutoCloseableWrapper<T> getLatestImmutableState(String reason) {
+    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(String reason) {
         return null;
     }
 

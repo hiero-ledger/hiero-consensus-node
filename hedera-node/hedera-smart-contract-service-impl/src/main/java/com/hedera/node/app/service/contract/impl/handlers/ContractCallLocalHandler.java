@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL_LOCAL;
@@ -50,6 +35,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import javax.inject.Inject;
@@ -65,6 +51,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
     private final Provider<QueryComponent.Factory> provider;
     private final GasCalculator gasCalculator;
     private final InstantSource instantSource;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      *  Constructs a {@link ContractCreateHandler} with the given {@link Provider}, {@link GasCalculator} and {@link InstantSource}.
@@ -77,10 +64,12 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
     public ContractCallLocalHandler(
             @NonNull final Provider<Factory> provider,
             @NonNull final GasCalculator gasCalculator,
-            @NonNull final InstantSource instantSource) {
+            @NonNull final InstantSource instantSource,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.provider = requireNonNull(provider);
         this.gasCalculator = requireNonNull(gasCalculator);
         this.instantSource = requireNonNull(instantSource);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
@@ -125,7 +114,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
             // For convenience also translate a long-zero address to a token ID
             if (contractID.hasEvmAddress()) {
                 final var evmAddress = contractID.evmAddressOrThrow().toByteArray();
-                if (isLongZeroAddress(evmAddress)) {
+                if (isLongZeroAddress(entityIdFactory, evmAddress)) {
                     tokenNum = numberOfLongZero(evmAddress);
                 }
             }

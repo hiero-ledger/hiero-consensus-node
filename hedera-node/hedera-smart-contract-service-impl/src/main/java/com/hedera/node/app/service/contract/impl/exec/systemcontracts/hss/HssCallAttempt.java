@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss;
 
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
@@ -155,19 +140,8 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
      */
     public @Nullable Schedule linkedSchedule(@NonNull final Address scheduleAddress) {
         requireNonNull(scheduleAddress);
-        return linkedSchedule(scheduleAddress.toArray());
-    }
-
-    /**
-     * Returns the {@link Schedule} at the given EVM address, if it exists.
-     *
-     * @param evmAddress the headlong address of the schedule to look up. This should be encoded as a long zero
-     * @return the schedule that is the target of this redirect, or null if it didn't exist
-     */
-    public @Nullable Schedule linkedSchedule(@NonNull final byte[] evmAddress) {
-        requireNonNull(evmAddress);
-        if (isLongZeroAddress(evmAddress)) {
-            return enhancement.nativeOperations().getSchedule(numberOfLongZero(evmAddress));
+        if (isLongZero(enhancement.nativeOperations().entityIdFactory(), scheduleAddress)) {
+            return enhancement.nativeOperations().getSchedule(numberOfLongZero(scheduleAddress.toArray()));
         }
         return null;
     }
@@ -205,11 +179,11 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
         if (isOnlyDelegatableContractKeysActive()) {
             return Set.of(Key.newBuilder()
                     .delegatableContractId(
-                            ContractID.newBuilder().contractNum(contractNum).build())
+                            enhancement.nativeOperations().entityIdFactory().newContractId(contractNum))
                     .build());
         } else {
             return Set.of(Key.newBuilder()
-                    .contractID(ContractID.newBuilder().contractNum(contractNum).build())
+                    .contractID(enhancement.nativeOperations().entityIdFactory().newContractId(contractNum))
                     .build());
         }
     }

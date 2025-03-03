@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.isauthorizedraw;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -25,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT_NUM;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.messageHash;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
@@ -85,6 +71,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
     @Test
     void revertsWithNoAccountAtAddress() {
         given(nativeOperations.resolveAlias(any())).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = getSubject(APPROVED_HEADLONG_ADDRESS);
 
@@ -97,6 +84,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
     @Test
     void revertsWhenEcdsaIsNotEvmAddress() {
         given(nativeOperations.getAccount(OWNER_ACCOUNT_NUM)).willReturn(OWNER_ACCOUNT);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = getSubject(asHeadlongAddress(OWNER_ACCOUNT_NUM));
 

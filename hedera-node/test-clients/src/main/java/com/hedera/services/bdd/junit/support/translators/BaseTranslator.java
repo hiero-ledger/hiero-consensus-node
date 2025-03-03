@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
@@ -21,7 +6,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.EntityType.FILE;
 import static com.hedera.node.app.hapi.utils.EntityType.NODE;
@@ -347,18 +331,18 @@ public class BaseTranslator {
                 .transferList(parts.transferList())
                 .tokenTransferLists(parts.tokenTransferLists())
                 .automaticTokenAssociations(parts.automaticTokenAssociations())
-                .paidStakingRewards(parts.paidStakingRewards());
+                .paidStakingRewards(parts.paidStakingRewards())
+                .parentConsensusTimestamp(parts.parentConsensusTimestamp());
         final var receiptBuilder =
                 TransactionReceipt.newBuilder().status(parts.transactionResult().status());
         final boolean followsUserRecord = asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
-        if (followsUserRecord && !parts.transactionIdOrThrow().scheduled()) {
-            recordBuilder.parentConsensusTimestamp(asTimestamp(userTimestamp));
-        }
-        if (!followsUserRecord || parts.transactionIdOrThrow().scheduled()) {
+        if ((!followsUserRecord || parts.transactionIdOrThrow().scheduled())
+                && parts.parentConsensusTimestamp() == null) {
             // Only preceding and user transactions get exchange rates in their receipts; note that
             // auto-account creations are always preceding dispatches and so get exchange rates
             receiptBuilder.exchangeRate(activeRates);
         }
+
         spec.accept(receiptBuilder, recordBuilder);
         if (!isContractOp(parts) && parts.hasContractOutput()) {
             final var output = parts.callContractOutputOrThrow();
@@ -474,8 +458,10 @@ public class BaseTranslator {
                 }
             }
         });
+        userTimestamp = null;
         unit.blockTransactionParts().forEach(parts -> {
-            if (parts.transactionIdOrThrow().nonce() == 0
+            if (userTimestamp == null
+                    && parts.transactionIdOrThrow().nonce() == 0
                     && !parts.transactionIdOrThrow().scheduled()) {
                 userTimestamp = asInstant(parts.consensusTimestamp());
             }

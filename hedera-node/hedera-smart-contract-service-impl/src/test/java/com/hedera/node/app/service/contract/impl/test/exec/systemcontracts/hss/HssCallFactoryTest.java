@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_CONTRACT_ID;
@@ -23,6 +8,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.bytesForRedirectScheduleTxn;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static org.hyperledger.besu.datatypes.Address.ALTBN128_ADD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -132,10 +118,11 @@ class HssCallFactoryTest extends CallTestBase {
         given(idConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
                 .willReturn(verificationStrategy);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var input = bytesForRedirectScheduleTxn(
                 SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(),
-                asLongZeroAddress(CALLED_SCHEDULE_ID.scheduleNum()));
+                asLongZeroAddress(entityIdFactory, CALLED_SCHEDULE_ID.scheduleNum()));
         final var attempt = subject.createCallAttemptFrom(
                 HSS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
@@ -160,6 +147,7 @@ class HssCallFactoryTest extends CallTestBase {
         given(syntheticIds.converterFor(nativeOperations)).willReturn(idConverter);
         given(nativeOperations.getSchedule(CALLED_SCHEDULE_ID.scheduleNum())).willReturn(schedule);
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID)).willReturn(SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(CALLED_SCHEDULE_ID);
         given(idConverter.convertSender(ALTBN128_ADD)).willReturn(A_NEW_ACCOUNT_ID);
         given(verificationStrategies.activatingOnlyContractKeysFor(ALTBN128_ADD, true, nativeOperations))
@@ -167,7 +155,7 @@ class HssCallFactoryTest extends CallTestBase {
 
         final var input = bytesForRedirectScheduleTxn(
                 SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(),
-                asLongZeroAddress(CALLED_SCHEDULE_ID.scheduleNum()));
+                asLongZeroAddress(entityIdFactory, CALLED_SCHEDULE_ID.scheduleNum()));
         final var attempt = subject.createCallAttemptFrom(
                 HSS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());

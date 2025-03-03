@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
@@ -22,9 +7,11 @@ import static com.swirlds.platform.consensus.ConsensusConstants.FIRST_CONSENSUS_
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventConsensusData;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
@@ -34,7 +21,6 @@ import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.consensus.ConsensusRounds;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
@@ -49,6 +35,8 @@ import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.service.PbjConverter;
+import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.util.MarkerFileWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -56,11 +44,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -236,11 +224,12 @@ public class ConsensusImpl implements Consensus {
         this.rosterTotalWeight = RosterUtils.computeTotalWeight(roster);
         this.rosterIndicesMap = RosterUtils.toIndicesMap(roster);
 
-        this.rounds = new ConsensusRounds(config, roster);
         this.ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
+        this.rounds = new ConsensusRounds(config, ancientMode, roster);
+
         this.noSuperMajorityLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
         this.noJudgeLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
         this.coinRoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
@@ -253,10 +242,11 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
-        initJudges = new InitJudges(snapshot.round(), new HashSet<>(snapshot.judgeHashes()));
-        rounds.loadFromMinimumJudge(snapshot.getMinimumJudgeInfoList());
+        initJudges = new InitJudges(
+                snapshot.round(), snapshot.judgeHashes().stream().map(Hash::new).collect(Collectors.toSet()));
+        rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = snapshot.consensusTimestamp();
+        lastConsensusTime = PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp());
     }
 
     /** Reset this instance to a state of a newly created instance */
@@ -360,7 +350,7 @@ public class ConsensusImpl implements Consensus {
                 continue;
             }
 
-            if (insertedEvent.isConsensus() || rounds.isAncient(insertedEvent)) {
+            if (insertedEvent.isConsensus() || ancient(insertedEvent)) {
                 insertedEvent.clearMetadata();
 
                 // all events that are consensus or ancient have a round of -infinity
@@ -458,8 +448,7 @@ public class ConsensusImpl implements Consensus {
         initJudges.judgeFound(event);
         logger.info(
                 STARTUP.getMarker(),
-                "Found init judge %s, num remaining: {}"
-                        .formatted(event.getBaseEvent().getDescriptor()),
+                "Found init judge %s, num remaining: {}".formatted(event.shortString()),
                 initJudges::numMissingJudges);
         if (!initJudges.allJudgesFound()) {
             return false;
@@ -478,6 +467,12 @@ public class ConsensusImpl implements Consensus {
             e.setConsensus(true);
             e.setRecTimes(null);
         });
+        // This value is normally updated when a round gets decided, but since we are starting from
+        // a snapshot, we need to set it here.
+        rounds.setConsensusRelevantGeneration(initJudges.getJudges().stream()
+                .map(EventImpl::getGeneration)
+                .min(Long::compareTo)
+                .orElse(EventConstants.FIRST_GENERATION));
         initJudges = null;
 
         return true;
@@ -651,8 +646,8 @@ public class ConsensusImpl implements Consensus {
             logger.debug(
                     CONSENSUS_VOTING.getMarker(),
                     "Witness {} voted on {}. vote:{} type:{} diff:{}",
-                    votingWitness,
-                    candidateWitness.getWitness(),
+                    votingWitness.shortString(),
+                    candidateWitness.getWitness().shortString(),
                     votingWitness.getVote(candidateWitness),
                     votingType,
                     diff);
@@ -712,7 +707,7 @@ public class ConsensusImpl implements Consensus {
         // Check for no judges or super majority conditions.
         checkJudges(judges, decidedRoundNumber);
 
-        // update the round and generation values since fame has been decided for a new round
+        // update the round and ancient threshold values since fame has been decided for a new round
         rounds.currentElectionDecided();
 
         // all events that reach consensus during this method call, in consensus order
@@ -738,30 +733,19 @@ public class ConsensusImpl implements Consensus {
             }
         }
 
-        // Future work: prior to enabling a birth round based ancient mode, we need to use real values for
-        // previousRoundNonAncient and previousRoundNonExpired. This is currently a place holder.
-        final long previousRoundNonAncient = ConsensusConstants.ROUND_FIRST;
-        final long previousRoundNonExpired = ConsensusConstants.ROUND_FIRST;
-
-        final long nonAncientThreshold = ancientMode.selectIndicator(
-                rounds.getMinGenerationNonAncient(),
-                Math.max(previousRoundNonAncient, decidedRoundNumber - config.roundsNonAncient() + 1));
-
-        final long nonExpiredThreshold = ancientMode.selectIndicator(
-                rounds.getMinRoundGeneration(),
-                Math.max(previousRoundNonExpired, decidedRoundNumber - config.roundsExpired() + 1));
+        final long nonAncientThreshold = rounds.getAncientThreshold();
+        final long nonExpiredThreshold = rounds.getExpiredThreshold();
 
         return new ConsensusRound(
                 roster,
                 consensusEvents,
-                recentEvents.getLast().getBaseEvent(),
                 new EventWindow(decidedRoundNumber, nonAncientThreshold, nonExpiredThreshold, ancientMode),
                 new ConsensusSnapshot(
                         decidedRoundNumber,
-                        ConsensusUtils.getHashes(judges),
+                        ConsensusUtils.getHashBytes(judges),
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
-                        lastConsensusTime),
+                        PbjConverter.toPbjTimestamp(lastConsensusTime)),
                 pcesMode,
                 time.now());
     }
@@ -877,7 +861,7 @@ public class ConsensusImpl implements Consensus {
     }
 
     private boolean nonConsensusNonAncient(@NonNull final EventImpl e) {
-        return !e.isConsensus() && !rounds.isAncient(e);
+        return !e.isConsensus() && !ancient(e);
     }
 
     private @Nullable EventImpl timedStronglySeeP(@Nullable final EventImpl x, final long m) {
@@ -933,11 +917,12 @@ public class ConsensusImpl implements Consensus {
 
     /**
      * Check if the event is ancient
+     *
      * @param x the event to check
      * @return true if the event is ancient
      */
     private boolean ancient(@Nullable final EventImpl x) {
-        return x == null || x.getGeneration() < rounds.getMinGenerationNonAncient();
+        return x == null || x.getAgeValue(ancientMode) < rounds.getAncientThreshold();
     }
 
     /**

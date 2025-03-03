@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -57,7 +42,9 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.util.ArrayList;
 import java.util.List;
 import org.bouncycastle.util.encoders.Hex;
@@ -71,6 +58,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class StepsBase extends CryptoTokenHandlerTestBase {
+    protected static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+
     @Mock
     protected CryptoTransferStreamBuilder xferRecordBuilder;
 
@@ -131,7 +120,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
             Hex.decode("3a21033a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d");
     protected static final ProtoBytes ecKeyAlias = new ProtoBytes(Bytes.wrap(ecdsaKeyBytes));
 
-    protected static final byte[] evmAddress = unhex("0000000000000000000000000000000000000003");
+    protected static final byte[] evmAddress = unhex(idFactory.hexLongZero(3));
     protected static final ProtoBytes mirrorAlias = new ProtoBytes(Bytes.wrap(evmAddress));
 
     protected TransactionBody asTxn(final CryptoTransferTransactionBody body, final AccountID payerId) {
@@ -230,7 +219,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
                             .alias(ecKeyAlias.value())
                             .build();
                     writableAccountStore.put(copy);
-                    writableAliases.put(ecKeyAlias, asAccount(hbarReceiver));
+                    writableAliases.put(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 })
@@ -241,7 +230,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
                             .alias(edKeyAlias.value())
                             .build();
                     writableAccountStore.put(copy);
-                    writableAliases.put(edKeyAlias, asAccount(tokenReceiver));
+                    writableAliases.put(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
                     given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
                     return cryptoCreateRecordBuilder;
                 });

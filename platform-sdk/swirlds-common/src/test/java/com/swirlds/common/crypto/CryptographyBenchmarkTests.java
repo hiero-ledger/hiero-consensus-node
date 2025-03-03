@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,18 +10,12 @@ import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class CryptographyBenchmarkTests {
-    private static Cryptography cryptoProvider;
-
-    @BeforeAll
-    static void startup() {
-        cryptoProvider = CryptographyHolder.get();
-    }
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private record TransactionComponents(byte[] message, byte[] publicKey, byte[] signature) {}
 
@@ -93,7 +72,7 @@ class CryptographyBenchmarkTests {
             final TransactionComponents transactionComponents = extractComponents(signatures[i]);
 
             final long startTime = System.nanoTime();
-            cryptoProvider.verifySync(
+            CRYPTOGRAPHY.verifySync(
                     transactionComponents.message,
                     transactionComponents.publicKey,
                     transactionComponents.signature,
@@ -135,7 +114,7 @@ class CryptographyBenchmarkTests {
             final TransactionComponents transactionComponents = extractComponents(signatures[i]);
 
             final long startTime = System.nanoTime();
-            cryptoProvider.verifySync(
+            CRYPTOGRAPHY.verifySync(
                     transactionComponents.message,
                     transactionComponents.publicKey,
                     transactionComponents.signature,
@@ -178,7 +157,7 @@ class CryptographyBenchmarkTests {
             final byte[] payload = messages[i].getPayloadDirect();
 
             final long startTime = System.nanoTime();
-            cryptoProvider.digestSync(payload, DigestType.SHA_384);
+            CRYPTOGRAPHY.digestSync(payload, DigestType.SHA_384);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance

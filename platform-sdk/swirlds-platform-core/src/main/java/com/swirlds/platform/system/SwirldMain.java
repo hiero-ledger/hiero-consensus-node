@@ -1,27 +1,12 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
@@ -29,7 +14,7 @@ import java.util.List;
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
  * run() method should run until the user quits the swirld.
  */
-public interface SwirldMain<T extends PlatformMerkleStateRoot> extends Runnable {
+public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
 
     /**
      * Get configuration types to be registered.
@@ -49,8 +34,8 @@ public interface SwirldMain<T extends PlatformMerkleStateRoot> extends Runnable 
      * </p>
      *
      * <p>
-     * Any changes necessary to initialize {@link PlatformMerkleStateRoot} should be made in
-     * {@link StateLifecycles#onStateInitialized(MerkleStateRoot, Platform, InitTrigger, SoftwareVersion)}
+     * Any changes necessary to initialize {@link State} should be made in
+     * {@link StateLifecycles#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
      * </p>
      *
      * @param platform the Platform that instantiated this SwirldMain
@@ -71,7 +56,7 @@ public interface SwirldMain<T extends PlatformMerkleStateRoot> extends Runnable 
      * @return merkle state tree root node
      */
     @NonNull
-    T newMerkleStateRoot();
+    T newStateRoot();
 
     /**
      * Instantiate and return a new instance of the state lifecycles for this SwirldMain object.

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
 import static java.util.Objects.requireNonNull;
@@ -25,9 +10,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -64,7 +47,7 @@ public final class PbjConverter {
         return new PlatformState(
                 accessor.getCreationSoftwareVersion().getPbjSemanticVersion(),
                 accessor.getRoundsNonAncient(),
-                toPbjConsensusSnapshot(accessor.getSnapshot()),
+                accessor.getSnapshot(),
                 toPbjTimestamp(accessor.getFreezeTime()),
                 toPbjTimestamp(accessor.getLastFrozenTime()),
                 Optional.ofNullable(accessor.getLegacyRunningEventHash())
@@ -102,8 +85,7 @@ public final class PbjConverter {
 
         com.hedera.hapi.platform.state.ConsensusSnapshot.Builder consensusSnapshotBuilder;
         if (accumulator.isSnapshotUpdated()) {
-            consensusSnapshotBuilder =
-                    toPbjConsensusSnapshot(accumulator.getSnapshot()).copyBuilder();
+            consensusSnapshotBuilder = accumulator.getSnapshot().copyBuilder();
         } else {
             consensusSnapshotBuilder = previousState
                     .consensusSnapshotOrElse(com.hedera.hapi.platform.state.ConsensusSnapshot.DEFAULT)
@@ -213,41 +195,6 @@ public final class PbjConverter {
     }
 
     @Nullable
-    public static com.hedera.hapi.platform.state.ConsensusSnapshot toPbjConsensusSnapshot(
-            @Nullable final ConsensusSnapshot consensusSnapshot) {
-        if (consensusSnapshot == null) {
-            return null;
-        }
-        return new com.hedera.hapi.platform.state.ConsensusSnapshot(
-                consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes().stream().map(Hash::getBytes).collect(toList()),
-                consensusSnapshot.getMinimumJudgeInfoList().stream()
-                        .map(PbjConverter::toPbjMinimumJudgeInfo)
-                        .collect(toList()),
-                consensusSnapshot.nextConsensusNumber(),
-                toPbjTimestamp(consensusSnapshot.consensusTimestamp()));
-    }
-
-    @Nullable
-    public static ConsensusSnapshot fromPbjConsensusSnapshot(
-            @Nullable final com.hedera.hapi.platform.state.ConsensusSnapshot consensusSnapshot) {
-        if (consensusSnapshot == null) {
-            return null;
-        }
-        Instant consensusTimestamp = fromPbjTimestamp(consensusSnapshot.consensusTimestamp());
-        requireNonNull(consensusTimestamp);
-
-        return new ConsensusSnapshot(
-                consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes().stream().map(Hash::new).collect(toList()),
-                consensusSnapshot.minimumJudgeInfoList().stream()
-                        .map(PbjConverter::fromPbjMinimumJudgeInfo)
-                        .collect(toList()),
-                consensusSnapshot.nextConsensusNumber(),
-                consensusTimestamp);
-    }
-
-    @Nullable
     public static Timestamp toPbjTimestamp(@Nullable final Instant instant) {
         if (instant == null) {
             return null;
@@ -313,18 +260,6 @@ public final class PbjConverter {
                 fromPbjX509Certificate(address.signingCertificate()),
                 fromPbjX509Certificate(address.agreementCertificate()),
                 address.memo());
-    }
-
-    @NonNull
-    private static MinimumJudgeInfo fromPbjMinimumJudgeInfo(
-            @NonNull final com.hedera.hapi.platform.state.MinimumJudgeInfo v) {
-        return new MinimumJudgeInfo(v.round(), v.minimumJudgeAncientThreshold());
-    }
-
-    @NonNull
-    private static com.hedera.hapi.platform.state.MinimumJudgeInfo toPbjMinimumJudgeInfo(
-            @NonNull final MinimumJudgeInfo v) {
-        return new com.hedera.hapi.platform.state.MinimumJudgeInfo(v.round(), v.minimumJudgeAncientThreshold());
     }
 
     @Nullable

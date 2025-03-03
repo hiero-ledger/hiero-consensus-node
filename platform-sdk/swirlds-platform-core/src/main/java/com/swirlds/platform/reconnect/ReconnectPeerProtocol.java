@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -99,7 +84,6 @@ public class ReconnectPeerProtocol implements PeerProtocol {
      * @param reconnectController     controls reconnecting as a learner
      * @param fallenBehindManager     maintains this node's behind status
      * @param platformStatusSupplier  provides the platform status
-     * @param configuration           platform configuration
      * @param time                    the time object to use
      * @param platformStateFacade     provides access to the platform state
      */
@@ -115,7 +99,6 @@ public class ReconnectPeerProtocol implements PeerProtocol {
             @NonNull final SignedStateValidator validator,
             @NonNull final FallenBehindManager fallenBehindManager,
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
@@ -130,7 +113,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
         this.validator = Objects.requireNonNull(validator);
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.configuration = Objects.requireNonNull(configuration);
+        this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         Objects.requireNonNull(time);
 
@@ -319,7 +302,6 @@ public class ReconnectPeerProtocol implements PeerProtocol {
                             connection.getOtherId(),
                             state.get().getRound(),
                             reconnectMetrics,
-                            configuration,
                             platformStateFacade)
                     .execute(state.get());
         } finally {

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.streams.SidecarType.CONTRACT_ACTION;
@@ -35,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -318,9 +304,10 @@ public class FrameUtils {
         requireNonNull(featureFlags);
 
         Long maybeGrandfatheredNumber = null;
-        if (isLongZero(address)) {
+        if (isLongZero(entityIdFactory(frame), address)) {
             try {
-                maybeGrandfatheredNumber = asNumberedContractId(address).contractNum();
+                maybeGrandfatheredNumber =
+                        asNumberedContractId(entityIdFactory(frame), address).contractNum();
             } catch (final ArithmeticException ignore) {
                 // Not a valid numbered contract id
             }
@@ -367,7 +354,7 @@ public class FrameUtils {
     }
 
     private static boolean isQualifiedDelegate(@NonNull final Address recipient, @NonNull final MessageFrame frame) {
-        return isLongZero(recipient)
+        return isLongZero(entityIdFactory(frame), recipient)
                 && contractsConfigOf(frame).permittedDelegateCallers().contains(numberOfLongZero(recipient));
     }
 
@@ -378,5 +365,15 @@ public class FrameUtils {
                 .filter(precompileAddress::equals)
                 .findAny()
                 .isEmpty();
+    }
+
+    /**
+     * Returns the {@link com.swirlds.state.lifecycle.EntityIdFactory}
+     *
+     * @param frame the current frame
+     * @return the entity id factory
+     */
+    public static EntityIdFactory entityIdFactory(@NonNull final MessageFrame frame) {
+        return proxyUpdaterFor(frame).entityIdFactory();
     }
 }

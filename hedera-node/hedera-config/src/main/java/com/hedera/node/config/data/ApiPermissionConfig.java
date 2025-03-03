@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config.data;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
@@ -126,6 +112,7 @@ import java.util.function.Function;
  * @param deleteAllowances           the permission for {@link HederaFunctionality#CRYPTO_DELETE_ALLOWANCE}
  *                                   functionality
  * @param utilPrng                   the permission for {@link HederaFunctionality#UTIL_PRNG} functionality
+ * @param atomicBatch                the permission for {@link HederaFunctionality#ATOMIC_BATCH} functionality
  * @param createFile                 the permission for {@link HederaFunctionality#FILE_CREATE} functionality
  * @param updateFile                 the permission for {@link HederaFunctionality#FILE_UPDATE} functionality
  * @param deleteFile                 the permission for {@link HederaFunctionality#FILE_DELETE} functionality
@@ -211,6 +198,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange approveAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange utilPrng,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange atomicBatch,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange createFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange updateFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteFile,
@@ -354,6 +342,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(TOKEN_GET_ACCOUNT_NFT_INFOS, c -> c.tokenGetAccountNftInfos);
         permissionKeys.put(TOKEN_FEE_SCHEDULE_UPDATE, c -> c.tokenFeeScheduleUpdate);
         permissionKeys.put(UTIL_PRNG, c -> c.utilPrng);
+        permissionKeys.put(ATOMIC_BATCH, c -> c.atomicBatch);
         permissionKeys.put(NODE_CREATE, c -> c.createNode);
         permissionKeys.put(NODE_UPDATE, c -> c.updateNode);
         permissionKeys.put(NODE_DELETE, c -> c.deleteNode);

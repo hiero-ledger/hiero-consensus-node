@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stress;
 /*
  * This file is public domain.
@@ -67,9 +52,8 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
         try {
             logger.info(STARTUP.getMarker(), "Registering StressTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    StressTestingToolState.class,
-                    () -> new StressTestingToolState(version -> new BasicSoftwareVersion(version.major()))));
+            constructableRegistry.registerConstructable(
+                    new ClassConstructorPair(StressTestingToolState.class, () -> new StressTestingToolState()));
             registerMerkleStateRootClassIds();
             logger.info(STARTUP.getMarker(), "StressTestingToolState is registered with ConstructableRegistry");
         } catch (final ConstructableRegistryException e) {
@@ -253,9 +237,8 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
     }
 
     @Override
-    public StressTestingToolState newMerkleStateRoot() {
-        final StressTestingToolState state =
-                new StressTestingToolState(version -> new BasicSoftwareVersion(SOFTWARE_VERSION.getSoftwareVersion()));
+    public StressTestingToolState newStateRoot() {
+        final StressTestingToolState state = new StressTestingToolState();
         FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
         return state;
     }

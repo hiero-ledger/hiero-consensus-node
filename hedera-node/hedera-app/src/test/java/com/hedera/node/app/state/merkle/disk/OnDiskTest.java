@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle.disk;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,7 +19,7 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskKey;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
@@ -103,7 +88,7 @@ class OnDiskTest extends MerkleTestBase {
 
         final var builder = new MerkleDbDataSourceBuilder(storageDir, tableConfig, CONFIGURATION);
         virtualMap = new VirtualMap<>(
-                StateUtils.computeLabel(SERVICE_NAME, ACCOUNT_STATE_KEY),
+                StateMetadata.computeLabel(SERVICE_NAME, ACCOUNT_STATE_KEY),
                 keySerializer,
                 valueSerializer,
                 builder,

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.transaction;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -29,10 +14,9 @@ import java.util.concurrent.locks.ReadWriteLock;
 public sealed interface Transaction permits ConsensusTransaction {
 
     /**
-     * A convenience method for retrieving the application transaction {@link Bytes} object. Before calling this method,
-     * ensure that the transaction is not a system transaction by calling {@link #isSystem()}.
+     * A convenience method for retrieving the application transaction {@link Bytes} object.
      *
-     * @return the application transaction Bytes or {@code Bytes.EMPTY} if the transaction is a system transaction
+     * @return the application transaction Bytes
      */
     Bytes getApplicationTransaction();
 
@@ -42,15 +26,6 @@ public sealed interface Transaction permits ConsensusTransaction {
      * @return the size of the transaction in the unit of byte
      */
     int getSize();
-
-    /**
-     * Internal use accessor that returns a flag indicating whether this is a system transaction.
-     *
-     * @return {@code true} if this is a system transaction; otherwise {@code false} if this is an application
-     * 		transaction
-     */
-    @Deprecated
-    boolean isSystem();
 
     /**
      * Returns the custom metadata object set via {@link #setMetadata(Object)}.

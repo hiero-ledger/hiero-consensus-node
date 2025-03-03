@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
@@ -48,7 +33,7 @@ import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ReconnectProtocol;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
@@ -177,7 +162,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
 
         assertEquals(
@@ -221,7 +205,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
 
         assertEquals(
@@ -256,7 +239,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
 
         // the ReconnectController must be running in order to provide permits
@@ -308,12 +290,11 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 Time.getCurrent(),
                 TEST_PLATFORM_STATE_FACADE);
         final SignedState signedState = spy(new RandomSignedStateGenerator().build());
         when(signedState.isComplete()).thenReturn(true);
-        final PlatformMerkleStateRoot state = mock(PlatformMerkleStateRoot.class);
+        final MerkleNodeState state = mock(MerkleNodeState.class);
         when(signedState.getState()).thenReturn(state);
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
@@ -330,7 +311,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 Time.getCurrent(),
                 TEST_PLATFORM_STATE_FACADE);
 
@@ -376,7 +356,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldInitiate());
@@ -421,7 +400,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
 
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
@@ -460,7 +438,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
@@ -491,7 +468,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> PlatformStatus.CHECKING,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
@@ -518,7 +494,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 mock(FallenBehindManager.class),
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldAccept());
@@ -565,7 +540,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 mock(FallenBehindManager.class),
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());

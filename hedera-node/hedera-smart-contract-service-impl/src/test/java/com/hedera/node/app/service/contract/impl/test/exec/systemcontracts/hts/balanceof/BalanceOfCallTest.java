@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.balanceof;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -26,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_101
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static org.junit.jupiter.api.Assertions.*;
@@ -59,6 +45,7 @@ class BalanceOfCallTest extends CallTestBase {
     void revertsWithMissingAccount() {
         subject = new BalanceOfCall(mockEnhancement(), gasCalculator, FUNGIBLE_TOKEN, OWNER);
         given(nativeOperations.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS))).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 
@@ -72,6 +59,7 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 
@@ -92,6 +80,7 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.getTokenRelation(A_NEW_ACCOUNT_ID.accountNumOrThrow(), FUNGIBLE_TOKEN_ID.tokenNum()))
                 .willReturn(A_FUNGIBLE_RELATION);
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = subject.execute().fullResult().result();
 

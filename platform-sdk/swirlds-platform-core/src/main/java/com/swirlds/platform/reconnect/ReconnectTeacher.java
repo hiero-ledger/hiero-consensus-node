@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
@@ -83,7 +68,6 @@ public class ReconnectTeacher {
      * @param otherId                the learner's ID
      * @param lastRoundReceived      the round of the state
      * @param statistics             reconnect metrics
-     * @param configuration          the configuration
      * @param platformStateFacade    the facade to access the platform state
      */
     public ReconnectTeacher(
@@ -96,7 +80,6 @@ public class ReconnectTeacher {
             @NonNull final NodeId otherId,
             final long lastRoundReceived,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final Configuration configuration,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -109,7 +92,7 @@ public class ReconnectTeacher {
         this.otherId = Objects.requireNonNull(otherId);
         this.lastRoundReceived = lastRoundReceived;
         this.statistics = Objects.requireNonNull(statistics);
-        this.configuration = Objects.requireNonNull(configuration);
+        this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
         this.platformStateFacade = platformStateFacade;
     }
 
@@ -233,7 +216,7 @@ public class ReconnectTeacher {
                 threadManager,
                 new MerkleDataInputStream(connection.getDis()),
                 new MerkleDataOutputStream(connection.getDos()),
-                signedState.getState(),
+                signedState.getState().getRoot(),
                 connection::disconnect,
                 reconnectConfig);
 

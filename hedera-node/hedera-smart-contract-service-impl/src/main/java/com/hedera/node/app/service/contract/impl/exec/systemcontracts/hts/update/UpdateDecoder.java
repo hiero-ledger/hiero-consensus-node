@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -97,7 +82,9 @@ public class UpdateDecoder {
     private static final int DELEGATABLE_CONTRACT_ID = 4;
 
     @Inject
-    public UpdateDecoder() {}
+    public UpdateDecoder() {
+        // Dagger2
+    }
 
     private static boolean isKnownImmutable(@Nullable final Token token) {
         return token != null && IMMUTABILITY_SENTINEL_KEY.equals(token.adminKeyOrElse(IMMUTABILITY_SENTINEL_KEY));
@@ -112,7 +99,7 @@ public class UpdateDecoder {
     public @Nullable TransactionBody decodeTokenUpdateV1(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1.decodeCall(
                 attempt.input().toArrayUnsafe());
-        final var decoded = decodeTokenUpdate(call, attempt.addressIdConverter());
+        final var decoded = decodeTokenUpdate(call, attempt);
         return TransactionBody.newBuilder().tokenUpdate(decoded).build();
     }
 
@@ -125,7 +112,7 @@ public class UpdateDecoder {
     public @Nullable TransactionBody decodeTokenUpdateV2(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2.decodeCall(
                 attempt.input().toArrayUnsafe());
-        final var decoded = decodeTokenUpdate(call, attempt.addressIdConverter());
+        final var decoded = decodeTokenUpdate(call, attempt);
         return TransactionBody.newBuilder().tokenUpdate(decoded).build();
     }
 
@@ -138,7 +125,7 @@ public class UpdateDecoder {
     public TransactionBody decodeTokenUpdateWithMetadata(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.decodeCall(
                 attempt.input().toArrayUnsafe());
-        final var decoded = decodeUpdateWithMeta(call, attempt.addressIdConverter());
+        final var decoded = decodeUpdateWithMeta(call, attempt);
         return TransactionBody.newBuilder().tokenUpdate(decoded).build();
     }
 
@@ -151,7 +138,7 @@ public class UpdateDecoder {
     public @Nullable TransactionBody decodeTokenUpdateV3(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3.decodeCall(
                 attempt.input().toArrayUnsafe());
-        final var decoded = decodeTokenUpdate(call, attempt.addressIdConverter());
+        final var decoded = decodeTokenUpdate(call, attempt);
         return TransactionBody.newBuilder().tokenUpdate(decoded).build();
     }
 
@@ -180,16 +167,16 @@ public class UpdateDecoder {
     }
 
     private TokenUpdateTransactionBody.Builder decodeTokenUpdate(
-            @NonNull final Tuple call, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple call, @NonNull final HtsCallAttempt attempt) {
         final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
 
         final var tokenName = (String) hederaToken.get(0);
         final var tokenSymbol = (String) hederaToken.get(1);
-        final var tokenTreasury = addressIdConverter.convert(hederaToken.get(2));
+        final var tokenTreasury = attempt.addressIdConverter().convert(hederaToken.get(2));
         final var memo = (String) hederaToken.get(3);
-        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), addressIdConverter);
-        final var tokenExpiry = decodeTokenExpiry(hederaToken.get(8), addressIdConverter);
+        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), attempt);
+        final var tokenExpiry = decodeTokenExpiry(hederaToken.get(8), attempt.addressIdConverter());
 
         // Build the transaction body
         final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
@@ -223,14 +210,14 @@ public class UpdateDecoder {
     }
 
     public TokenUpdateTransactionBody.Builder decodeUpdateWithMeta(
-            @NonNull final Tuple call, @NonNull final AddressIdConverter addressIdConverter) {
-        final var tokenUpdateTransactionBody = decodeTokenUpdate(call, addressIdConverter);
+            @NonNull final Tuple call, @NonNull final HtsCallAttempt attempt) {
+        final var tokenUpdateTransactionBody = decodeTokenUpdate(call, attempt);
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
         final Bytes tokenMetadata = hederaToken.size() > 9 ? Bytes.wrap((byte[]) hederaToken.get(9)) : null;
         if (tokenMetadata != null && tokenMetadata.length() > 0) {
             tokenUpdateTransactionBody.metadata(tokenMetadata);
         }
-        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), addressIdConverter);
+        final List<TokenKeyWrapper> tokenKeys = decodeTokenKeys(hederaToken.get(7), attempt);
         addKeys(tokenKeys, tokenUpdateTransactionBody);
         addMetaKey(tokenKeys, tokenUpdateTransactionBody);
         return tokenUpdateTransactionBody;
@@ -244,7 +231,7 @@ public class UpdateDecoder {
                 attempt.input().toArrayUnsafe());
 
         final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
-        final var tokenKeys = decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter());
+        final var tokenKeys = decodeTokenKeys(call.get(TOKEN_KEYS), attempt);
 
         // Build the transaction body
         final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
@@ -344,7 +331,7 @@ public class UpdateDecoder {
     }
 
     private List<TokenKeyWrapper> decodeTokenKeys(
-            @NonNull final Tuple[] tokenKeysTuples, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple[] tokenKeysTuples, @NonNull final HtsCallAttempt attempt) {
         final List<TokenKeyWrapper> tokenKeys = new ArrayList<>(tokenKeysTuples.length);
         for (final var tokenKeyTuple : tokenKeysTuples) {
             final var keyType = ((BigInteger) tokenKeyTuple.get(KEY_TYPE)).intValue();
@@ -352,9 +339,12 @@ public class UpdateDecoder {
             final var inheritAccountKey = (Boolean) keyValueTuple.get(INHERIT_ACCOUNT_KEY);
             final byte[] ed25519 = keyValueTuple.get(ED25519);
             final byte[] ecdsaSecp256K1 = keyValueTuple.get(ECDSA_SECP_256K1);
-            final var contractId = asNumericContractId(addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
-            final var delegatableContractId =
-                    asNumericContractId(addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
+            final var contractId = asNumericContractId(
+                    attempt.nativeOperations().entityIdFactory(),
+                    attempt.addressIdConverter().convert(keyValueTuple.get(CONTRACT_ID)));
+            final var delegatableContractId = asNumericContractId(
+                    attempt.nativeOperations().entityIdFactory(),
+                    attempt.addressIdConverter().convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
 
             tokenKeys.add(new TokenKeyWrapper(
                     keyType,

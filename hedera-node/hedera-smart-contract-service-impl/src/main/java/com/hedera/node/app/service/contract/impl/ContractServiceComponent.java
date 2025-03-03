@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
@@ -26,6 +11,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -58,6 +44,7 @@ public interface ContractServiceComponent {
          * @param contractMetrics holds all metrics for the smart contract service
          * @param systemContractMethodRegistry registry of all system contract methods
          * @param customOps any additional custom operations to use when constructing the EVM
+         * @param entityIdFactory a factory for creating entity IDs
          * @return the contract service component
          */
         ContractServiceComponent create(
@@ -67,7 +54,8 @@ public interface ContractServiceComponent {
                 @BindsInstance @Nullable Supplier<List<OperationTracer>> addOnTracers,
                 @BindsInstance ContractMetrics contractMetrics,
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
-                @BindsInstance @CustomOps Set<Operation> customOps);
+                @BindsInstance @CustomOps Set<Operation> customOps,
+                @BindsInstance EntityIdFactory entityIdFactory);
     }
 
     /**

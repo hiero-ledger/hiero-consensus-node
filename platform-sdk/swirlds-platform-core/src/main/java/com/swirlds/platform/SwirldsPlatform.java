@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
 import static com.swirlds.common.utility.CompareTo.isLessThan;
@@ -28,6 +13,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.IOIterator;
@@ -58,7 +44,6 @@ import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
@@ -82,7 +67,7 @@ import com.swirlds.platform.system.events.DefaultBirthRoundMigrationShim;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -100,6 +85,11 @@ import org.apache.logging.log4j.Logger;
 public class SwirldsPlatform implements Platform {
 
     private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
+
+    /**
+     * The null hash.
+     */
+    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * The unique ID of this node.
@@ -210,8 +200,6 @@ public class SwirldsPlatform implements Platform {
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
         currentRoster = blocks.rosterHistory().getCurrentRoster();
 
-        platformWiring = new PlatformWiring(platformContext, blocks.model(), blocks.applicationCallbacks());
-
         registerRosterMetrics(platformContext.getMetrics(), currentRoster, selfId);
 
         RuntimeMetrics.setup(platformContext.getMetrics());
@@ -227,6 +215,8 @@ public class SwirldsPlatform implements Platform {
         final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(platformContext.getMetrics());
         final StateSignatureCollector stateSignatureCollector =
                 new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
+
+        this.platformWiring = blocks.platformWiring();
 
         blocks.statusActionSubmitterReference()
                 .set(x -> platformWiring.getStatusActionSubmitter().submitStatusAction(x));
@@ -277,7 +267,7 @@ public class SwirldsPlatform implements Platform {
 
         final Hash legacyRunningEventHash =
                 platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
-                        ? platformContext.getCryptography().getNullHash()
+                        ? NULL_HASH
                         : platformStateFacade.legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
@@ -371,8 +361,7 @@ public class SwirldsPlatform implements Platform {
             return null;
         }
 
-        final PlatformMerkleStateRoot state = initialState.getState();
-
+        final State state = initialState.getState();
         return new DefaultBirthRoundMigrationShim(
                 platformContext,
                 platformStateFacade.firstVersionInBirthRoundModeOf(state),
@@ -516,7 +505,7 @@ public class SwirldsPlatform implements Platform {
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
-    public <T extends MerkleStateRoot> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason) {
+    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason) {
         final ReservedSignedState wrapper = latestImmutableStateNexus.getState(reason);
         return wrapper == null
                 ? AutoCloseableWrapper.empty()

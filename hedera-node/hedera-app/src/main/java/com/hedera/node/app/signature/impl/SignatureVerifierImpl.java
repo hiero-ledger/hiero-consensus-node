@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature.impl;
 
 import static com.hedera.hapi.node.base.SignaturePair.SignatureOneOfType.ECDSA_SECP256K1;
@@ -29,6 +14,7 @@ import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,9 +34,14 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
     /** The {@link Cryptography} engine to use for signature verification. */
     private final Cryptography cryptoEngine;
 
-    /** Create a new instance with the given {@link Cryptography} engine. */
+    /** Create a new instance with new {@link Cryptography} engine. */
     @Inject
-    public SignatureVerifierImpl(@NonNull final Cryptography cryptoEngine) {
+    public SignatureVerifierImpl() {
+        this(CryptographyFactory.create());
+    }
+
+    /** Create a new instance with the given {@link Cryptography} engine. */
+    SignatureVerifierImpl(@NonNull final Cryptography cryptoEngine) {
         this.cryptoEngine = requireNonNull(cryptoEngine);
     }
 

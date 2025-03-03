@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
@@ -67,6 +52,7 @@ import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionGetReceiptResponse;
 import com.hederahashgraph.api.proto.java.TransactionReceipt;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -870,5 +856,20 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public ResponseCodeEnum getActualStatus() {
         return lastReceipt.getStatus();
+    }
+
+    public void updateStateFromRecord(TransactionRecord record, HapiSpec spec) throws Throwable {
+        this.actualStatus = record.getReceipt().getStatus();
+        this.lastReceipt = record.getReceipt();
+        updateStateOf(spec);
+    }
+
+    public T batchKey(String key) {
+        batchKey = Optional.of(spec -> spec.registry().getKey(key));
+        return self();
+    }
+
+    public Optional<AccountID> getNode() {
+        return node;
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,11 +25,11 @@ import org.junit.jupiter.api.Test;
 
 public class TransactionSignatureTests {
 
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
     private static CryptoConfig cryptoConfig;
     private static final int PARALLELISM = 16;
     private static ExecutorService executorService;
     private static SignaturePool signaturePool;
-    private static Cryptography cryptoProvider;
 
     @BeforeAll
     public static void startup() throws NoSuchAlgorithmException, NoSuchProviderException {
@@ -53,7 +38,6 @@ public class TransactionSignatureTests {
 
         assertTrue(cryptoConfig.computeCpuDigestThreadCount() >= 1);
 
-        cryptoProvider = CryptographyHolder.get();
         executorService = Executors.newFixedThreadPool(PARALLELISM);
         signaturePool = new SignaturePool(1024, 4096, true);
     }
@@ -75,7 +59,7 @@ public class TransactionSignatureTests {
         assertNotNull(singleSignature);
         assertEquals(VerificationStatus.UNKNOWN, singleSignature.getSignatureStatus());
 
-        cryptoProvider.verifySync(singleSignature);
+        CRYPTOGRAPHY.verifySync(singleSignature);
 
         Future<Void> future = singleSignature.waitForFuture();
         assertNotNull(future);
@@ -105,7 +89,7 @@ public class TransactionSignatureTests {
             for (int i = offset; i < count; i++) {
                 final TransactionSignature signature = sItems[i];
 
-                final boolean isValid = cryptoProvider.verifySync(signature);
+                final boolean isValid = CRYPTOGRAPHY.verifySync(signature);
 
                 signature.setSignatureStatus(((isValid) ? VerificationStatus.VALID : VerificationStatus.INVALID));
             }

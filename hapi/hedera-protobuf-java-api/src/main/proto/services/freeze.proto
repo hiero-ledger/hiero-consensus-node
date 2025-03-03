@@ -1,0 +1,137 @@
+/**
+ * # Freeze
+ * Transaction body for a network "freeze" transaction.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.freeze">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "services/basic_types.proto";
+import "services/freeze_type.proto";
+
+/**
+ * A transaction body for all five freeze transactions.
+ *
+ * Combining five different transactions into a single message, this
+ * transaction body MUST support options to schedule a freeze, abort a
+ * scheduled freeze, prepare a software upgrade, prepare a telemetry
+ * upgrade, or initiate a software upgrade.
+ *
+ * For a scheduled freeze, at the scheduled time, according to
+ * network consensus time
+ *   - A freeze (`FREEZE_ONLY`) causes the network nodes to stop creating
+ *     events or accepting transactions, and enter a persistent
+ *     maintenance state.
+ *   - A freeze upgrade (`FREEZE_UPGRADE`) causes the network nodes to stop
+ *     creating events or accepting transactions, and upgrade the node software
+ *     from a previously prepared upgrade package. The network nodes then
+ *     restart and rejoin the network after upgrading.
+ *
+ * For other freeze types, immediately upon processing the freeze transaction
+ *   - A Freeze Abort (`FREEZE_ABORT`) cancels any pending scheduled freeze.
+ *   - A prepare upgrade (`PREPARE_UPGRADE`) begins to extract the contents of
+ *     the specified upgrade file to the local filesystem.
+ *   - A telemetry upgrade (`TELEMETRY_UPGRADE`) causes the network nodes to
+ *     extract a telemetry upgrade package to the local filesystem and signal
+ *     other software on the machine to upgrade, without impacting the node or
+ *     network processing.
+ *
+ * ### Block Stream Effects
+ * Unknown
+ */
+message FreezeTransactionBody {
+    /**
+     * Rejected if set; replace with `start_time`.<br/>
+     * The start hour (in UTC time), a value between 0 and 23
+     */
+    int32 startHour = 1 [deprecated = true];
+
+    /**
+     * Rejected if set; replace with `start_time`.<br/>
+     * The start minute (in UTC time), a value between 0 and 59
+     */
+    int32 startMin = 2 [deprecated = true];
+
+    /**
+     * Rejected if set; end time is neither assigned nor guaranteed and depends
+     * on many uncontrolled factors.<br/>
+     * The end hour (in UTC time), a value between 0 and 23
+     */
+    int32 endHour = 3 [deprecated = true];
+
+    /**
+     * Rejected if set; end time is neither assigned nor guaranteed and depends
+     * on many uncontrolled factors.<br/>
+     * The end minute (in UTC time), a value between 0 and 59
+     */
+    int32 endMin = 4 [deprecated = true];
+
+    /**
+     * An upgrade file.
+     * <p>
+     * If set, the identifier of a file in network state.<br/>
+     * The contents of this file MUST be a `zip` file and this data
+     * SHALL be extracted to the node filesystem during a
+     * `PREPARE_UPGRADE` or `TELEMETRY_UPGRADE` freeze type.<br/>
+     * The `file_hash` field MUST match the SHA384 hash of the content
+     * of this file.<br/>
+     * The extracted data SHALL be used to perform a network software update
+     * if a `FREEZE_UPGRADE` freeze type is subsequently processed.
+     */
+    FileID update_file = 5;
+
+    /**
+     * A SHA384 hash of file content.<br/>
+     * This is a hash of the file identified by `update_file`.
+     * <p>
+     * This MUST be set if `update_file` is set, and MUST match the
+     * SHA384 hash of the contents of that file.
+     */
+    bytes file_hash = 6;
+
+    /**
+     * A start time for the freeze.
+     * <p>
+     * If this field is REQUIRED for the specified `freeze_type`, then
+     * when the network consensus time reaches this instant<ol>
+     *   <li>The network SHALL stop accepting transactions.</li>
+     *   <li>The network SHALL gossip a freeze state.</li>
+     *   <li>The nodes SHALL, in coordinated order, disconnect and
+     *       shut down.</li>
+     *   <li>The nodes SHALL halt or perform a software upgrade, depending
+     *       on `freeze_type`.</li>
+     *   <li>If the `freeze_type` is `FREEZE_UPGRADE`, the nodes SHALL
+     *       restart and rejoin the network upon completion of the
+     *       software upgrade.</li>
+     * </ol>
+     * <blockquote>
+     * If the `freeze_type` is `TELEMETRY_UPGRADE`, the start time is required,
+     * but the network SHALL NOT stop, halt, or interrupt transaction
+     * processing. The required field is an historical anomaly and SHOULD
+     * change in a future release.</blockquote>
+     */
+    Timestamp start_time = 7;
+
+    /**
+     * The type of freeze.
+     * <p>
+     * This REQUIRED field effectively selects between five quite different
+     * transactions in the same transaction body. Depending on this value
+     * the service may schedule a freeze, prepare upgrades, perform upgrades,
+     * or even abort a previously scheduled freeze.
+     */
+    FreezeType freeze_type = 8;
+}

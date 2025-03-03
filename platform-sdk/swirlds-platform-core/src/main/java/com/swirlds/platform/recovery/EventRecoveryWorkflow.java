@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
@@ -52,7 +37,7 @@ import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.RecoveredState;
 import com.swirlds.platform.recovery.internal.RecoveryPlatform;
 import com.swirlds.platform.recovery.internal.StreamedRound;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -67,6 +52,7 @@ import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -152,7 +138,7 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
         try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        platformContext.getConfiguration(), signedStateFile, platformStateFacade)
+                        signedStateFile, platformStateFacade, platformContext)
                 .reservedSignedState()) {
             logger.info(
                     STARTUP.getMarker(),
@@ -184,7 +170,7 @@ public final class EventRecoveryWorkflow {
                     resultingStateDirectory);
 
             // Make one more copy to force the state in recoveredState to be immutable.
-            final PlatformMerkleStateRoot mutableStateCopy =
+            final State mutableStateCopy =
                     recoveredState.state().get().getState().copy();
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
@@ -336,13 +322,7 @@ public final class EventRecoveryWorkflow {
                     round.getEventCount(),
                     round.getRoundNum());
 
-            signedState = handleNextRound(
-                    stateLifecycles,
-                    platformContext,
-                    signedState,
-                    round,
-                    configuration.getConfigData(ConsensusConfig.class),
-                    platformStateFacade);
+            signedState = handleNextRound(stateLifecycles, platformContext, signedState, round, platformStateFacade);
             platform.setLatestState(signedState.get());
             lastEvent = getLastEvent(round);
         }
@@ -350,7 +330,7 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Hashing resulting signed state");
         try {
             MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(signedState.get().getState().cast())
+                    .digestTreeAsync(signedState.get().getState().getRoot())
                     .get();
         } catch (final InterruptedException e) {
             throw new RuntimeException("interrupted while attempting to hash the state", e);
@@ -373,7 +353,6 @@ public final class EventRecoveryWorkflow {
      * @param platformContext the current context
      * @param previousSignedState   the previous round's signed state
      * @param round           the next round
-     * @param config          the consensus configuration
      * @return the resulting signed state
      */
     private static ReservedSignedState handleNextRound(
@@ -381,14 +360,14 @@ public final class EventRecoveryWorkflow {
             @NonNull final PlatformContext platformContext,
             @NonNull final ReservedSignedState previousSignedState,
             @NonNull final StreamedRound round,
-            @NonNull final ConsensusConfig config,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
         final SignedState previousState = previousSignedState.get();
         previousState.getState().throwIfImmutable();
-        final PlatformMerkleStateRoot newState = previousState.getState().copy();
+        final MerkleNodeState newState = previousState.getState().copy();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
+        final ConsensusConfig config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
         new DefaultEventHasher().hashEvent(lastEvent);
 
         platformStateFacade.bulkUpdateOf(newState, v -> {
@@ -397,7 +376,15 @@ public final class EventRecoveryWorkflow {
                     getHashEventsCons(platformStateFacade.legacyRunningEventHashOf(newState), round));
             v.setConsensusTimestamp(currentRoundTimestamp);
             v.setSnapshot(SyntheticSnapshot.generateSyntheticSnapshot(
-                    round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, config, lastEvent));
+                    round.getRoundNum(),
+                    lastEvent.getConsensusOrder(),
+                    currentRoundTimestamp,
+                    config,
+                    platformContext
+                            .getConfiguration()
+                            .getConfigData(EventConfig.class)
+                            .getAncientMode(),
+                    lastEvent));
             v.setCreationSoftwareVersion(platformStateFacade.creationSoftwareVersionOf(previousState.getState()));
         });
 
@@ -411,19 +398,20 @@ public final class EventRecoveryWorkflow {
             platformStateFacade.updateLastFrozenTime(newState);
         }
 
-        final ReservedSignedState signedState = new SignedState(
-                        platformContext.getConfiguration(),
-                        CryptoStatic::verifySignature,
-                        newState,
-                        "EventRecoveryWorkflow.handleNextRound()",
-                        isFreezeState,
-                        false,
-                        false,
-                        platformStateFacade)
-                .reserve("recovery");
+        final SignedState signedState = new SignedState(
+                platformContext.getConfiguration(),
+                CryptoStatic::verifySignature,
+                newState,
+                "EventRecoveryWorkflow.handleNextRound()",
+                isFreezeState,
+                false,
+                false,
+                platformStateFacade);
+        signedState.init(platformContext);
+        final ReservedSignedState reservedSignedState = signedState.reserve("recovery");
         previousSignedState.close();
 
-        return signedState;
+        return reservedSignedState;
     }
 
     /**
@@ -479,9 +467,9 @@ public final class EventRecoveryWorkflow {
      * @param round          the current round
      */
     static void applyTransactions(
-            final StateLifecycles<PlatformMerkleStateRoot> stateLifecycles,
-            final PlatformMerkleStateRoot immutableState,
-            final PlatformMerkleStateRoot mutableState,
+            final StateLifecycles<MerkleNodeState> stateLifecycles,
+            final MerkleNodeState immutableState,
+            final MerkleNodeState mutableState,
             final Round round) {
 
         mutableState.throwIfImmutable();

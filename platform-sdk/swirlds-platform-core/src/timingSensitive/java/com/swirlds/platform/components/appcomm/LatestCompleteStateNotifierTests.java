@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.appcomm;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
@@ -59,9 +44,8 @@ public class LatestCompleteStateNotifierTests {
             try {
                 assertThat(senderLatch.await(1, TimeUnit.SECONDS)).isTrue();
                 assertFalse(
-                        n.getStateRoot().isDestroyed(),
-                        "State should not be destroyed until the callback has completed");
-                assertEquals(signedState.getState(), n.getStateRoot(), "Unexpected State");
+                        n.getState().isDestroyed(), "State should not be destroyed until the callback has completed");
+                assertEquals(signedState.getState(), n.getState(), "Unexpected State");
             } catch (Throwable e) {
                 notificationProcessingErrorRef.set(e);
                 throw new RuntimeException(e);

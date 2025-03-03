@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.stale;
 
 import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
@@ -23,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -30,7 +16,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig_;
@@ -170,13 +155,7 @@ class StaleEventDetectorTests {
                 randotron.nextPositiveLong(), ancientThreshold, randotron.nextPositiveLong(), BIRTH_ROUND_THRESHOLD);
 
         return new ConsensusRound(
-                mock(Roster.class),
-                events,
-                mock(PlatformEvent.class),
-                eventWindow,
-                mock(ConsensusSnapshot.class),
-                false,
-                Instant.now());
+                mock(Roster.class), events, eventWindow, mock(ConsensusSnapshot.class), false, Instant.now());
     }
 
     @Test
