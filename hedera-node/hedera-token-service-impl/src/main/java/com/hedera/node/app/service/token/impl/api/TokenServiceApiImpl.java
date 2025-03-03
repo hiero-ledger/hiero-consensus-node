@@ -9,6 +9,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
+import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
+import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
+import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion.YES;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -505,7 +508,15 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
         final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
         if (freeAliasOnDeletion == YES) {
-            accountStore.removeAlias(updatedDeleteAccount.alias());
+            final var alias = updatedDeleteAccount.alias();
+            if (alias.length() > 0 && !isOfEvmAddressSize(alias)) {
+                final var key = asKeyFromAlias(alias);
+                final var evmAddress = extractEvmAddress(key);
+                if (evmAddress != null) {
+                    accountStore.removeAlias(evmAddress);
+                }
+            }
+            accountStore.removeAlias(alias);
             builder.alias(Bytes.EMPTY);
         }
         accountStore.put(builder.build());

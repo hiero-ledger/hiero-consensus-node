@@ -389,6 +389,34 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         Assertions.assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
     }
 
+    @Test
+    void happyPathWithEcdsaKeyWorks() {
+        writableAliases = writableAliasesStateWithEcdsaKey();
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
+
+        deleteAccount =
+                deleteAccount.copyBuilder().alias(ecdsaAlias.aliasOrThrow()).build();
+        writableAccounts = emptyWritableAccountStateBuilder()
+                .value(idFactory.newAccountId(accountNum), account)
+                .value(idFactory.newAccountId(deleteAccountNum), deleteAccount)
+                .value(idFactory.newAccountId(transferAccountNum), transferAccount)
+                .build();
+        given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
+        writableStore = new WritableAccountStore(writableStates, entityCounters);
+
+        givenTxnWith(deleteAccountId, transferAccountId);
+        given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
+                .willReturn(false);
+        given(stack.getBaseBuilder(CryptoDeleteStreamBuilder.class)).willReturn(recordBuilder);
+
+        subject.handle(handleContext);
+
+        assertThat(writableStore.get(deleteAccountId).deleted()).isTrue();
+        assertThat(writableAliases.get(ecdsaKeyAlias)).isNull();
+        assertThat(writableAliases.get(new ProtoBytes(aliasEvmAddress))).isNull();
+        verify(recordBuilder).addBeneficiaryForDeletedAccount(deleteAccountId, transferAccountId);
+    }
+
     private TransactionBody deleteAccountTransaction(
             final AccountID deleteAccountId, final AccountID transferAccountId) {
         final var transactionID = TransactionID.newBuilder().accountID(id).transactionValidStart(consensusTimestamp);
