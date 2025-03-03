@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.account
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.including;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -19,14 +20,18 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDissociate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
+import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.ECDSA_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
@@ -39,6 +44,7 @@ import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
+import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -170,5 +176,39 @@ public class CryptoDeleteSuite {
                         .initialSupply(TOKEN_INITIAL_SUPPLY)
                         .treasury(TREASURY),
                 cryptoDelete(TREASURY).transfer(TRANSFER_ACCOUNT).hasKnownStatus(ACCOUNT_IS_TREASURY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> deleteEcdsaKeyAlias() {
+        long B = HapiSpecSetup.getDefaultInstance().defaultBalance();
+        return hapiTest(
+                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
+                newKeyNamed("ED_25519_KEY").shape(KeyShape.ED25519),
+                cryptoCreate(TRANSFER_ACCOUNT).balance(0L),
+                withOpContext((spec, opLog) -> {
+                    final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
+                    final var ecdsaAlias = ecdsaKey.toByteString();
+                    //                    final var ecdsaPbjKey = toPbj(ecdsaKey);
+                    //                    final var ecdsaPbjKeyBytes = ecdsaPbjKey.ecdsaSecp256k1OrThrow();
+                    //                    final var alias = fromPbj(ecdsaPbjKeyBytes);
+                    //                    final var aliasBytes = ecdsaKey.getECDSASecp256K1().toByteArray();
+                    //                    final var addressBytes = recoverAddressFromPubKey(aliasBytes);
+                    //                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
+                    //                    final var publicKey = fromByteString(ecdsaKey.getECDSASecp256K1());
+
+                    final var op1 = cryptoCreate(ACCOUNT_TO_BE_DELETED)
+                            .key("ED_25519_KEY")
+                            //                            .alias(ByteString.copyFrom(publicKey.toByteArray()))
+                            //                            .alias(evmAddressBytes)
+                            .alias(ecdsaAlias)
+                            .signedBy(GENESIS, ECDSA_KEY)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(ECDSA_KEY))
+                            .balance(B);
+
+                    final var op2 = cryptoDelete(ACCOUNT_TO_BE_DELETED).transfer(TRANSFER_ACCOUNT);
+
+                    allRunFor(spec, op1, op2);
+                }),
+                getAccountInfo(TRANSFER_ACCOUNT).has(accountWith().balance(B)));
     }
 }
