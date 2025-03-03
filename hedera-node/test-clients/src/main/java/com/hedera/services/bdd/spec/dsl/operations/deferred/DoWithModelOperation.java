@@ -16,7 +16,8 @@ import java.util.function.Function;
  *
  * @param <M> the type of the model
  */
-public class DoWithModelOperation<M extends Record> extends AbstractSpecOperation implements SpecOperation {
+public class DoWithModelOperation<M> extends AbstractSpecOperation implements SpecOperation {
+
     private final AbstractSpecEntity<?, M> source;
     private final Function<M, SpecOperation> function;
 
