@@ -172,11 +172,6 @@ class PlatformStateFacadeTest {
     }
 
     @Test
-    void testPreviousAddressBookOf() {
-        assertEquals(platformStateModifier.getPreviousAddressBook(), platformStateFacade.previousAddressBookOf(state));
-    }
-
-    @Test
     void testBulkUpdateOf() {
         final Instant newFreezeTime = Instant.now();
         final Instant lastFrozenTime = Instant.now();

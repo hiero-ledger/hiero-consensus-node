@@ -104,22 +104,11 @@ message PlatformState {
     */
     proto.SemanticVersion first_version_in_birth_round_mode = 10003 [deprecated = true];
 
-    /**
-     * An address book for this round.
-     * <p>
-     * This SHALL be the latest network-consensus view of consensus nodes.
-     */
-    AddressBook address_book = 10004 [deprecated = true];
+    reserved 10004;
+    reserved "address_book";
 
-    /**
-     * A previous address book.
-     * <p>
-     * If present, the previous address book SHALL be the address book from the
-     * most recent preceding round.
-     * <p>
-     * This is a temporary workaround until dynamic address books are supported.
-     */
-    AddressBook previous_address_book = 10005 [deprecated = true];
+    reserved 10005;
+    reserved "previous_address_book";
 }
 
 

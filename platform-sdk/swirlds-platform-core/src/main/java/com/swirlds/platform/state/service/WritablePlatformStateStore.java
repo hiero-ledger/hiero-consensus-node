@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.PbjConverter.toPbjAddressBook;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Objects.requireNonNull;
@@ -14,7 +13,6 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -76,24 +74,6 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
         requireNonNull(creationVersion);
         final var previousState = stateOrThrow();
         update(previousState.copyBuilder().creationSoftwareVersion(creationVersion.getPbjSemanticVersion()));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setAddressBook(@Nullable final AddressBook addressBook) {
-        final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().addressBook(toPbjAddressBook(addressBook)));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setPreviousAddressBook(@Nullable final AddressBook addressBook) {
-        final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().previousAddressBook(toPbjAddressBook(addressBook)));
     }
 
     /**

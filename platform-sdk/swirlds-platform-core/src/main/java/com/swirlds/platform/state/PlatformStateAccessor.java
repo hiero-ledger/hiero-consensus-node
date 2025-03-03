@@ -5,7 +5,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -26,20 +25,6 @@ public interface PlatformStateAccessor {
      */
     @NonNull
     SoftwareVersion getCreationSoftwareVersion();
-
-    /**
-     * Get the address book.
-     * @return an address book
-     */
-    @Nullable
-    AddressBook getAddressBook();
-
-    /**
-     * Get the previous address book.
-     * @return a previous address book
-     */
-    @Nullable
-    AddressBook getPreviousAddressBook();
 
     /**
      * Get the round when this state was generated.
