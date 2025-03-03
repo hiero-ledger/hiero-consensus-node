@@ -183,40 +183,38 @@ public class CryptoDeleteSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> deleteEcdsaKeyAlias() {
+    final Stream<DynamicTest> deleteEcdsaKeyAliasWorked() {
         return hapiTest(
                 createHip32Auto(1, SECP_256K1_SHAPE, i -> ACCOUNT_TO_BE_DELETED),
                 balanceSnapshot("before", ACCOUNT_TO_BE_DELETED),
                 withAddressOfKey(
                         ACCOUNT_TO_BE_DELETED,
-                        address -> cryptoTransfer((spec, builder) -> {
-                            builder.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder().setAccountNum(2))
-                                            .setAmount(-ONE_HUNDRED_HBARS)
-                                            .build())
-                                    .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder()
-                                                    .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
-                                            .setAmount(ONE_HUNDRED_HBARS)
-                                            .build())
-                                    .build());
-                        })),
+                        address -> cryptoTransfer((spec, builder) -> builder.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(AccountID.newBuilder().setAccountNum(2))
+                                        .setAmount(-ONE_HUNDRED_HBARS)
+                                        .build())
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(AccountID.newBuilder()
+                                                .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                        .setAmount(ONE_HUNDRED_HBARS)
+                                        .build())
+                                .build()))),
                 getAccountBalance(ACCOUNT_TO_BE_DELETED).hasTinyBars(changeFromSnapshot("before", ONE_HUNDRED_HBARS)),
                 cryptoDelete(ACCOUNT_TO_BE_DELETED),
-                withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> cryptoTransfer((spec, builder) -> {
-                            builder.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder().setAccountNum(2))
-                                            .setAmount(-ONE_HUNDRED_HBARS)
-                                            .build())
-                                    .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder()
-                                                    .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
-                                            .setAmount(ONE_HUNDRED_HBARS)
-                                            .build())
-                                    .build());
-                        })
+                withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> cryptoTransfer(
+                                (spec, builder) -> builder.setTransfers(TransferList.newBuilder()
+                                        .addAccountAmounts(AccountAmount.newBuilder()
+                                                .setAccountID(
+                                                        AccountID.newBuilder().setAccountNum(2))
+                                                .setAmount(-ONE_HUNDRED_HBARS)
+                                                .build())
+                                        .addAccountAmounts(AccountAmount.newBuilder()
+                                                .setAccountID(AccountID.newBuilder()
+                                                        .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                                .setAmount(ONE_HUNDRED_HBARS)
+                                                .build())
+                                        .build()))
                         .via("shouldBeAutoCreation")),
                 getTxnRecord("shouldBeAutoCreation")
                         .andAllChildRecords()

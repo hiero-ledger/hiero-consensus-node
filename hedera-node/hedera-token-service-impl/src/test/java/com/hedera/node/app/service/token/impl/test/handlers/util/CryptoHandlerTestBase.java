@@ -137,9 +137,7 @@ public class CryptoHandlerTestBase {
     protected static final Key aEcdsaKey = Key.newBuilder()
             .ecdsaSecp256k1(hexBytes("3a210358d7847a8d9a1beb784e367318bad30e89b5d3f3fa1a67f259e40a63e45ad8e5"))
             .build();
-    //    protected static final Key aEcdsaKey = Key.newBuilder()
-    //            .ecdsaSecp256k1(hexBytes("0280e9b75ca5a688e08a04e40cebb42954425048bf25b2503b92e8b9e44160ded5"))
-    //            .build();
+
     protected static final ProtoBytes edKeyAlias = new ProtoBytes(aPrimitiveKey.ed25519());
     protected static final ProtoBytes ecdsaKeyAlias = new ProtoBytes(aEcdsaKey.ecdsaSecp256k1());
     protected final AccountID alias = idFactory.newAccountIdWithAlias(edKeyAlias.value());
