@@ -25,12 +25,15 @@ import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
+import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
 import com.hedera.services.bdd.junit.restart.RestartHapiTest;
 import com.hedera.services.bdd.junit.restart.SavedStateSpec;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -116,6 +119,14 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
 
     @Override
     public void afterEach(@NonNull final ExtensionContext extensionContext) {
+        Optional.ofNullable(HapiSpec.TARGET_NETWORK.get()).ifPresent(network -> {
+            if (network.type() == TargetNetworkType.SUBPROCESS_NETWORK) {
+                // Revert the change(s) made to cause the ISS (if any). Note that this call will only make changes if
+                // the node's `isIssScenario` property is true
+                network.nodesFor(NodeSelector.allNodes()).forEach(SubProcessNode::revertIssScenario);
+            }
+        });
+
         HapiSpec.TARGET_NETWORK.remove();
         HapiSpec.FEES_OVERRIDE.remove();
         HapiSpec.THROTTLES_OVERRIDE.remove();
