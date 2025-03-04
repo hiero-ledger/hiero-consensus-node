@@ -105,20 +105,28 @@ public final class StateUtils {
                             md.inMemoryValueClassId(),
                             md.stateDefinition().keyCodec(),
                             md.stateDefinition().valueCodec())));
+            // FUTURE WORK: remove OnDiskKey registration, once there are no objects of this clas
+            // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskKey.class,
                     () -> new OnDiskKey<>(
                             md.onDiskKeyClassId(), md.stateDefinition().keyCodec())));
+            // FUTURE WORK: remove OnDiskKeySerilalizer registration, once there are no objects of this clas
+            // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskKeySerializer.class,
                     () -> new OnDiskKeySerializer<>(
                             md.onDiskKeySerializerClassId(),
                             md.onDiskKeyClassId(),
                             md.stateDefinition().keyCodec())));
+            // FUTURE WORK: remove OnDiskValue registration, once there are no objects of this clas
+            // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskValue.class,
                     () -> new OnDiskValue<>(
                             md.onDiskValueClassId(), md.stateDefinition().valueCodec())));
+            // FUTURE WORK: remove OnDiskValueSerializer registration, once there are no objects of this clas
+            // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskValueSerializer.class,
                     () -> new OnDiskValueSerializer<>(

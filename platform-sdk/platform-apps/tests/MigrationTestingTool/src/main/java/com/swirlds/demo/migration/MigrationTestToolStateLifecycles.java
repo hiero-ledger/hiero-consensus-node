@@ -47,7 +47,7 @@ public class MigrationTestToolStateLifecycles implements StateLifecycles<Migrati
         if (merkleMap != null) {
             logger.info(STARTUP.getMarker(), "MerkleMap initialized with {} values", merkleMap.size());
         }
-        final VirtualMap<?, ?> virtualMap = state.getVirtualMap();
+        final VirtualMap virtualMap = state.getVirtualMap();
         if (virtualMap != null) {
             logger.info(STARTUP.getMarker(), "VirtualMap initialized with {} values", virtualMap.size());
         }

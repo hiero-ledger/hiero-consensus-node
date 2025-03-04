@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.stream.Stream;
 
@@ -33,14 +29,8 @@ import java.util.stream.Stream;
  * deepest rank (the leaves) to the lowest rank (nearest the top). When we flush, we flush in the opposite order
  * from the closest to the top of the tree to the deepest rank. Each rank is processed in ascending path order.
  * So we store each rank as a separate array and then stream them out in the proper order to disk.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public class FullLeafRehashHashListener<K extends VirtualKey, V extends VirtualValue>
-        extends AbstractHashListener<K, V> {
+public class FullLeafRehashHashListener extends AbstractHashListener {
     /**
      * Create a new {@link FullLeafRehashHashListener}.
      *
@@ -58,19 +48,17 @@ public class FullLeafRehashHashListener<K extends VirtualKey, V extends VirtualV
     public FullLeafRehashHashListener(
             final long firstLeafPath,
             final long lastLeafPath,
-            final KeySerializer<K> keySerializer,
-            final ValueSerializer<V> valueSerializer,
             @NonNull final VirtualDataSource dataSource,
             final int flushInterval,
             @NonNull final VirtualMapStatistics statistics) {
-        super(firstLeafPath, lastLeafPath, keySerializer, valueSerializer, dataSource, flushInterval, statistics);
+        super(firstLeafPath, lastLeafPath, dataSource, flushInterval, statistics);
     }
 
     /**
      * This implementation doesn't need to remove any leaves.
      */
     @Override
-    protected Stream<VirtualLeafRecord<K, V>> findLeavesToRemove() {
+    protected Stream<VirtualLeafBytes> findLeavesToRemove() {
         return Stream.empty();
     }
 }

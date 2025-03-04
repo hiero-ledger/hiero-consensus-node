@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.exceptions.ReferenceCountException;
@@ -42,12 +43,16 @@ import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
+import com.swirlds.virtualmap.test.fixtures.TestObjectKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -97,8 +102,8 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
     @DisplayName("A fresh map is mutable")
     void freshMapIsMutable() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
+        final VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         assertEquals(1, fcm.size(), "VirtualMap size is wrong");
         fcm.release();
     }
@@ -107,7 +112,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
     @DisplayName("A fresh map has both children")
     void freshMapHasBothChildren() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
+        final VirtualMap fcm = createMap();
         assertEquals(2, fcm.getNumberOfChildren(), "VirtualMap size is wrong");
         assertNotNull(fcm.getChild(0), "Unexpected null at index 0");
         assertNotNull(fcm.getChild(1), "Unexpected null at index 1");
@@ -118,7 +123,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
     @DisplayName("A fresh map returns a non-null data source")
     void freshMapHasDataSource() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
+        final VirtualMap fcm = createMap();
         assertNotNull(fcm.getDataSource(), "Unexpected null data source");
         fcm.release();
     }
@@ -127,7 +132,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
     @DisplayName("The root node of an empty tree has no children")
     void emptyTreeRootHasNoChildren() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
+        final VirtualMap fcm = createMap();
         final MerkleInternal root = fcm.getChild(1).asInternal();
         assertEquals(2, root.getNumberOfChildren(), "Unexpected number of children");
         assertNull(root.getChild(0), "Unexpected child of empty root");
@@ -143,8 +148,8 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("FastCopy")})
     @DisplayName("Original after copy is immutable")
     void originalAfterCopyIsImmutable() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        final VirtualMap<TestKey, TestValue> copy = fcm.copy();
+        final VirtualMap fcm = createMap();
+        final VirtualMap copy = fcm.copy();
         assertTrue(fcm.isImmutable(), "Copied VirtualMap should have been immutable");
         assertFalse(copy.isImmutable(), "Most recent VirtualMap should have been mutable");
         fcm.release();
@@ -155,8 +160,8 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("FastCopy")})
     @DisplayName("Cannot copy twice")
     void cannotCopyTwice() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        final VirtualMap<TestKey, TestValue> copy = fcm.copy();
+        final VirtualMap fcm = createMap();
+        final VirtualMap copy = fcm.copy();
         assertThrows(MutabilityException.class, fcm::copy, "Calling copy twice should have thrown exception");
         fcm.release();
         copy.release();
@@ -166,7 +171,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("FastCopy")})
     @DisplayName("Cannot copy a released fcm")
     void cannotCopyAReleasedMap() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
+        final VirtualMap fcm = createMap();
         fcm.release();
         assertThrows(ReferenceCountException.class, fcm::copy, "Calling copy after release should throw");
     }
@@ -175,27 +180,28 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("FastCopy")})
     @DisplayName("Original is not impacted by changes to modified copy")
     void originalIsUnaffected() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
-        fcm.put(C_KEY, CHERRY);
+        final VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
 
         // Perform some combination of add, remove, replace and leaving alone
-        final VirtualMap<TestKey, TestValue> copy = fcm.copy();
-        copy.put(A_KEY, AARDVARK);
-        copy.remove(C_KEY);
-        copy.put(D_KEY, DOG);
-        copy.put(E_KEY, EMU);
+        final VirtualMap copy = fcm.copy();
+        assertNotNull(copy.get(A_KEY, TestValueCodec.INSTANCE), "Entry for A_KEY not found");
+        copy.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
+        copy.remove(C_KEY, TestValueCodec.INSTANCE);
+        copy.put(D_KEY, DOG, TestValueCodec.INSTANCE);
+        copy.put(E_KEY, EMU, TestValueCodec.INSTANCE);
 
-        assertEquals(APPLE, fcm.get(A_KEY), "Unexpected value");
-        assertEquals(BANANA, fcm.get(B_KEY), "Unexpected value");
-        assertEquals(CHERRY, fcm.get(C_KEY), "Unexpected value");
+        assertEquals(APPLE, fcm.get(A_KEY, TestValueCodec.INSTANCE), "Unexpected value");
+        assertEquals(BANANA, fcm.get(B_KEY, TestValueCodec.INSTANCE), "Unexpected value");
+        assertEquals(CHERRY, fcm.get(C_KEY, TestValueCodec.INSTANCE), "Unexpected value");
         assertEquals(3, fcm.size(), "Unexpected size");
 
-        assertEquals(AARDVARK, copy.get(A_KEY), "Unexpected value");
-        assertEquals(BANANA, copy.get(B_KEY), "Unexpected value");
-        assertEquals(DOG, copy.get(D_KEY), "Unexpected value");
-        assertEquals(EMU, copy.get(E_KEY), "Unexpected value");
+        assertEquals(AARDVARK, copy.get(A_KEY, TestValueCodec.INSTANCE), "Unexpected value");
+        assertEquals(BANANA, copy.get(B_KEY, TestValueCodec.INSTANCE), "Unexpected value");
+        assertEquals(DOG, copy.get(D_KEY, TestValueCodec.INSTANCE), "Unexpected value");
+        assertEquals(EMU, copy.get(E_KEY, TestValueCodec.INSTANCE), "Unexpected value");
         assertEquals(4, copy.size(), "Unexpected size");
         fcm.release();
         copy.release();
@@ -208,27 +214,29 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Size matches number of items input")
     void sizeMatchesNumberOfItemsInput() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
+        final VirtualMap fcm = createMap();
         assertEquals(0, fcm.size(), "Unexpected size");
 
         // Add an element
-        fcm.put(A_KEY, APPLE);
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         assertEquals(1, fcm.size(), "Unexpected size");
 
         // Add a couple more elements
-        fcm.put(B_KEY, BANANA);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
         assertEquals(2, fcm.size(), "Unexpected size");
-        fcm.put(C_KEY, CHERRY);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
         assertEquals(3, fcm.size(), "Unexpected size");
 
         // replace a couple elements (out of order even!)
-        fcm.put(B_KEY, BEAR);
-        fcm.put(A_KEY, AARDVARK);
+        assertNotNull(fcm.get(B_KEY, TestValueCodec.INSTANCE), "Entry for B_KEY not found");
+        fcm.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
+        assertNotNull(fcm.get(A_KEY, TestValueCodec.INSTANCE), "Entry for A_KEY not found");
+        fcm.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
         assertEquals(3, fcm.size(), "Unexpected size");
 
         // Loop and add a million items and make sure the size is matching
         for (int i = 1000; i < 1_001_000; i++) {
-            fcm.put(new TestKey(i), new TestValue("value" + i));
+            fcm.put(TestKey.longToKey(i), new TestValue("value" + i), TestValueCodec.INSTANCE);
         }
 
         assertEquals(1_000_003, fcm.size(), "Unexpected size");
@@ -238,11 +246,11 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Is empty when size == 0")
     void isEmptyWhenSizeIsZero() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
+        final VirtualMap fcm = createMap();
         assertTrue(fcm.isEmpty(), "Expected a fresh map to be empty");
 
         // Add an element
-        fcm.put(A_KEY, APPLE);
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         assertFalse(fcm.isEmpty(), "Expected a non-empty map");
 
         // Remove the elements and test that it is back to being empty
@@ -254,42 +262,47 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Get of null key throws exception")
     void getOfNullKeyThrowsException() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        assertThrows(NullPointerException.class, () -> fcm.get(null), "Null keys are not allowed");
+        final VirtualMap fcm = createMap();
+        assertThrows(
+                NullPointerException.class, () -> fcm.get(null, TestValueCodec.INSTANCE), "Null keys are not allowed");
         fcm.release();
     }
 
     @Test
     @DisplayName("Get of missing key returns null")
     void getOfMissingKeyReturnsNull() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
+        final VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
 
-        assertNull(fcm.get(C_KEY), "Expected no value");
+        assertNull(fcm.get(C_KEY, TestValueCodec.INSTANCE), "Expected no value");
+        assertNull(fcm.getBytes(C_KEY), "Expected no value");
         fcm.release();
     }
 
     @Test
     @DisplayName("Get of key returns value")
     void getOfKeyReturnsValue() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
-        assertEquals(APPLE, fcm.get(A_KEY), "Wrong value");
-        assertEquals(BANANA, fcm.get(B_KEY), "Wrong value");
+        final VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        assertEquals(APPLE, fcm.get(A_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(BANANA, fcm.get(B_KEY, TestValueCodec.INSTANCE), "Wrong value");
 
-        fcm.put(A_KEY, AARDVARK);
-        assertEquals(AARDVARK, fcm.get(A_KEY), "Wrong value");
-        assertEquals(BANANA, fcm.get(B_KEY), "Wrong value");
+        fcm.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
+        assertEquals(AARDVARK, fcm.get(A_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(BANANA, fcm.get(B_KEY, TestValueCodec.INSTANCE), "Wrong value");
         fcm.release();
     }
 
     @Test
     @DisplayName("Put with null key throws exception")
     void putWithNullKeyThrowsException() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        assertThrows(NullPointerException.class, () -> fcm.put(null, BANANA), "Null keys are not allowed");
+        final VirtualMap fcm = createMap();
+        assertThrows(
+                NullPointerException.class,
+                () -> fcm.put(null, BANANA, TestValueCodec.INSTANCE),
+                "Null keys are not allowed");
 
         fcm.release();
     }
@@ -297,25 +310,25 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Put with null values are allowed")
     void putWithNullValuesAreAllowed() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, null);
-        assertNull(fcm.get(A_KEY), "Expected null");
+        final VirtualMap fcm = createMap();
+        fcm.put(A_KEY, null, TestValueCodec.INSTANCE);
+        assertNull(fcm.get(A_KEY, TestValueCodec.INSTANCE), "Expected null");
         fcm.release();
     }
 
     @Test
     @DisplayName("Multiple keys can have the same value")
     void manyKeysCanHaveTheSameValue() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, null);
-        fcm.put(B_KEY, null);
-        fcm.put(C_KEY, CUTTLEFISH);
-        fcm.put(D_KEY, CUTTLEFISH);
+        final VirtualMap fcm = createMap();
+        fcm.put(A_KEY, null, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, null, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);
+        fcm.put(D_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);
 
-        assertNull(fcm.get(A_KEY), "Expected null");
-        assertNull(fcm.get(B_KEY), "Expected null");
-        assertEquals(CUTTLEFISH, fcm.get(C_KEY), "Wrong value");
-        assertEquals(CUTTLEFISH, fcm.get(D_KEY), "Wrong value");
+        assertNull(fcm.get(A_KEY, TestValueCodec.INSTANCE), "Expected null");
+        assertNull(fcm.get(B_KEY, TestValueCodec.INSTANCE), "Expected null");
+        assertEquals(CUTTLEFISH, fcm.get(C_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(CUTTLEFISH, fcm.get(D_KEY, TestValueCodec.INSTANCE), "Wrong value");
         assertEquals(4, fcm.size(), "Wrong size");
         fcm.release();
     }
@@ -323,13 +336,14 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Put many and get many")
     void putManyAndGetMany() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
+        final VirtualMap fcm = createMap();
         for (int i = 0; i < 1000; i++) {
-            fcm.put(new TestKey(i), new TestValue("value" + i));
+            fcm.put(TestKey.longToKey(i), new TestValue("value" + i), TestValueCodec.INSTANCE);
         }
 
         for (int i = 0; i < 1000; i++) {
-            assertEquals(new TestValue("value" + i), fcm.get(new TestKey(i)), "Wrong value");
+            assertEquals(
+                    new TestValue("value" + i), fcm.get(TestKey.longToKey(i), TestValueCodec.INSTANCE), "Wrong value");
         }
 
         fcm.release();
@@ -338,19 +352,24 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Replace many and get many")
     void replaceManyAndGetMany() {
-        final VirtualMap<TestKey, TestValue> original = createMap();
+        final VirtualMap original = createMap();
         for (int i = 0; i < 1000; i++) {
-            original.put(new TestKey(i), new TestValue("value" + i));
+            original.put(TestKey.longToKey(i), new TestValue("value" + i), TestValueCodec.INSTANCE);
         }
 
-        final VirtualMap<TestKey, TestValue> fcm = original.copy();
+        final VirtualMap fcm = original.copy();
         for (int i = 1000; i < 2000; i++) {
-            assertTrue(fcm.containsKey(new TestKey(i - 1000)), "Key " + (i - 1000) + " is missing");
-            fcm.put(new TestKey((i - 1000)), new TestValue("value" + i));
+            final Bytes key = TestKey.longToKey(i - 1000);
+            // Replace is get + put
+            assertNotNull(fcm.get(key, TestValueCodec.INSTANCE), "Value for key=" + key + "is not found");
+            fcm.put(key, new TestValue("value" + i), TestValueCodec.INSTANCE);
         }
 
         for (int i = 1000; i < 2000; i++) {
-            assertEquals(new TestValue("value" + i), fcm.get(new TestKey((i - 1000))), "Wrong value");
+            assertEquals(
+                    new TestValue("value" + i),
+                    fcm.get(TestKey.longToKey((i - 1000)), TestValueCodec.INSTANCE),
+                    "Wrong value");
         }
 
         original.release();
@@ -360,9 +379,8 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Remove from an empty map")
     void removeEmptyMap() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        final TestValue removed = fcm.remove(A_KEY);
-        assertNull(removed, "Expected null");
+        final VirtualMap fcm = createMap();
+        assertNull(fcm.remove(A_KEY, TestValueCodec.INSTANCE), "Expected null");
         fcm.release();
     }
 
@@ -438,22 +456,22 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Add a value and then remove it immediately")
     void removeValueJustAdded() {
-        VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
-        fcm.put(C_KEY, CHERRY);
-        fcm.put(D_KEY, DATE);
-        fcm.put(E_KEY, EGGPLANT);
-        fcm.put(F_KEY, FIG);
-        fcm.put(G_KEY, GRAPE);
+        VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        fcm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        fcm.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        fcm.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        fcm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
-        assertEquals(APPLE, fcm.remove(A_KEY), "Wrong value");
-        assertEquals(BANANA, fcm.remove(B_KEY), "Wrong value");
-        assertEquals(CHERRY, fcm.remove(C_KEY), "Wrong value");
-        assertEquals(DATE, fcm.remove(D_KEY), "Wrong value");
-        assertEquals(EGGPLANT, fcm.remove(E_KEY), "Wrong value");
-        assertEquals(FIG, fcm.remove(F_KEY), "Wrong value");
-        assertEquals(GRAPE, fcm.remove(G_KEY), "Wrong value");
+        assertEquals(APPLE, fcm.remove(A_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(BANANA, fcm.remove(B_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(CHERRY, fcm.remove(C_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(DATE, fcm.remove(D_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(EGGPLANT, fcm.remove(E_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(FIG, fcm.remove(F_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(GRAPE, fcm.remove(G_KEY, TestValueCodec.INSTANCE), "Wrong value");
 
         // FUTURE WORK validate hashing works as expected
 
@@ -463,24 +481,24 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Add a value that had just been removed")
     void addValueJustRemoved() {
-        VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
-        fcm.put(C_KEY, CHERRY);
-        fcm.put(D_KEY, DATE);
-        fcm.put(E_KEY, EGGPLANT);
-        fcm.put(F_KEY, FIG);
-        fcm.put(G_KEY, GRAPE);
+        VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        fcm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        fcm.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        fcm.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        fcm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
-        assertEquals(APPLE, fcm.remove(A_KEY), "Wrong value");
-        assertEquals(BANANA, fcm.remove(B_KEY), "Wrong value");
-        assertEquals(CHERRY, fcm.remove(C_KEY), "Wrong value");
-        assertEquals(DATE, fcm.remove(D_KEY), "Wrong value");
-        assertEquals(EGGPLANT, fcm.remove(E_KEY), "Wrong value");
-        assertEquals(FIG, fcm.remove(F_KEY), "Wrong value");
-        assertEquals(GRAPE, fcm.remove(G_KEY), "Wrong value");
+        assertEquals(APPLE, fcm.remove(A_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(BANANA, fcm.remove(B_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(CHERRY, fcm.remove(C_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(DATE, fcm.remove(D_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(EGGPLANT, fcm.remove(E_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(FIG, fcm.remove(F_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        assertEquals(GRAPE, fcm.remove(G_KEY, TestValueCodec.INSTANCE), "Wrong value");
 
-        fcm.put(D_KEY, DATE);
+        fcm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
         // FUTURE WORK validate hashing works as expected
 
         fcm.release();
@@ -494,12 +512,12 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMap"), @Tag("Pipeline"), @Tag("VMAP-021")})
     @DisplayName("Database is closed after all copies are released")
     void databaseClosedAfterAllCopiesAreReleased() throws InterruptedException {
-        final VirtualMap<TestKey, TestValue> copy0 = createMap();
+        final VirtualMap copy0 = createMap();
         final InMemoryDataSource ds = (InMemoryDataSource) copy0.getDataSource();
-        final VirtualMap<TestKey, TestValue> copy1 = copy0.copy();
-        final VirtualMap<TestKey, TestValue> copy2 = copy1.copy();
-        final VirtualMap<TestKey, TestValue> copy3 = copy2.copy();
-        final VirtualMap<TestKey, TestValue> copy4 = copy3.copy();
+        final VirtualMap copy1 = copy0.copy();
+        final VirtualMap copy2 = copy1.copy();
+        final VirtualMap copy3 = copy2.copy();
+        final VirtualMap copy4 = copy3.copy();
 
         assertFalse(ds.isClosed(), "Should not be closed yet");
         copy0.release();
@@ -519,12 +537,12 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMap"), @Tag("Pipeline"), @Tag("VMAP-021")})
     @DisplayName("Database is closed if prematurely terminated")
     void databaseClosedWhenExpresslyTerminated() throws InterruptedException {
-        final VirtualMap<TestKey, TestValue> copy0 = createMap();
+        final VirtualMap copy0 = createMap();
         final InMemoryDataSource ds = (InMemoryDataSource) copy0.getDataSource();
-        final VirtualMap<TestKey, TestValue> copy1 = copy0.copy();
-        final VirtualMap<TestKey, TestValue> copy2 = copy1.copy();
-        final VirtualMap<TestKey, TestValue> copy3 = copy2.copy();
-        final VirtualMap<TestKey, TestValue> copy4 = copy3.copy();
+        final VirtualMap copy1 = copy0.copy();
+        final VirtualMap copy2 = copy1.copy();
+        final VirtualMap copy3 = copy2.copy();
+        final VirtualMap copy4 = copy3.copy();
 
         assertFalse(ds.isClosed(), "Should not be closed yet");
         copy0.release();
@@ -566,16 +584,16 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Hashed maps have non-null hashes on everything")
     void nonNullHashesOnHashedMap() throws ExecutionException, InterruptedException {
-        VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
-        fcm.put(C_KEY, CHERRY);
-        fcm.put(D_KEY, DATE);
-        fcm.put(E_KEY, EGGPLANT);
-        fcm.put(F_KEY, FIG);
-        fcm.put(G_KEY, GRAPE);
+        VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        fcm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        fcm.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        fcm.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        fcm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> completed = fcm;
+        final VirtualMap completed = fcm;
         fcm = fcm.copy();
         MerkleCryptoFactory.getInstance().digestTreeSync(completed);
 
@@ -591,12 +609,12 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Million sized hashed maps have non-null hashes on everything")
     void millionNonNullHashesOnHashedMap() throws ExecutionException, InterruptedException {
-        VirtualMap<TestKey, TestValue> fcm = createMap();
+        VirtualMap fcm = createMap();
         for (int i = 0; i < 1_000_000; i++) {
-            fcm.put(new TestKey(i), new TestValue("" + i));
+            fcm.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);
         }
 
-        final VirtualMap<TestKey, TestValue> completed = fcm;
+        final VirtualMap completed = fcm;
         fcm = fcm.copy();
 
         final Hash firstHash = MerkleCryptoFactory.getInstance().digestTreeSync(completed);
@@ -609,7 +627,7 @@ class VirtualMapTests extends VirtualTestBase {
         for (int i = 0; i < 10_000; i++) {
             final int index = rand.nextInt(1_000_000);
             final int value = 1_000_000 + rand.nextInt(1_000_000);
-            fcm.put(new TestKey(index), new TestValue("" + value));
+            fcm.put(TestKey.longToKey(index), new TestValue("" + value), TestValueCodec.INSTANCE);
         }
 
         final VirtualMap second = fcm;
@@ -624,38 +642,39 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("put should not mutate old copies")
     void checkPutMutation() throws InterruptedException {
-        final VirtualMap<TestKey, TestValue> vm = createMap();
-        vm.put(A_KEY, APPLE);
-        final TestValue value = vm.get(A_KEY);
+        final VirtualMap vm = createMap();
+        vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        final TestValue value = vm.get(A_KEY, TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> vm2 = vm.copy();
-        vm2.put(A_KEY, new TestValue("Mutant2"));
-        final TestValue value2 = vm2.get(A_KEY);
+        final VirtualMap vm2 = vm.copy();
+        vm2.put(A_KEY, new TestValue("Mutant2"), TestValueCodec.INSTANCE);
+        final TestValue value2 = vm2.get(A_KEY, TestValueCodec.INSTANCE);
 
-        final TestValue value3 = vm.get(A_KEY);
+        final TestValue value3 = vm.get(A_KEY, TestValueCodec.INSTANCE);
 
-        assertEquals("Mutant2", value2.value());
-        assertEquals("Apple", value3.value());
-        assertEquals("Apple", value.value());
+        assertEquals("Mutant2", value2.getValue());
+        assertEquals("Apple", value3.getValue());
+        assertEquals("Apple", value.getValue());
     }
 
     @Test(/* no exception expected */ )
     @DisplayName("Partly dirty maps have missing hashes only on dirty leaves and parents")
     void nullHashesOnDirtyNodes() throws ExecutionException, InterruptedException {
-        VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
-        fcm.put(C_KEY, CHERRY);
-        fcm.put(D_KEY, DATE);
-        fcm.put(E_KEY, EGGPLANT);
-        fcm.put(F_KEY, FIG);
-        fcm.put(G_KEY, GRAPE);
+        VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        fcm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        fcm.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        fcm.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        fcm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
         fcm = copyAndRelease(fcm);
 
         // Both of these are on different parents, but the same grandparent.
-        fcm.put(D_KEY, DOG);
-        fcm.put(B_KEY, BEAR);
+        assertNotNull(fcm.get(D_KEY, TestValueCodec.INSTANCE));
+        fcm.put(D_KEY, DOG, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
 
         // This hash iterator should visit MapState, B, <internal>, D, <internal>, <internal (root)>, fcm
         // FUTURE WORK gotta figure out how to test
@@ -674,27 +693,27 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     void testAsyncHashing() throws ExecutionException, InterruptedException {
-        VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
-        fcm.put(C_KEY, CHERRY);
-        fcm.put(D_KEY, DATE);
-        fcm.put(E_KEY, EGGPLANT);
-        fcm.put(F_KEY, FIG);
-        fcm.put(G_KEY, GRAPE);
+        VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        fcm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        fcm.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        fcm.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        fcm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
-        VirtualMap<TestKey, TestValue> completed = fcm;
+        VirtualMap completed = fcm;
         fcm = fcm.copy();
         final Hash expectedHash = completed.getHash();
 
-        VirtualMap<TestKey, TestValue> fcm2 = createMap();
-        fcm2.put(A_KEY, APPLE);
-        fcm2.put(B_KEY, BANANA);
-        fcm2.put(C_KEY, CHERRY);
-        fcm2.put(D_KEY, DATE);
-        fcm2.put(E_KEY, EGGPLANT);
-        fcm2.put(F_KEY, FIG);
-        fcm2.put(G_KEY, GRAPE);
+        VirtualMap fcm2 = createMap();
+        fcm2.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm2.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm2.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        fcm2.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        fcm2.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        fcm2.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        fcm2.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
         completed.release();
         completed = fcm2;
@@ -733,10 +752,10 @@ class VirtualMapTests extends VirtualTestBase {
      */
     @Test
     void routesSetForBasicTree() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
-        fcm.put(A_KEY, APPLE);
-        fcm.put(B_KEY, BANANA);
-        fcm.put(C_KEY, CHERRY);
+        final VirtualMap fcm = createMap();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
 
         final List<MerkleNode> nodes = new ArrayList<>();
         fcm.forEachNode(node -> {
@@ -754,13 +773,13 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     void testMapConstructedWithDefaultConstructorIsInvalid() {
-        VirtualMap<TestKey, TestValue> subject = new VirtualMap<>(CONFIGURATION);
+        VirtualMap subject = new VirtualMap(CONFIGURATION);
         assertFalse(subject.isValid());
     }
 
     @Test
     void testFreshMapIsValid() {
-        final VirtualMap<TestKey, TestValue> fcm = createMap();
+        final VirtualMap fcm = createMap();
         assertTrue(fcm.isValid());
         fcm.release();
     }
@@ -768,8 +787,8 @@ class VirtualMapTests extends VirtualTestBase {
     /**
      * Make a copy of a map and release the original.
      */
-    private VirtualMap<TestKey, TestValue> copyAndRelease(final VirtualMap<TestKey, TestValue> original) {
-        final VirtualMap<TestKey, TestValue> copy = original.copy();
+    private VirtualMap copyAndRelease(final VirtualMap original) {
+        final VirtualMap copy = original.copy();
         original.release();
         return copy;
     }
@@ -785,18 +804,18 @@ class VirtualMapTests extends VirtualTestBase {
      */
     @Test
     void canFlushDetachedStateForStateSaving() throws IOException, InterruptedException {
-        final VirtualMap<TestKey, TestValue> map0 = createMap();
-        map0.put(A_KEY, APPLE);
-        map0.put(B_KEY, BANANA);
-        map0.put(C_KEY, CHERRY);
-        map0.put(D_KEY, DATE);
+        final VirtualMap map0 = createMap();
+        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        map0.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        map0.put(D_KEY, DATE, TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> map1 = map0.copy();
-        map1.put(E_KEY, EGGPLANT);
-        map1.put(F_KEY, FIG);
-        map1.put(G_KEY, GRAPE);
+        final VirtualMap map1 = map0.copy();
+        map1.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        map1.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        map1.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> map2 = map1.copy();
+        final VirtualMap map2 = map1.copy();
 
         assertNotNull(map1.getRoot().getHash(), "Hash should have been produced for map1");
 
@@ -843,7 +862,7 @@ class VirtualMapTests extends VirtualTestBase {
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
 
-        VirtualMap<TestKey, TestValue> map0 = createMap();
+        VirtualMap map0 = createMap();
         map0.registerMetrics(metrics);
 
         Metric metric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_lifecycle_nodeCacheSizeB_Test");
@@ -855,10 +874,13 @@ class VirtualMapTests extends VirtualTestBase {
         long metricValue = (long) metric.get(ValueType.VALUE);
         for (int i = 0; i < 100; i++) {
             for (int j = 0; j < 50; j++) {
-                map0.put(new TestKey((char) (i * 50 + j)), new TestValue(String.valueOf(i * j + 1)));
+                map0.put(
+                        TestKey.longToKey((char) (i * 50 + j)),
+                        new TestValue(String.valueOf(i * j + 1)),
+                        TestValueCodec.INSTANCE);
             }
 
-            VirtualMap<TestKey, TestValue> map1 = map0.copy();
+            VirtualMap map1 = map0.copy();
             map0.release();
             map0 = map1;
 
@@ -871,9 +893,9 @@ class VirtualMapTests extends VirtualTestBase {
 
         final long value = metricValue;
 
-        final VirtualRootNode<TestKey, TestValue> lastRoot = map0.getRight();
+        final VirtualRootNode lastRoot = map0.getRight();
         lastRoot.enableFlush();
-        VirtualMap<TestKey, TestValue> map1 = map0.copy();
+        VirtualMap map1 = map0.copy();
         map0.release();
         lastRoot.waitUntilFlushed();
         map1.release();
@@ -902,32 +924,37 @@ class VirtualMapTests extends VirtualTestBase {
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
 
-        VirtualMap<TestKey, TestValue> map0 = createMap();
+        VirtualMap map0 = createMap();
         map0.registerMetrics(metrics);
 
         long flushCount = 0;
         final int totalCount = 1000;
         for (int i = 0; i < totalCount; i++) {
-            VirtualMap<TestKey, TestValue> map1 = map0.copy();
+            VirtualMap map1 = map0.copy();
             map0.release();
+            // shouldBeFlushed() can only be called on a released instance
+            VirtualRootNode root0 = map0.getRight();
+            if (root0.shouldBeFlushed()) {
+                flushCount++;
+            }
             map0 = map1;
 
-            VirtualRootNode<TestKey, TestValue> root = map0.getRight();
+            VirtualRootNode root1 = map1.getRight();
             // Make sure at least some maps need to be flushed, including the last one
             if ((i % 57 == 0) || (i == totalCount - 1)) {
-                root.enableFlush();
-            }
-
-            if (root.shouldBeFlushed()) {
-                flushCount++;
+                root1.enableFlush();
             }
         }
 
         // Don't release the last map yet, as it would terminate the pipeline. Make a copy first,
         // release the map, then wait for the root to be flushed, then release the copy
-        VirtualRootNode<TestKey, TestValue> lastRoot = map0.getRight();
-        VirtualMap<TestKey, TestValue> map1 = map0.copy();
+        VirtualRootNode lastRoot = map0.getRight();
+        VirtualMap map1 = map0.copy();
         map0.release();
+        // shouldBeFlushed() can only be called on a released instance
+        if (lastRoot.shouldBeFlushed()) {
+            flushCount++;
+        }
         lastRoot.waitUntilFlushed();
         map1.release();
 
@@ -954,18 +981,18 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle")})
     @DisplayName("A copied map is serializable and then deserializable")
     void testExternalSerializationAndDeserialization() throws IOException {
-        final VirtualMap<TestKey, TestValue> map0 = createMap();
+        final VirtualMap map0 = createMap();
         map0.getState().setLabel("serializationTest");
         assertEquals("serializationTest", map0.getLabel());
-        map0.put(A_KEY, APPLE);
-        map0.put(B_KEY, BANANA);
-        map0.put(C_KEY, CHERRY);
-        map0.put(D_KEY, DATE);
-        map0.put(E_KEY, EGGPLANT);
-        map0.put(F_KEY, FIG);
-        map0.put(G_KEY, GRAPE);
+        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        map0.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        map0.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        map0.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        map0.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        map0.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> map1 = map0.copy(); // this should make map0 immutable
+        final VirtualMap map1 = map0.copy(); // this should make map0 immutable
         assertEquals("serializationTest", map1.getLabel());
         assertNotNull(map0.getRoot().getHash(), "Hash should have been produced for map0");
         assertTrue(map0.isImmutable(), "Copied VirtualMap should have been immutable");
@@ -979,7 +1006,7 @@ class VirtualMapTests extends VirtualTestBase {
         final SerializableDataInputStream in =
                 new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
-        final VirtualMap<TestKey, TestValue> map2 = createMap();
+        final VirtualMap map2 = createMap();
         // read the serialized map back into map2
         // Note to Jasper/Richard: The call to deserializeException below fails - but somewhat unexpectedly!
         // Did I not set up the serialiaztion/deserialization correctly?
@@ -1005,57 +1032,111 @@ class VirtualMapTests extends VirtualTestBase {
     void insertRemoveAndModifyOneMillion() throws InterruptedException {
         final int changesPerBatch = 15_432; // Some unexpected size just to be crazy
         final int max = 1_000_000;
-        VirtualMap<TestKey, TestValue> map = createMap("insertRemoveAndModifyOneMillion");
+        VirtualMap map = createMap("insertRemoveAndModifyOneMillion");
         try {
             for (int i = 0; i < max; i++) {
                 if (i > 0 && i % changesPerBatch == 0) {
-                    VirtualMap<TestKey, TestValue> older = map;
+                    VirtualMap older = map;
                     map = map.copy();
                     older.release();
                 }
 
-                map.put(new TestKey(i), new TestValue(i));
+                map.put(TestKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
             }
 
             for (int i = 0; i < max; i++) {
-                assertEquals(new TestValue(i), map.get(new TestKey(i)), "Expected same");
+                assertEquals(new TestValue(i), map.get(TestKey.longToKey(i), TestValueCodec.INSTANCE), "Expected same");
             }
 
             for (int i = 0; i < max; i++) {
                 if (i > 0 && i % changesPerBatch == 0) {
-                    VirtualMap<TestKey, TestValue> older = map;
+                    VirtualMap older = map;
                     map = map.copy();
                     older.release();
                 }
 
-                map.remove(new TestKey(i));
+                map.remove(TestKey.longToKey(i));
             }
 
             assertTrue(map.isEmpty(), "Map should be empty");
 
             for (int i = 0; i < max; i++) {
                 if (i > 0 && i % changesPerBatch == 0) {
-                    VirtualMap<TestKey, TestValue> older = map;
+                    VirtualMap older = map;
                     map = map.copy();
                     older.release();
                 }
 
-                map.put(new TestKey(i + max), new TestValue(i + max));
+                map.put(TestKey.longToKey(i + max), new TestValue(i + max), TestValueCodec.INSTANCE);
             }
 
             for (int i = 0; i < max; i++) {
-                assertEquals(new TestValue(i + max), map.get(new TestKey(i + max)), "Expected same");
-                assertNull(map.get(new TestKey(i)), "The old value should not exist anymore");
+                assertEquals(
+                        new TestValue(i + max),
+                        map.get(TestKey.longToKey(i + max), TestValueCodec.INSTANCE),
+                        "Expected same");
+                assertNull(
+                        map.get(TestKey.longToKey(i), TestValueCodec.INSTANCE),
+                        "The old value should not exist anymore");
+                assertNull(map.getBytes(TestKey.longToKey(i)), "The old value should not exist anymore");
             }
         } finally {
             map.release();
         }
     }
 
+    @Test
+    @Tags({@Tag("VirtualMerkle")})
+    @DisplayName("Delete a value that was moved to a different virtual path")
+    void deletedObjectLeavesOnFlush() throws InterruptedException {
+        VirtualMap map = createMap("deletedObjectLeavesOnFlush");
+        for (int i = 0; i < 8; i++) {
+            map.put(TestObjectKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
+        }
+
+        VirtualRootNode rootNode = map.getRight();
+        rootNode.enableFlush();
+
+        RecordAccessor records = rootNode.getRecords();
+        // Check that key/value 0 is at path 7
+        VirtualLeafBytes leaf = records.findLeafRecord(7);
+        assertNotNull(leaf);
+        assertEquals(TestObjectKey.longToKey(0), leaf.keyBytes());
+        assertEquals(new TestValue(0).toBytes(), leaf.valueBytes());
+        assertEquals(new TestValue(0), leaf.value(TestValueCodec.INSTANCE));
+
+        VirtualMap copy = map.copy();
+        map.release();
+        map = copy;
+        rootNode.waitUntilFlushed();
+
+        // Move key/value to a different path, then delete
+        map.remove(TestObjectKey.longToKey(0));
+        map.remove(TestObjectKey.longToKey(2));
+        map.put(TestObjectKey.longToKey(8), new TestValue(8), TestValueCodec.INSTANCE);
+        map.put(TestObjectKey.longToKey(0), new TestValue(0), TestValueCodec.INSTANCE);
+        map.remove(TestObjectKey.longToKey(0));
+
+        rootNode = map.getRight();
+        rootNode.enableFlush();
+
+        copy = map.copy();
+        map.release();
+        map = copy;
+        rootNode.waitUntilFlushed();
+
+        // During this second flush, key/value 0 must be deleted from the map despite it's
+        // path the virtual tree doesn't match the path in the data source
+        assertFalse(map.containsKey(TestObjectKey.longToKey(0)));
+        assertNull(map.get(TestObjectKey.longToKey(0), TestValueCodec.INSTANCE));
+        assertNull(map.getBytes(TestObjectKey.longToKey(0)));
+
+        map.release();
+    }
+
     // based heavily on VirtualMapGroup::validateCopy(), but modified to just compare two VirtualMaps, instead of
     // also taking in a "ref" Math of values to compare each map to.
-    private void assertVirtualMapsEqual(
-            final VirtualMap<TestKey, TestValue> mapA, final VirtualMap<TestKey, TestValue> mapB) {
+    private void assertVirtualMapsEqual(final VirtualMap mapA, final VirtualMap mapB) {
         final boolean immutable = mapA.isImmutable();
 
         if (mapA.size() != mapB.size()) {
@@ -1070,14 +1151,20 @@ class VirtualMapTests extends VirtualTestBase {
             }
 
             if (node instanceof VirtualLeafNode) {
-                final VirtualLeafNode<TestKey, TestValue> leaf = node.cast();
+                final VirtualLeafNode leaf = node.cast();
 
-                final TestKey key = leaf.getKey();
-                final TestValue value = leaf.getValue();
+                final Bytes key = leaf.getKey();
 
-                if (!Objects.equals(mapB.get(key), value)) {
+                final TestValue value = leaf.getValue(TestValueCodec.INSTANCE);
+                if (!Objects.equals(mapB.get(key, TestValueCodec.INSTANCE), value)) {
                     throw new RuntimeException("values do not match for key " + key + ": mapA = " + value + ", mapB ="
-                            + mapB.get(key) + "."); // Add a breakpoint here
+                            + mapB.get(key, TestValueCodec.INSTANCE) + "."); // Add a breakpoint here
+                }
+
+                final Bytes valueBytes = leaf.getValue();
+                if (!Objects.equals(mapB.getBytes(key), valueBytes)) {
+                    throw new RuntimeException("value bytes do not match for key " + key + ": mapA = " + value
+                            + ", mapB =" + mapB.getBytes(key) + "."); // Add a breakpoint here
                 }
             }
         });
@@ -1093,14 +1180,14 @@ class VirtualMapTests extends VirtualTestBase {
             }
 
             if (node instanceof VirtualLeafNode) {
-                final VirtualLeafNode<TestKey, TestValue> leaf = node.cast();
+                final VirtualLeafNode leaf = node.cast();
 
-                final TestKey key = leaf.getKey();
-                final TestValue value = leaf.getValue();
+                final Bytes key = leaf.getKey();
 
-                if (!Objects.equals(mapA.get(key), value)) {
+                final TestValue value = leaf.getValue(TestValueCodec.INSTANCE);
+                if (!Objects.equals(mapA.get(key, TestValueCodec.INSTANCE), value)) {
                     throw new RuntimeException("values do not match for key " + key + ": mapB = " + value + ", mapA ="
-                            + mapA.get(key) + "."); // Add a breakpoint here
+                            + mapA.get(key, TestValueCodec.INSTANCE) + "."); // Add a breakpoint here
                 }
             }
         });

@@ -32,16 +32,17 @@ import org.apache.logging.log4j.Logger;
 import org.openjdk.jmh.annotations.TearDown;
 
 public abstract class VirtualMapBaseBench extends BaseBench {
+
     protected static final Logger logger = LogManager.getLogger(VirtualMapBench.class);
 
     protected static final String LABEL = "vm";
     protected static final String SAVED = "saved";
     protected static final String SERDE_SUFFIX = ".serde";
     protected static final String SNAPSHOT = "snapshot";
-    protected static final long SNAPSHOT_DELAY = 60_000;
+    protected static final long SNAPSHOT_DELAY = 20_000;
 
     /* This map may be pre-created on demand and reused between benchmarks/iterations */
-    protected VirtualMap<BenchmarkKey, BenchmarkValue> virtualMapP;
+    protected VirtualMap virtualMapP;
 
     private int dbIndex = 0;
 
@@ -70,7 +71,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                     .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during hashing", ex))
                     .buildFactory());
 
-    protected void releaseAndCloseMap(final VirtualMap<BenchmarkKey, BenchmarkValue> map) {
+    protected void releaseAndCloseMap(final VirtualMap map) {
         if (map != null) {
             map.release();
             try {
@@ -88,11 +89,11 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         hasher.shutdown();
     }
 
-    protected VirtualMap<BenchmarkKey, BenchmarkValue> createMap() {
+    protected VirtualMap createMap() {
         return createMap(null);
     }
 
-    protected VirtualMap<BenchmarkKey, BenchmarkValue> createEmptyMap(String label) {
+    protected VirtualMap createEmptyMap(String label) {
         final MerkleDbConfig merkleDbConfig = getConfig(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
                 (short) 1,
@@ -100,22 +101,22 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                 merkleDbConfig.maxNumOfKeys(),
                 merkleDbConfig.hashesRamToDiskThreshold());
         MerkleDbDataSourceBuilder dataSourceBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
-        return new VirtualMap<>(
-                label, new BenchmarkKeySerializer(), new BenchmarkValueSerializer(), dataSourceBuilder, configuration);
+        return new VirtualMap(label, dataSourceBuilder, configuration);
     }
 
-    protected VirtualMap<BenchmarkKey, BenchmarkValue> createMap(final long[] map) {
+    protected VirtualMap createMap(final long[] map) {
         final long start = System.currentTimeMillis();
-        VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap = restoreMap(LABEL);
+        VirtualMap virtualMap = restoreMap(LABEL);
         if (virtualMap != null) {
             if (verify && map != null) {
                 final int parallelism = ForkJoinPool.getCommonPoolParallelism();
                 final AtomicLong numKeys = new AtomicLong();
-                final VirtualMap<BenchmarkKey, BenchmarkValue> srcMap = virtualMap;
+                final VirtualMap srcMap = virtualMap;
                 IntStream.range(0, parallelism).parallel().forEach(idx -> {
                     long count = 0L;
                     for (int i = idx; i < map.length; i += parallelism) {
-                        final BenchmarkValue value = srcMap.get(new BenchmarkKey(i));
+                        final BenchmarkValue value =
+                                srcMap.get(BenchmarkKey.longToKey(i), BenchmarkValueCodec.INSTANCE);
                         if (value != null) {
                             map[i] = value.toLong();
                             ++count;
@@ -141,10 +142,9 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         doSnapshots = true;
     }
 
-    protected VirtualMap<BenchmarkKey, BenchmarkValue> copyMap(
-            final VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap) {
+    protected VirtualMap copyMap(final VirtualMap virtualMap) {
         final VirtualRoot root = virtualMap.getRight();
-        final VirtualMap<BenchmarkKey, BenchmarkValue> newCopy = virtualMap.copy();
+        final VirtualMap newCopy = virtualMap.copy();
         hasher.execute(root::getHash);
 
         if (doSnapshots && System.currentTimeMillis() > snapshotTime.get()) {
@@ -181,15 +181,14 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     /*
      * Ensure map is fully flushed to disk. Save map to disk if saving data is specified.
      */
-    protected VirtualMap<BenchmarkKey, BenchmarkValue> flushMap(
-            final VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap) {
+    protected VirtualMap flushMap(final VirtualMap virtualMap) {
         logger.info("Flushing map {}...", virtualMap.getLabel());
         final long start = System.currentTimeMillis();
-        VirtualMap<BenchmarkKey, BenchmarkValue> curMap = virtualMap;
-        final VirtualMap<BenchmarkKey, BenchmarkValue> oldCopy = curMap;
+        VirtualMap curMap = virtualMap;
+        final VirtualMap oldCopy = curMap;
         curMap = curMap.copy();
         oldCopy.release();
-        final VirtualRootNode<BenchmarkKey, BenchmarkValue> root = oldCopy.getRight();
+        final VirtualRootNode root = oldCopy.getRight();
         root.enableFlush();
         try {
             root.waitUntilFlushed();
@@ -206,7 +205,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         return curMap;
     }
 
-    protected void verifyMap(long[] map, VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap) {
+    protected void verifyMap(long[] map, VirtualMap virtualMap) {
         if (!verify) {
             return;
         }
@@ -220,7 +219,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         IntStream.range(0, 64).parallel().forEach(thread -> {
             int idx;
             while ((idx = index.getAndIncrement()) < map.length) {
-                BenchmarkValue dataItem = virtualMap.get(new BenchmarkKey(idx));
+                BenchmarkValue dataItem = virtualMap.get(BenchmarkKey.longToKey(idx), BenchmarkValueCodec.INSTANCE);
                 if (dataItem == null) {
                     if (map[idx] != 0L) {
                         countMissing.getAndIncrement();
@@ -244,8 +243,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         }
     }
 
-    protected List<VirtualMap<BenchmarkKey, BenchmarkValue>> saveMaps(
-            final List<VirtualMap<BenchmarkKey, BenchmarkValue>> virtualMaps) {
+    protected List<VirtualMap> saveMaps(final List<VirtualMap> virtualMaps) {
         try {
             Path savedDir;
             for (int i = 0; ; i++) {
@@ -263,7 +261,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                         final long start = System.currentTimeMillis();
                         final VirtualMapState state = virtualMap.getLeft();
                         final String label = state.getLabel();
-                        final VirtualMap<BenchmarkKey, BenchmarkValue> curMap = virtualMap.copy();
+                        final VirtualMap curMap = virtualMap.copy();
 
                         virtualMap.getRight().getHash();
                         try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
@@ -288,9 +286,8 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         }
     }
 
-    protected VirtualMap<BenchmarkKey, BenchmarkValue> saveMap(
-            final VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap) {
-        final VirtualMap<BenchmarkKey, BenchmarkValue> curMap = virtualMap.copy();
+    protected VirtualMap saveMap(final VirtualMap virtualMap) {
+        final VirtualMap curMap = virtualMap.copy();
         try {
             final long start = System.currentTimeMillis();
             Path savedDir;
@@ -315,7 +312,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         return curMap;
     }
 
-    protected VirtualMap<BenchmarkKey, BenchmarkValue> restoreMap(final String label) {
+    protected VirtualMap restoreMap(final String label) {
         Path savedDir = null;
         for (int i = 0; ; i++) {
             final Path nextSavedDir = getBenchDir().resolve(SAVED + i).resolve(label);
@@ -327,7 +324,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         if (savedDir != null) {
             try {
                 logger.info("Restoring map {} from {}", label, savedDir);
-                final VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap = new VirtualMap<>(configuration);
+                final VirtualMap virtualMap = new VirtualMap(configuration);
                 try (final SerializableDataInputStream in =
                         new SerializableDataInputStream(Files.newInputStream(savedDir.resolve(label + SERDE_SUFFIX)))) {
                     virtualMap.deserialize(in, savedDir, virtualMap.getVersion());

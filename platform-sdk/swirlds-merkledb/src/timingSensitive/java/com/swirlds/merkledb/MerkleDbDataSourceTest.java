@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedConsumer;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.constructable.ConstructableRegistry;
@@ -24,12 +25,8 @@ import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -196,8 +193,6 @@ class MerkleDbDataSourceTest {
     @EnumSource(TestType.class)
     void createAndCheckLeaves(final TestType testType) throws IOException {
         final int count = 10_000;
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         createAndApplyDataSource(testDirectory, "test3", testType, count, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
@@ -205,12 +200,10 @@ class MerkleDbDataSourceTest {
                     count * 2,
                     IntStream.range(count, count * 2).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(count, count * 2)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
             // check all the leaf data
-            IntStream.range(count, count * 2)
-                    .forEach(i -> assertLeaf(testType, keySerializer, valueSerializer, dataSource, i, i));
+            IntStream.range(count, count * 2).forEach(i -> assertLeaf(testType, dataSource, i, i));
 
             // invalid path should throw an exception
             assertThrows(
@@ -232,8 +225,6 @@ class MerkleDbDataSourceTest {
         final int incFirstLeafPath = 1;
         final int exclLastLeafPath = 1001;
 
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         createAndApplyDataSource(testDirectory, "test4", testType, exclLastLeafPath - incFirstLeafPath, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
@@ -242,12 +233,10 @@ class MerkleDbDataSourceTest {
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
             // check all the leaf data
-            IntStream.range(incFirstLeafPath, exclLastLeafPath)
-                    .forEach(i -> assertLeaf(testType, keySerializer, valueSerializer, dataSource, i, i));
+            IntStream.range(incFirstLeafPath, exclLastLeafPath).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // update all to i+10,000 in a random order
             final int[] randomInts = shuffle(
                     RANDOM, IntStream.range(incFirstLeafPath, exclLastLeafPath).toArray());
@@ -257,7 +246,6 @@ class MerkleDbDataSourceTest {
                     Stream.empty(),
                     Arrays.stream(randomInts)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, i + 10_000))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer))
                             .sorted(Comparator.comparingLong(VirtualLeafBytes::path)),
                     Stream.empty());
             assertEquals(
@@ -266,8 +254,7 @@ class MerkleDbDataSourceTest {
                     "same call to createVirtualLeafRecord returns different results");
             // check all the leaf data
             IntStream.range(incFirstLeafPath, exclLastLeafPath)
-                    .forEach(
-                            i -> assertLeaf(testType, keySerializer, valueSerializer, dataSource, i, i, i, i + 10_000));
+                    .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
             // delete a couple leaves
             dataSource.saveRecords(
                     incFirstLeafPath,
@@ -275,20 +262,17 @@ class MerkleDbDataSourceTest {
                     Stream.empty(),
                     Stream.empty(),
                     IntStream.range(incFirstLeafPath + 10, incFirstLeafPath + 20)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)));
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)));
             // check deleted items are no longer there
             for (int i = (incFirstLeafPath + 10); i < (incFirstLeafPath + 20); i++) {
-                final VirtualKey key = testType.dataType().createVirtualLongKey(i);
-                assertEqualsAndPrint(null, dataSource.loadLeafRecord(keySerializer.toBytes(key), key.hashCode()));
+                final Bytes key = testType.dataType().createVirtualLongKey(i);
+                assertEqualsAndPrint(null, dataSource.loadLeafRecord(key));
             }
             // check all remaining leaf data
             IntStream.range(incFirstLeafPath, incFirstLeafPath + 10)
-                    .forEach(
-                            i -> assertLeaf(testType, keySerializer, valueSerializer, dataSource, i, i, i, i + 10_000));
+                    .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
             IntStream.range(incFirstLeafPath + 21, exclLastLeafPath)
-                    .forEach(
-                            i -> assertLeaf(testType, keySerializer, valueSerializer, dataSource, i, i, i, i + 10_000));
+                    .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
         });
     }
 
@@ -298,8 +282,6 @@ class MerkleDbDataSourceTest {
         final int incFirstLeafPath = 1;
         final int exclLastLeafPath = 1001;
 
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         createAndApplyDataSource(testDirectory, "test5", testType, exclLastLeafPath - incFirstLeafPath, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
@@ -308,33 +290,27 @@ class MerkleDbDataSourceTest {
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
             // check 250 and 500
-            assertLeaf(testType, keySerializer, valueSerializer, dataSource, 250, 250);
-            assertLeaf(testType, keySerializer, valueSerializer, dataSource, 500, 500);
+            assertLeaf(testType, dataSource, 250, 250);
+            assertLeaf(testType, dataSource, 500, 500);
             // move a leaf from 500 to 250, under new API there is no move as such, so we just write 500 leaf at 250
             // path
             final VirtualHashRecord vir500 = new VirtualHashRecord(
                     testType.dataType().createVirtualInternalRecord(250).path(), hash(500));
 
-            final VirtualLeafRecord<VirtualKey, ExampleByteArrayVirtualValue> vlr500 =
-                    testType.dataType().createVirtualLeafRecord(500);
-            vlr500.setPath(250);
+            VirtualLeafBytes vlr500 = testType.dataType().createVirtualLeafRecord(500);
+            vlr500 = vlr500.withPath(250);
             dataSource.saveRecords(
-                    incFirstLeafPath,
-                    exclLastLeafPath,
-                    Stream.of(vir500),
-                    Stream.of(vlr500).map(r -> r.toBytes(keySerializer, valueSerializer)),
-                    Stream.empty());
+                    incFirstLeafPath, exclLastLeafPath, Stream.of(vir500), Stream.of(vlr500), Stream.empty());
             // check 250 now has 500's data
-            assertLeaf(testType, keySerializer, valueSerializer, dataSource, 700, 700);
+            assertLeaf(testType, dataSource, 700, 700);
             assertEquals(
                     testType.dataType().createVirtualLeafRecord(500, 500, 500),
-                    dataSource.loadLeafRecord(500).toRecord(keySerializer, valueSerializer),
+                    dataSource.loadLeafRecord(500),
                     "creating/loading same LeafRecord gives different results");
-            assertLeaf(testType, keySerializer, valueSerializer, dataSource, 250, 500);
+            assertLeaf(testType, dataSource, 250, 500);
         });
     }
 
@@ -342,8 +318,6 @@ class MerkleDbDataSourceTest {
     @EnumSource(TestType.class)
     void createAndDeleteAllLeaves(final TestType testType) throws IOException {
         final int count = 1000;
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         createAndApplyDataSource(testDirectory, "test3", testType, count, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
@@ -351,12 +325,10 @@ class MerkleDbDataSourceTest {
                     count * 2,
                     IntStream.range(count, count * 2).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(count, count * 2)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
             // check all the leaf data
-            IntStream.range(count, count * 2)
-                    .forEach(i -> assertLeaf(testType, keySerializer, valueSerializer, dataSource, i, i));
+            IntStream.range(count, count * 2).forEach(i -> assertLeaf(testType, dataSource, i, i));
 
             // delete everything
             dataSource.saveRecords(
@@ -365,21 +337,20 @@ class MerkleDbDataSourceTest {
                     Stream.empty(),
                     Stream.empty(),
                     IntStream.range(count, count * 2)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)));
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)));
             // check the data source is empty
             for (int i = 0; i < count * 2; i++) {
                 assertNull(dataSource.loadHash(i));
                 assertNull(dataSource.loadLeafRecord(i));
-                final VirtualKey key = testType.dataType().createVirtualLongKey(i);
-                assertNull(dataSource.loadLeafRecord(keySerializer.toBytes(key), key.hashCode()));
+                final Bytes key = testType.dataType().createVirtualLongKey(i);
+                assertNull(dataSource.loadLeafRecord(key));
             }
         });
     }
 
     @Test
     void preservesInterruptStatusWhenInterruptedSavingRecords() throws IOException {
-        createAndApplyDataSource(testDirectory, "test6", TestType.fixed_fixed, 1000, dataSource -> {
+        createAndApplyDataSource(testDirectory, "test6", TestType.long_fixed, 1000, dataSource -> {
             final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource);
 
             savingThread.start();
@@ -408,8 +379,6 @@ class MerkleDbDataSourceTest {
         final Path originalDbPath = testDirectory.resolve("merkledb-" + testType);
         // array to hold the snapshot path
         final Path[] snapshotDbPathRef = new Path[1];
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         createAndApplyDataSource(originalDbPath, tableName, testType, count, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
@@ -418,12 +387,10 @@ class MerkleDbDataSourceTest {
                     IntStream.range(count, count * 2)
                             .mapToObj(i -> testType.dataType().createVirtualInternalRecord(i)),
                     IntStream.range(count, count * 2)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
             // check all the leaf data
-            IntStream.range(count, count * 2)
-                    .forEach(i -> assertLeaf(testType, keySerializer, valueSerializer, dataSource, i, i));
+            IntStream.range(count, count * 2).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // create a snapshot
             snapshotDbPathRef[0] = testDirectory.resolve("merkledb-" + testType + "_SNAPSHOT");
             final MerkleDb originalDb = dataSource.getDatabase();
@@ -445,8 +412,7 @@ class MerkleDbDataSourceTest {
                 testType.dataType().getDataSource(snapshotDbPathRef[0], tableName, false);
         try {
             // check all the leaf data
-            IntStream.range(count, count * 2)
-                    .forEach(i -> assertLeaf(testType, keySerializer, valueSerializer, dataSource2, i, i));
+            IntStream.range(count, count * 2).forEach(i -> assertLeaf(testType, dataSource2, i, i));
         } finally {
             // close data source
             dataSource2.close();
@@ -475,8 +441,6 @@ class MerkleDbDataSourceTest {
         final int count = 1000;
         final String tableName = "vm";
         final Path originalDbPath = testDirectory.resolve("merkledb-snapshotRestoreIndex-" + testType);
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         createAndApplyDataSource(originalDbPath, tableName, testType, count, 0, dataSource -> {
             final int tableId = dataSource.getTableId();
             // create some leaves
@@ -485,8 +449,7 @@ class MerkleDbDataSourceTest {
                     count * 2,
                     IntStream.range(0, count * 2).mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
                     IntStream.range(count, count * 2)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
             // create a snapshot
             final Path snapshotDbPath =
@@ -506,9 +469,7 @@ class MerkleDbDataSourceTest {
             final MerkleDbDataSource snapshotDataSource = snapshotDb.getDataSource(tableName, false);
             reinitializeDirectMemoryUsage();
             IntStream.range(0, count * 2).forEach(i -> assertHash(snapshotDataSource, i, i + 1));
-            IntStream.range(count, count * 2)
-                    .forEach(i ->
-                            assertLeaf(testType, keySerializer, valueSerializer, snapshotDataSource, i, i, i + 1, i));
+            IntStream.range(count, count * 2).forEach(i -> assertLeaf(testType, snapshotDataSource, i, i, i + 1, i));
             // close data source
             snapshotDataSource.close();
 
@@ -520,7 +481,7 @@ class MerkleDbDataSourceTest {
 
     @Test
     void preservesInterruptStatusWhenInterruptedClosing() throws IOException {
-        createAndApplyDataSource(testDirectory, "test8", TestType.fixed_fixed, 1000, dataSource -> {
+        createAndApplyDataSource(testDirectory, "test8", TestType.long_fixed, 1000, dataSource -> {
             /* Keep an executor busy */
             final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource);
             savingThread.start();
@@ -552,7 +513,7 @@ class MerkleDbDataSourceTest {
                 () -> createAndApplyDataSource(
                         testDirectory,
                         "test9",
-                        TestType.fixed_fixed,
+                        TestType.long_fixed,
                         1000,
                         finiteInMemHashThreshold,
                         MerkleDbDataSource::close),
@@ -563,14 +524,14 @@ class MerkleDbDataSourceTest {
     void canConstructWithNoRamInternalHashStore() {
         assertDoesNotThrow(
                 () -> createAndApplyDataSource(
-                        testDirectory, "test10", TestType.fixed_fixed, 1000, 0, MerkleDbDataSource::close),
+                        testDirectory, "test10", TestType.long_fixed, 1000, 0, MerkleDbDataSource::close),
                 "Should be possible to instantiate data source with no in-memory internal hash store");
     }
 
     @Test
     void canConstructStandardStoreWithMergingDisabled() {
         assertDoesNotThrow(
-                () -> TestType.fixed_fixed
+                () -> TestType.long_fixed
                         .dataType()
                         .createDataSource(testDirectory, "testDB", 1000, Long.MAX_VALUE, false, false)
                         .close(),
@@ -586,10 +547,8 @@ class MerkleDbDataSourceTest {
         final String tableName = "vm";
         final Path originalDbPath =
                 testDirectory.resolve("merkledb-dirtyDeletedLeavesBetweenFlushesOnReconnect-" + testType);
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         createAndApplyDataSource(originalDbPath, tableName, testType, 100, 0, dataSource -> {
-            final List<VirtualKey> keys = new ArrayList<>(31);
+            final List<Bytes> keys = new ArrayList<>(31);
             for (int i = 0; i < 31; i++) {
                 keys.add(testType.dataType().createVirtualLongKey(i));
             }
@@ -604,18 +563,21 @@ class MerkleDbDataSourceTest {
                     20,
                     IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
                     IntStream.range(10, 21)
-                            .mapToObj(i -> new VirtualLeafRecord<>(i, keys.get(i), values.get(i)))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> new VirtualLeafBytes(
+                                    i,
+                                    keys.get(i),
+                                    values.get(i),
+                                    testType.dataType().getCodec())),
                     Stream.empty(),
                     true);
 
             // Load all leaves back from DB
-            final List<VirtualLeafRecord<VirtualKey, ExampleByteArrayVirtualValue>> oldLeaves = new ArrayList<>(11);
+            final List<VirtualLeafBytes> oldLeaves = new ArrayList<>(11);
             for (int i = 10; i < 21; i++) {
                 final VirtualLeafBytes leaf = dataSource.loadLeafRecord(i);
                 assertNotNull(leaf);
                 assertEquals(i, leaf.path());
-                oldLeaves.add(leaf.toRecord(keySerializer, valueSerializer));
+                oldLeaves.add(leaf);
             }
 
             // First flush: move leaves 10 to 15 to paths 15 to 20, delete leaves 16 to 20
@@ -624,9 +586,12 @@ class MerkleDbDataSourceTest {
                     20,
                     IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 2)),
                     IntStream.range(10, 21)
-                            .mapToObj(i -> new VirtualLeafRecord<>(i, keys.get(i - 5), values.get(i - 5)))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
-                    oldLeaves.subList(6, 11).stream().map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> new VirtualLeafBytes(
+                                    i,
+                                    keys.get(i - 5),
+                                    values.get(i - 5),
+                                    testType.dataType().getCodec())),
+                    oldLeaves.subList(6, 11).stream(),
                     true);
 
             // Check data after the first flush
@@ -636,19 +601,15 @@ class MerkleDbDataSourceTest {
                 assertEquals(hash(i + 2), hash, "Wrong hash at path " + i);
             }
             for (int i = 5; i < 16; i++) {
-                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(
-                        keySerializer.toBytes(keys.get(i)), keys.get(i).hashCode());
-                assertNotNull(leafBytes, "Leaf with key " + i + " not found");
+                final VirtualLeafBytes leaf = dataSource.loadLeafRecord(keys.get(i));
+                assertNotNull(leaf, "Leaf with key " + i + " not found");
                 // // key 10 is moved to path 15, key 11 is moved to path 16, etc.
-                assertEquals(i + 5, leafBytes.path(), "Leaf path mismatch at path " + i);
-                final VirtualLeafRecord<VirtualKey, ExampleByteArrayVirtualValue> leaf =
-                        leafBytes.toRecord(keySerializer, valueSerializer);
-                assertEquals(keys.get(i), leaf.getKey(), "Wrong key at path " + i);
-                assertEquals(values.get(i), leaf.getValue(), "Wrong value at path " + i);
+                assertEquals(i + 5, leaf.path(), "Leaf path mismatch at path " + i);
+                assertEquals(keys.get(i), leaf.keyBytes(), "Wrong key at path " + i);
+                assertEquals(values.get(i), leaf.value(testType.dataType().getCodec()), "Wrong value at path " + i);
             }
             for (int i = 16; i < 21; i++) {
-                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(
-                        keySerializer.toBytes(keys.get(i)), keys.get(i).hashCode());
+                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(keys.get(i));
                 assertNull(leafBytes); // no more leafs for keys 16 to 20
             }
 
@@ -659,7 +620,7 @@ class MerkleDbDataSourceTest {
                     20,
                     IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 3)),
                     Stream.empty(),
-                    oldLeaves.subList(0, 6).stream().map(r -> r.toBytes(keySerializer, valueSerializer)),
+                    oldLeaves.subList(0, 6).stream(),
                     true);
 
             // Check data after the second flush
@@ -669,15 +630,12 @@ class MerkleDbDataSourceTest {
                 assertEquals(hash(i + 3), hash, "Wrong hash at path " + i);
             }
             for (int i = 5; i < 16; i++) {
-                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(
-                        keySerializer.toBytes(keys.get(i)), keys.get(i).hashCode());
-                assertNotNull(leafBytes, "Leaf with key " + i + " not found");
+                final VirtualLeafBytes leaf = dataSource.loadLeafRecord(keys.get(i));
+                assertNotNull(leaf, "Leaf with key " + i + " not found");
                 // // key 10 was moved to path 15, key 11 is moved to path 16, etc.
-                assertEquals(i + 5, leafBytes.path(), "Leaf path mismatch at path " + i);
-                final VirtualLeafRecord<VirtualKey, ExampleByteArrayVirtualValue> leaf =
-                        leafBytes.toRecord(keySerializer, valueSerializer);
-                assertEquals(keys.get(i), leaf.getKey(), "Wrong key at path " + i);
-                assertEquals(values.get(i), leaf.getValue(), "Wrong value at path " + i);
+                assertEquals(i + 5, leaf.path(), "Leaf path mismatch at path " + i);
+                assertEquals(keys.get(i), leaf.keyBytes(), "Wrong key at path " + i);
+                assertEquals(values.get(i), leaf.value(testType.dataType().getCodec()), "Wrong value at path " + i);
             }
         });
     }
@@ -689,20 +647,18 @@ class MerkleDbDataSourceTest {
         final String label = "copyStatisticsTest";
         final TestType testType = TestType.variable_variable;
         final Metrics metrics = testType.getMetrics();
-        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
         createAndApplyDataSource(testDirectory, label, testType, 16, dataSource -> {
             dataSource.registerMetrics(metrics);
             assertEquals(
                     1L,
                     metrics.getMetric(MerkleDbStatistics.STAT_CATEGORY, "merkledb_count")
                             .get(ValueType.VALUE));
-            final List<VirtualLeafRecord<VirtualKey, ExampleByteArrayVirtualValue>> dirtyLeaves = IntStream.range(
-                            15, 30)
-                    .mapToObj(t -> new VirtualLeafRecord<>(
+            final List<VirtualLeafBytes> dirtyLeaves = IntStream.range(15, 30)
+                    .mapToObj(t -> new VirtualLeafBytes(
                             t,
                             testType.dataType().createVirtualLongKey(t),
-                            testType.dataType().createVirtualValue(t)))
+                            testType.dataType().createVirtualValue(t),
+                            testType.dataType().getCodec()))
                     .toList();
             // No dirty/deleted leaves - no new files created
             dataSource.saveRecords(15, 30, Stream.empty(), Stream.empty(), Stream.empty(), false);
@@ -710,28 +666,16 @@ class MerkleDbDataSourceTest {
                     metrics.getMetric(MerkleDbStatistics.STAT_CATEGORY, "ds_files_leavesStoreFileCount_" + label);
             assertEquals(0L, sourceCounter.get());
             // Now save some dirty leaves
-            dataSource.saveRecords(
-                    15,
-                    30,
-                    Stream.empty(),
-                    dirtyLeaves.stream().map(r -> r.toBytes(keySerializer, valueSerializer)),
-                    Stream.empty(),
-                    false);
+            dataSource.saveRecords(15, 30, Stream.empty(), dirtyLeaves.stream(), Stream.empty(), false);
             assertEquals(1L, sourceCounter.get());
             final var copy = dataSource.getDatabase().copyDataSource(dataSource, true, false);
             try {
                 assertEquals(
                         2L, metrics.getMetric("merkle_db", "merkledb_count").get(ValueType.VALUE));
                 copy.copyStatisticsFrom(dataSource);
-                final VirtualLeafRecord<VirtualKey, ExampleByteArrayVirtualValue> leaf1 = dirtyLeaves.get(1);
-                leaf1.setPath(4);
-                copy.saveRecords(
-                        4,
-                        8,
-                        Stream.empty(),
-                        Stream.of(leaf1).map(r -> r.toBytes(keySerializer, valueSerializer)),
-                        Stream.empty(),
-                        false);
+                VirtualLeafBytes leaf1 = dirtyLeaves.get(1);
+                leaf1 = leaf1.withPath(4);
+                copy.saveRecords(4, 8, Stream.empty(), Stream.of(leaf1), Stream.empty(), false);
                 final IntegerGauge copyCounter = (IntegerGauge)
                         metrics.getMetric(MerkleDbStatistics.STAT_CATEGORY, "ds_files_leavesStoreFileCount_" + label);
                 assertEquals(2L, copyCounter.get());
@@ -793,34 +737,23 @@ class MerkleDbDataSourceTest {
     }
 
     public static void assertLeaf(
-            final TestType testType,
-            final KeySerializer keySerializer,
-            final ValueSerializer valueSerializer,
-            final MerkleDbDataSource dataSource,
-            final long path,
-            final int i) {
-        assertLeaf(testType, keySerializer, valueSerializer, dataSource, path, i, i, i);
+            final TestType testType, final MerkleDbDataSource dataSource, final long path, final int i) {
+        assertLeaf(testType, dataSource, path, i, i, i);
     }
 
     public static void assertLeaf(
             final TestType testType,
-            final KeySerializer keySerializer,
-            final ValueSerializer valueSerializer,
             final MerkleDbDataSource dataSource,
             final long path,
             final int i,
             final int hashIndex,
             final int valueIndex) {
         try {
-            final VirtualLeafRecord<VirtualKey, ExampleByteArrayVirtualValue> expectedRecord =
-                    testType.dataType().createVirtualLeafRecord(path, i, valueIndex);
-            final VirtualKey key = testType.dataType().createVirtualLongKey(i);
+            final VirtualLeafBytes expectedRecord = testType.dataType().createVirtualLeafRecord(path, i, valueIndex);
+            final Bytes key = testType.dataType().createVirtualLongKey(i);
             // things that should have changed
-            assertEqualsAndPrint(
-                    expectedRecord.toBytes(keySerializer, valueSerializer),
-                    dataSource.loadLeafRecord(keySerializer.toBytes(key), key.hashCode()));
-            assertEqualsAndPrint(
-                    expectedRecord.toBytes(keySerializer, valueSerializer), dataSource.loadLeafRecord(path));
+            assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(key));
+            assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(path));
             assertEquals(hash(hashIndex), dataSource.loadHash(path), "unexpected Hash value for path " + path);
         } catch (final Exception e) {
             e.printStackTrace(System.err);
