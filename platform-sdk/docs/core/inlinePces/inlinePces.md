@@ -43,7 +43,7 @@ other events (i.e. events not created by ourselves) to gossip before they pass t
 
 #### PCES Writer
 
-All writes are synchronous. The PCES writer accepts an event as input, and returns that same event once it 
+All writes are synchronous. The PCES writer accepts an event as input, and returns that same event once it
 has been written to disk. During this period, the event is being locked.
 
 No part of the system after event intake is utilizing an event until it has been made
