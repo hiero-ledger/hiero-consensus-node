@@ -5,14 +5,9 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ExecutionException;
@@ -25,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 public class DefaultStateHasher implements StateHasher {
 
     private static final Logger logger = LogManager.getLogger(DefaultStateHasher.class);
+    private final MerkleCryptography merkleCryptography;
     private final StateHasherMetrics metrics;
 
     /**
@@ -35,7 +31,7 @@ public class DefaultStateHasher implements StateHasher {
      * @param platformContext the platform context
      */
     public DefaultStateHasher(@NonNull final PlatformContext platformContext) {
-
+        merkleCryptography = platformContext.getMerkleCryptography();
         metrics = new StateHasherMetrics(platformContext.getMetrics());
     }
 
@@ -47,14 +43,10 @@ public class DefaultStateHasher implements StateHasher {
     public StateAndRound hashState(@NonNull final StateAndRound stateAndRound) {
         final Instant start = Instant.now();
         try {
-            final Configuration configuration =
-                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-            final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
             merkleCryptography
                     .digestTreeAsync(
                             stateAndRound.reservedSignedState().get().getState().getRoot())
                     .get();
-
             metrics.reportHashingTime(Duration.between(start, Instant.now()));
 
             return stateAndRound;
@@ -63,8 +55,6 @@ public class DefaultStateHasher implements StateHasher {
         } catch (final InterruptedException e) {
             logger.error(EXCEPTION.getMarker(), "Interrupted while hashing state. Expect buggy behavior.");
             Thread.currentThread().interrupt();
-        } catch (final IOException e) {
-            logger.fatal(EXCEPTION.getMarker(), "Fatal error occurred during building configuration", e);
         }
         return null;
     }
