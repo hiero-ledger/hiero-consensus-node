@@ -7,16 +7,14 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
-import com.hedera.hapi.block.stream.output.CryptoTransferOutput;
+import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
-import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.EventTransaction;
@@ -36,11 +34,8 @@ class BlockStreamBuilderOutputTest {
     private static final TransactionID TXN_ID = TransactionID.newBuilder()
             .accountID(AccountID.newBuilder().accountNum(2L).build())
             .build();
-    private static final List<AssessedCustomFee> ASSESSED_CUSTOM_FEES = List.of(new AssessedCustomFee(
-            1L,
-            TokenID.newBuilder().tokenNum(123).build(),
-            AccountID.newBuilder().accountNum(98L).build(),
-            List.of(AccountID.newBuilder().accountNum(2L).build())));
+    private static final AccountID ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(1L).build();
     private static final ContractFunctionResult FUNCTION_RESULT =
             ContractFunctionResult.newBuilder().amount(666L).build();
     private static final BlockItem EVENT_TRANSACTION = BlockItem.newBuilder()
@@ -54,7 +49,7 @@ class BlockStreamBuilderOutputTest {
             .build();
     private static final BlockItem FIRST_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
-                    .cryptoTransfer(new CryptoTransferOutput(ASSESSED_CUSTOM_FEES))
+                    .accountCreate(new CreateAccountOutput(ACCOUNT_ID))
                     .build())
             .build();
     private static final BlockItem SECOND_OUTPUT = BlockItem.newBuilder()
