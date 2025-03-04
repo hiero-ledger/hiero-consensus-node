@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
@@ -31,7 +30,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("VirtualMap Hashing Tests")
 class VirtualMapHashingTest {
-    private static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
     @Test
     @Tag(TestComponentTags.VMAP)
@@ -39,7 +37,7 @@ class VirtualMapHashingTest {
     void hashEmptyMap() {
         final VirtualMap<TestKey, TestValue> map = createMap();
         final VirtualMap<TestKey, TestValue> copy = map.copy();
-        final Hash hash = CRYPTO.digestTreeSync(map);
+        final Hash hash = TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
         assertNotNull(hash, "hash should not be null");
 
         map.release();

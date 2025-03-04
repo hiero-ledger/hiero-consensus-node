@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
@@ -24,7 +23,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 @DisplayName("VirtualRootNode Hashing Tests")
 class VirtualRootNodeHashingTest {
-    private static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
     // FUTURE WORK tests to write:
     //  - deterministic hashing
@@ -42,7 +40,7 @@ class VirtualRootNodeHashingTest {
         assertNotNull(hash, "hash should not be null");
 
         final MerkleInternal expected = new InternalWithBasicHash();
-        final Hash expectedHash = CRYPTO.digestTreeSync(expected);
+        final Hash expectedHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(expected);
         assertEquals(expectedHash, hash, "empty root hash value didn't match expectations");
 
         root.release();
