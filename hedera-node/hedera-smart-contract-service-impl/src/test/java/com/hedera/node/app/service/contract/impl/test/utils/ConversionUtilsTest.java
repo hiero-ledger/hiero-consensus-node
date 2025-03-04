@@ -169,6 +169,7 @@ class ConversionUtilsTest {
     @Test
     void returnsGivenIfPresentAlias() {
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(0x1234L);
+        given(nativeOperations.configuration()).willReturn(configuration);
         final var address = Address.fromHexString("0x010000000000000000");
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
         assertEquals(0x1234L, actual);

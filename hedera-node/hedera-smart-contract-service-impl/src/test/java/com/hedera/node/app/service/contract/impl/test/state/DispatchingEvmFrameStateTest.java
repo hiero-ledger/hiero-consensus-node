@@ -419,16 +419,12 @@ class DispatchingEvmFrameStateTest {
     void throwsOnMissingAddressWhenGettingHederaIdNumber() {
         given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(MISSING_ENTITY_NUMBER);
-        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EVM_ADDRESS)))
-                .willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.configuration()).willReturn(configuration);
         assertThrows(IllegalArgumentException.class, () -> subject.getIdNumber(EVM_ADDRESS));
     }
 
     @Test
     void returnsResolvedNumberForEvmAddress() {
-        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EVM_ADDRESS)))
-                .willReturn(ACCOUNT_NUM);
         given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
