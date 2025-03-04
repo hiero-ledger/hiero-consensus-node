@@ -7,21 +7,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import org.junit.jupiter.api.Test;
 
 class RunningHashCalculatorTest {
-    private static Cryptography cryptography = CryptographyHolder.get();
+    private static Cryptography cryptography = CryptographyFactory.create();
 
     @Test
     void runningHashTest() throws InterruptedException {
         final DigestType digestType = DigestType.SHA_384;
         final Hash initialHash = new Hash(new byte[digestType.digestLength()]);
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
-                new RunningHashCalculatorForStream(cryptography);
+                new RunningHashCalculatorForStream();
         runningHashCalculator.setRunningHash(initialHash);
 
         Hash expected = initialHash;
@@ -40,7 +40,7 @@ class RunningHashCalculatorTest {
     void nullInitialHashTest() throws InterruptedException {
         final DigestType digestType = DigestType.SHA_384;
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
-                new RunningHashCalculatorForStream(cryptography);
+                new RunningHashCalculatorForStream();
         runningHashCalculator.setRunningHash(null);
 
         Hash expected = null;

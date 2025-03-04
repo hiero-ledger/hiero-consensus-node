@@ -72,7 +72,7 @@ class SignatureVerificationTest implements Scenarios {
 
         // Second, verify the signatures
         //noinspection removal
-        final var verifier = new SignatureVerifierImpl(com.swirlds.common.crypto.CryptographyHolder.get());
+        final var verifier = new SignatureVerifierImpl();
         final var verificationResults = verifier.verify(testCase.signedBytes, expanded);
 
         // Finally, assert that the verification results are as expected
@@ -101,7 +101,7 @@ class SignatureVerificationTest implements Scenarios {
 
         // Second, verify the signatures
         //noinspection removal
-        final var verifier = new SignatureVerifierImpl(com.swirlds.common.crypto.CryptographyHolder.get());
+        final var verifier = new SignatureVerifierImpl();
         final var verificationResults = verifier.verify(signedBytes, expanded);
 
         // Finally, assert that the verification results are as expected

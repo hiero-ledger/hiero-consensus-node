@@ -29,7 +29,6 @@ import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
@@ -232,7 +231,6 @@ public class Browser {
                     FileSystemManager.create(configuration),
                     nodeId);
             final var cryptography = CryptographyFactory.create();
-            CryptographyHolder.set(cryptography);
             final KeysAndCerts keysAndCerts = initNodeSecurity(
                             appDefinition.getConfigAddressBook(), configuration, Set.copyOf(nodesToRun))
                     .get(nodeId);
@@ -241,7 +239,7 @@ public class Browser {
             cryptography.digestSync(appDefinition.getConfigAddressBook());
 
             // Set the MerkleCryptography instance for this node
-            final var merkleCryptography = MerkleCryptographyFactory.create(configuration, CryptographyHolder.get());
+            final var merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
             MerkleCryptoFactory.set(merkleCryptography);
 
             // Register with the ConstructableRegistry classes which need configuration.
@@ -252,17 +250,15 @@ public class Browser {
                     configuration,
                     Time.getCurrent(),
                     guiMetrics,
-                    cryptography,
                     FileSystemManager.create(configuration),
                     recycleBin,
-                    MerkleCryptographyFactory.create(configuration, CryptographyHolder.get()));
+                    MerkleCryptographyFactory.create(configuration, cryptography));
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
             PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
             // Create the initial state for the platform
             StateLifecycles stateLifecycles = appMain.newStateLifecycles();
             final HashedReservedSignedState reservedState = getInitialState(
-                    configuration,
                     recycleBin,
                     appMain.getSoftwareVersion(),
                     appMain::newStateRoot,
