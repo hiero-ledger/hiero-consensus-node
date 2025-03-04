@@ -22,7 +22,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -37,7 +37,7 @@ import org.hyperledger.besu.evm.precompile.ECRECPrecompiledContract;
 
 /** HIP-632 method: `isAuthorizedRaw` */
 public class IsAuthorizedRawCall extends AbstractCall {
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private static final int EIP_155_V_MIN_LENGTH = 1;
     private static final int EIP_155_V_MAX_LENGTH = 8; // we limit chainId to fit in a `long`

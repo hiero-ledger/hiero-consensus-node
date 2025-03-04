@@ -3,7 +3,7 @@ package com.swirlds.common.merkle.crypto.internal;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -21,7 +21,7 @@ public class MerkleCryptoEngine implements MerkleCryptography {
     /**
      * The cryptography instance used to compute digests for merkle trees.
      */
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     /**
      * The digest provider instance that is used to generate hashes of MerkleInternal objects.

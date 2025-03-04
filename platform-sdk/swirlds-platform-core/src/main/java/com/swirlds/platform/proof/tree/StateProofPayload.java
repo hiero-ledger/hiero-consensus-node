@@ -2,7 +2,7 @@
 package com.swirlds.platform.proof.tree;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -18,7 +18,7 @@ import java.security.MessageDigest;
  */
 public class StateProofPayload extends AbstractStateProofNode implements SelfSerializable {
     private static final long CLASS_ID = 0xd21870ecd467b717L;
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private static final class ClassVersion {
         public static final int ORIGINAL = 1;
