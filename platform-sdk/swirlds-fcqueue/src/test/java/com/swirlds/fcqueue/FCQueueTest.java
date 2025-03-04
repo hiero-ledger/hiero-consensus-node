@@ -422,7 +422,7 @@ class FCQueueTest {
 
     /**
      * add the same element to a FCQueue instance and a Queue instance
-     * if queue is null, we only add elements into the FCQueue isntance
+     * if queue is null, we only add elements into the FCQueue instance
      *
      * @param fcq
      * 		a FCQueue instance

@@ -103,7 +103,7 @@ public class DataFileCompactor {
      */
     private final AtomicReference<DataFileWriter> currentWriter = new AtomicReference<>();
     /**
-     * Currrent data file reader for the compaction writer above.
+     * Current data file reader for the compaction writer above.
      */
     private final AtomicReference<DataFileReader> currentReader = new AtomicReference<>();
     /**

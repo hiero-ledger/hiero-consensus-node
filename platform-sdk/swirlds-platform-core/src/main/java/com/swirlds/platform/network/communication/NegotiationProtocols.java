@@ -58,7 +58,7 @@ public class NegotiationProtocols {
     }
 
     /**
-     * The protocol initated has not been accepted
+     * The protocol initiated has not been accepted
      *
      * @throws IllegalStateException
      * 		if no protocol was previously initiated

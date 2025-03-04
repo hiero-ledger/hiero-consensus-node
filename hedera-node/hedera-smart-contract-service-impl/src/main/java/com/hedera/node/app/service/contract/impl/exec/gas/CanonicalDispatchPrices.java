@@ -31,7 +31,7 @@ public class CanonicalDispatchPrices {
     public static final BigDecimal USD_TO_TINYCENTS = BigDecimal.valueOf(100 * 100_000_000L);
 
     /**
-     * @param assetsLoader used to load the fee schedule from recources
+     * @param assetsLoader used to load the fee schedule from resources
      */
     @Inject
     public CanonicalDispatchPrices(@NonNull final AssetsLoader assetsLoader) {
