@@ -15,5 +15,4 @@ testModuleInfo {
     requires("org.mockito")
     runtimeOnly("com.swirlds.config.api")
     runtimeOnly("com.swirlds.config.impl")
-    requiresStatic("com.github.spotbugs.annotations")
 }
