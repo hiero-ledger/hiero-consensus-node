@@ -13,6 +13,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import javax.inject.Inject;
@@ -148,5 +149,10 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public TransactionID getTransactionID() {
         throw new UnsupportedOperationException("Cannot get top level transaction ID in query context");
+    }
+
+    @Override
+    public Configuration configuration() {
+        return context.configuration();
     }
 }
