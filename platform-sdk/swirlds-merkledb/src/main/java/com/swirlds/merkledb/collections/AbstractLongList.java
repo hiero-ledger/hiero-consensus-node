@@ -34,6 +34,7 @@ public abstract class AbstractLongList<C> implements LongList {
 
     public static final String MAX_CHUNKS_EXCEEDED_MSG = "The maximum number of memory chunks should not exceed %s. "
             + "Either increase longsPerChunk or decrease capacity";
+    public static final String CHUNK_SIZE_ZERO_OR_NEGATIVE_MSG = "Cannot store %d per chunk (min is 1)";
     public static final String CHUNK_SIZE_EXCEEDED_MSG = "Cannot store %d per chunk (max is %d)";
     public static final String INVALID_RANGE_MSG = "Invalid range %d - %d";
     public static final String MAX_VALID_INDEX_LIMIT = "Max valid index %d must be less than max capacity %d";
@@ -138,6 +139,9 @@ public abstract class AbstractLongList<C> implements LongList {
     protected AbstractLongList(final int longsPerChunk, final long capacity, final long reservedBufferLength) {
         if (capacity < 0) {
             throw new IllegalArgumentException("The maximum number of longs must be non-negative, not " + capacity);
+        }
+        if (longsPerChunk <= 0) {
+            throw new IllegalArgumentException(CHUNK_SIZE_ZERO_OR_NEGATIVE_MSG.formatted(longsPerChunk));
         }
         if (longsPerChunk > MAX_NUM_LONGS_PER_CHUNK) {
             throw new IllegalArgumentException(

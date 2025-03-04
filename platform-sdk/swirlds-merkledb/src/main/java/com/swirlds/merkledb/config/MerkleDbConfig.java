@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.config;
 
+import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
+
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
@@ -63,11 +65,11 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "500000000") long maxNumOfKeys,
-        @Positive @ConfigProperty(defaultValue = "" + 4L * 1024 * 1024 * 1024) long size,
-        @Min(0) @ConfigProperty(defaultValue = "" + 8 * 1024 * 1024) long hashesRamToDiskThreshold,
-        @Positive @ConfigProperty(defaultValue = "" + 1024 * 1024) int hashStoreRamBufferSize,
-        @Positive @ConfigProperty(defaultValue = "" + 1024 * 1024) int longListChunkSize,
-        @Positive @ConfigProperty(defaultValue = "" + 256 * 1024) int longListReservedBufferSize,
+        @Positive @ConfigProperty(defaultValue = "" + 4_000_000_000L) long size,
+        @Min(0) @ConfigProperty(defaultValue = "" + 8388608L) long hashesRamToDiskThreshold,
+        @Positive @ConfigProperty(defaultValue = "" + 1L * MEBIBYTES_TO_BYTES) int hashStoreRamBufferSize,
+        @Positive @ConfigProperty(defaultValue = "" + 1L * MEBIBYTES_TO_BYTES) int longListChunkSize,
+        @Positive @ConfigProperty(defaultValue = "" + 1L * MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "3") int compactionThreads,
         @ConstraintMethod("minNumberOfFilesInCompactionValidation") @ConfigProperty(defaultValue = "8")
                 int minNumberOfFilesInCompaction,
