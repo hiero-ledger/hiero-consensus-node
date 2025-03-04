@@ -15,7 +15,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 
@@ -216,7 +215,7 @@ class SignScheduleTranslatorTest {
     void testAttemptForSignScheduleProxy() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(enhancement.systemOperations()).willReturn(systemContractOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(nativeOperations.getAccount(payerId)).willReturn(SOMEBODY);
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
@@ -247,7 +246,7 @@ class SignScheduleTranslatorTest {
     void testScheduleIdForSignScheduleProxyEthSender() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(enhancement.systemOperations()).willReturn(systemContractOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(nativeOperations.getAccount(payerId)).willReturn(SOMEBODY);
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
@@ -278,7 +277,7 @@ class SignScheduleTranslatorTest {
     @Test
     void testScheduleIdForWrongSelectorThrows() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
@@ -301,7 +300,7 @@ class SignScheduleTranslatorTest {
     @Test
     void testAttemptForAuthorizeSchedule() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
         given(nativeOperations.getAccount(payerId)).willReturn(B_CONTRACT);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
@@ -332,7 +331,7 @@ class SignScheduleTranslatorTest {
     @Test
     void testScheduleIdForAuthorizeScheduleDelegatableContractKeys() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
         given(nativeOperations.getAccount(payerId)).willReturn(B_CONTRACT);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
@@ -383,7 +382,7 @@ class SignScheduleTranslatorTest {
     @Test
     void testScheduleIdForSignScheduleProxy() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
@@ -406,7 +405,8 @@ class SignScheduleTranslatorTest {
     @Test
     void testScheduleIdForAuthorizeSchedule() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(scheduleID);
 
         attempt = prepareHssAttemptWithBytesAndCustomConfig(
@@ -428,7 +428,8 @@ class SignScheduleTranslatorTest {
     @Test
     void testScheduleIdForScheduleService() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(scheduleID);
 
         attempt = prepareHssAttemptWithBytesAndCustomConfig(
@@ -450,7 +451,8 @@ class SignScheduleTranslatorTest {
     @Test
     void testGetKeysForSignScheduleWhenVerified() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.chainId()).willReturn(296);
@@ -478,7 +480,8 @@ class SignScheduleTranslatorTest {
     @Test
     void testGetKeysForSignScheduleWhenNotVerified() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.chainId()).willReturn(296);
@@ -506,7 +509,8 @@ class SignScheduleTranslatorTest {
     @Test
     void testGetKeysForSignScheduleThrowsWhenWrongChainId() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.chainId()).willReturn(296);
@@ -530,7 +534,8 @@ class SignScheduleTranslatorTest {
     @Test
     void testGetKeysForSignScheduleWhenUnknownKeyType() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(scheduleID);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.chainId()).willReturn(296);

@@ -8,11 +8,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityI
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirect;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -66,7 +67,7 @@ class IsAssociatedTranslatorTest {
     @Test
     void matchesWithCorrectSelectorAndTokenRedirectReturnsTrue() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any(TokenID.class))).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         mockAttempt = prepareHtsAttemptWithSelectorForRedirect(
                 IS_ASSOCIATED,
@@ -82,7 +83,7 @@ class IsAssociatedTranslatorTest {
     @Test
     void matchesWithIncorrectSelectorReturnsFalse() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
-        given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any(TokenID.class))).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         mockAttempt = prepareHtsAttemptWithSelectorForRedirect(
                 BURN_TOKEN_V2,

@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_ALIAS_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniUInt256;
@@ -36,6 +37,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
@@ -418,7 +420,8 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void throwsOnMissingAddressWhenGettingHederaIdNumber() {
-        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EVM_ADDRESS)))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
@@ -427,7 +430,8 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void returnsResolvedNumberForEvmAddress() {
-        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EVM_ADDRESS)))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
@@ -437,8 +441,7 @@ class DispatchingEvmFrameStateTest {
     @Test
     void returnsLongZeroAddressWithoutAnAlias() {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        assertEquals(LONG_ZERO_ADDRESS, subject.getAddress(ACCOUNT_NUM));
+        assertEquals(LONG_ZERO_ADDRESS, subject.getAddress(A_ACCOUNT_ID));
     }
 
     @Test
@@ -452,25 +455,25 @@ class DispatchingEvmFrameStateTest {
     @Test
     void returnsNullWithDeletedAccount() {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).deleted(true));
-        assertNull(subject.getAddress(ACCOUNT_NUM));
+        assertNull(subject.getAddress(A_ACCOUNT_ID));
     }
 
     @Test
     void returnsLongZeroAddressWithNonAddressAlias() {
         givenWellKnownAccount(accountWith(A_ACCOUNT_ID, SOME_OTHER_ALIAS));
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        assertEquals(LONG_ZERO_ADDRESS, subject.getAddress(ACCOUNT_NUM));
+        assertEquals(LONG_ZERO_ADDRESS, subject.getAddress(A_ACCOUNT_ID));
     }
 
     @Test
     void returnsAliasIfPresent() {
         givenWellKnownAccount(accountWith(A_ACCOUNT_ID, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())));
-        assertEquals(EVM_ADDRESS, subject.getAddress(ACCOUNT_NUM));
+        assertEquals(EVM_ADDRESS, subject.getAddress(A_ACCOUNT_ID));
     }
 
     @Test
     void throwsIfAccountMissing() {
-        assertThrows(IllegalArgumentException.class, () -> subject.getAddress(ACCOUNT_NUM));
+        assertThrows(
+                IllegalArgumentException.class, () -> subject.getAddress(entityIdFactory.newAccountId(ACCOUNT_NUM)));
     }
 
     @Test
@@ -578,7 +581,10 @@ class DispatchingEvmFrameStateTest {
     @Test
     void cannotLazyCreateOverExpiredAccount() {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).expiredAndPendingRemoval(true));
-        given(nativeOperations.resolveAlias(0, 0, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(),
+                        DEFAULT_HEDERA_CONFIG.realm(),
+                        Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
@@ -774,7 +780,10 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void missingAccountIsNotHollow() {
-        given(nativeOperations.resolveAlias(0, 0, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(),
+                        DEFAULT_HEDERA_CONFIG.realm(),
+                        Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
@@ -783,7 +792,10 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void extantAccountIsHollowOnlyIfHasAnEmptyKey() {
-        given(nativeOperations.resolveAlias(0, 0, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(),
+                        DEFAULT_HEDERA_CONFIG.realm(),
+                        Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID)
@@ -794,7 +806,10 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void usesResolvedNumberFromDispatch() {
-        given(nativeOperations.resolveAlias(0, 0, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(),
+                        DEFAULT_HEDERA_CONFIG.realm(),
+                        Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
@@ -862,12 +877,12 @@ class DispatchingEvmFrameStateTest {
     }
 
     private void givenWellKnownToken() {
-        given(nativeOperations.getToken(TOKEN_NUM))
+        given(nativeOperations.getToken(any(TokenID.class)))
                 .willReturn(Token.newBuilder().build());
     }
 
     private void givenWellKnownSchedule() {
-        given(nativeOperations.getSchedule(SCHEDULE_NUM))
+        given(nativeOperations.getSchedule(entityIdFactory.newScheduleId(SCHEDULE_NUM)))
                 .willReturn(Schedule.newBuilder().build());
     }
 

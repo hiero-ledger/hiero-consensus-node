@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class IsKycCallTest extends CallTestBase {
     @Test
     void returnsIsKycForPresentToken() {
+        mockEntityIdFactory();
         final var subject =
                 new IsKycCall(gasCalculator, mockEnhancement(), false, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
 

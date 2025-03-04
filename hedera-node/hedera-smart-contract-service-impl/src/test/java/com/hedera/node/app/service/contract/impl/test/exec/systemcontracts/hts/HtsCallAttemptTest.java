@@ -11,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -142,8 +141,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void invalidSelectorLeadsToMissingCall() {
-        given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
-                .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirect(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);
         final var subject = new HtsCallAttempt(
@@ -372,8 +370,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsErc721TransferFromRedirectToNonfungible() {
-        given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
-                .willReturn(NON_FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any())).willReturn(NON_FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
@@ -405,8 +402,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsErc20TransferFromRedirectToFungible() {
-        given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
-                .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
@@ -438,8 +434,7 @@ class HtsCallAttemptTest extends CallTestBase {
 
     @Test
     void constructsErc20TransferRedirectToFungible() {
-        given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
-                .willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         final var input = TestHelpers.bytesForRedirect(
@@ -499,8 +494,7 @@ class HtsCallAttemptTest extends CallTestBase {
         }
         final var input = encodeInput(useExplicitCall, isRedirect, selector);
         if (isRedirect) {
-            given(nativeOperations.getToken(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
-                    .willReturn(FUNGIBLE_TOKEN);
+            given(nativeOperations.getToken(any())).willReturn(FUNGIBLE_TOKEN);
             given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         }
 

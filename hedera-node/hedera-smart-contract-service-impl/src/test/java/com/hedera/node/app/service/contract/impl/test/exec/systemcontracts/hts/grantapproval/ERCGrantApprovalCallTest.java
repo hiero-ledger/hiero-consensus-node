@@ -122,8 +122,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                         eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), 100L)).willReturn(nft);
-        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(token);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
         given(frame.getWorldUpdater()).willReturn(updater);
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
@@ -152,8 +152,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 UNAUTHORIZED_SPENDER_ID,
                 100L,
                 TokenType.NON_FUNGIBLE_UNIQUE);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), 100L)).willReturn(nft);
-        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(token);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -179,8 +179,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 100L,
                 TokenType.NON_FUNGIBLE_UNIQUE);
         // make sure nft is found
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), 100L)).willReturn(nft);
-        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(token);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -210,7 +210,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 100L,
                 TokenType.NON_FUNGIBLE_UNIQUE);
         // make sure nft is found
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), 100L)).willReturn(null);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(null);
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -243,8 +243,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                         eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), 100L)).willReturn(nft);
-        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(token);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
         given(frame.getWorldUpdater()).willReturn(updater);
         given(updater.entityIdFactory()).willReturn(entityIdFactory);

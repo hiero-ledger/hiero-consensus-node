@@ -63,8 +63,12 @@ public class IsApprovedForAllCall extends AbstractRevertibleTokenViewCall {
 
         if (operatorNum > 0 && ownerNum > 0) {
             verdict = operatorMatches(
-                    requireNonNull(nativeOperations().getAccount(ownerNum)),
-                    AccountID.newBuilder().accountNum(operatorNum).build(),
+                    requireNonNull(nativeOperations()
+                            .getAccount(enhancement
+                                    .nativeOperations()
+                                    .entityIdFactory()
+                                    .newAccountId(ownerNum))),
+                    enhancement.nativeOperations().entityIdFactory().newAccountId(operatorNum),
                     token.tokenIdOrThrow());
         }
         if (isErcRedirect) {

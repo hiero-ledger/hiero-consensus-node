@@ -93,7 +93,7 @@ class HtsCallFactoryTest extends CallTestBase {
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getWorldUpdater()).willReturn(updater);
         given(updater.enhancement()).willReturn(mockEnhancement());
-        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(frame.getSenderAddress()).willReturn(EIP_1014_ADDRESS);
         given(addressChecks.hasParentDelegateCall(frame)).willReturn(true);
@@ -119,7 +119,7 @@ class HtsCallFactoryTest extends CallTestBase {
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getWorldUpdater()).willReturn(updater);
         given(updater.enhancement()).willReturn(mockEnhancement());
-        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(frame.getSenderAddress()).willReturn(Address.ALTBN128_ADD);
         given(idConverter.convertSender(Address.ALTBN128_ADD)).willReturn(A_NEW_ACCOUNT_ID);

@@ -37,6 +37,7 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FileGetContentsHandlerTest extends FileTestBase {
+    private EntityIdFactory idFactory;
 
     @Mock
     private QueryContext context;
@@ -69,6 +71,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
                 .withValue("hedera.shard", 5L)
                 .withValue("hedera.realm", 10L)
                 .getOrCreateConfig();
+        idFactory = new FakeEntityIdFactoryImpl(5, 10);
         subject = new FileGetContentsHandler(usageEstimator, genesisSchema);
     }
 
@@ -235,7 +238,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
     }
 
     private Query createGetFileContentQuery(long fileNum) {
-        final var fileId = FileID.newBuilder().fileNum(fileNum).build();
+        final var fileId = idFactory.newFileId(fileNum);
         final var data = FileGetContentsQuery.newBuilder()
                 .fileID(fileId)
                 .header(QueryHeader.newBuilder().payment(Transaction.DEFAULT).build())
@@ -246,10 +249,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
 
     private Query createGetFileContentQueryFromEntityId(long fileNum) {
 
-        final FileID fileID = new FakeEntityIdFactoryImpl(
-                        Long.parseLong(config.getValue("hedera.shard")),
-                        Long.parseLong(config.getValue("hedera.realm")))
-                .newFileId(fileNum);
+        final FileID fileID = idFactory.newFileId(fileNum);
         final var data = FileGetContentsQuery.newBuilder()
                 .fileID(fileID)
                 .header(QueryHeader.newBuilder().payment(Transaction.DEFAULT).build())

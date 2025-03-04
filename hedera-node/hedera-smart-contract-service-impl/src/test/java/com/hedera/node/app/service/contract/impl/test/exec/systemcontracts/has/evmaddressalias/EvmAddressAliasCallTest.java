@@ -9,11 +9,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATO
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.getevmaddressalias.EvmAddressAliasCall;
@@ -76,8 +77,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
     void invalidAccountIdWhenNoAlias() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(nativeOperations.getAccount(numberOfLongZero(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
-                .willReturn(OPERATOR);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(OPERATOR);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
 
@@ -98,8 +98,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
     void successfulCall() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(nativeOperations.getAccount(numberOfLongZero(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
-                .willReturn(account);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(account);
         given(account.alias()).willReturn(RECEIVER_ADDRESS);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));

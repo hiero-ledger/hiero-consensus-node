@@ -300,20 +300,6 @@ public interface EvmFrameState {
     Wei getBalance(AccountID accountID);
 
     /**
-     * Returns the "priority" EVM address of the account or token with the given number, or null if the
-     * account has been deleted.
-     *
-     * <p>The priority address is its 20-byte alias if applicable; or else the "long-zero" address
-     * with the account number as the last 8 bytes of the zero address.
-     *
-     * @param number the account or token number
-     * @return the priority EVM address of the account, or null if the account has been deleted
-     * @throws IllegalArgumentException if the account does not exist
-     */
-    @Nullable
-    Address getAddress(long number);
-
-    /**
      * Returns the "priority" EVM address of the account with the given id, or null if the
      * account has been deleted.
      *

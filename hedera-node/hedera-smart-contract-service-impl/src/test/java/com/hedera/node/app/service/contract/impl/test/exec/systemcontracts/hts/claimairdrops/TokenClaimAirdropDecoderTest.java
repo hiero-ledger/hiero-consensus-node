@@ -78,7 +78,7 @@ public class TokenClaimAirdropDecoderTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
         given(tokensConfig.maxAllowedPendingAirdropsToClaim()).willReturn(10);
-        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
         given(addressIdConverter.convert(asHeadlongAddress(OWNER_ID.accountNum())))
                 .willReturn(OWNER_ID);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
@@ -184,7 +184,7 @@ public class TokenClaimAirdropDecoderTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
         given(tokensConfig.maxAllowedPendingAirdropsToClaim()).willReturn(10);
-        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(null);
+        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(null);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
@@ -232,7 +232,7 @@ public class TokenClaimAirdropDecoderTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
         given(tokensConfig.maxAllowedPendingAirdropsToClaim()).willReturn(10);
-        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(NON_FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(NON_FUNGIBLE_TOKEN);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);

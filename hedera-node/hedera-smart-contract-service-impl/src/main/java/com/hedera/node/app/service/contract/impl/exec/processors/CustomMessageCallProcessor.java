@@ -18,7 +18,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.transfersValue;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.RESULT_CANNOT_BE_EXTERNALIZED;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
@@ -243,7 +243,9 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             @NonNull final MessageFrame frame,
             @NonNull final OperationTracer tracer) {
         final var fullResult = systemContract.computeFully(
-                asNumberedContractId(entityIdFactory(frame), systemContractAddress), frame.getInputData(), frame);
+                entityIdFactory(frame).newContractId(numberOfLongZero(systemContractAddress)),
+                frame.getInputData(),
+                frame);
         final var gasRequirement = fullResult.gasRequirement();
         final PrecompileContractResult result;
         if (frame.getRemainingGas() < gasRequirement) {

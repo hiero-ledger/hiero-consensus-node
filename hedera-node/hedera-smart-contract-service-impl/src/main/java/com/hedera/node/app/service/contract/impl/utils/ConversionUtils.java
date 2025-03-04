@@ -112,7 +112,7 @@ public class ConversionUtils {
     public static TokenID asTokenId(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
         final var explicit = explicitFromHeadlong(address);
         return TokenID.newBuilder()
-                .shardNum(realmOfLongZero(explicit))
+                .shardNum(shardOfLongZero(explicit))
                 .realmNum(realmOfLongZero(explicit))
                 .tokenNum(numberOfLongZero(explicit))
                 .build();
@@ -397,7 +397,8 @@ public class ConversionUtils {
         if (number == MISSING_ENTITY_NUMBER) {
             return MISSING_ENTITY_NUMBER;
         } else {
-            final var account = nativeOperations.getAccount(number);
+            final var account = nativeOperations.getAccount(
+                    nativeOperations.entityIdFactory().newAccountId(number));
             if (account == null) {
                 return MISSING_ENTITY_NUMBER;
             } else if (!Arrays.equals(explicit, explicitAddressOf(account))) {
@@ -429,9 +430,11 @@ public class ConversionUtils {
      */
     @SuppressWarnings("java:S2201")
     public static long numberOfLongZero(@NonNull final Address address) {
-        // check for negative long value and throws an exception if it is
-        address.toUnsignedBigInteger().longValueExact();
-        return numberOfLongZero(address.toArray());
+        final var longVal = numberOfLongZero(address.toArray());
+        if (longVal < 0) {
+            throw new ArithmeticException("Long zero address is negative");
+        }
+        return longVal;
     }
 
     /**
@@ -746,12 +749,12 @@ public class ConversionUtils {
     }
 
     /**
-     * Given an explicit 20-byte addresss, returns its shard value.
+     * Given an explicit 20-byte addresss, returns its realm value.
      *
      * @param explicit the explicit 20-byte address
-     * @return its shard value
+     * @return its realm value
      */
-    public static long shardOfLongZero(@NonNull final byte[] explicit) {
+    public static long realmOfLongZero(@NonNull final byte[] explicit) {
         return longFrom(
                 explicit[4],
                 explicit[5],
@@ -764,12 +767,12 @@ public class ConversionUtils {
     }
 
     /**
-     * Given an explicit 20-byte addresss, returns its realm value.
+     * Given an explicit 20-byte addresss, returns its shard value.
      *
      * @param explicit the explicit 20-byte address
-     * @return its realm value
+     * @return its shard value
      */
-    public static long realmOfLongZero(@NonNull final byte[] explicit) {
+    public static long shardOfLongZero(@NonNull final byte[] explicit) {
         return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
     }
 

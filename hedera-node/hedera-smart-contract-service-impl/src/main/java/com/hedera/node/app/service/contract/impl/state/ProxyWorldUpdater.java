@@ -177,7 +177,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             address = pbjToBesuAddress(contractId.evmAddressOrThrow());
         } else {
             try {
-                address = evmFrameState.getAddress(contractId.contractNumOrElse(0L));
+                address = evmFrameState.getAddress(entityIdFactory().newAccountId(contractId.contractNumOrElse(0L)));
             } catch (IllegalArgumentException ignore) {
                 return null;
             }
@@ -441,7 +441,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         final List<Account> touched = new ArrayList<>();
         for (final var number : modifiedNumbers) {
             // Returns null if the account has been deleted
-            final var address = evmFrameState.getAddress(number);
+            final var address = evmFrameState.getAddress(entityIdFactory().newAccountId(number));
             if (address != null) {
                 touched.add(evmFrameState.getAccount(address));
             }

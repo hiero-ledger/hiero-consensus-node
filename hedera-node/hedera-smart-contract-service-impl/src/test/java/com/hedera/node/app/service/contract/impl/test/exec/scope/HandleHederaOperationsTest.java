@@ -161,8 +161,8 @@ class HandleHederaOperationsTest {
     @Test
     void returnsUnchangedWithMatchingShardRealm() {
         final var plausibleId = ContractID.newBuilder()
-                .shardNum(0)
-                .realmNum(0)
+                .shardNum(DEFAULT_HEDERA_CONFIG.shard())
+                .realmNum(DEFAULT_HEDERA_CONFIG.realm())
                 .contractNum(3456L)
                 .build();
         assertSame(plausibleId, subject.shardAndRealmValidated(plausibleId));
