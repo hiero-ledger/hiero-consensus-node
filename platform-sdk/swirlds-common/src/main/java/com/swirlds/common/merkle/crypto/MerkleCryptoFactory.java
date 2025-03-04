@@ -3,7 +3,7 @@ package com.swirlds.common.merkle.crypto;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.threading.locks.AutoClosableLock;
 import com.swirlds.common.threading.locks.Locks;
@@ -17,7 +17,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Public factory implementation from which all {@link MerkleCryptography} instances should be acquired.
  *
- * @deprecated We will remove this static class in near future after {@link CryptographyHolder} has been removed
+ * @deprecated We will remove this static class in near future after {@link CryptographyFactory} has been removed
  */
 @Deprecated(forRemoval = true)
 public class MerkleCryptoFactory {
@@ -48,7 +48,7 @@ public class MerkleCryptoFactory {
         final Configuration defaultConfiguration = ConfigurationBuilder.create()
                 .withConfigDataType(CryptoConfig.class)
                 .build();
-        merkleCryptography = MerkleCryptographyFactory.create(defaultConfiguration, CryptographyHolder.get());
+        merkleCryptography = MerkleCryptographyFactory.create(defaultConfiguration, CryptographyFactory.create());
     }
 
     /**
