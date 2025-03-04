@@ -148,8 +148,8 @@ class StateFileManagerTests {
         MerkleDb.resetDefaultInstancePath();
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
-        final DeserializedSignedState deserializedSignedState = readStateFile(
-                configuration, stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+        final DeserializedSignedState deserializedSignedState =
+                readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
         MerkleCryptoFactory.getInstance()
                 .digestTreeSync(deserializedSignedState
                         .reservedSignedState()
@@ -353,7 +353,6 @@ class StateFileManagerTests {
                             TestPlatformContextBuilder.create().build().getConfiguration();
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
-                                            configuration,
                                             savedStateInfo.stateFile(),
                                             TEST_PLATFORM_STATE_FACADE,
                                             PlatformContext.create(configuration))

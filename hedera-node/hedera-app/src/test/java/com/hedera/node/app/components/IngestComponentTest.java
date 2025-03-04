@@ -44,7 +44,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -111,7 +110,7 @@ class IngestComponentTest {
                 new AppSignatureVerifier(
                         DEFAULT_CONFIG.getConfigData(HederaConfig.class),
                         new SignatureExpanderImpl(),
-                        new SignatureVerifierImpl(CryptographyHolder.get())),
+                        new SignatureVerifierImpl()),
                 UNAVAILABLE_GOSSIP,
                 () -> configuration,
                 () -> DEFAULT_NODE_INFO,
@@ -137,7 +136,6 @@ class IngestComponentTest {
                 .scheduleService(new ScheduleServiceImpl(appContext))
                 .initTrigger(InitTrigger.GENESIS)
                 .platform(platform)
-                .crypto(CryptographyHolder.get())
                 .self(selfNodeInfo)
                 .maxSignedTxnSize(1024)
                 .currentPlatformStatus(() -> PlatformStatus.ACTIVE)

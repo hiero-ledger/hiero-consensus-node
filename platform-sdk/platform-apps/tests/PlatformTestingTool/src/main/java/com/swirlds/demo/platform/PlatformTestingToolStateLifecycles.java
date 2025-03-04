@@ -20,7 +20,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
@@ -99,6 +100,8 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
     private static final Marker LOGM_EXPIRATION = MarkerManager.getMarker("EXPIRATION");
     private static final Marker LOGM_STARTUP = MarkerManager.getMarker("STARTUP");
     private static final long EXCEPTION_RATE_THRESHOLD = 10;
+
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     static final String STAT_TIMER_THREAD_NAME = "stat timer PTTState";
 
@@ -1045,7 +1048,7 @@ public class PlatformTestingToolStateLifecycles implements StateLifecycles<Platf
                     contents, sigOffset, signature.length, msgLen, publicKey.length, 0, msgLen, signatureType);
             trans.setMetadata(transactionSignature);
 
-            CryptographyHolder.get().verifySync(List.of(transactionSignature));
+            CRYPTOGRAPHY.verifySync(List.of(transactionSignature));
         }
     }
 

@@ -118,7 +118,6 @@ public class TurtleNode {
                 RecycleBin.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, nodeId);
 
         final var reservedState = getInitialState(
-                configuration,
                 recycleBin,
                 version,
                 TurtleTestingToolState::getStateRootNode,
