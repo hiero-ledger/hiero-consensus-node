@@ -100,6 +100,47 @@ tasks {
     prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
 }
 
+// Remove the individual PR tag convenience tasks and replace with a single subprocess task with
+// block node simulator
+tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
+    testClassesDirs = sourceSets.main.get().output.classesDirs
+    classpath = sourceSets.main.get().runtimeClasspath
+
+    // Set the block node mode to simulator
+    systemProperty("hapi.spec.blocknode.mode", "SIM")
+
+    // Use the same configuration as testSubprocess
+    useJUnitPlatform { includeTags("!(EMBEDDED|REPEATABLE)") }
+
+    // Choose a different initial port for each test task if running as PR check
+    val initialPort =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckStartPorts[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .findFirst()
+            .orElse("")
+    systemProperty("hapi.spec.initial.port", initialPort)
+
+    // Other standard properties
+    systemProperty("hapi.spec.quiet.mode", System.getProperty("hapi.spec.quiet.mode") ?: "false")
+    systemProperty("junit.jupiter.execution.parallel.enabled", true)
+    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
+    systemProperty(
+        "junit.jupiter.testclass.order.default",
+        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+    )
+
+    // Limit heap and number of processors
+    maxHeapSize = "8g"
+    jvmArgs("-XX:ActiveProcessorCount=6")
+    maxParallelForks = 1
+
+    // Do not yet run things on the '--module-path'
+    modularity.inferModulePath.set(false)
+}
+
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = sourceSets.main.get().runtimeClasspath

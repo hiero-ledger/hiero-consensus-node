@@ -33,6 +33,11 @@ throughout.
   - [DON'T start by copying a test that uses `withOpContext()`](#dont-start-by-copying-a-test-that-uses-withopcontext)
 - [Rare techniques](#rare-techniques)
   - [Predicting an entity number](#predicting-an-entity-number)
+- [Working with Block Node Simulators](#working-with-block-node-simulators)
+  - [Prerequisites](#prerequisites)
+  - [Using BlockNodeSimulatorVerbs](#using-blocknodesimulatorverbs)
+  - [Available Operations](#available-operations)
+  - [Important Notes](#important-notes)
 
 ## Patterns
 
@@ -296,3 +301,89 @@ withOpContext((spec, opLog) -> {
 
 See `SelfDestructSuite` for examples, e.g., `selfDestructedContractIsDeletedInSameTx` and helper
 method `getNthNextContractInfoFrom`.
+
+## Working with Block Node Simulators
+
+When testing interactions with block nodes, you can use the `BlockNodeSimulatorVerbs` class to control simulated block nodes in your tests. This allows you to test how consensus nodes handle different response codes, connection drops, and other edge cases from block nodes.
+
+### Prerequisites
+
+To use block node simulator operations in your tests, you must:
+
+1. Run your tests with the block node simulator enabled by setting the system property `hapi.spec.blocknode.mode=SIM`
+2. Use a `SubProcessNetwork` (not an embedded network)
+
+You can use the predefined Gradle task `testSubprocessWithBlockNodeSimulator` to run tests with the block node simulator enabled:
+
+```bash
+./gradlew testSubprocessWithBlockNodeSimulator --tests "com.hedera.services.bdd.suites.YourTestSuite"
+```
+
+### Using BlockNodeSimulatorVerbs
+
+The `BlockNodeSimulatorVerbs` class provides a fluent API for interacting with block node simulators. Here's how to use it in your tests:
+
+```java
+import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
+import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
+import java.util.concurrent.atomic.AtomicLong;
+
+@HapiTest
+public Stream<DynamicTest> testBlockNodeSimulator() {
+    AtomicLong lastVerifiedBlock = new AtomicLong(0);
+
+    return hapiTest(
+        // Get the last verified block number from simulator 0
+        blockNodeSimulator().getLastVerifiedBlockExposing(0, lastVerifiedBlock),
+
+        // Send an EndOfStream response with INTERNAL error code
+        blockNodeSimulator().sendEndOfStreamWithBlock(
+            0, PublishStreamResponseCode.INTERNAL, lastVerifiedBlock.get() + 1),
+
+        // Simulate a connection drop by shutting down simulator 0
+        blockNodeSimulator().shutDownImmediately(0),
+
+        // Wait for the consensus node to detect the connection drop
+        sleepFor(5000),
+
+        // Restart the simulator
+        blockNodeSimulator().restartImmediately(0),
+
+        // Assert that a specific block has been received
+        blockNodeSimulator().assertBlockReceived(0, lastVerifiedBlock.get() + 5)
+    );
+}
+```
+
+### Available Operations
+
+The `BlockNodeSimulatorVerbs` class provides the following operations:
+
+1. **Control Response Codes**:
+   - `sendEndOfStreamImmediately(nodeIndex, responseCode)` - Send an immediate EndOfStream response
+   - `sendEndOfStreamWithBlock(nodeIndex, responseCode, blockNumber)` - Send an EndOfStream response with a specific block number
+2. **Simulate Connection Issues**:
+   - `shutDownImmediately(nodeIndex)` - Shut down a specific simulator
+   - `shutDownAll()` - Shut down all simulators
+   - `restartImmediately(nodeIndex)` - Restart a specific simulator
+   - `restartAll()` - Restart all previously shut down simulators
+3. **Verify Block Processing**:
+   - `assertBlockReceived(nodeIndex, blockNumber)` - Assert that a specific block has been received
+   - `getLastVerifiedBlock(nodeIndex)` - Get the last verified block number
+   - `getLastVerifiedBlockExposing(nodeIndex, atomicLong)` - Get the last verified block number and store it in an AtomicLong
+
+### Important Notes
+
+1. Block node simulator operations will throw an `IllegalStateException` if the block node mode is not set to `SIMULATOR`.
+
+2. Each consensus node (0-3) has a corresponding block node simulator with the same index.
+
+3. When testing error handling, it's important to verify that the consensus node recovers properly after simulated failures.
+
+4. The block node simulator is useful for testing:
+
+   - How consensus nodes handle different response codes from block nodes
+   - Recovery from connection drops
+   - Block verification and processing logic
+
+For more examples, see the `BlockNodeSimulatorSuite` class.

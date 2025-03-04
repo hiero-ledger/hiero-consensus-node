@@ -34,6 +34,7 @@ import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
+import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeSimulatorController;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
@@ -112,6 +113,30 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void setBlockNodeMode(BlockNodeMode mode) {
         log.info("Setting block node mode from {} to {}", this.blockNodeMode, mode);
         this.blockNodeMode = mode;
+    }
+
+    /**
+     * Get the current block node mode for this network.
+     * @return the current block node mode
+     */
+    public BlockNodeMode getBlockNodeMode() {
+        return this.blockNodeMode;
+    }
+
+    /**
+     * Get the list of simulated block node servers.
+     * @return the list of simulated block node servers
+     */
+    public List<SimulatedBlockNodeServer> getSimulatedBlockNodes() {
+        return Collections.unmodifiableList(simulatedBlockNodes);
+    }
+
+    /**
+     * Get a controller for the simulated block nodes.
+     * @return a controller for the simulated block nodes
+     */
+    public BlockNodeSimulatorController getBlockNodeSimulatorController() {
+        return new BlockNodeSimulatorController(this);
     }
 
     /**
@@ -211,7 +236,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         log.info("Starting network with block node mode: {}", blockNodeMode);
 
         // First start block nodes if needed
-        if (blockNodeMode == BlockNodeMode.CONTAINERS) {
+        if (blockNodeMode == BlockNodeMode.REAL) {
             log.info("Starting block node containers for {} nodes", nodes.size());
             for (HederaNode node : nodes) {
                 // Start a block node container for this network node
@@ -251,7 +276,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             node.initWorkingDir(configTxt);
 
             // Write block node config if needed
-            if (blockNodeMode == BlockNodeMode.CONTAINERS) {
+            if (blockNodeMode == BlockNodeMode.REAL) {
                 BlockNodeContainer container = blockNodeContainers.get(i);
                 updateBlockNodesConfigForNode(node, container);
                 log.info(
@@ -287,40 +312,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
 
             // Update application.properties with block stream settings
-            Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
-            log.info(
-                    "Attempting to update application.properties at path {} for node {}",
-                    appPropertiesPath,
-                    node.getNodeId());
-
-            // First check if file exists and log current content
-            if (Files.exists(appPropertiesPath)) {
-                String currentContent = Files.readString(appPropertiesPath);
-                log.info("Current application.properties content for node {}: {}", node.getNodeId(), currentContent);
-            } else {
-                log.info(
-                        "application.properties does not exist yet for node {}, will create new file",
-                        node.getNodeId());
-            }
-
-            String blockStreamConfig =
-                    """
-                    # Block stream configuration
-                    blockStream.writerMode=FILE_AND_GRPC
-                    blockStream.shutdownNodeOnNoBlockNodes=true
-                    """;
-
-            // Write the properties with CREATE and APPEND options
-            Files.writeString(
-                    appPropertiesPath, blockStreamConfig, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-
-            // Verify the file was updated
-            String updatedContent = Files.readString(appPropertiesPath);
-            log.info(
-                    "Verified application.properties content after update for node {}: {}",
-                    node.getNodeId(),
-                    updatedContent);
-
+            updateApplicationPropertiesWithGrpcStreaming(node);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to update block node configuration for node " + node.getNodeId(), e);
         }
@@ -367,9 +359,45 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     "Updated block node configuration for node {} with {} simulator servers",
                     node.getNodeId(),
                     simulatedBlockNodes.size());
+
+            // Update application.properties with block stream settings
+            updateApplicationPropertiesWithGrpcStreaming(node);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to update block node configuration for node " + node.getNodeId(), e);
         }
+    }
+
+    private static void updateApplicationPropertiesWithGrpcStreaming(HederaNode node) throws IOException {
+        Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
+        log.info(
+                "Attempting to update application.properties at path {} for node {}",
+                appPropertiesPath,
+                node.getNodeId());
+
+        // First check if file exists and log current content
+        if (Files.exists(appPropertiesPath)) {
+            String currentContent = Files.readString(appPropertiesPath);
+            log.info("Current application.properties content for node {}: {}", node.getNodeId(), currentContent);
+        } else {
+            log.info("application.properties does not exist yet for node {}, will create new file", node.getNodeId());
+        }
+
+        String blockStreamConfig =
+                """
+                # Block stream configuration
+                blockStream.writerMode=FILE_AND_GRPC
+                blockStream.shutdownNodeOnNoBlockNodes=true
+                """;
+
+        // Write the properties with CREATE and APPEND options
+        Files.writeString(appPropertiesPath, blockStreamConfig, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+
+        // Verify the file was updated
+        String updatedContent = Files.readString(appPropertiesPath);
+        log.info(
+                "Verified application.properties content after update for node {}: {}",
+                node.getNodeId(),
+                updatedContent);
     }
 
     /**
