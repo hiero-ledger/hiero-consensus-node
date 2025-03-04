@@ -13,14 +13,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * A standard implementation of {@link BranchDetector}.
  */
 public class DefaultBranchDetector implements BranchDetector {
-    private static final Logger logger = LogManager.getLogger(DefaultBranchDetector.class);
     /**
      * The current event window.
      */
