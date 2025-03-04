@@ -33,6 +33,8 @@ class LongAccumulatorConfigTest {
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getAccumulator().applyAsLong(2L, 3L)).isEqualTo(Long.max(2L, 3L));
         assertThat(config.getInitialValue()).isZero();
+        assertThat(config.getLabelKeys()).isEmpty();
+        assertThat(config.getPredefinedLabels()).isEmpty();
     }
 
     @Test
@@ -70,6 +72,8 @@ class LongAccumulatorConfigTest {
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getAccumulator().applyAsLong(2L, 3L)).isEqualTo(Long.max(2L, 3L));
         assertThat(config.getInitialValue()).isZero();
+        assertThat(config.getLabelKeys()).isEmpty();
+        assertThat(config.getPredefinedLabels()).isEmpty();
 
         assertThat(result.getCategory()).isEqualTo(CATEGORY);
         assertThat(result.getName()).isEqualTo(NAME);
@@ -78,6 +82,8 @@ class LongAccumulatorConfigTest {
         assertThat(result.getFormat()).isEqualTo(FORMAT);
         assertThat(result.getAccumulator()).isEqualTo(accumulator);
         assertThat(result.getInitialValue()).isEqualTo(42L);
+        assertThat(result.getLabelKeys()).isEmpty();
+        assertThat(result.getPredefinedLabels()).isEmpty();
     }
 
     @Test

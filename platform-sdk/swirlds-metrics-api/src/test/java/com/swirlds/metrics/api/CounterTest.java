@@ -47,6 +47,19 @@ class CounterTest {
     }
 
     @Test
+    void getLabel() {
+        assertThat(sut.getLabels()).isEmpty();
+    }
+
+    @Test
+    void getSupportedLabelKeys() {
+        assertThat(sut.getSupportedLabelKeys()).isEmpty();
+        for (final String key : sut.getSupportedLabelKeys()) {
+            assertThat(sut.getLabels().containsKey(key)).isTrue();
+        }
+    }
+
+    @Test
     void get_ShouldReturnValueByValueType() {
         final Counter counter = sut;
 
