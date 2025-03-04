@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    api(platform("io.netty:netty-bom:4.1.118.Final"))
+    api(platform("io.netty:netty-bom:4.1.119.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -22,7 +22,7 @@ val dagger = "2.55"
 val eclipseCollections = "11.1.0"
 val grpc = "1.70.0"
 val hederaCryptography = "0.1.1-SNAPSHOT"
-val helidon = "4.1.6"
+val helidon = "4.1.7"
 val jackson = "2.18.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"

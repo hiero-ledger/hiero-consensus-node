@@ -6,7 +6,7 @@ import static com.swirlds.common.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.SerializableHashable;
@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class FCQueue<E extends FastCopyable & SerializableHashable> extends PartialMerkleLeaf
         implements Queue<E>, MerkleLeaf {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private static class ClassVersion {
         /**
@@ -789,10 +790,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         if (element == null) {
             return NULL_HASH_BYTES;
         }
-        final Cryptography crypto = CryptographyHolder.get();
         // return a hash of a hash, in order to make state proofs smaller in the future
-        crypto.digestSync(element);
-        return crypto.digestBytesSync(element.getHash(), DigestType.SHA_384);
+        CRYPTOGRAPHY.digestSync(element);
+        return CRYPTOGRAPHY.digestBytesSync(element.getHash(), DigestType.SHA_384);
     }
 
     @Override

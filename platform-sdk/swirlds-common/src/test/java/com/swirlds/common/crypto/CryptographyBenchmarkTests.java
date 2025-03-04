@@ -10,18 +10,12 @@ import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class CryptographyBenchmarkTests {
-    private static Cryptography cryptoProvider;
-
-    @BeforeAll
-    static void startup() {
-        cryptoProvider = CryptographyHolder.get();
-    }
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private record TransactionComponents(byte[] message, byte[] publicKey, byte[] signature) {}
 
@@ -78,7 +72,7 @@ class CryptographyBenchmarkTests {
             final TransactionComponents transactionComponents = extractComponents(signatures[i]);
 
             final long startTime = System.nanoTime();
-            cryptoProvider.verifySync(
+            CRYPTOGRAPHY.verifySync(
                     transactionComponents.message,
                     transactionComponents.publicKey,
                     transactionComponents.signature,
@@ -120,7 +114,7 @@ class CryptographyBenchmarkTests {
             final TransactionComponents transactionComponents = extractComponents(signatures[i]);
 
             final long startTime = System.nanoTime();
-            cryptoProvider.verifySync(
+            CRYPTOGRAPHY.verifySync(
                     transactionComponents.message,
                     transactionComponents.publicKey,
                     transactionComponents.signature,
@@ -163,7 +157,7 @@ class CryptographyBenchmarkTests {
             final byte[] payload = messages[i].getPayloadDirect();
 
             final long startTime = System.nanoTime();
-            cryptoProvider.digestSync(payload, DigestType.SHA_384);
+            CRYPTOGRAPHY.digestSync(payload, DigestType.SHA_384);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance

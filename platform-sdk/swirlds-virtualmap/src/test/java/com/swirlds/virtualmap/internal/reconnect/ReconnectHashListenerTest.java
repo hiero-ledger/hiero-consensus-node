@@ -10,7 +10,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -45,7 +45,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class ReconnectHashListenerTest {
 
-    private static final Cryptography CRYPTO = CryptographyHolder.get();
+    private static final Cryptography CRYPTO = CryptographyFactory.create();
 
     @Test
     @DisplayName("Null datasource throws")

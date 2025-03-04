@@ -25,11 +25,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class CryptoEngine implements Cryptography {
 
-    /**
-     * The constant value used as the component name for all threads created by this module.
-     */
-    public static final String THREAD_COMPONENT_NAME = "adv crypto";
-
     static {
         // Register the BouncyCastle Provider instance with the JVM
         Security.addProvider(new BouncyCastleProvider());

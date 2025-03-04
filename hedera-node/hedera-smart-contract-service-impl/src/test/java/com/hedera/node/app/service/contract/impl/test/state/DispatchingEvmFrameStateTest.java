@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -54,7 +55,9 @@ import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -118,6 +121,7 @@ class DispatchingEvmFrameStateTest {
             AccountID.newBuilder().accountNum(ACCOUNT_NUM).build();
     private static final AccountID B_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(BENEFICIARY_NUM).build();
+    private static final Configuration configuration = HederaTestConfigBuilder.createConfig();
 
     @Mock
     private HederaNativeOperations nativeOperations;
@@ -414,14 +418,18 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void throwsOnMissingAddressWhenGettingHederaIdNumber() {
-        given(nativeOperations.resolveAlias(tuweniToPbjBytes(EVM_ADDRESS))).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EVM_ADDRESS)))
+                .willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(configuration);
         assertThrows(IllegalArgumentException.class, () -> subject.getIdNumber(EVM_ADDRESS));
     }
 
     @Test
     void returnsResolvedNumberForEvmAddress() {
-        given(nativeOperations.resolveAlias(tuweniToPbjBytes(EVM_ADDRESS))).willReturn(ACCOUNT_NUM);
+        given(nativeOperations.resolveAlias(0, 0, tuweniToPbjBytes(EVM_ADDRESS)))
+                .willReturn(ACCOUNT_NUM);
+        given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         assertEquals(ACCOUNT_NUM, subject.getIdNumber(EVM_ADDRESS));
     }
@@ -531,6 +539,7 @@ class DispatchingEvmFrameStateTest {
     @Test
     void missingAccountsCannotTransferFunds() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(configuration);
         final var reasonToHaltDeletion = subject.tryTransfer(EVM_ADDRESS, LONG_ZERO_ADDRESS, 123L, true);
         assertTrue(reasonToHaltDeletion.isPresent());
         assertEquals(INVALID_SOLIDITY_ADDRESS, reasonToHaltDeletion.get());
@@ -540,6 +549,7 @@ class DispatchingEvmFrameStateTest {
     void cannotTransferToMissingAccount() {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true));
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(configuration);
         final var reasonToHaltDeletion = subject.tryTransfer(LONG_ZERO_ADDRESS, EVM_ADDRESS, 123L, true);
         assertTrue(reasonToHaltDeletion.isPresent());
         assertEquals(INVALID_SOLIDITY_ADDRESS, reasonToHaltDeletion.get());
@@ -568,8 +578,9 @@ class DispatchingEvmFrameStateTest {
     @Test
     void cannotLazyCreateOverExpiredAccount() {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).expiredAndPendingRemoval(true));
-        given(nativeOperations.resolveAlias(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(0, 0, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
+        given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
@@ -582,6 +593,7 @@ class DispatchingEvmFrameStateTest {
     void noHaltIfLazyCreationOk() {
         given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(ResponseCodeEnum.SUCCESS);
+        given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
 
@@ -593,6 +605,7 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(configuration);
         final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
 
         assertTrue(reasonLazyCreationFailed.isPresent());
@@ -611,7 +624,8 @@ class DispatchingEvmFrameStateTest {
     void throwsOnLazyCreateOfNonExpiredAccount() {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        given(nativeOperations.resolveAlias(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.configuration()).willReturn(configuration);
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), eq(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe()))))
                 .willReturn(ACCOUNT_NUM);
 
         assertThrows(IllegalArgumentException.class, () -> subject.tryLazyCreation(EVM_ADDRESS));
@@ -747,27 +761,31 @@ class DispatchingEvmFrameStateTest {
     @Test
     void returnsNullForMissingAlias() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(configuration);
         assertNull(subject.getAccount(EVM_ADDRESS));
     }
 
     @Test
     void missingAliasIsNotHollow() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(configuration);
         assertFalse(subject.isHollowAccount(EVM_ADDRESS));
     }
 
     @Test
     void missingAccountIsNotHollow() {
-        given(nativeOperations.resolveAlias(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(0, 0, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
+        given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         assertFalse(subject.isHollowAccount(EVM_ADDRESS));
     }
 
     @Test
     void extantAccountIsHollowOnlyIfHasAnEmptyKey() {
-        given(nativeOperations.resolveAlias(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(0, 0, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
+        given(nativeOperations.configuration()).willReturn(configuration);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID)
                 .key(Key.newBuilder().keyList(KeyList.DEFAULT).build()));
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
@@ -776,8 +794,9 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void usesResolvedNumberFromDispatch() {
-        given(nativeOperations.resolveAlias(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(0, 0, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
+        given(nativeOperations.configuration()).willReturn(configuration);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         assertInstanceOf(ProxyEvmContract.class, subject.getAccount(EVM_ADDRESS));
