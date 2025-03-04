@@ -3,77 +3,77 @@ package com.hedera.node.app.hapi.utils.fee;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hederahashgraph.api.proto.java.FileDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.SystemDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.file.FileDeleteTransactionBody;
+import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
+import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import org.junit.jupiter.api.Test;
 
 class FileFeeBuilderTest {
     private final TransactionBody.Builder transactionBodyBuilder =
-            TransactionBody.newBuilder().setMemo("memo tx");
+            TransactionBody.newBuilder().memo("memo tx");
     private final SigValueObj signValueObj = new SigValueObj(2, 2, 2);
     private final FileFeeBuilder fileFeeBuilder = new FileFeeBuilder();
 
     @Test
     void assertGetFileContentQueryFeeMatrices() {
         var result = fileFeeBuilder.getFileContentQueryFeeMatrices(2, ResponseType.ANSWER_STATE_PROOF);
-        assertEquals(1, result.getNodedata().getConstant());
-        assertEquals(236, result.getNodedata().getBpt());
-        assertEquals(2016, result.getNodedata().getBpr());
-        assertEquals(26, result.getNodedata().getSbpr());
+        assertEquals(1, result.nodedata().constant());
+        assertEquals(236, result.nodedata().bpt());
+        assertEquals(2016, result.nodedata().bpr());
+        assertEquals(26, result.nodedata().sbpr());
     }
 
     @Test
     void assertGetSystemDeleteFileTxFeeMatrices() {
         var transactionBody = transactionBodyBuilder
-                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().build())
+                .systemDelete(SystemDeleteTransactionBody.newBuilder().build())
                 .build();
         var result = fileFeeBuilder.getSystemDeleteFileTxFeeMatrices(transactionBody, signValueObj);
-        assertEquals(1, result.getNodedata().getConstant());
-        assertEquals(115, result.getNodedata().getBpt());
-        assertEquals(2, result.getNodedata().getVpt());
-        assertEquals(1, result.getNetworkdata().getConstant());
-        assertEquals(115, result.getNetworkdata().getBpt());
-        assertEquals(2, result.getNetworkdata().getVpt());
-        assertEquals(1, result.getNetworkdata().getRbh());
-        assertEquals(6, result.getServicedata().getRbh());
-        assertEquals(1, result.getServicedata().getConstant());
+        assertEquals(1, result.nodedata().constant());
+        assertEquals(115, result.nodedata().bpt());
+        assertEquals(2, result.nodedata().vpt());
+        assertEquals(1, result.networkdata().constant());
+        assertEquals(115, result.networkdata().bpt());
+        assertEquals(2, result.networkdata().vpt());
+        assertEquals(1, result.networkdata().rbh());
+        assertEquals(6, result.servicedata().rbh());
+        assertEquals(1, result.servicedata().constant());
     }
 
     @Test
     void assertGetSystemUnDeleteFileTxFeeMatrices() {
         var transactionBody = transactionBodyBuilder
-                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().build())
+                .systemUndelete(SystemUndeleteTransactionBody.newBuilder().build())
                 .build();
         var result = fileFeeBuilder.getSystemUnDeleteFileTxFeeMatrices(transactionBody, signValueObj);
-        assertEquals(1, result.getNodedata().getConstant());
-        assertEquals(115, result.getNodedata().getBpt());
-        assertEquals(2, result.getNodedata().getVpt());
-        assertEquals(1, result.getNetworkdata().getConstant());
-        assertEquals(115, result.getNetworkdata().getBpt());
-        assertEquals(2, result.getNetworkdata().getVpt());
-        assertEquals(1, result.getNetworkdata().getRbh());
-        assertEquals(6, result.getServicedata().getRbh());
-        assertEquals(1, result.getServicedata().getConstant());
+        assertEquals(1, result.nodedata().constant());
+        assertEquals(115, result.nodedata().bpt());
+        assertEquals(2, result.nodedata().vpt());
+        assertEquals(1, result.networkdata().constant());
+        assertEquals(115, result.networkdata().bpt());
+        assertEquals(2, result.networkdata().vpt());
+        assertEquals(1, result.networkdata().rbh());
+        assertEquals(6, result.servicedata().rbh());
+        assertEquals(1, result.servicedata().constant());
     }
 
     @Test
     void assertGetFileDeleteTxFeeMatrices() {
         var transactionBody = transactionBodyBuilder
-                .setFileDelete(FileDeleteTransactionBody.newBuilder().build())
+                .fileDelete(FileDeleteTransactionBody.newBuilder().build())
                 .build();
         var result = fileFeeBuilder.getFileDeleteTxFeeMatrices(transactionBody, signValueObj);
-        assertEquals(1, result.getNodedata().getConstant());
-        assertEquals(109, result.getNodedata().getBpt());
-        assertEquals(2, result.getNodedata().getVpt());
-        assertEquals(4, result.getNodedata().getBpr());
-        assertEquals(1, result.getNetworkdata().getConstant());
-        assertEquals(109, result.getNetworkdata().getBpt());
-        assertEquals(2, result.getNetworkdata().getVpt());
-        assertEquals(1, result.getNetworkdata().getRbh());
-        assertEquals(6, result.getServicedata().getRbh());
-        assertEquals(1, result.getServicedata().getConstant());
+        assertEquals(1, result.nodedata().constant());
+        assertEquals(109, result.nodedata().bpt());
+        assertEquals(2, result.nodedata().vpt());
+        assertEquals(4, result.nodedata().bpr());
+        assertEquals(1, result.networkdata().constant());
+        assertEquals(109, result.networkdata().bpt());
+        assertEquals(2, result.networkdata().vpt());
+        assertEquals(1, result.networkdata().rbh());
+        assertEquals(6, result.servicedata().rbh());
+        assertEquals(1, result.servicedata().constant());
     }
 }

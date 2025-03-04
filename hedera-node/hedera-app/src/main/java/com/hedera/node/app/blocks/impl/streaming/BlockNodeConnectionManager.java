@@ -3,13 +3,14 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.protoc.BlockItemSet;
-import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
+import com.hedera.hapi.block.BlockItemSet;
+import com.hedera.hapi.block.PublishStreamRequest;
+import com.hedera.hapi.block.PublishStreamResponse;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.tls.Tls;
@@ -18,7 +19,6 @@ import io.helidon.webclient.grpc.GrpcClientMethodDescriptor;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import io.helidon.webclient.grpc.GrpcServiceDescriptor;
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -40,8 +40,8 @@ import org.apache.logging.log4j.Logger;
  */
 public class BlockNodeConnectionManager {
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
-    private static final String GRPC_END_POINT =
-            BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
+    private static final String GRPC_END_POINT = "publishBlockStream";
+    private static final String BLOCK_STREAM_SERVICE_GRPC_SERVICE_NAME = "com.hedera.hapi.block.BlockStreamService";
 
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections;
     private BlockNodeConfigExtractor blockNodeConfigurations;
@@ -91,11 +91,11 @@ public class BlockNodeConnectionManager {
                     .build();
 
             GrpcServiceClient grpcServiceClient = client.serviceClient(GrpcServiceDescriptor.builder()
-                    .serviceName(BlockStreamServiceGrpc.SERVICE_NAME)
+                    .serviceName(BLOCK_STREAM_SERVICE_GRPC_SERVICE_NAME)
                     .putMethod(
                             GRPC_END_POINT,
                             GrpcClientMethodDescriptor.bidirectional(
-                                            BlockStreamServiceGrpc.SERVICE_NAME, GRPC_END_POINT)
+                                            BLOCK_STREAM_SERVICE_GRPC_SERVICE_NAME, GRPC_END_POINT)
                                     .requestType(PublishStreamRequest.class)
                                     .responseType(PublishStreamResponse.class)
                                     .build())
@@ -144,22 +144,21 @@ public class BlockNodeConnectionManager {
         for (int i = 0; i < block.itemBytes().size(); i += blockItemBatchSize) {
             int end = Math.min(i + blockItemBatchSize, block.itemBytes().size());
             List<Bytes> batch = block.itemBytes().subList(i, end);
-            List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>();
+            List<BlockItem> protocBlockItems = new ArrayList<>();
             batch.forEach(batchItem -> {
                 try {
-                    protocBlockItems.add(
-                            com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(batchItem.toByteArray()));
-                } catch (IOException e) {
+                    protocBlockItems.add(BlockItem.PROTOBUF.parse(batchItem));
+                } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
             });
 
             // Create BlockItemSet by adding all items at once
             BlockItemSet itemSet =
-                    BlockItemSet.newBuilder().addAllBlockItems(protocBlockItems).build();
+                    BlockItemSet.newBuilder().blockItems(protocBlockItems).build();
 
             batchRequests.add(
-                    PublishStreamRequest.newBuilder().setBlockItems(itemSet).build());
+                    PublishStreamRequest.newBuilder().blockItems(itemSet).build());
         }
 
         // Stream prepared batches to each connection

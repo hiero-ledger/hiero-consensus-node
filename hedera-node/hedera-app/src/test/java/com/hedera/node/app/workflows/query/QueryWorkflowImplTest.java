@@ -47,7 +47,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetExecutionTimeHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -709,13 +708,13 @@ class QueryWorkflowImplTest extends AppTestBase {
                 .build();
         when(queryParser.parseStrict((ReadableSequentialData) notNull())).thenReturn(query);
 
-        final var requestBytes = CommonPbjConverters.asBytes(localRequestBuffer);
+        final var requestBytes = localRequestBuffer.getBytes(0, localRequestBuffer.length());
         when(handler.extractHeader(query)).thenReturn(queryHeader);
         when(dispatcher.getHandler(query)).thenReturn(handler);
         final var responseBuffer = newEmptyBuffer();
 
         // when
-        workflow.handleQuery(Bytes.wrap(requestBytes), responseBuffer);
+        workflow.handleQuery(requestBytes, responseBuffer);
 
         // then
         final var response = parseResponse(responseBuffer);
@@ -916,7 +915,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                         NetworkGetExecutionTimeQuery.newBuilder().header(localQueryHeader))
                 .build();
 
-        final var requestBytes = CommonPbjConverters.asBytes(localRequestBuffer);
+        final var requestBytes = localRequestBuffer.getBytes(0, localRequestBuffer.length());
         when(queryParser.parseStrict((ReadableSequentialData) notNull())).thenReturn(localQuery);
         when(networkHandler.extractHeader(localQuery)).thenReturn(localQueryHeader);
         when(dispatcher.getHandler(localQuery)).thenReturn(networkHandler);
@@ -933,7 +932,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         final var responseBuffer = newEmptyBuffer();
 
         // when
-        workflow.handleQuery(Bytes.wrap(requestBytes), responseBuffer);
+        workflow.handleQuery(requestBytes, responseBuffer);
 
         // then
         final var response = parseResponse(responseBuffer);

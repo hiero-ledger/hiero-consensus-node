@@ -213,7 +213,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.FUNGIBLE_COMMON)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .deleted(true) // Intentionally deleted
                     .build());
 
@@ -232,7 +232,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .paused(true) // Intentionally paused
                     .build());
             final var txn = newBurnTxn(TOKEN_123, 1);
@@ -274,7 +274,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .build());
             // Intentionally has no token rels:
             writableTokenRelStore = newWritableStoreWithTokenRels();
@@ -295,7 +295,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.FUNGIBLE_COMMON)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -319,7 +319,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.FUNGIBLE_COMMON)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(totalFungibleSupply)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -341,7 +341,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.FUNGIBLE_COMMON)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -371,7 +371,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.FUNGIBLE_COMMON)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -411,7 +411,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.FUNGIBLE_COMMON)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -481,7 +481,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -504,7 +504,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -532,7 +532,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -555,7 +555,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -590,7 +590,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -625,7 +625,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(1)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -669,7 +669,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(3)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -732,7 +732,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
@@ -796,7 +796,7 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_123)
                     .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                     .treasuryAccountId(ACCOUNT_1339)
-                    .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                    .supplyKey(TOKEN_SUPPLY_KT.asKey())
                     .totalSupply(10)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()

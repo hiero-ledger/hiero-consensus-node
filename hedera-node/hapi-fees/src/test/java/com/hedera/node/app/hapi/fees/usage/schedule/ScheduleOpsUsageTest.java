@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.schedule;
 
+import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
+import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 import static com.hedera.node.app.hapi.fees.test.UsageUtils.A_USAGES_MATRIX;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.schedule.entities.ScheduleEntitySizes.SCHEDULE_ENTITY_SIZES;
@@ -10,36 +12,34 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.KEY_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
-import static com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
-import static com.hederahashgraph.api.proto.java.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.QueryHeader;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
+import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
+import com.hedera.hapi.node.scheduled.ScheduleDeleteTransactionBody;
+import com.hedera.hapi.node.scheduled.ScheduleGetInfoQuery;
+import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
+import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
+import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
 import com.hedera.node.app.hapi.fees.usage.QueryUsage;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractCallTransactionBody;
-import com.hederahashgraph.api.proto.java.CryptoDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.QueryHeader;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.SchedulableTransactionBody;
-import com.hederahashgraph.api.proto.java.ScheduleCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.ScheduleDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.ScheduleGetInfoQuery;
-import com.hederahashgraph.api.proto.java.ScheduleID;
-import com.hederahashgraph.api.proto.java.ScheduleSignTransactionBody;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,13 +58,13 @@ class ScheduleOpsUsageTest {
     private final String memo = "This is just a memo?";
     private final AccountID payer = IdUtils.asAccount("0.0.2");
     private final SchedulableTransactionBody scheduledTxn = SchedulableTransactionBody.newBuilder()
-            .setTransactionFee(1_234_567L)
-            .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(payer))
+            .transactionFee(1_234_567L)
+            .cryptoDelete(CryptoDeleteTransactionBody.newBuilder().deleteAccountID(payer))
             .build();
 
     private final SchedulableTransactionBody scheduledTxnWithContractCall = SchedulableTransactionBody.newBuilder()
-            .setTransactionFee(1_234_567L)
-            .setContractCall(ContractCallTransactionBody.newBuilder())
+            .transactionFee(1_234_567L)
+            .contractCall(ContractCallTransactionBody.newBuilder())
             .build();
 
     private EstimatorFactory factory;
@@ -135,10 +135,11 @@ class ScheduleOpsUsageTest {
                 .build();
         final var expectedRamBytes = createdCtx.nonBaseRb();
         // and:
-        final var expectedTxBytes = scheduledTxn.getSerializedSize()
-                + getAccountKeyStorageSize(adminKey)
-                + memo.length()
-                + BASIC_ENTITY_ID_SIZE;
+        final var expectedTxBytes =
+                SchedulableTransactionBody.PROTOBUF.toBytes(scheduledTxn).length()
+                        + getAccountKeyStorageSize(adminKey)
+                        + memo.length()
+                        + BASIC_ENTITY_ID_SIZE;
 
         // when:
         final var estimate = subject.scheduleCreateUsage(creationTxn(scheduledTxn), sigUsage, lifetimeSecs);
@@ -165,7 +166,9 @@ class ScheduleOpsUsageTest {
                 .build();
         final var expectedRamBytes = createdCtx.nonBaseRb();
         // and:
-        final var expectedTxBytes = scheduledTxnWithContractCall.getSerializedSize()
+        final var expectedTxBytes = SchedulableTransactionBody.PROTOBUF
+                        .toBytes(scheduledTxnWithContractCall)
+                        .length()
                 + getAccountKeyStorageSize(adminKey)
                 + memo.length()
                 + BASIC_ENTITY_ID_SIZE;
@@ -207,47 +210,47 @@ class ScheduleOpsUsageTest {
 
     private Query scheduleQuery() {
         final var op = ScheduleGetInfoQuery.newBuilder()
-                .setHeader(QueryHeader.newBuilder()
-                        .setResponseType(ANSWER_STATE_PROOF)
+                .header(QueryHeader.newBuilder()
+                        .responseType(ANSWER_STATE_PROOF)
                         .build())
-                .setScheduleID(id)
+                .scheduleID(id)
                 .build();
-        return Query.newBuilder().setScheduleGetInfo(op).build();
+        return Query.newBuilder().scheduleGetInfo(op).build();
     }
 
     private TransactionBody creationTxn(final SchedulableTransactionBody body) {
-        return baseTxn().setScheduleCreate(creationOp(body)).build();
+        return baseTxn().scheduleCreate(creationOp(body)).build();
     }
 
     private TransactionBody deletionTxn() {
-        return baseTxn().setScheduleDelete(deletionOp()).build();
+        return baseTxn().scheduleDelete(deletionOp()).build();
     }
 
     private TransactionBody signingTxn() {
-        return baseTxn().setScheduleSign(signingOp()).build();
+        return baseTxn().scheduleSign(signingOp()).build();
     }
 
     private TransactionBody.Builder baseTxn() {
         return TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now))
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now))
                         .build());
     }
 
     private ScheduleCreateTransactionBody creationOp(final SchedulableTransactionBody body) {
         return ScheduleCreateTransactionBody.newBuilder()
-                .setMemo(memo)
-                .setAdminKey(adminKey)
-                .setPayerAccountID(payer)
-                .setScheduledTransactionBody(body)
+                .memo(memo)
+                .adminKey(adminKey)
+                .payerAccountID(payer)
+                .scheduledTransactionBody(body)
                 .build();
     }
 
     private ScheduleDeleteTransactionBody deletionOp() {
-        return ScheduleDeleteTransactionBody.newBuilder().setScheduleID(id).build();
+        return ScheduleDeleteTransactionBody.newBuilder().scheduleID(id).build();
     }
 
     private ScheduleSignTransactionBody signingOp() {
-        return ScheduleSignTransactionBody.newBuilder().setScheduleID(id).build();
+        return ScheduleSignTransactionBody.newBuilder().scheduleID(id).build();
     }
 }

@@ -3,6 +3,8 @@ package com.hedera.services.bdd.spec.transactions.token;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.google.common.base.MoreObjects.ToStringHelper;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
@@ -110,7 +112,8 @@ public class HapiTokenCancelAirdrop extends HapiTxnOp<HapiTokenCancelAirdrop> {
     }
 
     private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
-        return TokenDissociateUsage.newEstimate(txn, new TxnUsageEstimator(suFrom(svo), txn, ESTIMATOR_UTILS))
-                .get();
+        return fromPbj(TokenDissociateUsage.newEstimate(
+                        toPbj(txn), new TxnUsageEstimator(suFrom(svo), toPbj(txn), ESTIMATOR_UTILS))
+                .get());
     }
 }

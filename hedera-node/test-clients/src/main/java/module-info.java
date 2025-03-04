@@ -79,6 +79,8 @@ module com.hedera.node.test.clients {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
+    requires com.hedera.pbj.runtime;
+    requires com.hedera.protobuf.java.api;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
     requires com.swirlds.common;
@@ -122,7 +124,6 @@ module com.hedera.node.test.clients {
     requires org.yaml.snakeyaml;
     requires tuweni.bytes;
     requires tuweni.units;
-    requires static com.hedera.pbj.runtime;
     requires static com.github.spotbugs.annotations;
     requires static org.junit.platform.engine;
 }

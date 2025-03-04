@@ -1,42 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.authorization;
 
-import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.CommonUtils.functionOf;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.contract.ContractDeleteTransactionBody;
+import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
+import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.file.FileAppendTransactionBody;
+import com.hedera.hapi.node.file.FileDeleteTransactionBody;
+import com.hedera.hapi.node.file.FileUpdateTransactionBody;
+import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
+import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
+import com.hedera.hapi.node.freeze.FreezeTransactionBody;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.ContractID;
-import com.hederahashgraph.api.proto.java.ContractUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.CryptoDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.CryptoUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
-import com.hederahashgraph.api.proto.java.FileAppendTransactionBody;
-import com.hederahashgraph.api.proto.java.FileDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.FileUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.FreezeTransactionBody;
-import com.hederahashgraph.api.proto.java.NodeCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.SignedTransaction;
-import com.hederahashgraph.api.proto.java.SystemDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.Transaction;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
-import com.hederahashgraph.api.proto.java.UncheckedSubmitBody;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -213,399 +211,399 @@ class PrivilegesVerifierTest {
     }
 
     @Test
-    void uncheckedSubmitRejectsUnauthorized() throws InvalidProtocolBufferException {
+    void uncheckedSubmitRejectsUnauthorized() throws ParseException {
         // given:
         var txn = civilianTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
+                .uncheckedSubmit(
+                        UncheckedSubmitBody.newBuilder().transactionBytes(Bytes.wrap("DOESN'T MATTER".getBytes())));
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void sysAdminCanSubmitUnchecked() throws InvalidProtocolBufferException {
+    void sysAdminCanSubmitUnchecked() throws ParseException {
         // given:
         var txn = sysAdminTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
+                .uncheckedSubmit(
+                        UncheckedSubmitBody.newBuilder().transactionBytes(Bytes.wrap("DOESN'T MATTER".getBytes())));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void treasuryCanSubmitUnchecked() throws InvalidProtocolBufferException {
+    void treasuryCanSubmitUnchecked() throws ParseException {
         // given:
         var txn = treasuryTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
+                .uncheckedSubmit(
+                        UncheckedSubmitBody.newBuilder().transactionBytes(Bytes.wrap("DOESN'T MATTER".getBytes())));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void cryptoUpdateRecognizesAuthorized() throws InvalidProtocolBufferException {
+    void cryptoUpdateRecognizesAuthorized() throws ParseException {
         // given:
         var txn = treasuryTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(75)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(75)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void cryptoUpdateRecognizesUnnecessaryForSystem() throws InvalidProtocolBufferException {
+    void cryptoUpdateRecognizesUnnecessaryForSystem() throws ParseException {
         // given:
         var txn = civilianTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(75)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(75)));
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void cryptoUpdateRecognizesUnnecessaryForNonSystem() throws InvalidProtocolBufferException {
+    void cryptoUpdateRecognizesUnnecessaryForNonSystem() throws ParseException {
         // given:
         var txn = civilianTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(1001)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(1001)));
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void cryptoUpdateRecognizesAuthorizedForTreasury() throws InvalidProtocolBufferException {
+    void cryptoUpdateRecognizesAuthorizedForTreasury() throws ParseException {
         // given:
         var selfUpdateTxn = treasuryTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(2)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(2)));
         var otherUpdateTxn = treasuryTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(50)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(50)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(selfUpdateTxn)));
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(otherUpdateTxn)));
     }
 
     @Test
-    void cryptoUpdateRecognizesUnauthorized() throws InvalidProtocolBufferException {
+    void cryptoUpdateRecognizesUnauthorized() throws ParseException {
         // given:
         var civilianTxn = civilianTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(2)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(2)));
         var sysAdminTxn = sysAdminTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(2)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(2)));
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(civilianTxn)));
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(sysAdminTxn)));
     }
 
     @Test
-    void fileUpdateRecognizesUnauthorized() throws InvalidProtocolBufferException {
+    void fileUpdateRecognizesUnauthorized() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(111)));
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(file(111)));
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void fileAppendRecognizesUnauthorized() throws InvalidProtocolBufferException {
+    void fileAppendRecognizesUnauthorized() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setFileAppend(FileAppendTransactionBody.newBuilder().setFileID(file(111)));
+                .fileAppend(FileAppendTransactionBody.newBuilder().fileID(file(111)));
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void fileAppendRecognizesAuthorized() throws InvalidProtocolBufferException {
+    void fileAppendRecognizesAuthorized() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setFileAppend(FileAppendTransactionBody.newBuilder().setFileID(file(112)));
+                .fileAppend(FileAppendTransactionBody.newBuilder().fileID(file(112)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void treasuryCanFreeze() throws InvalidProtocolBufferException {
+    void treasuryCanFreeze() throws ParseException {
         // given:
-        var txn = treasuryTxn().setFreeze(FreezeTransactionBody.getDefaultInstance());
+        var txn = treasuryTxn().freeze(FreezeTransactionBody.DEFAULT);
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void sysAdminCanFreeze() throws InvalidProtocolBufferException {
+    void sysAdminCanFreeze() throws ParseException {
         // given:
-        var txn = sysAdminTxn().setFreeze(FreezeTransactionBody.getDefaultInstance());
+        var txn = sysAdminTxn().freeze(FreezeTransactionBody.DEFAULT);
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void freezeAdminCanFreeze() throws InvalidProtocolBufferException {
+    void freezeAdminCanFreeze() throws ParseException {
         // given:
-        var txn = freezeAdminTxn().setFreeze(FreezeTransactionBody.getDefaultInstance());
+        var txn = freezeAdminTxn().freeze(FreezeTransactionBody.DEFAULT);
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void treasuryCanCreateNode() throws InvalidProtocolBufferException {
+    void treasuryCanCreateNode() throws ParseException {
         // given:
-        var txn = treasuryTxn().setNodeCreate(NodeCreateTransactionBody.getDefaultInstance());
+        var txn = treasuryTxn().nodeCreate(NodeCreateTransactionBody.DEFAULT);
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void sysAdminnCanCreateNode() throws InvalidProtocolBufferException {
+    void sysAdminnCanCreateNode() throws ParseException {
         // given:
-        var txn = sysAdminTxn().setNodeCreate(NodeCreateTransactionBody.getDefaultInstance());
+        var txn = sysAdminTxn().nodeCreate(NodeCreateTransactionBody.DEFAULT);
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void addressBookAdminCanCreateNode() throws InvalidProtocolBufferException {
+    void addressBookAdminCanCreateNode() throws ParseException {
         // given:
-        var txn = addressBookAdminTxn().setNodeCreate(NodeCreateTransactionBody.getDefaultInstance());
+        var txn = addressBookAdminTxn().nodeCreate(NodeCreateTransactionBody.DEFAULT);
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void randomAdminCannotFreeze() throws InvalidProtocolBufferException {
+    void randomAdminCannotFreeze() throws ParseException {
         // given:
-        var txn = exchangeRatesAdminTxn().setFreeze(FreezeTransactionBody.getDefaultInstance());
+        var txn = exchangeRatesAdminTxn().freeze(FreezeTransactionBody.DEFAULT);
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemDeleteRecognizesImpermissibleContractDel() throws InvalidProtocolBufferException {
+    void systemDeleteRecognizesImpermissibleContractDel() throws ParseException {
         // given:
         var txn = treasuryTxn()
-                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(123)));
+                .systemDelete(SystemDeleteTransactionBody.newBuilder().contractID(contract(123)));
         // expect:
         assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemUndeleteRecognizesImpermissibleContractUndel() throws InvalidProtocolBufferException {
+    void systemUndeleteRecognizesImpermissibleContractUndel() throws ParseException {
         // given:
         var txn = treasuryTxn()
-                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setContractID(contract(123)));
+                .systemUndelete(SystemUndeleteTransactionBody.newBuilder().contractID(contract(123)));
         // expect:
         assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemUndeleteRecognizesUnauthorizedContractUndel() throws InvalidProtocolBufferException {
+    void systemUndeleteRecognizesUnauthorizedContractUndel() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setContractID(contract(1234)));
+                .systemUndelete(SystemUndeleteTransactionBody.newBuilder().contractID(contract(1234)));
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemUndeleteRecognizesAuthorizedContractUndel() throws InvalidProtocolBufferException {
+    void systemUndeleteRecognizesAuthorizedContractUndel() throws ParseException {
         // given:
         var txn = sysUndeleteTxn()
-                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setContractID(contract(1234)));
+                .systemUndelete(SystemUndeleteTransactionBody.newBuilder().contractID(contract(1234)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemUndeleteRecognizesAuthorizedFileUndel() throws InvalidProtocolBufferException {
+    void systemUndeleteRecognizesAuthorizedFileUndel() throws ParseException {
         // given:
         var txn = sysUndeleteTxn()
-                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setFileID(file(1234)));
+                .systemUndelete(SystemUndeleteTransactionBody.newBuilder().fileID(file(1234)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemUndeleteRecognizesUnauthorizedFileUndel() throws InvalidProtocolBufferException {
+    void systemUndeleteRecognizesUnauthorizedFileUndel() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setFileID(file(1234)));
+                .systemUndelete(SystemUndeleteTransactionBody.newBuilder().fileID(file(1234)));
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemUndeleteRecognizesImpermissibleFileUndel() throws InvalidProtocolBufferException {
+    void systemUndeleteRecognizesImpermissibleFileUndel() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setFileID(file(123)));
+                .systemUndelete(SystemUndeleteTransactionBody.newBuilder().fileID(file(123)));
         // expect:
         assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemDeleteRecognizesImpermissibleFileDel() throws InvalidProtocolBufferException {
+    void systemDeleteRecognizesImpermissibleFileDel() throws ParseException {
         // given:
         var txn = treasuryTxn()
-                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setFileID(file(123)));
+                .systemDelete(SystemDeleteTransactionBody.newBuilder().fileID(file(123)));
         // expect:
         assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemDeleteRecognizesUnauthorizedFileDel() throws InvalidProtocolBufferException {
+    void systemDeleteRecognizesUnauthorizedFileDel() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setFileID(file(1234)));
+                .systemDelete(SystemDeleteTransactionBody.newBuilder().fileID(file(1234)));
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemDeleteRecognizesAuthorizedFileDel() throws InvalidProtocolBufferException {
+    void systemDeleteRecognizesAuthorizedFileDel() throws ParseException {
         // given:
         var txn = sysDeleteTxn()
-                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setFileID(file(1234)));
+                .systemDelete(SystemDeleteTransactionBody.newBuilder().fileID(file(1234)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemDeleteRecognizesUnauthorizedContractDel() throws InvalidProtocolBufferException {
+    void systemDeleteRecognizesUnauthorizedContractDel() throws ParseException {
         // given:
         var txn = civilianTxn()
-                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(1234)));
+                .systemDelete(SystemDeleteTransactionBody.newBuilder().contractID(contract(1234)));
         // expect:
         assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemDeleteRecognizesAuthorizedContractDel() throws InvalidProtocolBufferException {
+    void systemDeleteRecognizesAuthorizedContractDel() throws ParseException {
         // given:
         var txn = sysDeleteTxn()
-                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(1234)));
+                .systemDelete(SystemDeleteTransactionBody.newBuilder().contractID(contract(1234)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void fileAppendRecognizesUnnecessary() throws InvalidProtocolBufferException {
+    void fileAppendRecognizesUnnecessary() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setFileAppend(FileAppendTransactionBody.newBuilder().setFileID(file(1122)));
+                .fileAppend(FileAppendTransactionBody.newBuilder().fileID(file(1122)));
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void contractUpdateRecognizesUnnecessary() throws InvalidProtocolBufferException {
+    void contractUpdateRecognizesUnnecessary() throws ParseException {
         // given:
         var txn = treasuryTxn()
-                .setContractUpdateInstance(
-                        ContractUpdateTransactionBody.newBuilder().setContractID(contract(1233)));
+                .contractUpdateInstance(
+                        ContractUpdateTransactionBody.newBuilder().contractID(contract(1233)));
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void fileUpdateRecognizesAuthorized() throws InvalidProtocolBufferException {
+    void fileUpdateRecognizesAuthorized() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(112)));
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(file(112)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void softwareUpdateAdminCanUpdateZipFile() throws InvalidProtocolBufferException {
+    void softwareUpdateAdminCanUpdateZipFile() throws ParseException {
         // given:
         var txn = softwareUpdateAdminTxn()
-                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(150)));
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(file(150)));
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void fileUpdateRecognizesUnnecessary() throws InvalidProtocolBufferException {
+    void fileUpdateRecognizesUnnecessary() throws ParseException {
         // given:
         var txn = exchangeRatesAdminTxn()
-                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(1122)));
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(file(1122)));
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemFilesCannotBeDeleted() throws InvalidProtocolBufferException {
+    void systemFilesCannotBeDeleted() throws ParseException {
         // given:
-        var txn = treasuryTxn()
-                .setFileDelete(FileDeleteTransactionBody.newBuilder().setFileID(file(100)));
+        var txn =
+                treasuryTxn().fileDelete(FileDeleteTransactionBody.newBuilder().fileID(file(100)));
 
         // expect:
         assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void civilianFilesAreDeletable() throws InvalidProtocolBufferException {
+    void civilianFilesAreDeletable() throws ParseException {
         // given:
-        var txn = treasuryTxn()
-                .setFileDelete(FileDeleteTransactionBody.newBuilder().setFileID(file(1001)));
+        var txn =
+                treasuryTxn().fileDelete(FileDeleteTransactionBody.newBuilder().fileID(file(1001)));
 
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void civilianContractsAreDeletable() throws InvalidProtocolBufferException {
+    void civilianContractsAreDeletable() throws ParseException {
         // given:
         var txn = treasuryTxn()
-                .setContractDeleteInstance(
-                        ContractDeleteTransactionBody.newBuilder().setContractID(contract(1001)));
+                .contractDeleteInstance(
+                        ContractDeleteTransactionBody.newBuilder().contractID(contract(1001)));
 
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void systemAccountsCannotBeDeleted() throws InvalidProtocolBufferException {
+    void systemAccountsCannotBeDeleted() throws ParseException {
         // given:
         var txn = treasuryTxn()
-                .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(account(100)));
+                .cryptoDelete(CryptoDeleteTransactionBody.newBuilder().deleteAccountID(account(100)));
 
         // expect:
         assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void civilianAccountsAreDeletable() throws InvalidProtocolBufferException {
+    void civilianAccountsAreDeletable() throws ParseException {
         // given:
         var txn = civilianTxn()
-                .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(account(1001)));
+                .cryptoDelete(CryptoDeleteTransactionBody.newBuilder().deleteAccountID(account(1001)));
 
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void createAccountAlwaysOk() throws InvalidProtocolBufferException {
+    void createAccountAlwaysOk() throws ParseException {
         // given:
-        var txn = civilianTxn().setCryptoCreateAccount(CryptoCreateTransactionBody.getDefaultInstance());
+        var txn = civilianTxn().cryptoCreateAccount(CryptoCreateTransactionBody.DEFAULT);
 
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void ethereumTxnAlwaysOk() throws InvalidProtocolBufferException {
+    void ethereumTxnAlwaysOk() throws ParseException {
         // given:
-        var txn = ethereumTxn().setEthereumTransaction(EthereumTransactionBody.getDefaultInstance());
+        var txn = ethereumTxn().ethereumTransaction(EthereumTransactionBody.DEFAULT);
 
         // expect:
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void handlesDifferentPayer() throws InvalidProtocolBufferException {
+    void handlesDifferentPayer() throws ParseException {
         // given:
         var selfUpdateTxn = civilianTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(2)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(2)));
         var otherUpdateTxn = civilianTxn()
-                .setCryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(50)));
+                .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(account(50)));
         // expect:
         assertEquals(
                 SystemOpAuthorization.AUTHORIZED,
@@ -615,17 +613,17 @@ class PrivilegesVerifierTest {
                 subject.authForTestCase(accessorWithPayer(otherUpdateTxn, account(2))));
     }
 
-    private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {
-        var txn = TransactionBody.newBuilder().mergeFrom(transaction.build()).build();
-        return testCaseFrom(Transaction.newBuilder()
-                .setBodyBytes(txn.toByteString())
-                .build()
+    private TestCase accessor(TransactionBody.Builder transaction) throws ParseException {
+        var txn = transaction.build().copyBuilder().build();
+        return testCaseFrom(Transaction.PROTOBUF
+                .toBytes(Transaction.newBuilder()
+                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(txn))
+                        .build())
                 .toByteArray());
     }
 
-    private TestCase accessorWithPayer(TransactionBody.Builder txn, AccountID payer)
-            throws InvalidProtocolBufferException {
-        return accessor(txn).withPayerId(toPbj(payer));
+    private TestCase accessorWithPayer(TransactionBody.Builder txn, AccountID payer) throws ParseException {
+        return accessor(txn).withPayerId(payer);
     }
 
     private TransactionBody.Builder ethereumTxn() {
@@ -670,19 +668,19 @@ class PrivilegesVerifierTest {
 
     private TransactionBody.Builder txnWithPayer(long num) {
         return TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder().setAccountID(account(num)));
+                .transactionID(TransactionID.newBuilder().accountID(account(num)));
     }
 
     private ContractID contract(long num) {
-        return ContractID.newBuilder().setContractNum(num).build();
+        return ContractID.newBuilder().contractNum(num).build();
     }
 
     private FileID file(long num) {
-        return FileID.newBuilder().setFileNum(num).build();
+        return FileID.newBuilder().fileNum(num).build();
     }
 
     private AccountID account(long num) {
-        return AccountID.newBuilder().setAccountNum(num).build();
+        return AccountID.newBuilder().accountNum(num).build();
     }
 
     /**
@@ -699,23 +697,22 @@ class PrivilegesVerifierTest {
         AUTHORIZED;
     }
 
-    private TestCase testCaseFrom(final byte[] signedTxnWrapperBytes) throws InvalidProtocolBufferException {
-        final Transaction signedTxnWrapper = Transaction.parseFrom(signedTxnWrapperBytes);
+    private TestCase testCaseFrom(final byte[] signedTxnWrapperBytes) throws ParseException {
+        final Transaction signedTxnWrapper = Transaction.PROTOBUF.parse(Bytes.wrap(signedTxnWrapperBytes));
 
-        final var signedTxnBytes = signedTxnWrapper.getSignedTransactionBytes();
+        final var signedTxnBytes = signedTxnWrapper.signedTransactionBytes();
         final byte[] txnBytes;
-        if (signedTxnBytes.isEmpty()) {
-            txnBytes = unwrapUnsafelyIfPossible(signedTxnWrapper.getBodyBytes());
+        if (signedTxnBytes.length() == 0) {
+            txnBytes = signedTxnWrapper.bodyBytes().toByteArray();
         } else {
-            final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
-            txnBytes = unwrapUnsafelyIfPossible(signedTxn.getBodyBytes());
+            final var signedTxn = SignedTransaction.PROTOBUF.parse(signedTxnBytes);
+            txnBytes = signedTxn.bodyBytes().toByteArray();
         }
-        final var protoTxnBody = TransactionBody.parseFrom(txnBytes);
-        final var txn = toPbj(protoTxnBody);
-        final var payerId = txn.transactionIDOrThrow().accountIDOrThrow();
+        final var protoTxnBody = TransactionBody.PROTOBUF.parse(Bytes.wrap(txnBytes));
+        final var payerId = protoTxnBody.transactionIDOrThrow().accountIDOrThrow();
         try {
             final var function = functionOf(protoTxnBody);
-            return new TestCase(payerId, toPbj(function), txn);
+            return new TestCase(payerId, function, protoTxnBody);
         } catch (com.hedera.hapi.util.UnknownHederaFunctionality e) {
             throw new IllegalStateException(e);
         }

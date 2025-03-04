@@ -5,12 +5,12 @@ import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMA
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
-import com.hederahashgraph.api.proto.java.ExchangeRate;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -54,9 +54,9 @@ public final class OverflowCheckingCalc {
      */
     public FeeObject fees(
             final UsageAccumulator usage, final FeeData prices, final ExchangeRate rate, final long multiplier) {
-        final long networkFeeTinycents = networkFeeInTinycents(usage, prices.getNetworkdata());
-        final long nodeFeeTinycents = nodeFeeInTinycents(usage, prices.getNodedata());
-        final long serviceFeeTinycents = serviceFeeInTinycents(usage, prices.getServicedata());
+        final long networkFeeTinycents = networkFeeInTinycents(usage, prices.networkdata());
+        final long nodeFeeTinycents = nodeFeeInTinycents(usage, prices.nodedata());
+        final long serviceFeeTinycents = serviceFeeInTinycents(usage, prices.servicedata());
 
         final long unscaledNetworkFee = tinycentsToTinybars(networkFeeTinycents, rate);
         final long unscaledNodeFee = tinycentsToTinybars(nodeFeeTinycents, rate);
@@ -72,38 +72,38 @@ public final class OverflowCheckingCalc {
     }
 
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
-        final var hbarEquiv = rate.getHbarEquiv();
+        final var hbarEquiv = rate.hbarEquiv();
         if (productWouldOverflow(amount, hbarEquiv)) {
             return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
         }
-        return amount * hbarEquiv / rate.getCentEquiv();
+        return amount * hbarEquiv / rate.centEquiv();
     }
 
     private long networkFeeInTinycents(final UsageAccumulator usage, final FeeComponents networkPrices) {
         final var nominal = safeAccumulateThree(
-                networkPrices.getConstant(),
-                usage.getUniversalBpt() * networkPrices.getBpt(),
-                usage.getNetworkVpt() * networkPrices.getVpt(),
-                usage.getNetworkRbh() * networkPrices.getRbh());
-        return constrainedTinycentFee(nominal, networkPrices.getMin(), networkPrices.getMax());
+                networkPrices.constant(),
+                usage.getUniversalBpt() * networkPrices.bpt(),
+                usage.getNetworkVpt() * networkPrices.vpt(),
+                usage.getNetworkRbh() * networkPrices.rbh());
+        return constrainedTinycentFee(nominal, networkPrices.min(), networkPrices.max());
     }
 
     private long nodeFeeInTinycents(final UsageAccumulator usage, final FeeComponents nodePrices) {
         final var nominal = safeAccumulateFour(
-                nodePrices.getConstant(),
-                usage.getUniversalBpt() * nodePrices.getBpt(),
-                usage.getNodeBpr() * nodePrices.getBpr(),
-                usage.getNodeSbpr() * nodePrices.getSbpr(),
-                usage.getNodeVpt() * nodePrices.getVpt());
-        return constrainedTinycentFee(nominal, nodePrices.getMin(), nodePrices.getMax());
+                nodePrices.constant(),
+                usage.getUniversalBpt() * nodePrices.bpt(),
+                usage.getNodeBpr() * nodePrices.bpr(),
+                usage.getNodeSbpr() * nodePrices.sbpr(),
+                usage.getNodeVpt() * nodePrices.vpt());
+        return constrainedTinycentFee(nominal, nodePrices.min(), nodePrices.max());
     }
 
     private long serviceFeeInTinycents(final UsageAccumulator usage, final FeeComponents servicePrices) {
         final var nominal = safeAccumulateTwo(
-                servicePrices.getConstant(),
-                usage.getServiceRbh() * servicePrices.getRbh(),
-                usage.getServiceSbh() * servicePrices.getSbh());
-        return constrainedTinycentFee(nominal, servicePrices.getMin(), servicePrices.getMax());
+                servicePrices.constant(),
+                usage.getServiceRbh() * servicePrices.rbh(),
+                usage.getServiceSbh() * servicePrices.sbh());
+        return constrainedTinycentFee(nominal, servicePrices.min(), servicePrices.max());
     }
 
     /* Prices in file 0.0.111 are actually set in units of 1/1000th of a tinycent,

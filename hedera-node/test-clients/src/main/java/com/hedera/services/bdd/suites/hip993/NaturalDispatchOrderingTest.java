@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip904.UnlimitedAutoAssociationSuite.UNLIMITED_AUTO_ASSOCIATION_SLOTS;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
@@ -422,7 +423,7 @@ public class NaturalDispatchOrderingTest {
     private static void assertParentChildStructure(
             @NonNull final VisibleItems items, final int numPrecedingChildren, final int triggeredTxnIndex) {
         final var userConsensusTime = items.get(numPrecedingChildren).consensusTime();
-        final var userTransactionID = items.get(numPrecedingChildren).txnId();
+        final var userTransactionID = fromPbj(items.get(numPrecedingChildren).txnId());
         int nextExpectedNonce = items.firstExpectedUserNonce();
         for (int i = 0; i < numPrecedingChildren; i++) {
             final var preceding = items.get(i);
@@ -441,8 +442,8 @@ public class NaturalDispatchOrderingTest {
                         withNonce(userTransactionID, nextExpectedNonce++ - postTriggeredOffset), following.txnId());
                 assertEquals(userConsensusTime, following.parentConsensusTimestamp());
             }
-            if (following.txnId().getScheduled()) {
-                assertTrue(following.txnRecord().getReceipt().hasExchangeRate());
+            if (following.txnId().scheduled()) {
+                assertTrue(following.txnRecord().receipt().hasExchangeRate());
             }
         }
     }

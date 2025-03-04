@@ -5,14 +5,14 @@ import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySi
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.hapi.fees.usage.QueryUsage;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Query;
 import java.nio.charset.StandardCharsets;
 
 public final class CryptoGetInfoUsage extends QueryUsage {
     private CryptoGetInfoUsage(final Query query) {
-        super(query.getCryptoGetInfo().getHeader().getResponseType());
+        super(query.cryptoGetInfo().header().responseType());
         addTb(BASIC_ENTITY_ID_SIZE);
         addRb(CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr());
     }

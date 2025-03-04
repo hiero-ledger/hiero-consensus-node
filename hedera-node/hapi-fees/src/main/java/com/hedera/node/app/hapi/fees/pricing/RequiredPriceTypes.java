@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.pricing;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenAccountWipe;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenBurn;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenMint;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.hederahashgraph.api.proto.java.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ACCOUNT_WIPE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
+import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.SubType;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SubType;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -37,23 +37,23 @@ public class RequiredPriceTypes {
     static {
         FUNCTIONS_WITH_REQUIRED_SUBTYPES = new EnumMap<>(HederaFunctionality.class);
         /* The functions with non-DEFAULT prices in hapi-fees/src/main/resources/canonical-prices.json */
-        List.of(TokenMint, TokenBurn, TokenAccountWipe)
+        List.of(TOKEN_MINT, TOKEN_BURN, TOKEN_ACCOUNT_WIPE)
                 .forEach(function -> FUNCTIONS_WITH_REQUIRED_SUBTYPES.put(
                         function, EnumSet.of(TOKEN_FUNGIBLE_COMMON, TOKEN_NON_FUNGIBLE_UNIQUE)));
         FUNCTIONS_WITH_REQUIRED_SUBTYPES.put(
-                TokenCreate,
+                TOKEN_CREATE,
                 EnumSet.of(
                         TOKEN_FUNGIBLE_COMMON, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES,
                         TOKEN_NON_FUNGIBLE_UNIQUE, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES));
         FUNCTIONS_WITH_REQUIRED_SUBTYPES.put(
-                CryptoTransfer,
+                CRYPTO_TRANSFER,
                 EnumSet.of(
                         DEFAULT,
                         TOKEN_FUNGIBLE_COMMON,
                         TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES,
                         TOKEN_NON_FUNGIBLE_UNIQUE,
                         TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES));
-        FUNCTIONS_WITH_REQUIRED_SUBTYPES.put(ScheduleCreate, EnumSet.of(DEFAULT, SCHEDULE_CREATE_CONTRACT_CALL));
+        FUNCTIONS_WITH_REQUIRED_SUBTYPES.put(SCHEDULE_CREATE, EnumSet.of(DEFAULT, SCHEDULE_CREATE_CONTRACT_CALL));
     }
 
     /**

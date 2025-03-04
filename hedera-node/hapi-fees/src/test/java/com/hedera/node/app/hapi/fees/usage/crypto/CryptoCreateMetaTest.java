@@ -3,15 +3,15 @@ package com.hedera.node.app.hapi.fees.usage.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.google.protobuf.ByteString;
-import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.Key;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
 
 class CryptoCreateMetaTest {
     private final Key key = Key.newBuilder()
-            .setEd25519(ByteString.copyFromUtf8("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+            .ed25519(Bytes.wrap("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
             .build();
 
     @Test
@@ -33,9 +33,9 @@ class CryptoCreateMetaTest {
     @Test
     void calculatesBaseSizeAsExpected() {
         final var cryptoCreateTxnBody = CryptoCreateTransactionBody.newBuilder()
-                .setMemo("")
-                .setAutoRenewPeriod(Duration.newBuilder().setSeconds(7776000L))
-                .setKey(key)
+                .memo("")
+                .autoRenewPeriod(Duration.newBuilder().seconds(7776000L))
+                .key(key)
                 .build();
 
         final var subject = new CryptoCreateMeta(cryptoCreateTxnBody);

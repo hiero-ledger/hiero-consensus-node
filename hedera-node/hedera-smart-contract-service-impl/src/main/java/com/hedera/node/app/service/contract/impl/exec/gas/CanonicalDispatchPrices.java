@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,14 +37,10 @@ public class CanonicalDispatchPrices {
         requireNonNull(assetsLoader);
         try {
             final var canonicalPrices = assetsLoader.loadCanonicalPrices().entrySet().stream()
-                    .collect(toMap(
-                            entry -> CommonPbjConverters.toPbj(entry.getKey()),
-                            entry -> entry.getValue().entrySet().stream()
-                                    .collect(toMap(
-                                            subEntry -> CommonPbjConverters.toPbj(subEntry.getKey()),
-                                            subEntry -> subEntry.getValue()
-                                                    .multiply(USD_TO_TINYCENTS)
-                                                    .longValue()))));
+                    .collect(toMap(entry -> entry.getKey(), entry -> entry.getValue().entrySet().stream()
+                            .collect(toMap(subEntry -> subEntry.getKey(), subEntry -> subEntry.getValue()
+                                    .multiply(USD_TO_TINYCENTS)
+                                    .longValue()))));
             Arrays.stream(DispatchType.class.getEnumConstants())
                     .map(dispatchType -> new AbstractMap.SimpleImmutableEntry<>(
                             dispatchType,

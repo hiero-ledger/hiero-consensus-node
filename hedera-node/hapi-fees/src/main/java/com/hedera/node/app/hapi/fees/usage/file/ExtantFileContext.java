@@ -4,7 +4,7 @@ package com.hedera.node.app.hapi.fees.usage.file;
 import static com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage.asKey;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 
-import com.hederahashgraph.api.proto.java.KeyList;
+import com.hedera.hapi.node.base.KeyList;
 import java.nio.charset.StandardCharsets;
 
 public class ExtantFileContext {

@@ -64,7 +64,7 @@ class TokenDeleteHandlerTest extends ParityTestBase {
             writableTokenStore = newWritableStoreWithTokens(Token.newBuilder()
                     .tokenId(TOKEN_987_ID)
                     .deleted(true)
-                    .adminKey(DEFAULT_PAYER_KT.asPbjKey())
+                    .adminKey(DEFAULT_PAYER_KT.asKey())
                     .build());
 
             // Create the context and transaction
@@ -84,7 +84,7 @@ class TokenDeleteHandlerTest extends ParityTestBase {
                     .tokenId(TOKEN_987_ID)
                     .deleted(false)
                     .paused(true)
-                    .adminKey(DEFAULT_PAYER_KT.asPbjKey())
+                    .adminKey(DEFAULT_PAYER_KT.asKey())
                     .build());
 
             // Create the context and transaction

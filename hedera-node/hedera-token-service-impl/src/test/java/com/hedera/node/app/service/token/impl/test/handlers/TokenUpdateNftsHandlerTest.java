@@ -353,7 +353,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
                 .metadataKey(metadataKey)
                 .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                 .treasuryAccountId(ACCOUNT_1339)
-                .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
+                .supplyKey(TOKEN_SUPPLY_KT.asKey())
                 .totalSupply(10)
                 .build());
         writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()

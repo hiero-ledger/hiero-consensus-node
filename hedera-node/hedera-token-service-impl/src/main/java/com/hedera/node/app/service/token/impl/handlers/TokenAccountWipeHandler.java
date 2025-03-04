@@ -25,7 +25,6 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -217,7 +216,7 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
                         readableTokenStore.get(op.tokenWipeOrThrow().tokenOrElse(TokenID.DEFAULT)))
                 .map(Token::tokenType)
                 .orElse(TokenType.FUNGIBLE_COMMON);
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenWipeUsageFrom(CommonPbjConverters.fromPbj(op));
+        final var meta = TOKEN_OPS_USAGE_UTILS.tokenWipeUsageFrom(op);
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(

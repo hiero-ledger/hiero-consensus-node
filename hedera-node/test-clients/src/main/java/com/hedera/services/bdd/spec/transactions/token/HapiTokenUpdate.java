@@ -4,6 +4,8 @@ package com.hedera.services.bdd.spec.transactions.token;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -269,37 +271,37 @@ public class HapiTokenUpdate extends HapiTxnOp<HapiTokenUpdate> {
         try {
             final TokenInfo info = HapiTokenFeeScheduleUpdate.lookupInfo(spec, token, log, loggingOff);
             FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> {
-                var estimate =
-                        TokenUpdateUsage.newEstimate(_txn, new TxnUsageEstimator(suFrom(svo), _txn, ESTIMATOR_UTILS));
+                var estimate = TokenUpdateUsage.newEstimate(
+                        toPbj(_txn), new TxnUsageEstimator(suFrom(svo), toPbj(_txn), ESTIMATOR_UTILS));
                 estimate.givenCurrentExpiry(info.getExpiry().getSeconds())
                         .givenCurrentMemo(info.getMemo())
                         .givenCurrentName(info.getName())
                         .givenCurrentSymbol(info.getSymbol());
                 if (info.hasFreezeKey()) {
-                    estimate.givenCurrentFreezeKey(Optional.of(info.getFreezeKey()));
+                    estimate.givenCurrentFreezeKey(Optional.of(toPbj(info.getFreezeKey())));
                 }
                 if (info.hasAdminKey()) {
-                    estimate.givenCurrentAdminKey(Optional.of(info.getAdminKey()));
+                    estimate.givenCurrentAdminKey(Optional.of(toPbj(info.getAdminKey())));
                 }
                 if (info.hasSupplyKey()) {
-                    estimate.givenCurrentSupplyKey(Optional.of(info.getSupplyKey()));
+                    estimate.givenCurrentSupplyKey(Optional.of(toPbj(info.getSupplyKey())));
                 }
                 if (info.hasKycKey()) {
-                    estimate.givenCurrentKycKey(Optional.of(info.getKycKey()));
+                    estimate.givenCurrentKycKey(Optional.of(toPbj(info.getKycKey())));
                 }
                 if (info.hasWipeKey()) {
-                    estimate.givenCurrentWipeKey(Optional.of(info.getWipeKey()));
+                    estimate.givenCurrentWipeKey(Optional.of(toPbj(info.getWipeKey())));
                 }
                 if (info.hasFeeScheduleKey()) {
-                    estimate.givenCurrentFeeScheduleKey(Optional.of(info.getFeeScheduleKey()));
+                    estimate.givenCurrentFeeScheduleKey(Optional.of(toPbj(info.getFeeScheduleKey())));
                 }
                 if (info.hasPauseKey()) {
-                    estimate.givenCurrentPauseKey(Optional.of(info.getPauseKey()));
+                    estimate.givenCurrentPauseKey(Optional.of(toPbj(info.getPauseKey())));
                 }
                 if (info.hasAutoRenewAccount()) {
                     estimate.givenCurrentlyUsingAutoRenewAccount();
                 }
-                return estimate.get();
+                return fromPbj(estimate.get());
             };
             return spec.fees().forActivityBasedOp(HederaFunctionality.TokenUpdate, metricsCalc, txn, numPayerKeys);
         } catch (Throwable t) {

@@ -29,6 +29,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_RECEIVER_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -221,12 +222,13 @@ public class UtilStateChange {
                 final var txnId = e.getValue();
                 final var successItems = requireNonNull(records.get(txnId), txnId + " not found");
                 final var creationEntry = successItems.entries().stream()
-                        .filter(entry -> entry.function() == CryptoCreate)
+                        .filter(entry -> fromPbj(entry.function()) == CryptoCreate)
                         .findFirst()
                         .orElseThrow();
-                final var recordEvmAddress = creationEntry.transactionRecord().getEvmAddress();
+                final var recordEvmAddress =
+                        fromPbj(creationEntry.transactionRecord()).getEvmAddress();
                 final var bodyEvmAddress =
-                        creationEntry.body().getCryptoCreateAccount().getAlias();
+                        fromPbj(creationEntry.body()).getCryptoCreateAccount().getAlias();
                 final var numEvmAddresses =
                         ((recordEvmAddress.size() == 20) ? 1 : 0) + ((bodyEvmAddress.size() == 20) ? 1 : 0);
                 assertTrue(numEvmAddresses <= 1);

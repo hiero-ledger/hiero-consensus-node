@@ -5,8 +5,8 @@ import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import java.util.function.Function;
 import java.util.function.Predicate;
 

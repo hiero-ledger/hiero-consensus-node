@@ -2,14 +2,14 @@
 package com.hedera.node.app.hapi.utils.sysfiles.serdes;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.FeeSchedule;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.TimestampSeconds;
-import com.hederahashgraph.api.proto.java.TransactionFeeSchedule;
+import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.FeeSchedule;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.TimestampSeconds;
+import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -90,9 +90,9 @@ public class FeesJsonToProtoSerde {
         for (Map<String, Object> part : rawFeeSchedule) {
             if (part.containsKey(EXPIRY_TIME_KEY)) {
                 long expiry = Long.parseLong(part.get(EXPIRY_TIME_KEY) + "");
-                feeSchedule.setExpiryTime(TimestampSeconds.newBuilder().setSeconds(expiry));
+                feeSchedule.expiryTime(TimestampSeconds.newBuilder().seconds(expiry));
             } else {
-                feeSchedule.addTransactionFeeSchedule(
+                feeSchedule.transactionFeeSchedule(
                         bindTxnFeeScheduleFrom((Map<String, Object>) part.get(TXN_FEE_SCHEDULE_KEY)));
             }
         }
@@ -104,11 +104,11 @@ public class FeesJsonToProtoSerde {
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException {
         final var txnFeeSchedule = TransactionFeeSchedule.newBuilder();
         var key = translateClaimFunction((String) rawTxnFeeSchedule.get(HEDERA_FUNCTION_KEY));
-        txnFeeSchedule.setHederaFunctionality(HederaFunctionality.valueOf(key));
+        txnFeeSchedule.hederaFunctionality(HederaFunctionality.valueOf(key));
         var feesList = (List<Object>) rawTxnFeeSchedule.get(FEE_DATA_KEY);
 
         for (Object o : feesList) {
-            txnFeeSchedule.addFees(bindFeeDataFrom((Map<String, Object>) o));
+            txnFeeSchedule.fees(bindFeeDataFrom((Map<String, Object>) o));
         }
 
         return txnFeeSchedule.build();
@@ -131,9 +131,9 @@ public class FeesJsonToProtoSerde {
         FeeData.Builder feeData = FeeData.newBuilder();
 
         if (rawFeeData.get("subType") == null) {
-            feeData.setSubType(SubType.DEFAULT);
+            feeData.subType(SubType.DEFAULT);
         } else {
-            feeData.setSubType(stringToSubType((String) rawFeeData.get("subType")));
+            feeData.subType(stringToSubType((String) rawFeeData.get("subType")));
         }
 
         for (String feeComponent : FEE_COMPONENT_KEYS) {

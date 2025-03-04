@@ -17,8 +17,8 @@ module com.hedera.node.app.hapi.fees {
 
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.hapi;
+    requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;
-    requires transitive com.google.protobuf;
     requires transitive dagger;
     requires transitive static java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;

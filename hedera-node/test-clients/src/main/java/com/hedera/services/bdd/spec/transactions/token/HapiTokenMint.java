@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.transactions.token;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenFeeScheduleUpdate.lookupInfo;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -102,11 +103,11 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
             lifetime = info.getExpiry().getSeconds()
                     - txn.getTransactionID().getTransactionValidStart().getSeconds();
         }
-        final var tokenMintMeta = TOKEN_OPS_USAGE_UTILS.tokenMintUsageFrom(txn, subType, lifetime);
+        final var tokenMintMeta = TOKEN_OPS_USAGE_UTILS.tokenMintUsageFrom(toPbj(txn), toPbj(subType), lifetime);
         final var baseTransactionMeta =
                 new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
         final TokenOpsUsage tokenOpsUsage = new TokenOpsUsage();
-        tokenOpsUsage.tokenMintUsage(suFrom(svo), baseTransactionMeta, tokenMintMeta, accumulator, subType);
+        tokenOpsUsage.tokenMintUsage(suFrom(svo), baseTransactionMeta, tokenMintMeta, accumulator, toPbj(subType));
         return AdapterUtils.feeDataFrom(accumulator);
     }
 

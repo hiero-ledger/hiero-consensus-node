@@ -2,9 +2,9 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.hbarApprove;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ordinalRevertOutputFor;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -62,7 +62,7 @@ class HbarApproveCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HbarApproveTranslator.HBAR_APPROVE
                         .getOutputs()
-                        .encode(Tuple.singleton((long) SUCCESS.getNumber()))
+                        .encode(Tuple.singleton((long) SUCCESS.protoOrdinal()))
                         .array()),
                 result.getOutput());
     }
@@ -81,7 +81,7 @@ class HbarApproveCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HbarApproveTranslator.HBAR_APPROVE
                         .getOutputs()
-                        .encode(Tuple.singleton((long) REVERTED_SUCCESS.getNumber()))
+                        .encode(Tuple.singleton((long) REVERTED_SUCCESS.protoOrdinal()))
                         .array()),
                 result.getOutput());
     }

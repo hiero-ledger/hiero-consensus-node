@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.token;
 
-import com.hederahashgraph.api.proto.java.SubType;
+import com.hedera.hapi.node.base.SubType;
 
 /**
  * A functional interface for creating an object of type {@code R}.

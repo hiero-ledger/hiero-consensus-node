@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.embedded;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.protoToPbj;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TokenID;

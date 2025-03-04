@@ -6,20 +6,20 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.HRS_DIVISOR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.ExchangeRate;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.SubType;
 import org.junit.jupiter.api.Test;
 
 class OverflowCheckingCalcTest {
     private static final int rateTinybarComponent = 1001;
     private static final int rateTinycentComponent = 1000;
     private static final ExchangeRate someRate = ExchangeRate.newBuilder()
-            .setHbarEquiv(rateTinybarComponent)
-            .setCentEquiv(rateTinycentComponent)
+            .hbarEquiv(rateTinybarComponent)
+            .centEquiv(rateTinycentComponent)
             .build();
     private static final OverflowCheckingCalc subject = new OverflowCheckingCalc();
 
@@ -122,46 +122,46 @@ class OverflowCheckingCalcTest {
     private static final long multiplier = 2L;
     private static final long veryHighFloorFee = Long.MAX_VALUE / 2;
     private static final FeeComponents mockLowCeilFees = FeeComponents.newBuilder()
-            .setMax(1234567L)
-            .setConstant(1_234_567L)
-            .setBpr(1_000_000L)
-            .setBpt(2_000_000L)
-            .setRbh(3_000_000L)
-            .setSbh(4_000_000L)
+            .max(1234567L)
+            .constant(1_234_567L)
+            .bpr(1_000_000L)
+            .bpt(2_000_000L)
+            .rbh(3_000_000L)
+            .sbh(4_000_000L)
             .build();
     private static final FeeComponents mockHighFloorFees = FeeComponents.newBuilder()
-            .setMin(veryHighFloorFee)
-            .setConstant(1_234_567L)
-            .setBpr(1_000_000L)
-            .setBpt(2_000_000L)
-            .setRbh(3_000_000L)
-            .setSbh(4_000_000L)
+            .min(veryHighFloorFee)
+            .constant(1_234_567L)
+            .bpr(1_000_000L)
+            .bpt(2_000_000L)
+            .rbh(3_000_000L)
+            .sbh(4_000_000L)
             .build();
     private static final FeeComponents mockFees = FeeComponents.newBuilder()
-            .setMax(Long.MAX_VALUE)
-            .setConstant(1_234_567L)
-            .setBpr(1_000_000L)
-            .setBpt(2_000_000L)
-            .setRbh(3_000_000L)
-            .setSbh(4_000_000L)
+            .max(Long.MAX_VALUE)
+            .constant(1_234_567L)
+            .bpr(1_000_000L)
+            .bpt(2_000_000L)
+            .rbh(3_000_000L)
+            .sbh(4_000_000L)
             .build();
     private static final ExchangeRate mockRate =
-            ExchangeRate.newBuilder().setHbarEquiv(1).setCentEquiv(120).build();
+            ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(120).build();
 
     private static final FeeData mockPrices = FeeData.newBuilder()
-            .setNetworkdata(mockFees)
-            .setNodedata(mockFees)
-            .setServicedata(mockFees)
+            .networkdata(mockFees)
+            .nodedata(mockFees)
+            .servicedata(mockFees)
             .build();
     private static final FeeData mockLowCeilPrices = FeeData.newBuilder()
-            .setNetworkdata(mockLowCeilFees)
-            .setNodedata(mockLowCeilFees)
-            .setServicedata(mockLowCeilFees)
+            .networkdata(mockLowCeilFees)
+            .nodedata(mockLowCeilFees)
+            .servicedata(mockLowCeilFees)
             .build();
     private static final FeeData mockHighFloorPrices = FeeData.newBuilder()
-            .setNetworkdata(mockHighFloorFees)
-            .setNodedata(mockHighFloorFees)
-            .setServicedata(mockHighFloorFees)
+            .networkdata(mockHighFloorFees)
+            .nodedata(mockHighFloorFees)
+            .servicedata(mockHighFloorFees)
             .build();
 
     private static final long one = 1;
@@ -173,25 +173,25 @@ class OverflowCheckingCalcTest {
     private static final long sbpr = 9;
     private static final long network_rbh = 10;
     private static final FeeComponents mockUsageVector = FeeComponents.newBuilder()
-            .setConstant(one)
-            .setBpt(bpt)
-            .setVpt(vpt)
-            .setRbh(rbh)
-            .setSbh(sbh)
-            .setBpr(bpr)
-            .setSbpr(sbpr)
+            .constant(one)
+            .bpt(bpt)
+            .vpt(vpt)
+            .rbh(rbh)
+            .sbh(sbh)
+            .bpr(bpr)
+            .sbpr(sbpr)
             .build();
     private static final FeeData mockUsage =
             ESTIMATOR_UTILS.withDefaultTxnPartitioning(mockUsageVector, SubType.DEFAULT, network_rbh, 3);
 
     private static final void copyData(final FeeData feeData, final UsageAccumulator into) {
-        into.setNumPayerKeys(feeData.getNodedata().getVpt());
-        into.addVpt(feeData.getNetworkdata().getVpt());
-        into.addBpt(feeData.getNetworkdata().getBpt());
-        into.addBpr(feeData.getNodedata().getBpr());
-        into.addSbpr(feeData.getNodedata().getSbpr());
-        into.addNetworkRbs(feeData.getNetworkdata().getRbh() * HRS_DIVISOR);
-        into.addRbs(feeData.getServicedata().getRbh() * HRS_DIVISOR);
-        into.addSbs(feeData.getServicedata().getSbh() * HRS_DIVISOR);
+        into.setNumPayerKeys(feeData.nodedata().vpt());
+        into.addVpt(feeData.networkdata().vpt());
+        into.addBpt(feeData.networkdata().bpt());
+        into.addBpr(feeData.nodedata().bpr());
+        into.addSbpr(feeData.nodedata().sbpr());
+        into.addNetworkRbs(feeData.networkdata().rbh() * HRS_DIVISOR);
+        into.addRbs(feeData.servicedata().rbh() * HRS_DIVISOR);
+        into.addSbs(feeData.servicedata().sbh() * HRS_DIVISOR);
     }
 }

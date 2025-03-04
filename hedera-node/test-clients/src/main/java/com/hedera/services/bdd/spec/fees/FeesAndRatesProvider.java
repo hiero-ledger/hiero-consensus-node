@@ -11,6 +11,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileGetCont
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
@@ -76,7 +77,7 @@ public class FeesAndRatesProvider {
         this.network = requireNonNull(network);
     }
 
-    public void init() throws IOException, ReflectiveOperationException, GeneralSecurityException {
+    public void init() throws IOException, ReflectiveOperationException, GeneralSecurityException, ParseException {
         if (!setup.useFixedFee()) {
             downloadRateSet();
             downloadFeeSchedule();
@@ -112,7 +113,8 @@ public class FeesAndRatesProvider {
         return rateSet != null;
     }
 
-    private void downloadRateSet() throws IOException, GeneralSecurityException, ReflectiveOperationException {
+    private void downloadRateSet()
+            throws IOException, GeneralSecurityException, ReflectiveOperationException, ParseException {
         long queryFee = lookupDownloadFee(setup.exchangeRatesId());
         FileGetContentsResponse response = downloadWith(queryFee, false, setup.exchangeRatesId());
         byte[] bytes = response.getFileContents().getContents().toByteArray();
@@ -122,7 +124,8 @@ public class FeesAndRatesProvider {
         log.info(message);
     }
 
-    private void downloadFeeSchedule() throws IOException, GeneralSecurityException, ReflectiveOperationException {
+    private void downloadFeeSchedule()
+            throws IOException, GeneralSecurityException, ReflectiveOperationException, ParseException {
         long queryFee = lookupDownloadFee(setup.feeScheduleId());
         FileGetContentsResponse response = downloadWith(queryFee, false, setup.feeScheduleId());
         byte[] bytes = response.getFileContents().getContents().toByteArray();
@@ -135,14 +138,14 @@ public class FeesAndRatesProvider {
     }
 
     private long lookupDownloadFee(FileID fileId)
-            throws IOException, GeneralSecurityException, ReflectiveOperationException {
+            throws IOException, GeneralSecurityException, ReflectiveOperationException, ParseException {
         return downloadWith(setup.feeScheduleFetchFee(), true, fileId)
                 .getHeader()
                 .getCost();
     }
 
     private FileGetContentsResponse downloadWith(long queryFee, boolean costOnly, FileID fid)
-            throws IOException, GeneralSecurityException, ReflectiveOperationException {
+            throws IOException, GeneralSecurityException, ReflectiveOperationException, ParseException {
         int attemptsLeft = NUM_DOWNLOAD_ATTEMPTS;
         ResponseCodeEnum status;
         FileGetContentsResponse response;

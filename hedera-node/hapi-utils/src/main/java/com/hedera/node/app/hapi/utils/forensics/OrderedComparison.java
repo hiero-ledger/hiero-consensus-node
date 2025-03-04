@@ -5,9 +5,9 @@ import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.parseV6Reco
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.TransactionRecord;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.transaction.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -173,7 +173,7 @@ public class OrderedComparison {
                             null,
                             "No first/test stream record found at " + firstEntry.consensusTime()
                                     + " for transactionID : "
-                                    + firstEntry.txnRecord().getTransactionID() + " transBody : " + firstEntry.body()));
+                                    + firstEntry.txnRecord().transactionID() + " transBody : " + firstEntry.body()));
                     continue;
                 }
                 if (firstEntries.get(i).txnRecord() == null) {
@@ -182,7 +182,7 @@ public class OrderedComparison {
                             secondEntries.get(i),
                             "Additional first/test stream record found at "
                                     + secondEntries.get(i).consensusTime() + " for transactionID : "
-                                    + secondEntries.get(i).txnRecord().getTransactionID() + " transBody : "
+                                    + secondEntries.get(i).txnRecord().transactionID() + " transBody : "
                                     + secondEntries.get(i).body() + "\n -> \n"
                                     + secondEntries.get(i).txnRecord()));
                     continue;

@@ -4,7 +4,6 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
@@ -80,8 +79,8 @@ public class BaseCryptoHandlerTest {
     @Test
     @DisplayName("hasAccountNumOrAlias Account with alias is valid")
     void hasAccountNumOrAlias_returnsTrue_whenAccountHasAlias() {
-        byte[] bytes = ByteString.copyFromUtf8("alias").toByteArray();
-        AccountID accountID = AccountID.newBuilder().alias(Bytes.wrap(bytes)).build();
+        Bytes bytes = Bytes.wrap("alias");
+        AccountID accountID = AccountID.newBuilder().alias(bytes).build();
         assertTrue(BaseCryptoHandler.hasAccountNumOrAlias(accountID));
     }
 

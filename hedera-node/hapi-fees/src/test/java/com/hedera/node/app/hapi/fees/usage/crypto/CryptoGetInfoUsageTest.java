@@ -9,17 +9,16 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEAD
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.token.CryptoGetInfoQuery;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
-import com.hederahashgraph.api.proto.java.CryptoGetInfoQuery;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Query;
 import org.junit.jupiter.api.Test;
 
 class CryptoGetInfoUsageTest {
-    private final Query query = Query.newBuilder()
-            .setCryptoGetInfo(CryptoGetInfoQuery.getDefaultInstance())
-            .build();
+    private final Query query =
+            Query.newBuilder().cryptoGetInfo(CryptoGetInfoQuery.DEFAULT).build();
 
     private static final int NUM_TOKEN_ASSOCS = 3;
     private static final Key KEY = KeyUtils.A_COMPLEX_KEY;
@@ -37,7 +36,7 @@ class CryptoGetInfoUsageTest {
                 + MEMO.length()
                 + BASIC_ENTITY_ID_SIZE;
         final var usage =
-                FeeComponents.newBuilder().setBpt(expectedTb).setBpr(expectedRb).build();
+                FeeComponents.newBuilder().bpt(expectedTb).bpr(expectedRb).build();
         final var expected = ESTIMATOR_UTILS.withDefaultQueryPartitioning(usage);
 
         subject = CryptoGetInfoUsage.newEstimate(query);

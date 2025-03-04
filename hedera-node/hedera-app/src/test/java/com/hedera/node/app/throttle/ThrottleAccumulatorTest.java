@@ -29,7 +29,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -1813,8 +1812,9 @@ class ThrottleAccumulatorTest {
             var om = new ObjectMapper();
             var throttleDefinitionsObj = om.readValue(
                     in, com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleDefinitions.class);
-            final var throttleDefsBytes =
-                    Bytes.wrap(throttleDefinitionsObj.toProto().toByteArray());
+            final var throttleDefsBytes = Bytes.wrap(ThrottleDefinitions.PROTOBUF
+                    .toBytes(throttleDefinitionsObj.toProto())
+                    .toByteArray());
             return ThrottleDefinitions.PROTOBUF.parse(throttleDefsBytes.toReadableSequentialData());
         }
     }
@@ -1854,7 +1854,6 @@ class ThrottleAccumulatorTest {
     }
 
     private void givenMintWith(int numNfts) {
-        final List<ByteString> meta = new ArrayList<>();
         final var op = TokenMintTransactionBody.newBuilder();
         if (numNfts == 0) {
             op.amount(1_234_567L);

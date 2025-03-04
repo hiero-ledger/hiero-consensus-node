@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
+import com.hedera.hapi.block.Acknowledgement;
+import com.hedera.hapi.block.EndOfStream;
+import com.hedera.hapi.block.PublishStreamRequest;
+import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -40,9 +42,9 @@ public class BlockNodeConnection {
                     @Override
                     public void onNext(PublishStreamResponse response) {
                         if (response.hasAcknowledgement()) {
-                            handleAcknowledgement(response.getAcknowledgement());
+                            handleAcknowledgement(response.acknowledgement());
                         } else if (response.hasStatus()) {
-                            handleEndOfStream(response.getStatus());
+                            handleEndOfStream(response.status());
                         }
                     }
 
@@ -61,16 +63,16 @@ public class BlockNodeConnection {
                 });
     }
 
-    private void handleAcknowledgement(PublishStreamResponse.Acknowledgement acknowledgement) {
+    private void handleAcknowledgement(Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
-            logger.info("Block acknowledgment received for a full block: {}", acknowledgement.getBlockAck());
+            logger.info("Block acknowledgment received for a full block: {}", acknowledgement.blockAck());
         } else if (acknowledgement.hasItemAck()) {
-            logger.info("Item acknowledgement received for a batch of block items: {}", acknowledgement.getItemAck());
+            logger.info("Item acknowledgement received for a batch of block items: {}", acknowledgement.itemAck());
         }
     }
 
-    private void handleEndOfStream(PublishStreamResponse.EndOfStream endOfStream) {
-        logger.info("Error returned from block node at block number {}: {}", endOfStream.getBlockNumber(), endOfStream);
+    private void handleEndOfStream(EndOfStream endOfStream) {
+        logger.info("Error returned from block node at block number {}: {}", endOfStream.blockNumber(), endOfStream);
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {

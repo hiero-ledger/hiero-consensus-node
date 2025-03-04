@@ -10,6 +10,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes.SYS_FILE_SERDES;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static java.util.Collections.EMPTY_MAP;
 
 import com.google.common.base.MoreObjects;
@@ -335,10 +337,10 @@ public class HapiFileUpdate extends HapiTxnOp<HapiFileUpdate> {
                 var ctx = ExtantFileContext.newBuilder()
                         .setCurrentExpiry(info.getExpirationTime().getSeconds())
                         .setCurrentMemo(info.getMemo())
-                        .setCurrentWacl(info.getKeys())
+                        .setCurrentWacl(toPbj(info.getKeys()))
                         .setCurrentSize(info.getSize())
                         .build();
-                return fileOpsUsage.fileUpdateUsage(innerTxn, suFrom(svo), ctx);
+                return fromPbj(fileOpsUsage.fileUpdateUsage(toPbj(innerTxn), suFrom(svo), ctx));
             };
             return spec.fees().forActivityBasedOp(HederaFunctionality.FileUpdate, metricsCalc, txn, numPayerKeys);
         } catch (Throwable ignore) {

@@ -3,12 +3,12 @@ package com.hedera.node.app.hapi.fees.usage.consensus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.node.app.hapi.fees.test.AdapterUtils;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
 import org.junit.jupiter.api.Test;
 
 class ConsensusOpsUsageTest {
@@ -24,17 +24,10 @@ class ConsensusOpsUsageTest {
     @Test
     void matchesLegacyEstimate() {
         final var expected = FeeData.newBuilder()
-                .setNetworkdata(FeeComponents.newBuilder()
-                        .setConstant(1)
-                        .setBpt(277)
-                        .setVpt(3)
-                        .setRbh(4))
-                .setNodedata(FeeComponents.newBuilder()
-                        .setConstant(1)
-                        .setBpt(277)
-                        .setVpt(1)
-                        .setBpr(4))
-                .setServicedata(FeeComponents.newBuilder().setConstant(1).setRbh(8))
+                .networkdata(
+                        FeeComponents.newBuilder().constant(1).bpt(277).vpt(3).rbh(4))
+                .nodedata(FeeComponents.newBuilder().constant(1).bpt(277).vpt(1).bpr(4))
+                .servicedata(FeeComponents.newBuilder().constant(1).rbh(8))
                 .build();
         final var accum = new UsageAccumulator();
         final var baseMeta = new BaseTransactionMeta(memo.length(), 0);

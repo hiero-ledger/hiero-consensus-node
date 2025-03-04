@@ -6,6 +6,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asDuration;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusCreateTopic;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
@@ -216,7 +218,7 @@ public class HapiTopicCreate extends HapiTxnOp<HapiTopicCreate> {
         spec.registry().saveTopicId(topic, lastReceipt.getTopicID());
         spec.registry().saveBytes(topic, ByteString.copyFrom(new byte[48]));
         try {
-            final TransactionBody txn = CommonUtils.extractTransactionBody(txnSubmitted);
+            final TransactionBody txn = fromPbj(CommonUtils.extractTransactionBody(toPbj(txnSubmitted)));
             final long approxConsensusTime =
                     txn.getTransactionID().getTransactionValidStart().getSeconds() + 1;
             spec.registry().saveTopicMeta(topic, txn.getConsensusCreateTopic(), approxConsensusTime);
@@ -234,12 +236,13 @@ public class HapiTopicCreate extends HapiTxnOp<HapiTopicCreate> {
 
     @Override
     protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) throws Throwable {
-        final var txnSubType = getTxnSubType(CommonUtils.extractTransactionBody(txn));
+        final var txnSubType = getTxnSubType(fromPbj(CommonUtils.extractTransactionBody(toPbj(txn))));
         return spec.fees()
                 .forActivityBasedOp(
                         ConsensusCreateTopic,
                         txnSubType,
-                        ConsensusServiceFeeBuilder::getConsensusCreateTopicFee,
+                        (txBody, sigValObj) -> fromPbj(
+                                ConsensusServiceFeeBuilder.getConsensusCreateTopicFee(toPbj(txBody), sigValObj)),
                         txn,
                         numPayerKeys);
     }

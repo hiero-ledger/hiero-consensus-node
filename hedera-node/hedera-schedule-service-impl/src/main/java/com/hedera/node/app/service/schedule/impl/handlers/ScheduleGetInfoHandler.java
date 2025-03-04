@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
@@ -28,7 +28,6 @@ import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
@@ -78,8 +77,7 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
             final LedgerConfig ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
             final ScheduleInfo.Builder builder = ScheduleInfo.newBuilder();
             buildFromSchedule(builder, found, ledgerConfig);
-            return context.feeCalculator()
-                    .legacyCalculate(sigValueObj -> usageGiven(fromPbj(context.query()), fromPbj(builder.build())));
+            return context.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(context.query(), builder.build()));
         } else {
             return context.feeCalculator().calculate();
         }
@@ -165,17 +163,15 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
         return Timestamp.newBuilder().seconds(secondsSinceEpoch).nanos(0);
     }
 
-    public FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.Query query,
-            final com.hederahashgraph.api.proto.java.ScheduleInfo info) {
+    public FeeData usageGiven(final Query query, final ScheduleInfo info) {
         if (info != null) {
             final var scheduleCtxBuilder = ExtantScheduleContext.newBuilder()
-                    .setScheduledTxn(info.getScheduledTransactionBody())
-                    .setMemo(info.getMemo())
-                    .setNumSigners(info.getSigners().getKeysCount())
+                    .setScheduledTxn(info.scheduledTransactionBody())
+                    .setMemo(info.memo())
+                    .setNumSigners(info.signers().keys().size())
                     .setResolved(info.hasExecutionTime() || info.hasDeletionTime());
             if (info.hasAdminKey()) {
-                scheduleCtxBuilder.setAdminKey(info.getAdminKey());
+                scheduleCtxBuilder.setAdminKey(info.adminKey());
             } else {
                 scheduleCtxBuilder.setNoAdminKey();
             }

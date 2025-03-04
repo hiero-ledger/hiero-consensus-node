@@ -6,31 +6,31 @@
             "throttleGroups": [
                 {
                     "operations": [
-                        "TransactionGetReceipt"
+                        "TRANSACTION_GET_RECEIPT"
                     ],
                     "opsPerSec": 1000003
                 },
                 {
                     "operations": [
-                        "CryptoGetAccountBalance"
+                        "CRYPTO_GET_ACCOUNT_BALANCE"
                     ],
                     "opsPerSec": 1000033
                 },
                 {
                     "operations": [
-                        "CryptoTransfer"
+                        "CRYPTO_TRANSFER"
                     ],
                     "opsPerSec": 1000037
                 },
                 {
                     "operations": [
-                        "TokenUpdate"
+                        "TOKEN_UPDATE"
                     ],
                     "opsPerSec": 1000039
                 },
                 {
                     "operations": [
-                        "TokenMint"
+                        "TOKEN_MINT"
                     ],
                     "opsPerSec": 1000087
                 }

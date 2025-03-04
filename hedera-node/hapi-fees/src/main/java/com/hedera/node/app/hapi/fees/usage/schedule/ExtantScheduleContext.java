@@ -8,8 +8,8 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.SchedulableTransactionBody;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import java.nio.charset.StandardCharsets;
 
 public class ExtantScheduleContext {
@@ -45,7 +45,7 @@ public class ExtantScheduleContext {
                 + (resolved ? BASIC_RICH_INSTANT_SIZE : 0)
                 + memo.getBytes(StandardCharsets.UTF_8).length
                 + getAccountKeyStorageSize(adminKey)
-                + scheduledTxn.getSerializedSize()
+                + SchedulableTransactionBody.PROTOBUF.toBytes(scheduledTxn).length()
                 + SCHEDULE_ENTITY_SIZES.bytesUsedForSigningKeys(numSigners);
     }
 

@@ -4,6 +4,8 @@ package com.hedera.services.bdd.spec.transactions.schedule;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asScheduleId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.correspondingScheduledTxnId;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleSign;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -103,8 +105,8 @@ public class HapiScheduleSign extends HapiTxnOp<HapiScheduleSign> {
     protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
         try {
             final ScheduleInfo info = ScheduleFeeUtils.lookupInfo(spec, schedule, true);
-            FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> scheduleOpsUsage.scheduleSignUsage(
-                    _txn, suFrom(svo), info.getExpirationTime().getSeconds());
+            FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> fromPbj(scheduleOpsUsage.scheduleSignUsage(
+                    toPbj(_txn), suFrom(svo), info.getExpirationTime().getSeconds()));
             return spec.fees().forActivityBasedOp(HederaFunctionality.ScheduleSign, metricsCalc, txn, numPayerKeys);
         } catch (Throwable ignore) {
             return HapiSuite.ONE_HBAR;

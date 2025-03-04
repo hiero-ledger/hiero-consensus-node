@@ -5,6 +5,8 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getFeeObject;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getSignatureCount;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getSignatureSize;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getTotalFeeforRequest;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
@@ -138,7 +140,7 @@ public class FeeCalculator {
     private FeeData metricsFor(final Transaction txn, final int numPayerSigs, final ActivityMetrics metricsCalculator)
             throws Throwable {
         final SigValueObj sigUsage = sigUsageGiven(txn, numPayerSigs);
-        final TransactionBody body = CommonUtils.extractTransactionBody(txn);
+        final TransactionBody body = fromPbj(CommonUtils.extractTransactionBody(toPbj(txn)));
         return metricsCalculator.compute(body, sigUsage);
     }
 
@@ -148,7 +150,8 @@ public class FeeCalculator {
         }
         try {
             final Map<SubType, FeeData> activityPrices = opFeeData.get(op);
-            return getTotalFeeforRequest(activityPrices.get(subType), knownActivity, provider.rates());
+            return getTotalFeeforRequest(
+                    toPbj(activityPrices.get(subType)), toPbj(knownActivity), toPbj(provider.rates()));
         } catch (final Throwable t) {
             log.warn("Unable to calculate fee for op {} (subType={}), using max fee!", op, subType, t);
         }
@@ -162,17 +165,17 @@ public class FeeCalculator {
             final AtomicReference<FeeObject> obs) {
         try {
             final var activityPrices = opFeeData.get(op).get(subType);
-            final var fees = getFeeObject(activityPrices, knownActivity, provider.rates());
+            final var fees = getFeeObject(toPbj(activityPrices), toPbj(knownActivity), toPbj(provider.rates()));
             obs.set(fees);
-            return getTotalFeeforRequest(activityPrices, knownActivity, provider.rates());
+            return getTotalFeeforRequest(toPbj(activityPrices), toPbj(knownActivity), toPbj(provider.rates()));
         } catch (final Throwable t) {
             throw new IllegalArgumentException("Calculation not observable!", t);
         }
     }
 
     private SigValueObj sigUsageGiven(final Transaction txn, final int numPayerSigs) {
-        final int size = getSignatureSize(txn);
-        final int totalNumSigs = getSignatureCount(txn);
+        final int size = getSignatureSize(toPbj(txn));
+        final int totalNumSigs = getSignatureCount(toPbj(txn));
         return new SigValueObj(totalNumSigs, numPayerSigs, size);
     }
 

@@ -11,13 +11,13 @@ import static com.hedera.hapi.node.base.TokenFreezeStatus.UNFROZEN;
 import static com.hedera.hapi.node.base.TokenKycStatus.GRANTED;
 import static com.hedera.hapi.node.base.TokenKycStatus.KYC_NOT_APPLICABLE;
 import static com.hedera.hapi.node.base.TokenKycStatus.REVOKED;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -49,7 +49,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -319,7 +318,7 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
             return CONSTANT_FEE_DATA;
         }
         final var ctx = ExtantCryptoContext.newBuilder()
-                .setCurrentKey(fromPbj(account.key()))
+                .setCurrentKey(account.key())
                 .setCurrentMemo(account.memo())
                 .setCurrentExpiry(account.expirationSecond())
                 .setCurrentNumTokenRels(account.numberAssociations())
@@ -328,6 +327,6 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
                 .setCurrentTokenAllowances(Collections.emptyMap())
                 .setCurrentApproveForAllNftAllowances(Collections.emptySet())
                 .build();
-        return cryptoOpsUsage.cryptoInfoUsage(fromPbj(query), ctx);
+        return cryptoOpsUsage.cryptoInfoUsage(query, ctx);
     }
 }

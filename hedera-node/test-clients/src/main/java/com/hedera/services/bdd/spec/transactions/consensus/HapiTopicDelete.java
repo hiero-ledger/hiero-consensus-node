@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.spec.transactions.consensus;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusDeleteTopic;
 
 import com.google.common.base.MoreObjects;
@@ -69,7 +71,8 @@ public class HapiTopicDelete extends HapiTxnOp<HapiTopicDelete> {
         return spec.fees()
                 .forActivityBasedOp(
                         ConsensusDeleteTopic,
-                        ConsensusServiceFeeBuilder::getConsensusDeleteTopicFee,
+                        (txBody, sigValObj) -> fromPbj(
+                                ConsensusServiceFeeBuilder.getConsensusDeleteTopicFee(toPbj(txBody), sigValObj)),
                         txn,
                         numPayerKeys);
     }

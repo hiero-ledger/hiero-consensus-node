@@ -4,7 +4,7 @@ package com.hedera.node.app.hapi.fees.usage;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.HRS_DIVISOR;
 
-import com.hederahashgraph.api.proto.java.FeeComponents;
+import com.hedera.hapi.node.base.FeeComponents;
 
 public class UsageEstimate {
     static EstimatorUtils estimatorUtils = ESTIMATOR_UTILS;
@@ -31,8 +31,8 @@ public class UsageEstimate {
     }
 
     public FeeComponents build() {
-        return base.setSbh(estimatorUtils.nonDegenerateDiv(sbs, HRS_DIVISOR))
-                .setRbh(estimatorUtils.nonDegenerateDiv(rbs, HRS_DIVISOR))
+        return base.sbh(estimatorUtils.nonDegenerateDiv(sbs, HRS_DIVISOR))
+                .rbh(estimatorUtils.nonDegenerateDiv(rbs, HRS_DIVISOR))
                 .build();
     }
 

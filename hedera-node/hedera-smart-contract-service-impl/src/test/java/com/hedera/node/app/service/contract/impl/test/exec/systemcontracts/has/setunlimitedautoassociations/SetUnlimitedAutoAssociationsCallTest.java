@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.setunlimitedautoassociations;
 
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -53,7 +53,7 @@ class SetUnlimitedAutoAssociationsCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(SetUnlimitedAutoAssociationsTranslator.SET_UNLIMITED_AUTO_ASSOC
                         .getOutputs()
-                        .encode(Tuple.singleton((long) SUCCESS.getNumber()))
+                        .encode(Tuple.singleton((long) SUCCESS.protoOrdinal()))
                         .array()),
                 result.getOutput());
     }
@@ -71,7 +71,7 @@ class SetUnlimitedAutoAssociationsCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(SetUnlimitedAutoAssociationsTranslator.SET_UNLIMITED_AUTO_ASSOC
                         .getOutputs()
-                        .encode(Tuple.singleton((long) REVERTED_SUCCESS.getNumber()))
+                        .encode(Tuple.singleton((long) REVERTED_SUCCESS.protoOrdinal()))
                         .array()),
                 result.getOutput());
     }

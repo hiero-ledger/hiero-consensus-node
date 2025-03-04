@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.queries.contract;
 
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
@@ -65,8 +66,8 @@ public class HapiGetContractRecords extends HapiQueryOp<HapiGetContractRecords> 
     }
 
     @Override
-    protected long costOnlyNodePayment(HapiSpec spec) throws Throwable {
-        return spec.fees().forOp(HederaFunctionality.ContractGetRecords, FeeBuilder.getCostForQueryByIdOnly());
+    protected long costOnlyNodePayment(HapiSpec spec) {
+        return spec.fees().forOp(HederaFunctionality.ContractGetRecords, fromPbj(FeeBuilder.getCostForQueryByIdOnly()));
     }
 
     @Override

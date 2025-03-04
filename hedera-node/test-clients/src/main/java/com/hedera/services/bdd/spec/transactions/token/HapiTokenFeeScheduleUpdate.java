@@ -20,6 +20,7 @@ import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.queries.token.HapiGetTokenInfo;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.utils.CommonPbjConverters;
 import com.hederahashgraph.api.proto.java.CustomFee;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -117,8 +118,11 @@ public class HapiTokenFeeScheduleUpdate extends HapiTxnOp<HapiTokenFeeScheduleUp
         final var baseMeta = new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
         final var effectiveNow =
                 txn.getTransactionID().getTransactionValidStart().getSeconds();
-        final var bytesToReprNew = TOKEN_OPS_USAGE.bytesNeededToRepr(op.getCustomFeesList());
-        final var bytesToReprOld = TOKEN_OPS_USAGE.bytesNeededToRepr(info.getCustomFeesList());
+        final var bytesToReprNew = TOKEN_OPS_USAGE.bytesNeededToRepr(
+                op.getCustomFeesList().stream().map(CommonPbjConverters::toPbj).toList());
+        final var bytesToReprOld = TOKEN_OPS_USAGE.bytesNeededToRepr(info.getCustomFeesList().stream()
+                .map(CommonPbjConverters::toPbj)
+                .toList());
 
         final var ctx = new ExtantFeeScheduleContext(info.getExpiry().getSeconds(), bytesToReprOld);
         final var accumulator = new UsageAccumulator();
