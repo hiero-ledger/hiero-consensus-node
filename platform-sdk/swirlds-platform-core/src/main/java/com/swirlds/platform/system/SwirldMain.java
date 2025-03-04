@@ -59,10 +59,10 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
     T newStateRoot();
 
     /**
-     * Instantiate and return a new instance of the state lifecycles for this SwirldMain object.
-     * @return state lifecycles
+     * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.
+     * @return consensus state event handler
      */
-    ConsensusStateEventHandler<T> newStateLifecycles();
+    ConsensusStateEventHandler<T> newConsensusStateEvenHandler();
 
     /**
      * <p>

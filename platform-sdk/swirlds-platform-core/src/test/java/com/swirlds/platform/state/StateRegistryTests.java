@@ -2,7 +2,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -91,7 +91,7 @@ class StateRegistryTests {
         // Deserialize a state
         final TestMerkleStateRoot stateToSerialize = new TestMerkleStateRoot();
         final TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade(softwareVersionSupplier);
-        FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(stateToSerialize);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(stateToSerialize);
         final var platformState = platformStateFacade.getWritablePlatformStateOf(stateToSerialize);
         platformState.bulkUpdate(v -> {
             v.setCreationSoftwareVersion(new BasicSoftwareVersion(version.minor()));

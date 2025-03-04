@@ -58,7 +58,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
-    FAKE_MERKLE_STATE_LIFECYCLES;
+    FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(AddressBookConfig.class)

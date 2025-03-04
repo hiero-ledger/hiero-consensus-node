@@ -22,7 +22,7 @@ import java.util.function.Consumer;
  * This class handles the lifecycle events for the {@link TurtleTestingToolState}.
  */
 enum TurtleConsensusStateEventHandler implements ConsensusStateEventHandler<TurtleTestingToolState> {
-    TURTLE_STATE_LIFECYCLES;
+    TURTLE_CONSENSUS_STATE_EVENT_HANDLER;
 
     @Override
     public void onPreHandle(

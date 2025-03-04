@@ -16,7 +16,7 @@ import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -287,12 +287,12 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
     @NonNull
     public StatsSigningTestingToolState newStateRoot() {
         final StatsSigningTestingToolState state = new StatsSigningTestingToolState();
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
     }
 
     @Override
-    public ConsensusStateEventHandler<StatsSigningTestingToolState> newStateLifecycles() {
+    public ConsensusStateEventHandler<StatsSigningTestingToolState> newConsensusStateEvenHandler() {
         return new StatsSigningTestingToolConsensusStateEventHandler(() -> sttTransactionPool);
     }
 

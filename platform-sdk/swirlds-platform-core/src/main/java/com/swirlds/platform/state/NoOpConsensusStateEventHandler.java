@@ -19,7 +19,7 @@ import java.util.function.Consumer;
  * It's useful for auxiliary code that doesn't handle new transactions (State Editor, State commands, Event Recovery workflow, etc.).
  */
 public enum NoOpConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
-    NO_OP_STATE_LIFECYCLES;
+    NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 
     @Override
     public void onPreHandle(

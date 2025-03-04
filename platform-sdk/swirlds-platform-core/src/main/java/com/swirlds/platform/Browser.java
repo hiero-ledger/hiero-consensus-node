@@ -257,7 +257,7 @@ public class Browser {
             MerkleDb.resetDefaultInstancePath();
             PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
             // Create the initial state for the platform
-            ConsensusStateEventHandler consensusStateEventHandler = appMain.newStateLifecycles();
+            ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
                     recycleBin,
                     appMain.getSoftwareVersion(),

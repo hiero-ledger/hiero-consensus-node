@@ -13,7 +13,7 @@ package com.swirlds.demo.crypto;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.gui.SwirldsGui.createConsole;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -192,7 +192,7 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
     @NonNull
     public CryptocurrencyDemoState newStateRoot() {
         final CryptocurrencyDemoState state = new CryptocurrencyDemoState();
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
     }
 
@@ -201,7 +201,7 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
      */
     @Override
     @NonNull
-    public ConsensusStateEventHandler<CryptocurrencyDemoState> newStateLifecycles() {
+    public ConsensusStateEventHandler<CryptocurrencyDemoState> newConsensusStateEvenHandler() {
         return new CryptocurrencyDemoConsensusStateEventHandler();
     }
 

@@ -296,7 +296,7 @@ public final class EventRecoveryWorkflow {
         final RecoveryPlatform platform =
                 new RecoveryPlatform(configuration, initialState.get(), selfId, loadSigningKeys);
 
-        ConsensusStateEventHandler consensusStateEventHandler = appMain.newStateLifecycles();
+        ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
         SoftwareVersion softwareVersion =
                 platformStateFacade.creationSoftwareVersionOf(initialState.get().getState());
         initialState.get().init(platformContext);

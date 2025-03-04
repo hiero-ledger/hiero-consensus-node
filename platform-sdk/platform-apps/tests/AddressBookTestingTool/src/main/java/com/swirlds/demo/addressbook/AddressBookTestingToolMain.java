@@ -3,7 +3,7 @@ package com.swirlds.demo.addressbook;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -113,13 +113,13 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
     @NonNull
     public AddressBookTestingToolState newStateRoot() {
         final AddressBookTestingToolState state = new AddressBookTestingToolState();
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
     }
 
     @Override
     @NonNull
-    public ConsensusStateEventHandler<AddressBookTestingToolState> newStateLifecycles() {
+    public ConsensusStateEventHandler<AddressBookTestingToolState> newConsensusStateEvenHandler() {
         return new AddressBookTestingToolConsensusStateEventHandler(
                 new PlatformStateFacade((v) -> new BasicSoftwareVersion(v.major())));
     }

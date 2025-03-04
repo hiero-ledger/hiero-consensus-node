@@ -2,7 +2,7 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -102,7 +102,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @NonNull
     public ConsistencyTestingToolState newStateRoot() {
         final ConsistencyTestingToolState state = new ConsistencyTestingToolState();
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
 
         return state;
     }
@@ -112,7 +112,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
      */
     @Override
     @NonNull
-    public ConsensusStateEventHandler<ConsistencyTestingToolState> newStateLifecycles() {
+    public ConsensusStateEventHandler<ConsistencyTestingToolState> newConsensusStateEvenHandler() {
         return new ConsistencyTestingToolConsensusStateEventHandler(
                 new PlatformStateFacade((v) -> new BasicSoftwareVersion(v.major())));
     }
