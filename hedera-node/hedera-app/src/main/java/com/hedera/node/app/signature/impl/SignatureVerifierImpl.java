@@ -14,6 +14,7 @@ import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,9 +34,14 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
     /** The {@link Cryptography} engine to use for signature verification. */
     private final Cryptography cryptoEngine;
 
-    /** Create a new instance with the given {@link Cryptography} engine. */
+    /** Create a new instance with new {@link Cryptography} engine. */
     @Inject
-    public SignatureVerifierImpl(@NonNull final Cryptography cryptoEngine) {
+    public SignatureVerifierImpl() {
+        this(CryptographyFactory.create());
+    }
+
+    /** Create a new instance with the given {@link Cryptography} engine. */
+    SignatureVerifierImpl(@NonNull final Cryptography cryptoEngine) {
         this.cryptoEngine = requireNonNull(cryptoEngine);
     }
 

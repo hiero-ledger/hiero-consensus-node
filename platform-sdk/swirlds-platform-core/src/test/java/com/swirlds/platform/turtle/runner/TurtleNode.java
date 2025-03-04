@@ -118,7 +118,6 @@ public class TurtleNode {
                 RecycleBin.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, nodeId);
 
         final var reservedState = getInitialState(
-                configuration,
                 recycleBin,
                 version,
                 TurtleTestingToolState::getStateRootNode,
@@ -126,7 +125,8 @@ public class TurtleNode {
                 "bar",
                 nodeId,
                 addressBook,
-                platformStateFacade);
+                platformStateFacade,
+                platformContext);
         final var initialState = reservedState.state();
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(

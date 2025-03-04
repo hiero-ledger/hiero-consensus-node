@@ -8,7 +8,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
@@ -87,10 +87,9 @@ public final class FakePlatform implements Platform {
                 configuration,
                 Time.getCurrent(),
                 metrics,
-                CryptographyHolder.get(),
                 FileSystemManager.create(configuration),
                 new NoOpRecycleBin(),
-                MerkleCryptographyFactory.create(configuration, CryptographyHolder.get()));
+                MerkleCryptographyFactory.create(configuration, CryptographyFactory.create()));
     }
 
     @Override

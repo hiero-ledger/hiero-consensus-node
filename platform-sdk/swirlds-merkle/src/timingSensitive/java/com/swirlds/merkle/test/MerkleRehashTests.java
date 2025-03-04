@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -38,6 +38,7 @@ import org.mockito.stubbing.Answer;
 
 @DisplayName("Merkle Rehash Tests")
 class MerkleRehashTests {
+    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * If the root of the tree is an internal node, add some self hashing nodes that "explode" if rehashed.
@@ -71,8 +72,7 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
@@ -88,8 +88,7 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
@@ -111,8 +110,7 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
@@ -194,7 +192,7 @@ class MerkleRehashTests {
 
         @Override
         public Hash getHash() {
-            return CryptographyHolder.get().getNullHash();
+            return NULL_HASH;
         }
 
         @Override
@@ -233,7 +231,7 @@ class MerkleRehashTests {
 
         @Override
         public Hash getHash() {
-            return CryptographyHolder.get().getNullHash();
+            return NULL_HASH;
         }
 
         @Override
