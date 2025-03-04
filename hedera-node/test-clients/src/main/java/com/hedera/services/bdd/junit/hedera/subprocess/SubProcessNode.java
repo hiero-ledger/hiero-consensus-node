@@ -137,6 +137,11 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
     }
 
     @Override
+    public CompletableFuture<Void> logFuture(@NonNull final String pattern) {
+        return conditionFuture(() -> applicationLogContains(pattern) ? REACHED : PENDING, () -> LOG_SCAN_BACKOFF_MS);
+    }
+
+    @Override
     public CompletableFuture<Void> stopFuture() {
         if (processHandle == null) {
             return CompletableFuture.completedFuture(null);
@@ -237,6 +242,14 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
 
     private boolean swirldsLogContains(@NonNull final String text) {
         try (var lines = Files.lines(getExternalPath(SWIRLDS_LOG))) {
+            return lines.anyMatch(line -> line.contains(text));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private boolean applicationLogContains(@NonNull final String text) {
+        try (var lines = Files.lines(getExternalPath(APPLICATION_LOG))) {
             return lines.anyMatch(line -> line.contains(text));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

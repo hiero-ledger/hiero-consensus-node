@@ -59,13 +59,15 @@ public class FakeHintsService implements HintsService {
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
-        delegate.reconcile(activeRosters, hintsStore, now, tssConfig);
+            @NonNull final TssConfig tssConfig,
+            final boolean currentPlatformStatus) {
+        delegate.reconcile(activeRosters, hintsStore, now, tssConfig, currentPlatformStatus);
     }
 
     @Override
-    public void executeCrsWork(@NonNull final WritableHintsStore hintsStore, @NonNull final Instant now) {
-        delegate.executeCrsWork(hintsStore, now);
+    public void executeCrsWork(
+            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
+        delegate.executeCrsWork(hintsStore, now, isActive);
     }
 
     @Override

@@ -61,9 +61,6 @@ class HistoryServiceImplTest {
     private ActiveRosters activeRosters;
 
     @Mock
-    private HistoryLibraryCodec codec;
-
-    @Mock
     private HistoryLibrary library;
 
     @Mock
@@ -121,7 +118,7 @@ class HistoryServiceImplTest {
                 .build();
         given(store.getConstructionFor(activeRosters)).willReturn(construction);
 
-        subject.reconcile(activeRosters, currentVk, store, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, currentVk, store, CONSENSUS_NOW, tssConfig, true);
 
         assertDoesNotThrow(() -> subject.getCurrentProof(currentVk));
     }
@@ -135,7 +132,7 @@ class HistoryServiceImplTest {
                         .targetProof(HistoryProof.DEFAULT)
                         .build());
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true);
 
         verifyNoMoreInteractions(component);
     }
@@ -150,9 +147,9 @@ class HistoryServiceImplTest {
         given(controllers.getOrCreateFor(activeRosters, HistoryProofConstruction.DEFAULT, store))
                 .willReturn(controller);
 
-        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true);
 
-        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true);
     }
 
     @Test
@@ -160,14 +157,13 @@ class HistoryServiceImplTest {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true);
 
         verify(store, never()).getConstructionFor(activeRosters);
     }
 
     private void withLiveSubject() {
-        subject = new HistoryServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, codec, DEFAULT_CONFIG);
+        subject = new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, DEFAULT_CONFIG);
     }
 
     private void withMockSubject() {

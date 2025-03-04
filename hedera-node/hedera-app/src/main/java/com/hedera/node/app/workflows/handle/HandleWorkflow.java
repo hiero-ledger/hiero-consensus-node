@@ -24,6 +24,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
+import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
 import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
@@ -51,6 +52,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.roster.ActiveRosters;
@@ -148,6 +150,7 @@ public class HandleWorkflow {
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final CurrentPlatformStatus currentPlatformStatus;
 
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
     private long lastMetricUpdateSecond;
@@ -181,7 +184,8 @@ public class HandleWorkflow {
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
             @NonNull final CongestionMetrics congestionMetrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final CurrentPlatformStatus currentPlatformStatus) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -212,6 +216,7 @@ public class HandleWorkflow {
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
+        this.currentPlatformStatus = requireNonNull(currentPlatformStatus);
     }
 
     /**
@@ -891,11 +896,12 @@ public class HandleWorkflow {
         if (tssConfig.crsEnabled() || tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
+            final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.crsEnabled()) {
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 final var hintsStore = new WritableHintsStoreImpl(hintsWritableStates);
                 doStreamingKVChanges(
-                        hintsWritableStates, null, now, () -> hintsService.executeCrsWork(hintsStore, now));
+                        hintsWritableStates, null, now, () -> hintsService.executeCrsWork(hintsStore, now, isActive));
             }
             if (tssConfig.hintsEnabled()) {
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
@@ -904,23 +910,21 @@ public class HandleWorkflow {
                         hintsWritableStates,
                         null,
                         now,
-                        () -> hintsService.reconcile(activeRosters, hintsStore, now, tssConfig));
+                        () -> hintsService.reconcile(activeRosters, hintsStore, now, tssConfig, isActive));
             }
             if (tssConfig.historyEnabled()) {
-                final Bytes currentMetadata;
-                if (tssConfig.hintsEnabled()) {
-                    final var hintsStore = new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME));
-                    currentMetadata = hintsStore.getActiveVerificationKey();
-                } else {
-                    currentMetadata = null;
-                }
+                final Bytes currentMetadata = tssConfig.hintsEnabled()
+                        ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME))
+                                .getActiveVerificationKey()
+                        : Bytes.wrap(new byte[32]);
                 final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
                 final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                 doStreamingKVChanges(
                         historyWritableStates,
                         null,
                         now,
-                        () -> historyService.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig));
+                        () -> historyService.reconcile(
+                                activeRosters, currentMetadata, historyStore, now, tssConfig, isActive));
             }
         }
     }

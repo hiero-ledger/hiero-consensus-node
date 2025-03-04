@@ -33,7 +33,6 @@ public class HintsControllers {
     private final Executor executor;
     private final HintsKeyAccessor keyAccessor;
     private final HintsLibrary library;
-    private final HintsLibraryCodec codec;
     private final HintsSubmissions submissions;
     private final HintsContext context;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
@@ -51,14 +50,12 @@ public class HintsControllers {
             @NonNull final Executor executor,
             @NonNull final HintsKeyAccessor keyAccessor,
             @NonNull final HintsLibrary library,
-            @NonNull final HintsLibraryCodec codec,
             @NonNull final HintsSubmissions submissions,
             @NonNull final HintsContext context,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final Supplier<Configuration> configurationSupplier) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
-        this.codec = requireNonNull(codec);
         this.context = requireNonNull(context);
         this.library = requireNonNull(library);
         this.submissions = requireNonNull(submissions);
@@ -159,7 +156,6 @@ public class HintsControllers {
                     weights,
                     executor,
                     library,
-                    codec,
                     votes,
                     publications,
                     submissions,

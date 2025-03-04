@@ -31,6 +31,9 @@ import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.history.ProofKeySet;
+import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -250,6 +253,15 @@ public class KVStateChangeListener implements StateChangeListener {
                     .build();
             case PreprocessingVote preprocessingVote -> MapChangeValue.newBuilder()
                     .preprocessingVoteValue(preprocessingVote)
+                    .build();
+            case RecordedHistorySignature recordedHistorySignature -> MapChangeValue.newBuilder()
+                    .historySignatureValue(recordedHistorySignature)
+                    .build();
+            case HistoryProofVote historyProofVote -> MapChangeValue.newBuilder()
+                    .historyProofVoteValue(historyProofVote)
+                    .build();
+            case ProofKeySet proofKeySet -> MapChangeValue.newBuilder()
+                    .proofKeySetValue(proofKeySet)
                     .build();
             default -> throw new IllegalStateException(
                     "Unexpected value: " + value.getClass().getSimpleName());

@@ -749,6 +749,9 @@ public class StateChangesValidator implements BlockStreamValidator {
             case HINTS_KEY_SET_VALUE -> mapChangeValue.hintsKeySetValueOrThrow();
             case PREPROCESSING_VOTE_VALUE -> mapChangeValue.preprocessingVoteValueOrThrow();
             case CRS_PUBLICATION_VALUE -> mapChangeValue.crsPublicationValueOrThrow();
+            case HISTORY_PROOF_VOTE_VALUE -> mapChangeValue.historyProofVoteValue();
+            case HISTORY_SIGNATURE_VALUE -> mapChangeValue.historySignatureValue();
+            case PROOF_KEY_SET_VALUE -> mapChangeValue.proofKeySetValue();
         };
     }
 

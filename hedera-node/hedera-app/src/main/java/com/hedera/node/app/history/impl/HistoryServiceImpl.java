@@ -43,11 +43,9 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HistoryLibrary library,
-            @NonNull final HistoryLibraryCodec codec,
             @NonNull final Configuration bootstrapConfig) {
         this.bootstrapConfig = requireNonNull(bootstrapConfig);
-        this.component =
-                DaggerHistoryServiceComponent.factory().create(library, codec, appContext, executor, metrics, this);
+        this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
     }
 
     @VisibleForTesting
@@ -68,7 +66,8 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
@@ -79,7 +78,7 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
                 if (!construction.hasTargetProof()) {
                     final var controller =
                             component.controllers().getOrCreateFor(activeRosters, construction, historyStore);
-                    controller.advanceConstruction(now, metadata, historyStore);
+                    controller.advanceConstruction(now, metadata, historyStore, isActive);
                 }
             }
             case HANDOFF -> {
