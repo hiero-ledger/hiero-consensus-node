@@ -60,8 +60,8 @@ public final class RosterRetriever {
         if (roster != null) {
             return roster;
         }
-        // We are currently in bootstrap for the genesis roster, which is set in the address book
-        return buildRoster(platformStateFacade.addressBookOf(state));
+        // This shouldn't normally happen, but as an edge case at genesis that's the best we can do here:
+        return null;
     }
 
     /**
@@ -80,10 +80,6 @@ public final class RosterRetriever {
                 state.getReadableStates(ROSTER_SERVICE).getSingleton(ROSTER_STATES_KEY);
         final List<RoundRosterPair> roundRosterPairs =
                 requireNonNull(rosterState.get()).roundRosterPairs();
-
-        if (roundRosterPairs.isEmpty()) {
-            return buildRoster(platformStateFacade.previousAddressBookOf(state));
-        }
 
         if (roundRosterPairs.size() < 2) {
             return null;
