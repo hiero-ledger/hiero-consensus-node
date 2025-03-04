@@ -215,8 +215,8 @@ jobs:
         # not supporting BuildKit and the Buildx plugin.
         # GitHub hosted MacOS and Ubuntu runners are temporarily disabled.
         os:
+          #- ubuntu-24.04
           #- ubuntu-22.04
-          #- ubuntu-20.04
           #- macos-12
           #- macos-11
           - hiero-network-node-linux-medium
