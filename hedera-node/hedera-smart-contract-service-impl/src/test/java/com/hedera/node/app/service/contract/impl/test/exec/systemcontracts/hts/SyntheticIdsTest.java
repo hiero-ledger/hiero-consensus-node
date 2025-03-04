@@ -17,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperatio
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.SyntheticIds;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,8 +34,9 @@ class SyntheticIdsTest {
     @Test
     void returnsNumericIdIfAddressIsCanonicalReference() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        given(nativeOperations.resolveAlias(ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
+        given(nativeOperations.resolveAlias(0, 0, ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(TestHelpers.A_NEW_ACCOUNT_ID.accountNumOrThrow());
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
         final var subject = implicitSubject.converterFor(nativeOperations);
         final var synthId = subject.convert(asHeadlongAddress(EIP_1014_ADDRESS));
