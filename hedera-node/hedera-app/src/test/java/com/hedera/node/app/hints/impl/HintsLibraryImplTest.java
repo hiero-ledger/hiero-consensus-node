@@ -9,7 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.SplittableRandom;
+import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
 class HintsLibraryImplTest {
@@ -70,13 +72,16 @@ class HintsLibraryImplTest {
         final var newCrsBytes = decodedCrsUpdate.crs();
         final var blsPrivateKey = subject.newBlsKeyPair();
 
-        final var hintsForAllParties = Map.of(
-                1, subject.computeHints(newCrsBytes, blsPrivateKey, 1, 4),
-                2, subject.computeHints(newCrsBytes, blsPrivateKey, 2, 4),
-                3, subject.computeHints(newCrsBytes, blsPrivateKey, 3, 4));
+        final SortedMap<Integer, Bytes> hintsForAllParties = new TreeMap<>();
+        hintsForAllParties.put(1, subject.computeHints(newCrsBytes, blsPrivateKey, 1, 4));
+        hintsForAllParties.put(2, subject.computeHints(newCrsBytes, blsPrivateKey, 2, 4));
+        hintsForAllParties.put(3, subject.computeHints(newCrsBytes, blsPrivateKey, 3, 4));
 
-        final var aggregationAndVerificationKeys =
-                subject.preprocess(newCrsBytes, hintsForAllParties, Map.of(1, 200L, 2, 300L, 3, 400L), 4);
+        final SortedMap<Integer, Long> weights = new TreeMap<>();
+        weights.put(1, 200L);
+        weights.put(2, 300L);
+        weights.put(3, 400L);
+        final var aggregationAndVerificationKeys = subject.preprocess(newCrsBytes, hintsForAllParties, weights, 4);
         assertNotNull(aggregationAndVerificationKeys);
         assertNotEquals(aggregationAndVerificationKeys.aggregationKey(), new byte[0]);
         assertNotEquals(aggregationAndVerificationKeys.verificationKey(), new byte[0]);
@@ -94,7 +99,13 @@ class HintsLibraryImplTest {
         final var signature = subject.signBls(Bytes.wrap(message), blsPrivateKey);
         assertNotNull(signature);
 
-        final var keys = subject.preprocess(crs, Map.of(1, extendedPublicKey), Map.of(1, 200L), 4);
+        final SortedMap<Integer, Bytes> hintsForAllParties = new TreeMap<>();
+        hintsForAllParties.put(1, extendedPublicKey);
+
+        final SortedMap<Integer, Long> weights = new TreeMap<>();
+        weights.put(1, 200L);
+
+        final var keys = subject.preprocess(crs, hintsForAllParties, weights, 4);
 
         final var isValid =
                 subject.verifyBls(crs, signature, Bytes.wrap(message), Bytes.wrap(keys.aggregationKey()), 1);
@@ -115,12 +126,17 @@ class HintsLibraryImplTest {
         final var secretKey3 = subject.newBlsKeyPair();
         final var hints3 = subject.computeHints(crs, secretKey3, 2, 4);
 
-        final var hintsForAllParties = Map.of(
-                0, hints1,
-                1, hints2,
-                2, hints3);
+        final SortedMap<Integer, Bytes> hintsForAllParties = new TreeMap<>();
+        hintsForAllParties.put(0, hints1);
+        hintsForAllParties.put(1, hints2);
+        hintsForAllParties.put(2, hints3);
 
-        final var keys = subject.preprocess(crs, hintsForAllParties, Map.of(0, 200L, 1, 300L, 2, 400L), 4);
+        final SortedMap<Integer, Long> weights = new TreeMap<>();
+        weights.put(0, 200L);
+        weights.put(1, 300L);
+        weights.put(2, 400L);
+
+        final var keys = subject.preprocess(crs, hintsForAllParties, weights, 4);
 
         final var message = Bytes.wrap("Hello World".getBytes());
         final var signature1 = subject.signBls(message, secretKey1);

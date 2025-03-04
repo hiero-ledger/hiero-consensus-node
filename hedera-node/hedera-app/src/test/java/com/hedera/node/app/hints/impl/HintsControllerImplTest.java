@@ -185,12 +185,7 @@ class HintsControllerImplTest {
         given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
         runScheduledTasks();
 
-        given(library.preprocess(
-                        any(),
-                        eq(Map.of(0, EXPECTED_NODE_ONE_PUBLICATION.hintsKey())),
-                        eq(Map.of(0, TARGET_NODE_WEIGHTS.get(1L))),
-                        eq(EXPECTED_PARTY_SIZE)))
-                .willReturn(ENCODED_PREPROCESSED_KEYS);
+        given(library.preprocess(any(), any(), any(), eq(EXPECTED_PARTY_SIZE))).willReturn(ENCODED_PREPROCESSED_KEYS);
         given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
                 .willReturn(CompletableFuture.completedFuture(null));
 
@@ -229,8 +224,7 @@ class HintsControllerImplTest {
         final Map<Integer, Bytes> expectedHintsKeys =
                 Map.of(EXPECTED_NODE_ONE_PUBLICATION.partyId(), EXPECTED_NODE_ONE_PUBLICATION.hintsKey());
         final Map<Integer, Long> expectedWeights = Map.of(EXPECTED_NODE_ONE_PUBLICATION.partyId(), 8L);
-        given(library.preprocess(any(), eq(expectedHintsKeys), eq(expectedWeights), eq(EXPECTED_PARTY_SIZE)))
-                .willReturn(ENCODED_PREPROCESSED_KEYS);
+        given(library.preprocess(any(), any(), any(), eq(EXPECTED_PARTY_SIZE))).willReturn(ENCODED_PREPROCESSED_KEYS);
         given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
                 .willReturn(CompletableFuture.completedFuture(null));
         given(weights.targetWeightOf(1L)).willReturn(TARGET_NODE_WEIGHTS.get(1L));

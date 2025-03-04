@@ -9,6 +9,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.SplittableRandom;
 
 /**
@@ -63,8 +64,8 @@ public class HintsLibraryImpl implements HintsLibrary {
     @Override
     public AggregationAndVerificationKeys preprocess(
             @NonNull final Bytes crs,
-            @NonNull final Map<Integer, Bytes> hintsKeys,
-            @NonNull final Map<Integer, Long> weights,
+            @NonNull final SortedMap<Integer, Bytes> hintsKeys,
+            @NonNull final SortedMap<Integer, Long> weights,
             final int n) {
         requireNonNull(crs);
         requireNonNull(hintsKeys);

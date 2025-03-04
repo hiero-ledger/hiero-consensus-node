@@ -630,10 +630,14 @@ public class HintsControllerImpl implements HintsController {
                     final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
                             .map(CompletableFuture::join)
                             .filter(Validation::isValid)
-                            .collect(toMap(Validation::partyId, Validation::hintsKey));
+                            .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
                     final var aggregatedWeights = nodePartyIds.entrySet().stream()
                             .filter(entry -> hintKeys.containsKey(entry.getValue()))
-                            .collect(toMap(Map.Entry::getValue, entry -> weights.targetWeightOf(entry.getKey())));
+                            .collect(toMap(
+                                    Map.Entry::getValue,
+                                    entry -> weights.targetWeightOf(entry.getKey()),
+                                    (a, b) -> a,
+                                    TreeMap::new));
                     final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
                     final var preprocessedKeys = PreprocessedKeys.newBuilder()
                             .verificationKey(Bytes.wrap(output.verificationKey()))

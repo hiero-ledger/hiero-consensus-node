@@ -5,6 +5,7 @@ import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.SortedMap;
 
 /**
  * The cryptographic operations required by the {@link HintsService}.
@@ -98,8 +99,8 @@ public interface HintsLibrary {
      */
     AggregationAndVerificationKeys preprocess(
             @NonNull final Bytes crs,
-            @NonNull Map<Integer, Bytes> hintsKeys,
-            @NonNull Map<Integer, Long> weights,
+            @NonNull SortedMap<Integer, Bytes> hintsKeys,
+            @NonNull SortedMap<Integer, Long> weights,
             int n);
 
     /**
