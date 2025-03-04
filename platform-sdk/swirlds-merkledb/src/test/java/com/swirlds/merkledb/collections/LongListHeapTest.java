@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
 import java.io.IOException;
@@ -12,24 +11,16 @@ import org.junit.jupiter.params.provider.Arguments;
 public class LongListHeapTest extends AbstractLongListTest<LongListHeap> {
 
     @Override
-    protected LongListHeap createLongList() {
-        return new LongListHeap();
+    protected LongListHeap createLongList(
+            final int longsPerChunk, final long capacity, final long reservedBufferLength) {
+        return new LongListHeap(longsPerChunk, capacity, reservedBufferLength);
     }
 
     @Override
-    protected LongListHeap createLongListWithChunkSizeInMb(final int chunkSizeInMb) {
-        final int impliedLongsPerChunk = Math.toIntExact((chunkSizeInMb * (long) MEBIBYTES_TO_BYTES) / Long.BYTES);
-        return new LongListHeap(impliedLongsPerChunk);
-    }
-
-    @Override
-    protected LongListHeap createFullyParameterizedLongListWith(final int numLongsPerChunk, final long maxLongs) {
-        return new LongListHeap(numLongsPerChunk, maxLongs, 0);
-    }
-
-    @Override
-    protected LongListHeap createLongListFromFile(final Path file) throws IOException {
-        return new LongListHeap(file, CONFIGURATION);
+    protected LongListHeap createLongList(
+            final Path file, final int longsPerChunk, final long capacity, final long reservedBufferLength)
+            throws IOException {
+        return new LongListHeap(file, longsPerChunk, capacity, reservedBufferLength, CONFIGURATION);
     }
 
     /**

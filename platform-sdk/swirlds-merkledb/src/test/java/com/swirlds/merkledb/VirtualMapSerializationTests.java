@@ -89,7 +89,7 @@ class VirtualMapSerializationTests {
                 LegacyTemporaryFileBuilder.buildTemporaryFile("merkledb-source", configuration);
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbTableConfig tableConfig =
-                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 1234, Long.MAX_VALUE);
+                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 10_000, Long.MAX_VALUE);
         return new MerkleDbDataSourceBuilder(tableConfig, configuration);
     }
 
