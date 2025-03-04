@@ -37,14 +37,13 @@ class SystemContractGasCalculatorTest {
 
     @Test
     void returnsMinimumGasCostForViews() {
-        assertEquals(100L, subject.viewGasRequirement());
+        assertEquals(1198L, subject.viewGasRequirement());
     }
 
     @Test
     void computesCanonicalDispatchType() {
         given(dispatchPrices.canonicalPriceInTinycents(DispatchType.APPROVE)).willReturn(123L);
-        given(tinybarValues.asTinybars(123L)).willReturn(321L);
-        assertEquals(321L, subject.canonicalPriceInTinycents(DispatchType.APPROVE));
+        assertEquals(123L, subject.canonicalPriceInTinycents(DispatchType.APPROVE));
     }
 
     @Test
@@ -62,7 +61,7 @@ class SystemContractGasCalculatorTest {
 
     @Test
     void delegatesTopLevelGasPrice() {
-        given(tinybarValues.topLevelTinybarGasPrice()).willReturn(123L);
-        assertEquals(123L, subject.topLevelGasPrice());
+        given(tinybarValues.topLevelTinybarGasPriceFullPrecision()).willReturn(123L);
+        assertEquals(123L, subject.topLevelGasPriceInTinyBars());
     }
 }
