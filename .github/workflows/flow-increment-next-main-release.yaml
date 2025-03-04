@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Ref to run the workflow on'
+        description: "Ref to run the workflow on:"
         required: true
-        default: 'main'  # Default branch
+        default: "main" # Default branch
 
 defaults:
   run:
