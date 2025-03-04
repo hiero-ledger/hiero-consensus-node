@@ -2,7 +2,7 @@
 pragma solidity >=0.5.0 <0.9.0;
 pragma experimental ABIEncoderV2;
 
-import "../HederaResponseCodes.sol";
+import "./HederaResponseCodes.sol";
 import "./IHederaTokenService.sol";
 
 abstract contract HederaTokenService {
@@ -743,6 +743,13 @@ abstract contract HederaTokenService {
     function rejectTokens(address rejectingAddress, address[] memory ftAddresses, IHederaTokenService.NftID[] memory nftIds) internal returns (int64 responseCode) {
         (bool success, bytes memory result) = precompileAddress.call(
             abi.encodeWithSelector(IHederaTokenService.rejectTokens.selector, rejectingAddress, ftAddresses, nftIds)
+        );
+        (responseCode) = success ? abi.decode(result, (int32)) : HederaResponseCodes.UNKNOWN;
+    }
+
+    function updateNFTsMetadata(address nftToken, int64[] memory serialNumbers, bytes memory metadata) external returns (int64 responseCode) {
+        (bool success, bytes memory result) = precompileAddress.call(
+            abi.encodeWithSelector(IHederaTokenService.updateNFTsMetadata.selector, nftToken, serialNumbers, metadata)
         );
         (responseCode) = success ? abi.decode(result, (int32)) : HederaResponseCodes.UNKNOWN;
     }

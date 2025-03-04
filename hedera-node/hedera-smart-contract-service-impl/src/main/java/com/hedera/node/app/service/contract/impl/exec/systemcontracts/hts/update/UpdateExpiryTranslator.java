@@ -3,23 +3,20 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updat
 
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.EXPIRY;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.EXPIRY_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder.FAILURE_CUSTOMIZER;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder.FAILURE_CUSTOMIZER;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Variant;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Optional;
@@ -70,22 +67,7 @@ public class UpdateExpiryTranslator extends AbstractCallTranslator<HtsCallAttemp
     @Override
     public Call callFrom(@NonNull HtsCallAttempt attempt) {
         return new DispatchForResponseCodeHtsCall(
-                attempt, nominalBodyFor(attempt), UpdateTranslator::gasRequirement, FAILURE_CUSTOMIZER);
-    }
-
-    /**
-     * @param body                          the transaction body to be dispatched
-     * @param systemContractGasCalculator   the gas calculator for the system contract
-     * @param enhancement                   the enhancement to use
-     * @param payerId                       the payer of the transaction
-     * @return the required gas
-     */
-    public static long gasRequirement(
-            @NonNull final TransactionBody body,
-            @NonNull final SystemContractGasCalculator systemContractGasCalculator,
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final AccountID payerId) {
-        return systemContractGasCalculator.gasRequirement(body, DispatchType.UPDATE, payerId);
+                attempt, nominalBodyFor(attempt), UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
     }
 
     private TransactionBody nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
