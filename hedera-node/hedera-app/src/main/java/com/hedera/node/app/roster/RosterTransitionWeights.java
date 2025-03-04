@@ -8,6 +8,7 @@ import java.math.BigInteger;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.stream.Stream;
 
 /**
@@ -24,7 +25,8 @@ public record RosterTransitionWeights(
         long targetWeightThreshold) {
 
     public RosterTransitionWeights(
-            @NonNull final Map<Long, Long> sourceNodeWeights, @NonNull final Map<Long, Long> targetNodeWeights) {
+            @NonNull final SortedMap<Long, Long> sourceNodeWeights,
+            @NonNull final SortedMap<Long, Long> targetNodeWeights) {
         this(
                 requireNonNull(sourceNodeWeights),
                 requireNonNull(targetNodeWeights),

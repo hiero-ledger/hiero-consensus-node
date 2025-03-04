@@ -66,7 +66,8 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
@@ -77,7 +78,7 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
                 if (!construction.hasTargetProof()) {
                     final var controller =
                             component.controllers().getOrCreateFor(activeRosters, construction, historyStore);
-                    controller.advanceConstruction(now, metadata, historyStore);
+                    controller.advanceConstruction(now, metadata, historyStore, isActive);
                 }
             }
             case HANDOFF -> {

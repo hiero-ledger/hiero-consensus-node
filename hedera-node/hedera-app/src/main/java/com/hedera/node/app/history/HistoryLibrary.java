@@ -5,7 +5,6 @@ import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Map;
 
 /**
  * The cryptographic operations required by the {@link HistoryService}.
@@ -82,7 +81,7 @@ public interface HistoryLibrary {
             @NonNull final byte[][] currentAddressBookVerifyingKeys,
             @NonNull final long[] nextAddressBookWeights,
             @NonNull final byte[][] nextAddressBookVerifyingKeys,
-            @NonNull Map<Long, Bytes> sourceSignatures,
+            @NonNull byte[][] sourceSignatures,
             @NonNull Bytes targetMetadata);
 
     /**

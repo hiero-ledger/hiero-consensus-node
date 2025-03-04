@@ -43,8 +43,9 @@ public class FakeHistoryService implements HistoryService {
             @Nullable final Bytes currentMetadata,
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
-        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig);
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
+        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive);
     }
 
     @NonNull

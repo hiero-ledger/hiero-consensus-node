@@ -113,7 +113,7 @@ class ProofControllerImplTest {
 
         assertFalse(subject.isStillInProgress());
 
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
         assertTrue(scheduledTasks.isEmpty());
     }
@@ -123,7 +123,7 @@ class ProofControllerImplTest {
         setupWith(UNFINISHED_CONSTRUCTION);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 
-        subject.advanceConstruction(CONSENSUS_NOW, null, store);
+        subject.advanceConstruction(CONSENSUS_NOW, null, store, true);
 
         final var task = scheduledTasks.poll();
         assertNotNull(task);
@@ -132,7 +132,7 @@ class ProofControllerImplTest {
         verify(submissions).submitProofKeyPublication(PROOF_KEY_PAIR.publicKey());
 
         // Does not re-publish key
-        subject.advanceConstruction(CONSENSUS_NOW, null, store);
+        subject.advanceConstruction(CONSENSUS_NOW, null, store, true);
         assertTrue(scheduledTasks.isEmpty());
 
         assertDoesNotThrow(() -> subject.cancelPendingWork());
@@ -142,7 +142,7 @@ class ProofControllerImplTest {
     void doesNotPublishProofKeyIfAlreadyInState() {
         setupWith(UNFINISHED_CONSTRUCTION, List.of(SELF_KEY_PUBLICATION), List.of(), Map.of(), LEDGER_ID);
 
-        subject.advanceConstruction(CONSENSUS_NOW, null, store);
+        subject.advanceConstruction(CONSENSUS_NOW, null, store, true);
 
         assertTrue(scheduledTasks.isEmpty());
     }
@@ -161,7 +161,7 @@ class ProofControllerImplTest {
         given(submissions.submitAssemblySignature(CONSTRUCTION_ID, expectedSignature))
                 .willReturn(CompletableFuture.completedFuture(null));
 
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
         runScheduledTasks();
 
@@ -180,12 +180,12 @@ class ProofControllerImplTest {
         given(submissions.submitAssemblySignature(CONSTRUCTION_ID, expectedSignature))
                 .willReturn(CompletableFuture.completedFuture(null));
 
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
         runScheduledTasks();
         verify(submissions).submitAssemblySignature(CONSTRUCTION_ID, expectedSignature);
 
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
         assertTrue(scheduledTasks.isEmpty());
     }
 
@@ -195,7 +195,7 @@ class ProofControllerImplTest {
         given(weights.numTargetNodesInSource()).willReturn(1);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
         final var task = scheduledTasks.poll();
         assertNotNull(task);
@@ -213,7 +213,7 @@ class ProofControllerImplTest {
                 Map.of(SELF_ID, HistoryProofVote.DEFAULT),
                 LEDGER_ID);
 
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
         assertTrue(scheduledTasks.isEmpty());
     }
@@ -234,7 +234,7 @@ class ProofControllerImplTest {
         given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
         given(weights.sourceWeightThreshold()).willReturn(3L);
 
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
         given(library.proveChainOfTrust(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -265,7 +265,7 @@ class ProofControllerImplTest {
         given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
         given(weights.sourceWeightThreshold()).willReturn(3L);
 
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
         given(library.proveChainOfTrust(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -331,7 +331,7 @@ class ProofControllerImplTest {
     @Test
     void votingWorksAsExpectedWithUnknownLedgerId() {
         setupWith(SCHEDULED_ASSEMBLY_CONSTRUCTION_WITH_SOURCE_PROOF, List.of(), List.of(), Map.of(), null);
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store);
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
         final var expectedProof = HistoryProof.newBuilder().proof(PROOF).build();
         final var selfVote = HistoryProofVote.newBuilder().proof(expectedProof).build();

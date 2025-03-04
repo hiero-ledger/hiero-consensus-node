@@ -118,7 +118,7 @@ class HintsControllerImplTest {
 
         assertFalse(subject.isStillInProgress());
 
-        subject.advanceConstruction(CONSENSUS_NOW, store);
+        subject.advanceConstruction(CONSENSUS_NOW, store, true);
 
         assertTrue(scheduledTasks.isEmpty());
     }
@@ -194,7 +194,7 @@ class HintsControllerImplTest {
         given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
                 .willReturn(CompletableFuture.completedFuture(null));
 
-        subject.advanceConstruction(CONSENSUS_NOW, store);
+        subject.advanceConstruction(CONSENSUS_NOW, store, true);
 
         final var task = scheduledTasks.poll();
         assertNotNull(task);
@@ -203,7 +203,7 @@ class HintsControllerImplTest {
 
         verify(submissions).submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS);
 
-        subject.advanceConstruction(CONSENSUS_NOW, store);
+        subject.advanceConstruction(CONSENSUS_NOW, store, true);
         assertTrue(scheduledTasks.isEmpty());
 
         assertDoesNotThrow(() -> subject.cancelPendingWork());
@@ -222,7 +222,7 @@ class HintsControllerImplTest {
         given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
         runScheduledTasks();
 
-        subject.advanceConstruction(PREPROCESSING_START_TIME, store);
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
 
         // The vote future should have been started
         final var task = requireNonNull(scheduledTasks.poll());
@@ -246,11 +246,11 @@ class HintsControllerImplTest {
         given(weights.numTargetNodesInSource()).willReturn(2);
         given(weights.targetNodeWeights()).willReturn(Map.of(SELF_ID, 1L));
 
-        subject.advanceConstruction(PREPROCESSING_START_TIME, store);
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
         assertNull(scheduledTasks.poll());
 
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
-        subject.advanceConstruction(PREPROCESSING_START_TIME, store);
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
         final var task = requireNonNull(scheduledTasks.poll());
         final var hints = Bytes.wrap("HINTS");
         final var hintsKey = Bytes.wrap("HK");
@@ -261,7 +261,7 @@ class HintsControllerImplTest {
         task.run();
         verify(submissions).submitHintsKey(0, EXPECTED_PARTY_SIZE, hints);
 
-        subject.advanceConstruction(PREPROCESSING_START_TIME, store);
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
         assertNull(scheduledTasks.poll());
     }
 
@@ -275,7 +275,7 @@ class HintsControllerImplTest {
         given(weights.targetWeightThreshold()).willReturn(1L);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 
-        subject.advanceConstruction(CONSENSUS_NOW.plusSeconds(2), store);
+        subject.advanceConstruction(CONSENSUS_NOW.plusSeconds(2), store, true);
 
         final var task = requireNonNull(scheduledTasks.poll());
         final var hints = Bytes.wrap("HINTS");
@@ -394,7 +394,7 @@ class HintsControllerImplTest {
                         .nextContributingNodeId(null)
                         .crs(INITIAL_CRS)
                         .build());
-        subject.advanceCRSWork(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         verify(store)
                 .setCRSState(CRSState.newBuilder()
@@ -423,7 +423,7 @@ class HintsControllerImplTest {
         given(weights.sourceWeightOf(0L)).willReturn(8L);
         given(weights.sourceWeightOf(1L)).willReturn(10L);
         subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
-        subject.advanceCRSWork(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         verify(store)
                 .setCRSState(CRSState.newBuilder()
@@ -452,7 +452,7 @@ class HintsControllerImplTest {
         given(weights.sourceWeightOf(0L)).willReturn(8L);
         given(weights.sourceWeightOf(2L)).willReturn(1L);
         subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
-        subject.advanceCRSWork(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         verify(store, never())
                 .setCRSState(CRSState.newBuilder()
@@ -484,7 +484,7 @@ class HintsControllerImplTest {
 
         given(weights.sourceNodeIds()).willReturn(SOURCE_NODE_IDS);
         subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
-        subject.advanceCRSWork(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         verify(store).moveToNextNode(OptionalLong.of(2L), CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
     }
@@ -507,7 +507,7 @@ class HintsControllerImplTest {
         task.run();
         assertTrue(scheduledTasks.isEmpty());
 
-        subject.advanceCRSWork(CONSENSUS_NOW, store);
+        subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         final var task1 = requireNonNull(scheduledTasks.poll());
         task1.run();

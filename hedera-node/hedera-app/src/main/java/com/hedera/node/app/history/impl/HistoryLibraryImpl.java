@@ -11,7 +11,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
-import java.util.Map;
 import java.util.SplittableRandom;
 
 /**
@@ -80,7 +79,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
             @NonNull final byte[][] currentAddressBookVerifyingKeys,
             @NonNull final long[] nextAddressBookWeights,
             @NonNull final byte[][] nextAddressBookVerifyingKeys,
-            @NonNull Map<Long, Bytes> sourceSignatures,
+            @NonNull byte[][] sourceSignatures,
             @NonNull final Bytes targetMetadata) {
         requireNonNull(ledgerId);
         requireNonNull(currentAddressBookWeights);
@@ -90,8 +89,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(sourceSignatures);
         requireNonNull(targetMetadata);
 
-        final var verifyingSignatures =
-                sourceSignatures.values().stream().map(Bytes::toByteArray).toArray(byte[][]::new);
         return Bytes.wrap(BRIDGE.proveChainOfTrust(
                 SNARK_KEYS.provingKey(),
                 SNARK_KEYS.verifyingKey(),
@@ -102,7 +99,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 nextAddressBookWeights,
                 sourceProof == null ? null : sourceProof.toByteArray(),
                 targetMetadata.toByteArray(),
-                verifyingSignatures));
+                sourceSignatures));
     }
 
     @Override

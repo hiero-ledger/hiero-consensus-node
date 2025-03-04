@@ -60,14 +60,18 @@ class HistoryLibraryImplTest {
         final Bytes nextAddressBookHash = subject.hashAddressBook(targetWeights, targetKeys);
         final Bytes metadata = com.hedera.pbj.runtime.io.buffer.Bytes.wrap("test metadata");
         final var hashedMetadata = subject.hashHintsVerificationKey(metadata);
-
         final var message = concatMessages(nextAddressBookHash.toByteArray(), hashedMetadata.toByteArray());
 
         final Map<Long, Bytes> signatures = new LinkedHashMap<>();
 
-        for (var entry : sourceAddresses) {
-            signatures.put(
-                    entry.weight(), subject.signSchnorr(Bytes.wrap(message), Bytes.wrap(entry.keys.signingKey())));
+        for (int i = 0; i < sourceAddresses.size(); i++) {
+            final var entry = sourceAddresses.get(i);
+            if (i == 0) {
+                signatures.put(entry.weight(), null);
+            } else {
+                signatures.put(
+                        entry.weight(), subject.signSchnorr(Bytes.wrap(message), Bytes.wrap(entry.keys.signingKey())));
+            }
         }
 
         final var snarkProof = subject.proveChainOfTrust(
@@ -77,7 +81,9 @@ class HistoryLibraryImplTest {
                 sourceKeys,
                 targetWeights,
                 targetKeys,
-                signatures,
+                signatures.values().stream()
+                        .map(b -> b == null ? null : b.toByteArray())
+                        .toArray(byte[][]::new),
                 hashedMetadata);
         assertNotNull(snarkProof);
     }

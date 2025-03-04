@@ -23,7 +23,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.AbstractMap;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,12 +35,14 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link ProofController}.
  */
 public class ProofControllerImpl implements ProofController {
+    private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
     private static final Comparator<ProofKey> PROOF_KEY_COMPARATOR = Comparator.comparingLong(ProofKey::nodeId);
     private static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
@@ -59,8 +60,8 @@ public class ProofControllerImpl implements ProofController {
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
     private final Consumer<HistoryProof> proofConsumer;
-    private final Map<Long, HistoryProofVote> votes = new HashMap<>();
-    private final Map<Long, Bytes> targetProofKeys = new HashMap<>();
+    private final Map<Long, HistoryProofVote> votes = new TreeMap<>();
+    private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
     private final Set<Long> signingNodeIds = new HashSet<>();
     private final NavigableMap<Instant, CompletableFuture<Verification>> verificationFutures = new TreeMap<>();
 
@@ -165,14 +166,15 @@ public class ProofControllerImpl implements ProofController {
     public void advanceConstruction(
             @NonNull final Instant now,
             @Nullable final Bytes metadata,
-            @NonNull final WritableHistoryStore historyStore) {
+            @NonNull final WritableHistoryStore historyStore,
+            final boolean isActive) {
         if (construction.hasTargetProof()) {
             return;
         }
         targetMetadata = metadata;
-        if (targetMetadata == null) {
+        if (targetMetadata == null && isActive) {
             ensureProofKeyPublished();
-        } else if (construction.hasAssemblyStartTime()) {
+        } else if (construction.hasAssemblyStartTime() && isActive) {
             if (!votes.containsKey(selfId) && proofFuture == null) {
                 if (hasSufficientSignatures()) {
                     proofFuture = startProofFuture();
@@ -183,8 +185,10 @@ public class ProofControllerImpl implements ProofController {
         } else {
             if (shouldAssemble(now)) {
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
-                signingFuture = startSigningFuture();
-            } else {
+                if (isActive) {
+                    signingFuture = startSigningFuture();
+                }
+            } else if (isActive) {
                 ensureProofKeyPublished();
             }
         }
@@ -247,6 +251,7 @@ public class ProofControllerImpl implements ProofController {
                     final var encodedId =
                             encodeLedgerId(proof.sourceAddressBookHash().toByteArray(), targetMetadata.toByteArray());
                     historyStore.setLedgerId(encodedId);
+                    log.info("Set LedgerID to {}", encodedId);
                 }
             }
         });
@@ -347,7 +352,7 @@ public class ProofControllerImpl implements ProofController {
         final var signatures = verificationFutures.headMap(choice.cutoff(), true).values().stream()
                 .map(CompletableFuture::join)
                 .filter(v -> choice.history().equals(v.history()) && v.isValid())
-                .collect(toMap(Verification::nodeId, v -> v.historySignature().signature()));
+                .collect(toMap(Verification::nodeId, v -> v.historySignature().signature(), (a, b) -> a, TreeMap::new));
         final Bytes sourceProof;
         final Map<Long, Bytes> sourceProofKeys;
         if (construction.hasSourceProof()) {
@@ -374,19 +379,22 @@ public class ProofControllerImpl implements ProofController {
                 () -> {
                     final var sourceHash = library.hashAddressBook(sourceWeights, sourceProofKeysArray);
                     final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
-                    final var sourceSignatures = signatures.entrySet().stream()
-                            .map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue()))
-                            .collect(Collectors.toMap(
-                                    AbstractMap.SimpleImmutableEntry::getKey,
-                                    AbstractMap.SimpleImmutableEntry::getValue));
+                    // Note that sourceWeights, sourceProofKeysArray and verifyingSignatures should have same length
+                    // arrays.
+                    // Any node that has not submitted signature will have null in verifyingSignatures.
+                    final var verifyingSignatures = weights.sourceNodeWeights().keySet().stream()
+                            .map(id -> Optional.ofNullable(signatures.get(id))
+                                    .map(Bytes::toByteArray)
+                                    .orElse(null))
+                            .toArray(byte[][]::new);
                     final var proof = library.proveChainOfTrust(
                             Optional.ofNullable(ledgerId).orElse(sourceHash),
-                            Optional.ofNullable(sourceProof).orElse(null),
+                            sourceProof,
                             sourceWeights,
                             sourceProofKeysArray,
                             targetWeights,
                             targetProofKeysArray,
-                            sourceSignatures,
+                            verifyingSignatures,
                             targetMetadata);
                     final var metadataProof = HistoryProof.newBuilder()
                             .sourceAddressBookHash(sourceHash)
@@ -474,7 +482,7 @@ public class ProofControllerImpl implements ProofController {
                 () -> {
                     final var message = encodeHistory(historySignature.historyOrThrow());
                     final var proofKey = requireNonNull(targetProofKeys.get(nodeId));
-                    final var isValid = library.verifySchnorr(historySignature.signature(), proofKey, message);
+                    final var isValid = library.verifySchnorr(historySignature.signature(), message, proofKey);
                     return new Verification(nodeId, historySignature, isValid);
                 },
                 executor);

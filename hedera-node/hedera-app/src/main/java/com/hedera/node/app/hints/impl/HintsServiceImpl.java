@@ -77,7 +77,8 @@ public class HintsServiceImpl implements HintsService {
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
         requireNonNull(activeRosters);
         requireNonNull(hintsStore);
         requireNonNull(now);
@@ -88,7 +89,7 @@ public class HintsServiceImpl implements HintsService {
                 if (!construction.hasHintsScheme()) {
                     final var controller =
                             component.controllers().getOrCreateFor(activeRosters, construction, hintsStore);
-                    controller.advanceConstruction(now, hintsStore);
+                    controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }
             case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
@@ -99,7 +100,8 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
-    public void executeCrsWork(@NonNull final WritableHintsStore hintsStore, @NonNull final Instant now) {
+    public void executeCrsWork(
+            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
         requireNonNull(hintsStore);
         requireNonNull(now);
 
@@ -110,7 +112,7 @@ public class HintsServiceImpl implements HintsService {
         }
         // Do the work needed to set the CRS for network and start the preprocessing vote
         if (hintsStore.getCrsState().stage() != COMPLETED) {
-            controller.get().advanceCRSWork(now, hintsStore);
+            controller.get().advanceCRSWork(now, hintsStore, isActive);
         }
     }
 
