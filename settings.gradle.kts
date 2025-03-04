@@ -24,9 +24,6 @@ javaModules {
         group = "com.swirlds"
         module("swirlds") // not actually a Module as it has no module-info.java
         module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
-        module(
-            "swirlds-unit-tests/core/swirlds-platform-test"
-        ) // nested module is not found automatically
     }
 
     // The Hedera services modules
