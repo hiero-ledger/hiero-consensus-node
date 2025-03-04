@@ -792,7 +792,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         }
         // return a hash of a hash, in order to make state proofs smaller in the future
         CRYPTOGRAPHY.digestSync(element);
-        return CRYPTOGRAPHY.digestBytesSync(element.getHash(), DigestType.SHA_384);
+        return CRYPTOGRAPHY.digestBytesSync(element.getHash());
     }
 
     @Override

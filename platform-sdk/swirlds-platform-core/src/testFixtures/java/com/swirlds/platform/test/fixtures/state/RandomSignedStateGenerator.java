@@ -19,10 +19,10 @@ import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
@@ -153,7 +153,7 @@ public class RandomSignedStateGenerator {
             stateInstance.init(
                     Time.getCurrent(),
                     new NoOpMetrics(),
-                    MerkleCryptoFactory.getInstance(),
+                    TestMerkleCryptoFactory.getInstance(),
                     () -> platformStateFacade.roundOf(stateInstance));
         } else {
             stateInstance = state;
@@ -233,7 +233,7 @@ public class RandomSignedStateGenerator {
                 platformStateFacade);
         signedState.init(PlatformContext.create(configuration));
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
         if (stateHash != null) {
             stateInstance.setHash(stateHash);
         }

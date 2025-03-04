@@ -267,7 +267,8 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                         reconnectMetrics,
                         platformStateFacade),
                 stateConfig,
-                platformStateFacade);
+                platformStateFacade,
+                platformContext.getMerkleCryptography());
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);

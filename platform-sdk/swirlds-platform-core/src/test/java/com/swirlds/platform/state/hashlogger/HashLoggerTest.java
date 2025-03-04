@@ -13,7 +13,7 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
@@ -135,7 +135,7 @@ public class HashLoggerTest {
 
     private ReservedSignedState createSignedState(final long round) {
         final MerkleNode merkleNode = MerkleTestUtils.buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(merkleNode);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(merkleNode);
         final SignedState signedState = mock(SignedState.class);
         final MerkleNodeState state = mock(MerkleNodeState.class);
         final MerkleNode stateRoot = mock(MerkleNode.class);

@@ -27,10 +27,10 @@ import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.interfaces.MerkleType;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
@@ -127,7 +127,7 @@ class StateProofTests {
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final AddressBook addressBook =
                 RandomAddressBookBuilder.create(random).withSize(10).build();
@@ -163,7 +163,7 @@ class StateProofTests {
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildSizeOneTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final AddressBook addressBook =
                 RandomAddressBookBuilder.create(random).withSize(10).build();
@@ -198,7 +198,7 @@ class StateProofTests {
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final AddressBook addressBook = RandomAddressBookBuilder.create(random)
                 .withSize(random.nextInt(1, 10))
@@ -256,7 +256,7 @@ class StateProofTests {
         final Threshold threshold = Threshold.values()[thresholdOrdinal];
 
         final MerkleNode root = buildLessSimpleTreeExtended();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
         final List<MerkleLeaf> leafNodes = new ArrayList<>();
         root.treeIterator().setFilter(MerkleType::isLeaf).forEachRemaining(node -> leafNodes.add(node.asLeaf()));
 
@@ -291,7 +291,7 @@ class StateProofTests {
         }
 
         // Now, rehash the tree using the incorrect leaf hashes.
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final AddressBook addressBook = RandomAddressBookBuilder.create(random)
                 .withSize(random.nextInt(1, 10))
@@ -348,7 +348,7 @@ class StateProofTests {
         final Random random = getRandomPrintSeed();
 
         final MerkleNode root = buildLessSimpleTreeExtended();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
         final List<MerkleLeaf> leafNodes = new ArrayList<>();
         root.treeIterator().setFilter(MerkleType::isLeaf).forEachRemaining(node -> leafNodes.add(node.asLeaf()));
         Collections.shuffle(leafNodes, random);
@@ -395,7 +395,7 @@ class StateProofTests {
         final Random random = getRandomPrintSeed();
 
         final MerkleNode root = buildLessSimpleTreeExtended();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
         final List<MerkleLeaf> leafNodes = new ArrayList<>();
         root.treeIterator().setFilter(MerkleType::isLeaf).forEachRemaining(node -> leafNodes.add(node.asLeaf()));
         Collections.shuffle(leafNodes, random);
@@ -435,7 +435,7 @@ class StateProofTests {
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 9 total weight,
         // with the node at index 9 having 0 stake, and all others having a weight of 1.
@@ -498,7 +498,7 @@ class StateProofTests {
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 9 total weight, with each node having a weight of 1.
         final AddressBook addressBook =
@@ -566,7 +566,7 @@ class StateProofTests {
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 9 total weight, with each node having a weight of 1.
         final AddressBook addressBook =
@@ -632,7 +632,7 @@ class StateProofTests {
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 9 total weight, with each node having a weight of 1.
         final AddressBook addressBook =
@@ -689,7 +689,7 @@ class StateProofTests {
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 12 total weight, with each node having a weight of 1.
         // 12 is chosen because it is divisible by both 2 and 3.

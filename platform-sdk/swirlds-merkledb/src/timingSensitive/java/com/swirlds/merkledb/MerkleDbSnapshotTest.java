@@ -16,13 +16,13 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.common.test.fixtures.AssertionUtils;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -152,7 +152,7 @@ class MerkleDbSnapshotTest {
                 }
             }
             if (j == ITERATIONS / 2) {
-                MerkleCryptoFactory.getInstance().digestTreeSync(stateRoot);
+                TestMerkleCryptoFactory.getInstance().digestTreeSync(stateRoot);
                 final MerkleDataOutputStream out = new MerkleDataOutputStream(
                         Files.newOutputStream(snapshotFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
                 out.writeMerkleTree(snapshotDir, stateRoot);
@@ -223,7 +223,7 @@ class MerkleDbSnapshotTest {
         startSnapshotLatch.await();
         assertEventuallyTrue(() -> lastRoot.get() != null, Duration.ofSeconds(10), "lastRoot is null");
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(rootToSnapshot.get());
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(rootToSnapshot.get());
         final Path snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshotAsync", CONFIGURATION);
         final Path snapshotFile = snapshotDir.resolve("state.swh");
         final MerkleDataOutputStream out = new MerkleDataOutputStream(
