@@ -7,7 +7,6 @@ import static com.hedera.node.app.fixtures.signature.ExpandedSignaturePairFactor
 import static com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType.KECCAK_256_HASH;
 import static com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType.RAW;
 import static java.util.Collections.emptySet;
-import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -114,7 +113,6 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
         doAnswer((Answer<Void>) invocation -> {
                     final TransactionSignature signature = invocation.getArgument(0);
                     signature.setSignatureStatus(VerificationStatus.VALID);
-                    signature.setFuture(completedFuture(null));
                     return null;
                 })
                 .when(cryptoEngine)
@@ -160,24 +158,19 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
         for (int i = 0; i < 3; i++) {
             final var expandedSigPair = itr.next();
             final var txSig = txSigs.get(i);
-            final var contents = Bytes.wrap(txSig.getContents());
             if (messageType == RAW) {
-                assertThat(contents.slice(txSig.getMessageOffset(), txSig.getMessageLength())
+                assertThat(txSig.getMessage()
                                 .matchesPrefix(i == 1 ? signedBytes : keccakSignedBytes)) // index 1 is ed25519
                         .isTrue();
             } else {
                 // For a KECCAK_256_HASH message type, the signed bytes are always the given hash
-                assertThat(contents.slice(txSig.getMessageOffset(), txSig.getMessageLength())
-                                .matchesPrefix(signedBytes))
-                        .isTrue();
+                assertThat(txSig.getMessage().matchesPrefix(signedBytes)).isTrue();
             }
 
-            assertThat(contents.slice(txSig.getSignatureOffset(), txSig.getSignatureLength())
-                            .matchesPrefix(expandedSigPair.signature()))
+            assertThat(txSig.getSignature().matchesPrefix(expandedSigPair.signature()))
                     .isTrue();
 
-            assertThat(contents.slice(txSig.getPublicKeyOffset(), txSig.getPublicKeyLength())
-                            .matchesPrefix(expandedSigPair.keyBytes()))
+            assertThat(txSig.getPublicKey().matchesPrefix(expandedSigPair.keyBytes()))
                     .isTrue();
         }
     }
