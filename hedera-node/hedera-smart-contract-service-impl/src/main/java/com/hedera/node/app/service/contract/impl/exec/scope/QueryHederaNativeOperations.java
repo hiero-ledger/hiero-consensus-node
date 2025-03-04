@@ -13,6 +13,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -161,5 +162,10 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public EntityIdFactory entityIdFactory() {
         return entityIdFactory;
+    }
+
+    @Override
+    public Configuration configuration() {
+        return context.configuration();
     }
 }
