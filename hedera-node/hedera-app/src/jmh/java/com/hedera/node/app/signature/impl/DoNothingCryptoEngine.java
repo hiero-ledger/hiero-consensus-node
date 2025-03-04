@@ -9,7 +9,6 @@ import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.io.SelfSerializable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.jetbrains.annotations.NotNull;
 
 public class DoNothingCryptoEngine implements Cryptography {
 
@@ -20,12 +19,12 @@ public class DoNothingCryptoEngine implements Cryptography {
     }
 
     @Override
-    public byte[] digestBytesSync(final @NotNull SelfSerializable serializable) {
+    public byte[] digestBytesSync(final @NonNull SelfSerializable serializable) {
         return null;
     }
 
     @Override
-    public Hash digestSync(@NotNull SelfSerializable selfSerializable) {
+    public Hash digestSync(@NonNull SelfSerializable selfSerializable) {
         return null;
     }
 
