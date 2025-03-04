@@ -16,8 +16,8 @@ import java.util.SortedMap;
  *   {@link HintsLibrary#updateCrs(Bytes, Bytes)}, and {@link HintsLibrary#verifyCrsUpdate(Bytes, Bytes, Bytes)}.</li>
  *   <li><b>Key generation</b> ({@code KGen}) - Implemented by {@link HintsLibrary#newBlsKeyPair()}.</li>
  *   <li><b>Hint generation</b> ({@code HintGen}) - Implemented by {@link HintsLibrary#computeHints(Bytes, Bytes, int, int)}.</li>
- *   <li><b>Preprocessing</b> ({@code Preprocess}) - Implemented by using {@link HintsLibrary#preprocess(Bytes, Map, Map, int)}
- *   to select the hinTS keys to use as input to {@link HintsLibrary#preprocess(Bytes, Map, Map, int)}.</li>
+ *   <li><b>Preprocessing</b> ({@code Preprocess}) - Implemented by using {@link HintsLibrary#preprocess(Bytes, SortedMap, SortedMap, int)}
+ *   to select the hinTS keys to use as input to {@link HintsLibrary#preprocess(Bytes, SortedMap, SortedMap, int)}.</li>
  *   <li><b>Partial signatures</b> ({@code Sign}) - Implemented by {@link HintsLibrary#signBls(Bytes, Bytes)}.</li>
  *   <li><b>Verifying partial signatures</b> ({@code PartialVerify}) - Implemented by using
  *   {@link HintsLibrary#verifyBls(Bytes, Bytes, Bytes, Bytes, int)}.</li>
