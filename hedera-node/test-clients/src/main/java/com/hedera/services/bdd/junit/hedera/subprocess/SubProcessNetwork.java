@@ -276,10 +276,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private void updateSubProcessNodeOneConfigForLocalBlockNode(HederaNode node) {
         try {
             // Create block node config for this container
-            List<BlockNodeConfig> blockNodes = List.of(new BlockNodeConfig("127.0.0.1", 8080));
+            List<BlockNodeConfig> blockNodes = List.of(new BlockNodeConfig("127.0.0.1", 8080, 1));
 
             BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
+                    blockNodes,
+                    256, // default batch size
+                    2 // max number of simultaneous connections
                     );
 
             // Write the config to this consensus node's block-nodes.json
@@ -330,10 +332,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         try {
             // Create block node config for this container
             List<BlockNodeConfig> blockNodes =
-                    List.of(new BlockNodeConfig(container.getHost(), container.getGrpcPort()));
+                    List.of(new BlockNodeConfig(container.getHost(), container.getGrpcPort(), 1));
 
             BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
+                    blockNodes,
+                    256, // default batch size
+                    1 // max number of simultaneous connections
                     );
 
             // Write the config to this consensus node's block-nodes.json
@@ -353,10 +357,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         try {
             // Create block node config for simulator servers
             List<BlockNodeConfig> blockNodes = new ArrayList<>();
-            blockNodes.add(new BlockNodeConfig("localhost", sim.getPort()));
+            blockNodes.add(new BlockNodeConfig("localhost", sim.getPort(), 1));
 
             BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
+                    blockNodes,
+                    256, // default batch size
+                    1 // max number of simultaneous connections
                     );
 
             // Write the config to this consensus node's block-nodes.json

@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
@@ -83,7 +84,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
         this.compressFiles = blockStreamConfig.compressFilesOnCreation();
 
         // Compute directory for block files
-        final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
+        final var blockNodeConnectionConfig = config.getConfigData(BlockNodeConnectionConfig.class);
+        final Path blockDir = fileSystem.getPath(blockNodeConnectionConfig.blockFileDir());
         nodeScopedBlockDir = blockDir.resolve("block-" + asAccountString(nodeInfo.accountId()));
     }
 

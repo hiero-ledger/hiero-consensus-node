@@ -29,6 +29,7 @@ import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.AutoRenew2Config;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.BalancesConfig;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
@@ -174,6 +175,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(NodesConfig.class)
                 .withConfigDataType(TssConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockNodeConnectionConfig.class)
                 .withConfigDataType(AtomicBatchConfig.class)
                 .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
