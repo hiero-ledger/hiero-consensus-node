@@ -427,7 +427,7 @@ class AddressBookInitializerTest {
             boolean fromGenesis) {
         final SignedState signedState = mock(SignedState.class);
         final SoftwareVersion softwareVersion = getMockSoftwareVersion(2);
-        configureUpdateWeightForStateLifecycles(weightValue);
+        configureUpdateWeightForStateEventHandler(weightValue);
         final MerkleNodeState state = mock(MerkleNodeState.class);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
@@ -446,7 +446,7 @@ class AddressBookInitializerTest {
      *
      * @param scenario The scenario to load.
      */
-    private void configureUpdateWeightForStateLifecycles(int scenario) {
+    private void configureUpdateWeightForStateEventHandler(int scenario) {
 
         final AtomicReference<AddressBook> configAddressBook = new AtomicReference<>();
 

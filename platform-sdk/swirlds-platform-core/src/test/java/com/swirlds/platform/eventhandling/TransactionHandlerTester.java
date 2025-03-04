@@ -123,7 +123,7 @@ public class TransactionHandlerTester {
     /**
      * @return the {@link ConsensusStateEventHandler} used by this tester
      */
-    public ConsensusStateEventHandler<MerkleNodeState> getStateLifecycles() {
+    public ConsensusStateEventHandler<MerkleNodeState> getStateEventHandler() {
         return consensusStateEventHandler;
     }
 

@@ -304,12 +304,12 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
     private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
 
-    final PlatformTestingToolConsensusStateEventHandler stateLifecycles;
+    final PlatformTestingToolConsensusStateEventHandler consensusStateEventHandler;
 
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        stateLifecycles = new PlatformTestingToolConsensusStateEventHandler(
+        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler(
                 new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
     }
 
@@ -567,7 +567,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                 UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
             final PlatformTestingToolState state = wrapper.get();
 
-            stateLifecycles.initControlStructures(this::handleMessageQuorum);
+            consensusStateEventHandler.initControlStructures(this::handleMessageQuorum);
 
             // FUTURE WORK implement mirrorNode
             final String myName =
@@ -629,7 +629,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
                     submitConfig = currentConfig.getSubmitConfig();
 
-                    submitter = new TransactionSubmitter(submitConfig, stateLifecycles.getControlQuorum());
+                    submitter = new TransactionSubmitter(submitConfig, consensusStateEventHandler.getControlQuorum());
 
                     if (currentConfig.getFcmConfig() != null) {
                         state.initChildren();
@@ -745,7 +745,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         final SuperConfig clientConfig = objectMapper.readValue(new File(jsonFileName), SuperConfig.class);
         final String selfName = RosterUtils.formatNodeName(selfId.id());
         for (int k = 0; k < CLIENT_AMOUNT; k++) {
-            appClient[k] = new AppClient(this.platform, this.selfId, clientConfig, selfName, stateLifecycles);
+            appClient[k] =
+                    new AppClient(this.platform, this.selfId, clientConfig, selfName, consensusStateEventHandler);
             appClient[k].start();
         }
     }
@@ -870,7 +871,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     @Override
     @NonNull
     public ConsensusStateEventHandler<PlatformTestingToolState> newConsensusStateEvenHandler() {
-        return stateLifecycles;
+        return consensusStateEventHandler;
     }
 
     private void platformStatusChange(final PlatformStatusChangeNotification notification) {
@@ -987,7 +988,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
             try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
                     UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
                 final PlatformTestingToolState state = wrapper.get();
-                stateLifecycles.initControlStructures(this::handleMessageQuorum);
+                consensusStateEventHandler.initControlStructures(this::handleMessageQuorum);
                 SyntheticBottleneckConfig.getActiveConfig()
                         .registerReconnect(platform.getSelfId().id());
             }
