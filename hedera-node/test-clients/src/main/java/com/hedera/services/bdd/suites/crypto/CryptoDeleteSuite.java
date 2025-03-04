@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.r
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.including;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -36,6 +37,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
@@ -202,6 +204,9 @@ public class CryptoDeleteSuite {
                                 .build()))),
                 getAccountBalance(ACCOUNT_TO_BE_DELETED).hasTinyBars(changeFromSnapshot("before", ONE_HUNDRED_HBARS)),
                 cryptoDelete(ACCOUNT_TO_BE_DELETED),
+                withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> getAliasedAccountInfo(
+                                ByteString.copyFrom(explicitBytesOf(address)))
+                        .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)),
                 withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> cryptoTransfer(
                                 (spec, builder) -> builder.setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(AccountAmount.newBuilder()
