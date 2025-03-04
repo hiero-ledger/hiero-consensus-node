@@ -88,14 +88,14 @@ val prCheckTags =
 val prCheckStartPorts =
     mapOf(
         "hapiTestAdhoc" to "25000",
-        "hapiTestCrypto" to "26000",
-        "hapiTestToken" to "27000",
-        "hapiTestRestart" to "28000",
-        "hapiTestSmartContract" to "29000",
-        "hapiTestNDReconnect" to "30000",
-        "hapiTestTimeConsuming" to "31000",
-        "hapiTestIss" to "32000",
-        "hapiTestMisc" to "33000",
+        "hapiTestCrypto" to "25200",
+        "hapiTestToken" to "25400",
+        "hapiTestRestart" to "25600",
+        "hapiTestSmartContract" to "25800",
+        "hapiTestNDReconnect" to "26000",
+        "hapiTestTimeConsuming" to "26200",
+        "hapiTestIss" to "26400",
+        "hapiTestMisc" to "26800",
     )
 
 tasks {
