@@ -217,7 +217,7 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
                     usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                     // Since the inner txn is not normalized, it should fail
-                    atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_NOT_IN_WHITELIST));
+                    atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_IN_BLACKLIST));
         }
 
         @HapiTest
@@ -243,7 +243,7 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
                     usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                     // Since the inner txn is not normalized, it should fail
-                    atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_NOT_IN_WHITELIST));
+                    atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_IN_BLACKLIST));
         }
 
         @HapiTest
