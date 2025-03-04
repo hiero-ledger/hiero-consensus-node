@@ -91,12 +91,33 @@ class LongListValidRangeTest {
     @Test
     @DisplayName("Attempt to create LongListOffHeap with too many memory chunks")
     void testInvalidMemoryChunkNumber() {
-        new LongListOffHeap(1, 32768, 1).close();
-        new LongListHeap(1, 32768, 1).close();
-        new LongListDisk(1, 32768, 1, CONFIGURATION).resetTransferBuffer().close();
-        assertThrows(IllegalArgumentException.class, () -> new LongListOffHeap(1, 32769, 1));
-        assertThrows(IllegalArgumentException.class, () -> new LongListHeap(1, 32769, 1));
-        assertThrows(IllegalArgumentException.class, () -> new LongListDisk(1, 32769, 1, CONFIGURATION));
+        // Valid cases
+        new LongListOffHeap(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
+        new LongListOffHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
+        new LongListHeap(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
+        new LongListHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
+        new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION)
+                .resetTransferBuffer()
+                .close();
+        new LongListDisk(4, AbstractLongList.MAX_NUM_CHUNKS * 4, 1, CONFIGURATION)
+                .resetTransferBuffer()
+                .close();
+        // Illegal cases, too many chunks
+        assertThrows(
+                IllegalArgumentException.class, () -> new LongListOffHeap(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListOffHeap(8, AbstractLongList.MAX_NUM_CHUNKS * 8 + 1, 1));
+        assertThrows(IllegalArgumentException.class, () -> new LongListHeap(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListHeap(16, AbstractLongList.MAX_NUM_CHUNKS * 16 + 1, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, CONFIGURATION));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListDisk(32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION));
     }
 
     @Tag(TestComponentTags.VMAP)

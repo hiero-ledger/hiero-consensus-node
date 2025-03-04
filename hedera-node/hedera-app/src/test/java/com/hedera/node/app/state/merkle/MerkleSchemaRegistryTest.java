@@ -76,6 +76,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         final var hederaConfig = mock(HederaConfig.class);
         lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
         final var merkleDbConfig = mock(MerkleDbConfig.class);
+        lenient().when(merkleDbConfig.longListChunkSize()).thenReturn(1024);
         lenient().when(config.getConfigData(MerkleDbConfig.class)).thenReturn(merkleDbConfig);
         final var virtualMapConfig = mock(VirtualMapConfig.class);
         lenient().when(config.getConfigData(VirtualMapConfig.class)).thenReturn(virtualMapConfig);

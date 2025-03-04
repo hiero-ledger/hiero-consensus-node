@@ -36,29 +36,16 @@ import org.apache.logging.log4j.Logger;
 public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implements OffHeapUser {
 
     private static final Logger logger = LogManager.getLogger(LongListOffHeap.class);
-    /**
-     * Construct a new OffHeapLongList with the default 8Mb chunk size and 2Mb of reserved buffer
-     */
-    public LongListOffHeap() {
-        this(DEFAULT_NUM_LONGS_PER_CHUNK, DEFAULT_MAX_LONGS_TO_STORE, DEFAULT_RESERVED_BUFFER_LENGTH);
-    }
 
     /**
      * Construct a new LongListOffHeap with the specified chunk size
      *
-     * @param numLongsPerChunk size for each chunk of memory to allocate. Max 16Gb = 16,384Mb
-     * @param maxLongs the maximum number of longs permissible for this LongList
+     * @param longsPerChunk size for each chunk of memory to allocate. Max 16Gb = 16,384Mb
+     * @param capacity the maximum number of longs permissible for this LongList
      * @param reservedBufferLength the number of indices before the minimal index to keep reserved
      */
-    LongListOffHeap(final int numLongsPerChunk, final long maxLongs, final long reservedBufferLength) {
-        super(numLongsPerChunk, maxLongs, reservedBufferLength);
-    }
-
-    /**
-     * Construct a new OffHeapLongList with the default 8Mb chunk size and 2Mb of reserved buffer
-     */
-    public LongListOffHeap(final int reservedBufferLength) {
-        this(DEFAULT_NUM_LONGS_PER_CHUNK, DEFAULT_MAX_LONGS_TO_STORE, reservedBufferLength);
+    public LongListOffHeap(final int longsPerChunk, final long capacity, final long reservedBufferLength) {
+        super(longsPerChunk, capacity, reservedBufferLength);
     }
 
     /**
@@ -66,15 +53,21 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
      *
      * @throws IOException If there was a problem reading the file
      */
-    public LongListOffHeap(final Path file, final Configuration configuration) throws IOException {
-        super(file, DEFAULT_RESERVED_BUFFER_LENGTH, configuration);
+    public LongListOffHeap(
+            @NonNull final Path file,
+            final int longsPerChunk,
+            final long capacity,
+            final long reservedBufferSize,
+            @NonNull final Configuration configuration)
+            throws IOException {
+        super(file, longsPerChunk, capacity, reservedBufferSize, configuration);
     }
 
     /** {@inheritDoc} */
     @Override
     protected ByteBuffer readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex)
             throws IOException {
-        ByteBuffer chunk = createChunk();
+        final ByteBuffer chunk = createChunk();
         readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, chunk);
         // All chunks (byte buffers) in LongListOffHeap are stored with position == 0 and
         // limit == capacity. When this list is written to a file, the first and the last
@@ -122,7 +115,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
     protected void writeLongsData(final FileChannel fc) throws IOException {
         final int totalNumOfChunks = calculateNumberOfChunks(size());
         final long currentMinValidIndex = minValidIndex.get();
-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / numLongsPerChunk);
+        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
         // write data
         final ByteBuffer emptyBuffer = createChunk();
         try {
@@ -134,7 +127,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
                 final ByteBuffer buf = nonNullBuffer.slice(0, nonNullBuffer.limit());
                 if (i == firstChunkWithDataIndex) {
                     // writing starts from the first valid index in the first valid chunk
-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % numLongsPerChunk);
+                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
                     buf.position(firstValidIndexInChunk * Long.BYTES);
                 } else {
                     buf.position(0);
@@ -199,7 +192,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
             MemoryUtils.setMemory(chunk, 0, entriesToCleanUp * Long.BYTES, (byte) 0);
         } else {
             // cleans up all values on the right side of the last chunk
-            final long offset = (numLongsPerChunk - entriesToCleanUp) * Long.BYTES;
+            final long offset = (longsPerChunk - entriesToCleanUp) * Long.BYTES;
             MemoryUtils.setMemory(chunk, offset, entriesToCleanUp * Long.BYTES, (byte) 0);
         }
     }

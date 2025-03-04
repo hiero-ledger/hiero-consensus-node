@@ -40,28 +40,15 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     /** A buffer for reading chunk data from the file only during the initialization. */
     private ByteBuffer initReadBuffer;
 
-    /** Construct a new LongListHeap with the default number of longs per chunk. */
-    public LongListHeap() {
-        this(DEFAULT_NUM_LONGS_PER_CHUNK, DEFAULT_MAX_LONGS_TO_STORE, 0);
-    }
-
-    /**
-     * Construct a new LongListHeap with the specified number of longs per chunk and default max
-     * longs to store.
-     */
-    public LongListHeap(final int numLongsPerChunk) {
-        this(numLongsPerChunk, Math.min(DEFAULT_MAX_LONGS_TO_STORE, (long) numLongsPerChunk * MAX_NUM_CHUNKS), 0);
-    }
-
     /**
      * Construct a new LongListHeap with the specified number of longs per chunk and maximum number
      * of longs.
      *
-     * @param numLongsPerChunk number of longs to store in each chunk of memory allocated
-     * @param maxLongs the maximum number of longs permissible for this LongList
+     * @param longsPerChunk number of longs to store in each chunk of memory allocated
+     * @param capacity the maximum number of longs permissible for this LongList
      */
-    LongListHeap(final int numLongsPerChunk, final long maxLongs, final long reservedBufferLength) {
-        super(numLongsPerChunk, maxLongs, reservedBufferLength);
+    public LongListHeap(final int longsPerChunk, final long capacity, final long reservedBufferLength) {
+        super(longsPerChunk, capacity, reservedBufferLength);
     }
 
     /**
@@ -70,8 +57,14 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
      * @param file the file to read from
      * @throws IOException If there was a problem reading the file
      */
-    public LongListHeap(final Path file, final Configuration configuration) throws IOException {
-        super(file, 0, configuration);
+    public LongListHeap(
+            @NonNull final Path file,
+            final int longsPerChunk,
+            final long capacity,
+            final long reservedBufferLength,
+            final Configuration configuration)
+            throws IOException {
+        super(file, longsPerChunk, capacity, reservedBufferLength, configuration);
     }
 
     /** {@inheritDoc} */
@@ -179,6 +172,6 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     /** {@inheritDoc} */
     @Override
     protected AtomicLongArray createChunk() {
-        return new AtomicLongArray(numLongsPerChunk);
+        return new AtomicLongArray(longsPerChunk);
     }
 }
