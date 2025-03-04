@@ -43,11 +43,8 @@ other events (i.e. events not created by ourselves) to gossip before they pass t
 
 #### PCES Writer
 
-PCES Writer is using `FileChannel`. All writes are synchronous. The PCES writer accepts an event
-as input, and returns that same event once it has been written to disk.
+All writes are synchronous. The PCES writer accepts an event as input, and returns that same event once it 
+has been written to disk. During this period, the event is being locked.
 
-#### Asynchronous writing
-
-Currently, PCES writing happens asynchronously.
 No part of the system after event intake is utilizing an event until it has been made
 durable by the PcesWriter, except for Gossip. Gossip is only waiting for self-events to be persisted.
