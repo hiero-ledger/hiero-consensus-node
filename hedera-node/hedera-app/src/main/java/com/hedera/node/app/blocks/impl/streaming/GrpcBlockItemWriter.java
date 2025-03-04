@@ -40,6 +40,16 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
+    public void writeBlockHeaderItem(@NonNull Bytes bytes) {
+        requireNonNull(bytes);
+        if (currentBlock == null) {
+            throw new IllegalStateException("Received block item before opening block");
+        }
+
+        connectionManager.startStreamingBlockHeader(currentBlock.blockNumber(), bytes);
+    }
+
+    @Override
     public void writePbjItem(@NonNull Bytes bytes) {
         if (currentBlock == null) {
             throw new IllegalStateException("Received block item before opening block");

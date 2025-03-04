@@ -185,6 +185,10 @@ public class BlockNodeConnectionManager {
         }
     }
 
+    private void streamBlockHeaderToConnections(long blockNumber, @NonNull Bytes blockHeader) {
+        // FUTURE: implement
+    }
+
     /**
      * Initiates the streaming of a block to all active connections.
      *
@@ -192,6 +196,16 @@ public class BlockNodeConnectionManager {
      */
     public void startStreamingBlock(@NonNull BlockState block) {
         streamingExecutor.execute(() -> streamBlockToConnections(block));
+    }
+
+    /**
+     * Initiates the streaming of a block header to all active connections.
+     *
+     * @param blockNumber the block number
+     * @param blockHeader the block header to be streamed
+     */
+    public void startStreamingBlockHeader(long blockNumber, @NonNull Bytes blockHeader) {
+        streamingExecutor.execute(() -> streamBlockHeaderToConnections(blockNumber, blockHeader));
     }
 
     /**

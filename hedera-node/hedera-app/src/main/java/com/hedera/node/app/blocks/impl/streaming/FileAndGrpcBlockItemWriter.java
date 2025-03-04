@@ -39,6 +39,11 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
+    public void writeBlockHeaderItem(@NonNull Bytes bytes) {
+        this.grpcBlockItemWriter.writeBlockHeaderItem(bytes);
+    }
+
+    @Override
     public void writePbjItem(@NonNull Bytes bytes) {
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
         this.grpcBlockItemWriter.writePbjItem(bytes);
