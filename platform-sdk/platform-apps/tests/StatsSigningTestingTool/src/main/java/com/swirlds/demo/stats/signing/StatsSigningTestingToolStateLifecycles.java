@@ -4,7 +4,6 @@ package com.swirlds.demo.stats.signing;
 import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.demo.stats.signing.StatsSigningTestingToolMain.SYSTEM_TRANSACTION_MARKER;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
@@ -26,10 +25,7 @@ import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -108,7 +104,7 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
     private void handleTransaction(final ConsensusTransaction trans, final StatsSigningTestingToolState state) {
         final TransactionSignature s = trans.getMetadata();
 
-        if (s != null && validateSignature(s, trans) && s.getSignatureStatus() != VerificationStatus.VALID) {
+        if (s != null && s.getSignatureStatus() != VerificationStatus.VALID) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Invalid Transaction Signature [ transactionId = {}, status = {}, signatureType = {},"
@@ -116,16 +112,9 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
                     TransactionCodec.txId(trans.getApplicationTransaction()),
                     s.getSignatureStatus(),
                     s.getSignatureType(),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(),
-                            s.getPublicKeyOffset(),
-                            s.getPublicKeyOffset() + s.getPublicKeyLength())),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(),
-                            s.getSignatureOffset(),
-                            s.getSignatureOffset() + s.getSignatureLength())),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(), s.getMessageOffset(), s.getMessageOffset() + s.getMessageLength())));
+                    hex(s.getPublicKey()),
+                    hex(s.getSignature()),
+                    hex(s.getMessage()));
         }
 
         state.incrementRunningSum(TransactionCodec.txId(trans.getApplicationTransaction()));
@@ -174,27 +163,6 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
                 // busy wait
             }
         }
-    }
-
-    private boolean validateSignature(final TransactionSignature signature, final Transaction transaction) {
-        try {
-            final Future<Void> future = signature.waitForFuture();
-            // Block & Ignore the Void return
-            future.get();
-            return true;
-        } catch (final InterruptedException e) {
-            logger.info(
-                    TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT.getMarker(),
-                    "handleTransaction Interrupted. This should happen only during a reconnect");
-            Thread.currentThread().interrupt();
-        } catch (final ExecutionException e) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "error while validating transaction signature for transaction {}",
-                    transaction,
-                    e);
-        }
-        return false;
     }
 
     @Override
