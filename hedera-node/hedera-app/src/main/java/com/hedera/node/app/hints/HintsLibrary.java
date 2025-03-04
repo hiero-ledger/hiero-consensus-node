@@ -19,7 +19,7 @@ import java.util.Map;
  *   to select the hinTS keys to use as input to {@link HintsLibrary#preprocess(Bytes, Map, Map, int)}.</li>
  *   <li><b>Partial signatures</b> ({@code Sign}) - Implemented by {@link HintsLibrary#signBls(Bytes, Bytes)}.</li>
  *   <li><b>Verifying partial signatures</b> ({@code PartialVerify}) - Implemented by using
- *   {@link HintsLibrary#verifyBls(Bytes, Bytes, Bytes, Bytes)}.</li>
+ *   {@link HintsLibrary#verifyBls(Bytes, Bytes, Bytes, Bytes, int)}.</li>
  *   <li><b>Signature aggregation</b> ({@code SignAggr}) - Implemented by {@link HintsLibrary#aggregateSignatures(Bytes, Bytes, Bytes, Map)}
  *   with partial signatures verified as above with weights extracted from the current roster.</li>
  *   <li><b>Verifying aggregate signatures</b> ({@code Verify}) - Implemented by
