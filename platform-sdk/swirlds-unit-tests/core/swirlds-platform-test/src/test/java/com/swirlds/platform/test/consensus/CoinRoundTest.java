@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.consensus;
 
 import com.swirlds.common.context.PlatformContext;
@@ -21,10 +22,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class CoinRoundTest extends PlatformTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {
-            "coin-round-test/0.60-20250225-114602/",
-            "coin-round-test/0.59-20250302-104332/"
-    })
+    @ValueSource(strings = {"coin-round-test/0.60-20250225-114602/", "coin-round-test/0.59-20250302-104332/"})
     void coinRound(final String resources) throws URISyntaxException, IOException {
         final PlatformContext context = createDefaultPlatformContext();
 
@@ -33,16 +31,11 @@ public class CoinRoundTest extends PlatformTest {
         // in the gradle cache and break the test. this seems to bypass that issue.
         PcesUtilities.compactPreconsensusEventFiles(dir);
 
-        final PcesFileTracker pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                context,
-                dir,
-                0,
-                false,
-                AncientMode.GENERATION_THRESHOLD
-        );
+        final PcesFileTracker pcesFileTracker =
+                PcesFileReader.readFilesFromDisk(context, dir, 0, false, AncientMode.GENERATION_THRESHOLD);
 
-        final LegacyConfigProperties legacyConfigProperties = LegacyConfigPropertiesLoader.loadConfigFile(
-                ResourceLoader.getFile(resources + "config.txt"));
+        final LegacyConfigProperties legacyConfigProperties =
+                LegacyConfigPropertiesLoader.loadConfigFile(ResourceLoader.getFile(resources + "config.txt"));
         final TestIntake intake = new TestIntake(context, legacyConfigProperties.getAddressBook());
 
         long maxGen = 0;
