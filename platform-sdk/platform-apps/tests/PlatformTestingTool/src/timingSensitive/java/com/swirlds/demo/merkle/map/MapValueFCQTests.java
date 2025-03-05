@@ -17,8 +17,8 @@ import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
+import com.swirlds.demo.platform.PlatformTestingToolConsensusStateEventHandler;
 import com.swirlds.demo.platform.PlatformTestingToolState;
-import com.swirlds.demo.platform.PlatformTestingToolStateLifecycles;
 import com.swirlds.demo.platform.TestUtil;
 import com.swirlds.demo.platform.expiration.ExpirationUtils;
 import com.swirlds.merkle.map.MerkleMap;
@@ -47,7 +47,7 @@ public class MapValueFCQTests {
     private static final Random RANDOM = new Random();
     private static final Random random = new Random();
     static PlatformTestingToolState state;
-    static PlatformTestingToolStateLifecycles lifecycles;
+    static PlatformTestingToolConsensusStateEventHandler lifecycles;
     private static MerkleCryptography cryptography;
     private static MapValueFCQ mapValueFCQ;
     private static MapKey mapKey;
@@ -65,7 +65,7 @@ public class MapValueFCQTests {
 
         mapKey = new MapKey(0, 0, random.nextLong());
         state = Mockito.spy(PlatformTestingToolState.class);
-        lifecycles = new PlatformTestingToolStateLifecycles(DEFAULT_PLATFORM_STATE_FACADE);
+        lifecycles = new PlatformTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
         final Platform platform = Mockito.mock(Platform.class);
         when(platform.getSelfId()).thenReturn(NodeId.of(0L));
         final Roster roster = RandomRosterBuilder.create(RANDOM).withSize(4).build();

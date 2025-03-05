@@ -2,7 +2,7 @@
 package com.swirlds.platform.test;
 
 import static com.swirlds.platform.test.PlatformStateUtils.randomPlatformState;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -24,7 +24,7 @@ public class SignedStateUtils {
         TestPlatformStateFacade platformStateFacade =
                 new TestPlatformStateFacade(version -> new BasicSoftwareVersion(version.major()));
         MerkleNodeState root = new TestMerkleStateRoot();
-        FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(root);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(root);
         randomPlatformState(random, root, platformStateFacade);
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
