@@ -185,9 +185,9 @@ public class AtomicBatchNegativeTest {
                             .via(atomicTxn)
                             .payingWith(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    getTxnRecord(atomicTxn).logged(),
-                    getTxnRecord(innerTxnId1).assertingNothingAboutHashes().logged(),
-                    getTxnRecord(innerTxnId2).assertingNothingAboutHashes().logged());
+                    getTxnRecord(atomicTxn),
+                    getTxnRecord(innerTxnId1).assertingNothingAboutHashes(),
+                    getTxnRecord(innerTxnId2).assertingNothingAboutHashes());
         }
     }
 
@@ -258,8 +258,7 @@ public class AtomicBatchNegativeTest {
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId)
                     .batchKey(batchOperator)
-                    .payingWith(innerTxnPayer)
-                    .signedBy(DEFAULT_PAYER);
+                    .payingWith(innerTxnPayer);
 
             return hapiTest(
                     cryptoCreate(batchOperator).balance(ONE_HBAR),
