@@ -30,7 +30,7 @@ import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
+import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.StateChangeListener;
@@ -72,7 +72,7 @@ class MerkleStateRootTest extends MerkleTestBase {
     @BeforeEach
     void setUp() {
         setupConstructableRegistry();
-        FakeStateLifecycles.registerMerkleStateRootClassIds();
+        FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
         setupFruitMerkleMap();
         stateRoot = new TestMerkleStateRoot();
         stateRoot.init(new FakeTime(), new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
