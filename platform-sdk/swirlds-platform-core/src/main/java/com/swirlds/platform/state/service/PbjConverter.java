@@ -57,9 +57,7 @@ public final class PbjConverter {
                 accessor.getLastRoundBeforeBirthRoundMode(),
                 Optional.ofNullable(accessor.getFirstVersionInBirthRoundMode())
                         .map(SoftwareVersion::getPbjSemanticVersion)
-                        .orElse(null),
-                toPbjAddressBook(accessor.getAddressBook()),
-                toPbjAddressBook(accessor.getPreviousAddressBook()));
+                        .orElse(null));
     }
 
     /**
@@ -135,14 +133,6 @@ public final class PbjConverter {
                 builder.firstVersionInBirthRoundMode(
                         accumulator.getFirstVersionInBirthRoundMode().getPbjSemanticVersion());
             }
-        }
-
-        if (accumulator.isAddressBookUpdated()) {
-            builder.addressBook(toPbjAddressBook(accumulator.getAddressBook()));
-        }
-
-        if (accumulator.isPreviousAddressBookUpdated()) {
-            builder.previousAddressBook(toPbjAddressBook(accumulator.getPreviousAddressBook()));
         }
 
         return builder.build();
