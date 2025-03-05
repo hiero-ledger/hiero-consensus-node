@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.modular;
 
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,7 +15,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
@@ -33,9 +30,6 @@ import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.resource.ResourceLoader;
-import com.swirlds.platform.util.BootstrapUtils;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,35 +41,39 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 public class PeerCommunicationTests {
 
-    @TempDir
-    Path testDataDirectory;
+    private static final int MAX_NODES = 10;
 
+    private Path testDataDirectory;
     private AddressBook addressBook;
-    private Map<NodeId, KeysAndCerts> kc;
+    private Map<NodeId, KeysAndCerts> perNodeCerts;
     private PlatformContext platformContext;
     private ArrayList<PeerInfo> allPeers;
     private PeerCommunication[] peerCommunications;
     private SyncGossipController[] controllers;
-    private ArrayList<CommunicationEvent> events = new ArrayList<>();
+    private final ArrayList<CommunicationEvent> events = new ArrayList<>();
 
     @BeforeEach
     void testSetup() throws Exception {
         ConstructableRegistry.getInstance().registerConstructables("");
         final ResourceLoader<PeerCommunicationTests> loader = new ResourceLoader<>(PeerCommunicationTests.class);
-        final Path tempDir = loader.loadDirectory("com/swirlds/platform/gossip.files");
+        this.testDataDirectory = loader.loadDirectory("com/swirlds/platform/gossip.files");
 
-        Files.move(tempDir, testDataDirectory, REPLACE_EXISTING);
+        final Path keyDirectory = testDataDirectory.resolve("certs");
 
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withSource(SystemEnvironmentConfigSource.getInstance())
-                .withSource(SystemPropertiesConfigSource.getInstance());
+                .withSource(SystemPropertiesConfigSource.getInstance())
+                .autoDiscoverExtensions();
 
-        rethrowIO(() -> BootstrapUtils.setupConfigBuilder(
-                configurationBuilder, testDataDirectory.resolve("settings.txt").toAbsolutePath()));
+        configurationBuilder.withValue("socket.timeoutServerAcceptConnect", "100");
+        configurationBuilder.withValue("socket.timeoutSyncClientSocket", "100");
+        configurationBuilder.withValue("socket.timeoutSyncClientConnect", "100");
+        configurationBuilder.withValue(
+                "paths.keysDirPath", keyDirectory.toAbsolutePath().toString());
+
         final Configuration configuration = configurationBuilder.build();
 
         this.platformContext = PlatformContext.create(configuration);
@@ -90,30 +88,25 @@ public class PeerCommunicationTests {
     }
 
     /**
-     * A helper method used to load the {@code config.txt} configuration file and extract the address book.
+     * A helper method to create testing address book with MAX_NODES nodes
      *
-     * @return the fully initialized address book.
+     * @return the address book without certificates
      */
     private AddressBook addressBook() {
-        return LegacyConfigPropertiesLoader.loadConfigFile(testDataDirectory.resolve("config.txt"))
-                .getAddressBook();
-    }
-
-    /**
-     * A helper method used to load the {@code settings.txt} configuration file and override the default key directory
-     * path with the provided key directory path.
-     *
-     * @param keyDirectory the key directory path to use.
-     * @return a fully initialized configuration object with the key path overridden.
-     * @throws IOException if an I/O error occurs while loading the configuration file.
-     */
-    private Configuration configure(final Path keyDirectory) throws IOException {
-        final ConfigurationBuilder builder = ConfigurationBuilder.create();
-        BootstrapUtils.setupConfigBuilder(builder, testDataDirectory.resolve("settings.txt"));
-
-        builder.withValue("paths.keysDirPath", keyDirectory.toAbsolutePath().toString());
-
-        return builder.build();
+        return new AddressBook(IntStream.range(0, MAX_NODES)
+                .mapToObj(idx -> new Address(
+                        NodeId.of(idx),
+                        "Node" + idx,
+                        "node" + idx,
+                        1,
+                        "127.0.0.1",
+                        15301 + idx,
+                        "127.0.0.1",
+                        15301 + idx,
+                        null,
+                        null,
+                        "memo"))
+                .toList());
     }
 
     private void loadAddressBook(int nodeCount) throws Exception {
@@ -126,9 +119,8 @@ public class PeerCommunicationTests {
 
         final Set<NodeId> nodesToStart = addressBook.getNodeIdSet();
 
-        final Path keyDirectory = testDataDirectory.resolve("certs");
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), nodesToStart);
+                EnhancedKeyStoreLoader.using(addressBook, platformContext.getConfiguration(), nodesToStart);
 
         assertThat(loader).isNotNull();
         assertThatCode(loader::migrate).doesNotThrowAnyException();
@@ -137,7 +129,7 @@ public class PeerCommunicationTests {
         assertThatCode(loader::verify).doesNotThrowAnyException();
         assertThatCode(loader::injectInAddressBook).doesNotThrowAnyException();
 
-        this.kc = loader.keysAndCerts();
+        this.perNodeCerts = loader.keysAndCerts();
 
         this.allPeers = new ArrayList<PeerInfo>();
         for (Address address : addressBook) {
@@ -145,7 +137,7 @@ public class PeerCommunicationTests {
                     address.getNodeId(),
                     address.getHostnameExternal(),
                     address.getListenPort(),
-                    kc.get(address.getNodeId()).sigCert());
+                    perNodeCerts.get(address.getNodeId()).sigCert());
             allPeers.add(pi);
         }
     }
@@ -158,7 +150,8 @@ public class PeerCommunicationTests {
 
         for (int i = 0; i < allPeers.size(); i++) {
             var selfPeer = allPeers.get(i);
-            var pc = new PeerCommunication(platformContext, new ArrayList<>(), selfPeer, kc.get(selfPeer.nodeId()));
+            var pc = new PeerCommunication(
+                    platformContext, new ArrayList<>(), selfPeer, perNodeCerts.get(selfPeer.nodeId()));
 
             final ProtocolConfig protocolConfig =
                     platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
@@ -302,14 +295,14 @@ public class PeerCommunicationTests {
     @Test
     public void testFullyConnected() throws Exception {
 
-        loadAddressBook(10);
+        loadAddressBook(MAX_NODES);
         startNonConnected();
         for (int i = 0; i < 9; i++) {
             establishBidirectionalConnection(i, range(i + 1, 9));
         }
 
-        for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 10; j++) {
+        for (int i = 0; i < MAX_NODES; i++) {
+            for (int j = 0; j < MAX_NODES; j++) {
                 if (i != j) {
                     validateCommunication(i, j);
                 }
@@ -319,14 +312,14 @@ public class PeerCommunicationTests {
 
     @Test
     public void testDisconnectOne() throws Exception {
-        loadAddressBook(10);
+        loadAddressBook(MAX_NODES);
         startNonConnected();
         for (int i = 0; i < 9; i++) {
             establishBidirectionalConnection(i, range(i + 1, 9));
         }
 
-        for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 10; j++) {
+        for (int i = 0; i < MAX_NODES; i++) {
+            for (int j = 0; j < MAX_NODES; j++) {
                 if (i != j) {
                     validateCommunication(i, j);
                 }
@@ -336,7 +329,7 @@ public class PeerCommunicationTests {
         disconnect(0, 5);
         Thread.sleep(3000);
         clearEvents();
-        for (int i = 1; i < 10; i++) {
+        for (int i = 1; i < MAX_NODES; i++) {
             if (i != 5) {
                 validateCommunication(0, i);
             } else {
