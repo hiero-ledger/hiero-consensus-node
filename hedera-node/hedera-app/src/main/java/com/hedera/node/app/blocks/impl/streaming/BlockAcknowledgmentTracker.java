@@ -12,16 +12,16 @@ import org.apache.logging.log4j.Logger;
  */
 public class BlockAcknowledgmentTracker {
     private static final Logger logger = LogManager.getLogger(BlockAcknowledgmentTracker.class);
-    private final ConcurrentHashMap<String, AtomicLong> nodeAcknowledgments;
+    private final ConcurrentHashMap<String, AtomicLong> blockAcknowledgments;
     private final int requiredAcknowledgments;
     private final boolean deleteFilesOnDisk;
 
     /**
-     * @param requiredAcknowledgments
-     * @param deleteFilesOnDisk
+     * @param requiredAcknowledgments the required number of block acknowledgments before deleting files on disc
+     * @param deleteFilesOnDisk whether to delete files on disk
      */
     public BlockAcknowledgmentTracker(int requiredAcknowledgments, boolean deleteFilesOnDisk) {
-        this.nodeAcknowledgments = new ConcurrentHashMap<>();
+        this.blockAcknowledgments = new ConcurrentHashMap<>();
         this.requiredAcknowledgments = requiredAcknowledgments;
         this.deleteFilesOnDisk = deleteFilesOnDisk;
     }
@@ -31,7 +31,7 @@ public class BlockAcknowledgmentTracker {
      * @param blockNumber the block number
      */
     public void trackAcknowledgment(@NonNull String connectionId, long blockNumber) {
-        nodeAcknowledgments
+        blockAcknowledgments
                 .computeIfAbsent(connectionId, k -> new AtomicLong(0))
                 .set(blockNumber);
 
@@ -41,11 +41,11 @@ public class BlockAcknowledgmentTracker {
     }
 
     private void checkBlockDeletion(long blockNumber) {
-        long ackCount = nodeAcknowledgments.values().stream()
+        long acknowledgementsCount = blockAcknowledgments.values().stream()
                 .filter(ack -> ack.get() >= blockNumber)
                 .count();
 
-        if (ackCount >= requiredAcknowledgments) {
+        if (acknowledgementsCount >= requiredAcknowledgments) {
             logger.info(
                     "Block {} has received sufficient acknowledgments ({}). Ready for cleanup.",
                     blockNumber,
@@ -55,12 +55,17 @@ public class BlockAcknowledgmentTracker {
         }
     }
 
-    protected void onBlockReadyForCleanup(long blockNumber) {
-        // This method can be overridden to implement actual cleanup logic
+    private void onBlockReadyForCleanup(long blockNumber) {
         logger.debug("Block {} is ready for cleanup", blockNumber);
     }
 
-    public long getLastVerifiedBlock(@NonNull String nodeId) {
-        return nodeAcknowledgments.getOrDefault(nodeId, new AtomicLong(0)).get();
+    /**
+     * @param connectionId the connection id
+     * @return the last verified block for this connection id
+     */
+    public long getLastVerifiedBlock(@NonNull String connectionId) {
+        return blockAcknowledgments
+                .getOrDefault(connectionId, new AtomicLong(0))
+                .get();
     }
 }

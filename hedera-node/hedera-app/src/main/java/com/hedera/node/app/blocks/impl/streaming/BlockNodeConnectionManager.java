@@ -44,12 +44,12 @@ public class BlockNodeConnectionManager {
             BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
 
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections = new ConcurrentHashMap<>();
-    private final BlockNodeConfigExtractor blockNodeConfigurations;
 
     private final Object connectionLock = new Object();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService streamingExecutor = Executors.newSingleThreadExecutor();
-    private final BlockAcknowledgmentTracker acknowledgmentTracker;
+    private BlockNodeConfigExtractor blockNodeConfigurations;
+    private BlockAcknowledgmentTracker acknowledgmentTracker;
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
@@ -58,6 +58,9 @@ public class BlockNodeConnectionManager {
     public BlockNodeConnectionManager(@NonNull final ConfigProvider configProvider) {
         requireNonNull(configProvider);
         final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+        if (!blockStreamConfig.streamToBlockNodes()) {
+            return;
+        }
         this.blockNodeConfigurations = new BlockNodeConfigExtractor(blockStreamConfig.blockNodeConnectionFileDir());
 
         // Initialize the block acknowledgment tracker
