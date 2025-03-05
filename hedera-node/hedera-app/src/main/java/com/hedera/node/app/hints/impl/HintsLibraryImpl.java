@@ -71,7 +71,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(crs);
         requireNonNull(hintsKeys);
         requireNonNull(weights);
-        if (hintsKeys.size() != weights.size()) {
+        if (!hintsKeys.keySet().equals(weights.keySet())) {
             throw new IllegalArgumentException("The number of hint keys and weights must be the same");
         }
         final int[] parties =

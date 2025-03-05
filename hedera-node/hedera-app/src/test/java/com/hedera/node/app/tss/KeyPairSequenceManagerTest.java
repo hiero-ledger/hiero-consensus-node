@@ -59,7 +59,6 @@ class KeyPairSequenceManagerTest {
         // The returned pair should be valid
         assertNotNull(keyPair);
         assertNotNull(keyPair.privateKey());
-        assertNotNull(keyPair.extendedPublicKey());
     }
 
     @Test
@@ -141,9 +140,5 @@ class KeyPairSequenceManagerTest {
                 () -> subject.getOrCreateKeyPairFor(7), "Should handle re-creating base directory if it was removed");
         final var newDir = originalDir.resolve("7");
         assertTrue(Files.isDirectory(newDir), "Directory should be re-created");
-    }
-
-    private static byte[] newPrivateKey() {
-        return new byte[0];
     }
 }
