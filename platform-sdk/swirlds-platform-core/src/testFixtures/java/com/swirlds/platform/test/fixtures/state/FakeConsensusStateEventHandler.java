@@ -24,8 +24,8 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -57,8 +57,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 
-public enum FakeStateLifecycles implements StateLifecycles<MerkleNodeState> {
-    FAKE_MERKLE_STATE_LIFECYCLES;
+public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
+    FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(AddressBookConfig.class)
@@ -82,7 +82,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkleNodeState> {
             registry.registerConstructable(new ClassConstructorPair(SingletonNode.class, SingletonNode::new));
             registry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
             registry.registerConstructable(new ClassConstructorPair(
-                    VirtualMap.class, () -> new VirtualMap(FakeStateLifecycles.CONFIGURATION)));
+                    VirtualMap.class, () -> new VirtualMap(FakeConsensusStateEventHandler.CONFIGURATION)));
             registry.registerConstructable(new ClassConstructorPair(
                     MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
             registry.registerConstructable(new ClassConstructorPair(

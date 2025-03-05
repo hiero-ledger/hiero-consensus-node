@@ -7,8 +7,8 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.Hedera;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -22,10 +22,10 @@ import java.util.function.Consumer;
 /**
  * Implements the major lifecycle events for Hedera Services by delegating to a Hedera instance.
  */
-public class StateLifecyclesImpl implements StateLifecycles<MerkleNodeState> {
+public class ConsensusStateEventHandlerImpl implements ConsensusStateEventHandler<MerkleNodeState> {
     private final Hedera hedera;
 
-    public StateLifecyclesImpl(@NonNull final Hedera hedera) {
+    public ConsensusStateEventHandlerImpl(@NonNull final Hedera hedera) {
         this.hedera = requireNonNull(hedera);
     }
 

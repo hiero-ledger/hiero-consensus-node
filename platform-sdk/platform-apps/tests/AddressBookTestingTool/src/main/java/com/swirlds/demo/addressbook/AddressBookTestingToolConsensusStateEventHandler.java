@@ -22,7 +22,7 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
@@ -53,9 +53,10 @@ import org.apache.logging.log4j.Logger;
 /**
  * This class is responsible for processing lifecycle events for the {@link AddressBookTestingToolState}.
  */
-public class AddressBookTestingToolStateLifecycles implements StateLifecycles<AddressBookTestingToolState> {
+public class AddressBookTestingToolConsensusStateEventHandler
+        implements ConsensusStateEventHandler<AddressBookTestingToolState> {
 
-    private static final Logger logger = LogManager.getLogger(AddressBookTestingToolStateLifecycles.class);
+    private static final Logger logger = LogManager.getLogger(AddressBookTestingToolConsensusStateEventHandler.class);
 
     /** the suffix for the debug address book */
     private static final String DEBUG = "debug";
@@ -88,7 +89,7 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
     /**
      * @param platformStateFacade platform state facade
      */
-    public AddressBookTestingToolStateLifecycles(@NonNull final PlatformStateFacade platformStateFacade) {
+    public AddressBookTestingToolConsensusStateEventHandler(@NonNull final PlatformStateFacade platformStateFacade) {
         this.platformStateFacade = platformStateFacade;
     }
 
@@ -115,7 +116,7 @@ public class AddressBookTestingToolStateLifecycles implements StateLifecycles<Ad
         state.initState();
 
         // Since this demo State doesn't call Hedera.onStateInitialized() to init States API for all services
-        // (because it doesn't call super.init(), and the FakeStateLifecycles doesn't do that anyway),
+        // (because it doesn't call super.init(), and the FakeConsensusStateEventHandler doesn't do that anyway),
         // we need to register PlatformService and RosterService states for the rest of the code to operate
         // when an instance of this state is received via reconnect. In any other cases, this call
         // should be idempotent.

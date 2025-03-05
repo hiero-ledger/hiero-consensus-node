@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.common.test.fixtures.crypto.EcdsaSignedTxnPool;
 import com.swirlds.common.test.fixtures.crypto.MessageDigestPool;
 import com.swirlds.common.test.fixtures.crypto.SignaturePool;
-import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,25 +16,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 class CryptographyBenchmarkTests {
     private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
-    private record TransactionComponents(byte[] message, byte[] publicKey, byte[] signature) {}
-
     private record BenchmarkStats(long min, long max, long average, long median) {}
-
-    private static TransactionComponents extractComponents(final TransactionSignature signature) {
-        final ByteBuffer buffer = ByteBuffer.wrap(signature.getContentsDirect());
-        final byte[] message = new byte[signature.getMessageLength()];
-        final byte[] publicKey = new byte[signature.getPublicKeyLength()];
-        final byte[] signatureBytes = new byte[signature.getSignatureLength()];
-
-        buffer.position(signature.getMessageOffset())
-                .get(message)
-                .position(signature.getPublicKeyOffset())
-                .get(publicKey)
-                .position(signature.getSignatureOffset())
-                .get(signatureBytes);
-
-        return new TransactionComponents(message, signatureBytes, publicKey);
-    }
 
     private static long median(final ArrayList<Long> values) {
         final int middle = values.size() / 2;
@@ -69,14 +50,9 @@ class CryptographyBenchmarkTests {
 
         for (int i = 0; i < signatures.length; i++) {
             signatures[i] = ed25519SignaturePool.next();
-            final TransactionComponents transactionComponents = extractComponents(signatures[i]);
 
             final long startTime = System.nanoTime();
-            CRYPTOGRAPHY.verifySync(
-                    transactionComponents.message,
-                    transactionComponents.publicKey,
-                    transactionComponents.signature,
-                    SignatureType.ED25519);
+            CRYPTOGRAPHY.verifySync(signatures[i]);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance
@@ -111,14 +87,9 @@ class CryptographyBenchmarkTests {
 
         for (int i = 0; i < signatures.length; i++) {
             signatures[i] = ecdsaSignaturePool.next();
-            final TransactionComponents transactionComponents = extractComponents(signatures[i]);
 
             final long startTime = System.nanoTime();
-            CRYPTOGRAPHY.verifySync(
-                    transactionComponents.message,
-                    transactionComponents.publicKey,
-                    transactionComponents.signature,
-                    SignatureType.ECDSA_SECP256K1);
+            CRYPTOGRAPHY.verifySync(signatures[i]);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance
