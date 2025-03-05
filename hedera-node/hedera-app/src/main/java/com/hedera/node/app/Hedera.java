@@ -87,7 +87,7 @@ import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.state.StateLifecyclesImpl;
+import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.AppThrottleFactory;
@@ -113,7 +113,6 @@ import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.constructable.RuntimeConstructable;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;
@@ -127,8 +126,8 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -293,7 +292,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      */
     private final StartupNetworksFactory startupNetworksFactory;
 
-    private final StateLifecycles<MerkleNodeState> stateLifecycles;
+    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -466,7 +465,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 new AppSignatureVerifier(
                         bootstrapConfig.getConfigData(HederaConfig.class),
                         new SignatureExpanderImpl(),
-                        new SignatureVerifierImpl(CryptographyHolder.get())),
+                        new SignatureVerifierImpl()),
                 this,
                 configSupplier,
                 () -> daggerApp.networkInfo().selfNodeInfo(),
@@ -514,7 +513,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
         try {
-            stateLifecycles = new StateLifecyclesImpl(this);
+            consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
             final Supplier<MerkleNodeState> baseSupplier = HederaStateRoot::new;
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
@@ -565,8 +564,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * {@inheritDoc}
      */
     @Override
-    public StateLifecycles<MerkleNodeState> newStateLifecycles() {
-        return stateLifecycles;
+    public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
+        return consensusStateEventHandler;
     }
 
     @Override
@@ -1143,7 +1142,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
                 .maxSignedTxnSize(maxSignedTxnSize)
-                .crypto(CryptographyHolder.get())
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)
                 .instantSource(appContext.instantSource())

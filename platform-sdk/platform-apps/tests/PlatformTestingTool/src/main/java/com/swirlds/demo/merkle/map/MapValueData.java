@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.merkle.map;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -15,6 +16,7 @@ import java.io.Serializable;
 import java.util.Objects;
 
 public class MapValueData extends PartialMerkleLeaf implements Keyed<MapKey>, MapValue, Serializable, MerkleLeaf {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     public static final long CLASS_ID = 0x206bc63a03b16c28L;
 
@@ -116,7 +118,7 @@ public class MapValueData extends PartialMerkleLeaf implements Keyed<MapKey>, Ma
             return getHash();
         }
 
-        CryptographyHolder.get().digestSync(this);
+        CRYPTOGRAPHY.digestSync(this);
         return getHash();
     }
 

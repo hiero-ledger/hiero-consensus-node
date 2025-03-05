@@ -101,13 +101,13 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
 
     @Override
     @Nullable
-    public AccountID getAccountIDByAlias(@NonNull final Bytes alias) {
-        return aliases.get(new ProtoBytes(alias));
+    public AccountID getAccountIDByAlias(final long shardNum, final long realmNum, @NonNull final Bytes alias) {
+        return lookupAlias(shardNum, realmNum, alias);
     }
 
     @Override
-    public boolean containsAlias(@NonNull Bytes alias) {
-        return aliases.contains(new ProtoBytes(alias));
+    public boolean containsAlias(final long shardNum, final long realmNum, @NonNull Bytes alias) {
+        return getAccountIDByAlias(shardNum, realmNum, alias) != null;
     }
 
     @Override
@@ -191,31 +191,36 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
         return switch (accountOneOf.kind()) {
             case ACCOUNT_NUM -> id;
             case ALIAS -> {
-                // An alias may either be long-zero (in which case it isn't in our alias map), or it may be
-                // any other form of valid alias (in which case it will be in the map). So we do a quick check
-                // first to see if it is a valid long zero, and if not, then we look it up in the map.
                 final Bytes alias = accountOneOf.as();
-                if (isEntityNumAlias(alias, id.shardNum(), id.realmNum())) {
-                    yield id.copyBuilder()
-                            .shardNum(extractShardFromAddressAlias(alias))
-                            .realmNum(extractRealmFromAddressAlias(alias))
-                            .accountNum(extractIdFromAddressAlias(alias))
-                            .build();
-                }
-
-                // Since it wasn't long-zero, we will just look up in the aliases map. It may be an EVM address alias,
-                // in which case it is in the map, or it may be a protobuf-encoded key alias, in which case it *may*
-                // also be in the map. When someone gives us a protobuf-encoded ECDSA key, we store both the alias to
-                // the ECDSA key *and* the EVM address in the alias map. But if somebody only gives us the EVM address,
-                // we cannot compute the ECDSA key from it, so we only store the EVM address in the alias map. So if we
-                // do this look up and cannot find the answer, then we have to check if the key is an ECDSA key, and
-                // if it is, we have to compute the EVM address from it, and then look up the EVM address in the map.
-                final var found = aliases.get(new ProtoBytes(alias));
-                if (found != null) yield found;
-                yield aliases.get(new ProtoBytes(extractEvmAddress(asKeyFromAliasOrElse(alias, null))));
+                yield lookupAlias(id.shardNum(), id.realmNum(), alias);
             }
             case UNSET -> null;
         };
+    }
+
+    @Nullable
+    private AccountID lookupAlias(final long shardNum, long realmNum, final Bytes alias) {
+        // An alias may either be long-zero (in which case it isn't in our alias map), or it may be
+        // any other form of valid alias (in which case it will be in the map). So we do a quick check
+        // first to see if it is a valid long zero, and if not, then we look it up in the map.
+        if (isEntityNumAlias(alias, shardNum, realmNum)) {
+            return AccountID.newBuilder()
+                    .shardNum(extractShardFromAddressAlias(alias))
+                    .realmNum(extractRealmFromAddressAlias(alias))
+                    .accountNum(extractIdFromAddressAlias(alias))
+                    .build();
+        }
+
+        // Since it wasn't long-zero, we will just look up in the aliases map. It may be an EVM address alias,
+        // in which case it is in the map, or it may be a protobuf-encoded key alias, in which case it *may*
+        // also be in the map. When someone gives us a protobuf-encoded ECDSA key, we store both the alias to
+        // the ECDSA key *and* the EVM address in the alias map. But if somebody only gives us the EVM address,
+        // we cannot compute the ECDSA key from it, so we only store the EVM address in the alias map. So if we
+        // do this look up and cannot find the answer, then we have to check if the key is an ECDSA key, and
+        // if it is, we have to compute the EVM address from it, and then look up the EVM address in the map.
+        final var found = aliases.get(new ProtoBytes(alias));
+        if (found != null) return found;
+        return aliases.get(new ProtoBytes(extractEvmAddress(asKeyFromAliasOrElse(alias, null))));
     }
 
     public long sizeOfAccountState() {

@@ -123,8 +123,7 @@ public interface Cryptography {
 
     /**
      * Verifies the given digital signature for authenticity. The result of the verification will be returned by the
-     * {@link TransactionSignature#getSignatureStatus()} method once the future (available via
-     * {@link TransactionSignature#getFuture()}) has been completed.
+     * {@link TransactionSignature#getSignatureStatus()} method.
      * <p>
      * Starting in version 0.43 and onwards, the {@link SignatureType#ECDSA_SECP256K1} signature algorithm requires the
      * payload to be a KECCAK-256 hash of the original message. Verification will fail if the message is not 32 bytes in
@@ -138,8 +137,7 @@ public interface Cryptography {
 
     /**
      * Verifies the given digital signatures for authenticity. The result of the verification will be returned by the
-     * {@link TransactionSignature#getSignatureStatus()} method once the future (available via
-     * {@link TransactionSignature#getFuture()}) has been completed.
+     * {@link TransactionSignature#getSignatureStatus()} method.
      * <p>
      * Starting in version 0.43 and onwards, the {@link SignatureType#ECDSA_SECP256K1} signature algorithm requires the
      * payload to be a KECCAK-256 hash of the original message. Verification will fail if the message is not 32 bytes in
