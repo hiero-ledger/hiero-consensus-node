@@ -96,7 +96,6 @@ import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
-import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -148,8 +147,7 @@ public class BlockStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
-                TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                TokenAirdropStreamBuilder {
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenIdOrThrow().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNumOrThrow());
@@ -546,11 +544,6 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public HederaFunctionality functionality() {
-        return functionality;
-    }
-
-    @Override
     public ScheduleID scheduleID() {
         return scheduleId;
     }
@@ -694,16 +687,6 @@ public class BlockStreamBuilder
     public BlockStreamBuilder transferList(@Nullable final TransferList transferList) {
         this.transferList = transferList;
         return this;
-    }
-
-    @Override
-    public void setReplayedFees(@NonNull final TransferList transferList) {
-        requireNonNull(transferList);
-        if (this.transferList == null || this.transferList == TransferList.DEFAULT) {
-            this.transferList = transferList;
-        } else {
-            throw new IllegalStateException("Transfer list already set");
-        }
     }
 
     @Override

@@ -52,7 +52,6 @@ import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
-import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
@@ -94,8 +93,7 @@ public class PairedStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
-                TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                TokenAirdropStreamBuilder {
     private final BlockStreamBuilder blockStreamBuilder;
     private final RecordStreamBuilder recordStreamBuilder;
 
@@ -472,12 +470,6 @@ public class PairedStreamBuilder
         return this;
     }
 
-    @Override
-    public void setReplayedFees(@NonNull final TransferList transferList) {
-        recordStreamBuilder.setReplayedFees(transferList);
-        blockStreamBuilder.setReplayedFees(transferList);
-    }
-
     @NonNull
     @Override
     public CryptoTransferStreamBuilder tokenTransferLists(@NonNull List<TokenTransferList> tokenTransferLists) {
@@ -588,10 +580,5 @@ public class PairedStreamBuilder
             @NonNull AccountID deletedAccountID, @NonNull AccountID beneficiaryForDeletedAccount) {
         recordStreamBuilder.addBeneficiaryForDeletedAccount(deletedAccountID, beneficiaryForDeletedAccount);
         blockStreamBuilder.addBeneficiaryForDeletedAccount(deletedAccountID, beneficiaryForDeletedAccount);
-    }
-
-    @Override
-    public HederaFunctionality functionality() {
-        return blockStreamBuilder.functionality();
     }
 }

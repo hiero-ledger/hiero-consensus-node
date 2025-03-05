@@ -26,7 +26,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Set;
-import java.util.function.ObjLongConsumer;
 
 /**
  * The fundamental unit of work in the handle workflow.
@@ -216,18 +215,14 @@ public interface Dispatch extends FeeCharging.Context {
     }
 
     @Override
-    default void charge(
-            @NonNull final AccountID payerId, @NonNull final Fees fees, @Nullable final ObjLongConsumer<AccountID> cb) {
-        feeAccumulator().chargeNetworkFee(payerId, fees.totalFee(), cb);
+    default void charge(@NonNull final AccountID payerId, @NonNull final Fees fees) {
+        feeAccumulator().chargeNetworkFee(payerId, fees.totalFee());
     }
 
     @Override
     default void charge(
-            @NonNull final AccountID payerId,
-            @NonNull final Fees fees,
-            @NonNull final AccountID nodeAccountId,
-            @Nullable ObjLongConsumer<AccountID> cb) {
-        feeAccumulator().chargeFees(payerId, nodeAccountId, fees, cb);
+            @NonNull final AccountID payerId, @NonNull final Fees fees, @NonNull final AccountID nodeAccountId) {
+        feeAccumulator().chargeFees(payerId, nodeAccountId, fees);
     }
 
     @Override

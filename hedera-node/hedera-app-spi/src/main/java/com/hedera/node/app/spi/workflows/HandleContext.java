@@ -66,11 +66,7 @@ public interface HandleContext {
         /**
          * A transaction submitted by Node for TSS service
          */
-        NODE,
-        /**
-         * A child transaction submitted via atomic batch user transaction.
-         */
-        BATCH
+        NODE
     }
 
     /**

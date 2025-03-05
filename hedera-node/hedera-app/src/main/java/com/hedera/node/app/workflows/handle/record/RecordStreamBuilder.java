@@ -63,7 +63,6 @@ import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
-import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.SingleTransactionRecord;
@@ -127,8 +126,7 @@ public class RecordStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
-                TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                TokenAirdropStreamBuilder {
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenId().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNum());
@@ -194,7 +192,6 @@ public class RecordStreamBuilder
     private TokenID tokenID;
     private ScheduleID scheduleID;
     private TokenType tokenType;
-    private HederaFunctionality function;
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
@@ -513,16 +510,6 @@ public class RecordStreamBuilder
     @NonNull
     public TransferList transferList() {
         return transferList;
-    }
-
-    @Override
-    public void setReplayedFees(@NonNull final TransferList transferList) {
-        requireNonNull(transferList);
-        if (this.transferList == null || this.transferList == TransferList.DEFAULT) {
-            this.transferList = transferList;
-        } else {
-            throw new IllegalStateException("Transfer list already set");
-        }
     }
 
     /**
@@ -1173,17 +1160,12 @@ public class RecordStreamBuilder
 
     @Override
     public StreamBuilder functionality(@NonNull final HederaFunctionality functionality) {
-        this.function = functionality;
+        // No-op
         return this;
     }
 
     @Override
     public ScheduleID scheduleID() {
         return scheduleID;
-    }
-
-    @Override
-    public HederaFunctionality functionality() {
-        return function;
     }
 }

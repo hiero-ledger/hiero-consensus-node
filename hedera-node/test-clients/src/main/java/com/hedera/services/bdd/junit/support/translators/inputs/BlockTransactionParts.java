@@ -131,14 +131,6 @@ public record BlockTransactionParts(
     }
 
     /**
-     * Returns the parent consensus timestamp.
-     * @return the parent consensus timestamp
-     */
-    public Timestamp parentConsensusTimestamp() {
-        return transactionResult.parentConsensusTimestamp();
-    }
-
-    /**
      * Returns the hash of the transaction.
      * @return the hash
      */

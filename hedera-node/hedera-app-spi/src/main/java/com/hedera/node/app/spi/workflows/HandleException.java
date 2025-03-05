@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.spi.fees.FeeCharging;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.function.Consumer;
 
 /**
  * A runtime exception that wraps a {@link ResponseCodeEnum} status. Thrown by
@@ -21,10 +17,6 @@ import java.util.function.Consumer;
 public class HandleException extends RuntimeException {
     private final ShouldRollbackStack shouldRollbackStack;
     private final ResponseCodeEnum status;
-
-    @Nullable
-    private final Consumer<FeeCharging.Context> rollbackFeesCb;
-
     /**
      * Whether the stack should be rolled back. In case of a ContractCall if it reverts, the gas charged
      * should not be rolled back
@@ -35,27 +27,13 @@ public class HandleException extends RuntimeException {
     }
 
     public HandleException(final ResponseCodeEnum status) {
-        this(status, ShouldRollbackStack.YES, null);
+        this(status, ShouldRollbackStack.YES);
     }
 
-    public HandleException(
-            @NonNull final ResponseCodeEnum status, @NonNull final ShouldRollbackStack shouldRollbackStack) {
-        this(status, shouldRollbackStack, null);
-    }
-
-    public HandleException(
-            @NonNull final ResponseCodeEnum status, @Nullable final Consumer<FeeCharging.Context> rollbackFeesCb) {
-        this(status, ShouldRollbackStack.YES, rollbackFeesCb);
-    }
-
-    private HandleException(
-            @NonNull final ResponseCodeEnum status,
-            @NonNull final ShouldRollbackStack shouldRollbackStack,
-            @Nullable final Consumer<FeeCharging.Context> rollbackFeesCb) {
+    public HandleException(final ResponseCodeEnum status, final ShouldRollbackStack shouldRollbackStack) {
         super(status.protoName());
-        this.status = requireNonNull(status);
-        this.shouldRollbackStack = requireNonNull(shouldRollbackStack);
-        this.rollbackFeesCb = rollbackFeesCb;
+        this.status = status;
+        this.shouldRollbackStack = shouldRollbackStack;
     }
 
     /**
@@ -64,16 +42,6 @@ public class HandleException extends RuntimeException {
      */
     public boolean shouldRollbackStack() {
         return shouldRollbackStack == ShouldRollbackStack.YES;
-    }
-
-    /**
-     * If the exception was constructed with rollback fee charging, charges it in the given context.
-     * @param context the context in which to charge the rollback fees
-     */
-    public void maybeReplayFees(@NonNull final FeeCharging.Context context) {
-        if (rollbackFeesCb != null) {
-            rollbackFeesCb.accept(context);
-        }
     }
 
     /**

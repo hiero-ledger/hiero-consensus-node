@@ -429,15 +429,13 @@ public class RcDiff implements Callable<Integer> {
         };
         final var description = new StringBuilder();
         if (!expectedButNotObservedNames.isEmpty()) {
-            description
-                    .append("expected from generated but did not find in translated ")
-                    .append(expectedButNotObservedNames);
+            description.append("expected but not find ").append(expectedButNotObservedNames);
         }
         if (!observedButNotExpectedNames.isEmpty()) {
             if (!description.isEmpty()) {
                 description.append(" AND ");
             }
-            description.append("found in translated but not in generated ").append(observedButNotExpectedNames);
+            description.append("found but did not expect ").append(observedButNotExpectedNames);
         }
 
         return description.toString();

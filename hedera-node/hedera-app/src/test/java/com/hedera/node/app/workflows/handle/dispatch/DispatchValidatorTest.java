@@ -135,7 +135,7 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void invalidPayerSigIsCreatorError() {
+    void invalidPayerSigIsCreatorError() throws PreCheckException {
         givenCreatorInfo();
         givenUserDispatch();
         given(dispatch.txnInfo()).willReturn(TXN_INFO);

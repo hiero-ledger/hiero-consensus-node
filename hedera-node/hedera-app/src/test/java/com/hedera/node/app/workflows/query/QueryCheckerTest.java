@@ -155,7 +155,7 @@ class QueryCheckerTest extends AppTestBase {
     @SuppressWarnings("ConstantConditions")
     @Test
     void testValidateCryptoTransferWithIllegalArguments() {
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> checker.validateCryptoTransfer(null, null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -171,7 +171,8 @@ class QueryCheckerTest extends AppTestBase {
                 transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CRYPTO_TRANSFER, null);
 
         // when
-        assertThatCode(() -> checker.validateCryptoTransfer(transactionInfo)).doesNotThrowAnyException();
+        assertThatCode(() -> checker.validateCryptoTransfer(transactionInfo, configuration))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -187,7 +188,7 @@ class QueryCheckerTest extends AppTestBase {
                 transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CONSENSUS_CREATE_TOPIC, null);
 
         // then
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
+        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo, configuration))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INSUFFICIENT_TX_FEE));
     }
@@ -208,7 +209,7 @@ class QueryCheckerTest extends AppTestBase {
                 .pureChecks(any());
 
         // then
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
+        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo, configuration))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
     }

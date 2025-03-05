@@ -196,7 +196,6 @@ public class TransactionDispatcher {
             case TOKEN_CANCEL_AIRDROP -> handlers.tokenCancelAirdropHandler();
 
             case UTIL_PRNG -> handlers.utilPrngHandler();
-            case ATOMIC_BATCH -> handlers.atomicBatchHandler();
 
             case SYSTEM_DELETE -> switch (txBody.systemDeleteOrThrow().id().kind()) {
                 case CONTRACT_ID -> handlers.contractSystemDeleteHandler();

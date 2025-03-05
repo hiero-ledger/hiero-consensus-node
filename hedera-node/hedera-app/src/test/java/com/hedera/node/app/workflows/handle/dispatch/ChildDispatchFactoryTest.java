@@ -35,7 +35,6 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -124,9 +123,6 @@ class ChildDispatchFactoryTest {
     @Mock
     private TransactionChecker transactionChecker;
 
-    @Mock
-    private DeduplicationCache deduplicationCache;
-
     private ChildDispatchFactory subject;
 
     private static final AccountID payerId =
@@ -146,7 +142,6 @@ class ChildDispatchFactoryTest {
                 serviceScopeLookup,
                 exchangeRateManager,
                 transactionChecker,
-                deduplicationCache,
                 ServicesSoftwareVersion::new);
     }
 
@@ -252,8 +247,7 @@ class ChildDispatchFactoryTest {
                                 DispatchOptions.StakingRewards.ON,
                                 DispatchOptions.UsePresetTxnId.NO,
                                 NOOP_FEE_CHARGING,
-                                PropagateFeeChargingStrategy.YES),
-                        null));
+                                PropagateFeeChargingStrategy.YES)));
         assertInstanceOf(UnknownHederaFunctionality.class, exception.getCause());
         assertEquals("Unknown Hedera Functionality", exception.getMessage());
     }

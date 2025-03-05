@@ -191,8 +191,7 @@ public class StandaloneDispatchFactory {
                 throttleAdvisor,
                 feeAccumulator,
                 EMPTY_METADATA,
-                transactionChecker,
-                preHandleResult.innerResults());
+                transactionChecker);
         final var fees = transactionDispatcher.dispatchComputeFees(dispatchHandleContext);
         return new RecordDispatch(
                 baseBuilder,

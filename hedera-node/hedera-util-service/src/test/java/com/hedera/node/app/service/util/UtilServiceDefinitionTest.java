@@ -19,7 +19,6 @@ class UtilServiceDefinitionTest {
         final var methods = UtilServiceDefinition.INSTANCE.methods();
         Assertions.assertThat(methods)
                 .containsExactlyInAnyOrder(
-                        new RpcMethodDefinition<>("prng", Transaction.class, TransactionResponse.class),
-                        new RpcMethodDefinition<>("atomicBatch", Transaction.class, TransactionResponse.class));
+                        new RpcMethodDefinition<>("prng", Transaction.class, TransactionResponse.class));
     }
 }

@@ -10,20 +10,13 @@ import javax.inject.Singleton;
 public class UtilHandlers {
 
     private final UtilPrngHandler prngHandler;
-    private final AtomicBatchHandler atomicBatchHandler;
 
     @Inject
-    public UtilHandlers(
-            @NonNull final UtilPrngHandler prngHandler, @NonNull final AtomicBatchHandler atomicBatchHandler) {
+    public UtilHandlers(@NonNull final UtilPrngHandler prngHandler) {
         this.prngHandler = Objects.requireNonNull(prngHandler, "prngHandler must not be null");
-        this.atomicBatchHandler = Objects.requireNonNull(atomicBatchHandler, "atomicBatchHandler must not be null");
     }
 
     public UtilPrngHandler prngHandler() {
         return prngHandler;
-    }
-
-    public AtomicBatchHandler atomicBatchHandler() {
-        return atomicBatchHandler;
     }
 }

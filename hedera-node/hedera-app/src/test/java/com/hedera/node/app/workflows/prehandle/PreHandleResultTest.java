@@ -20,7 +20,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -117,7 +116,7 @@ final class PreHandleResultTest implements Scenarios {
                             Set.of(),
                             Set.of(),
                             DEFAULT_VERIFICATION_RESULTS,
-                            List.of(innerResult),
+                            innerResult,
                             DEFAULT_CONFIG_VERSION))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -140,7 +139,7 @@ final class PreHandleResultTest implements Scenarios {
                             Set.of(),
                             Set.of(),
                             DEFAULT_VERIFICATION_RESULTS,
-                            List.of(innerResult),
+                            innerResult,
                             DEFAULT_CONFIG_VERSION))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -152,7 +151,7 @@ final class PreHandleResultTest implements Scenarios {
 
             assertThat(result.status()).isEqualTo(UNKNOWN_FAILURE);
             assertThat(result.responseCode()).isEqualTo(UNKNOWN);
-            assertThat(result.innerResults()).isNull();
+            assertThat(result.innerResult()).isNull();
             assertThat(result.payer()).isNull();
             assertThat(result.txInfo()).isNull();
             assertThat(result.requiredKeys()).isNull();
@@ -171,7 +170,7 @@ final class PreHandleResultTest implements Scenarios {
 
             assertThat(result.status()).isEqualTo(NODE_DUE_DILIGENCE_FAILURE);
             assertThat(result.responseCode()).isEqualTo(status);
-            assertThat(result.innerResults()).isNull();
+            assertThat(result.innerResult()).isNull();
             assertThat(result.payer()).isEqualTo(nodeAccountId);
             assertThat(result.txInfo()).isSameAs(txInfo);
             assertThat(result.requiredKeys()).isNull();
@@ -188,7 +187,7 @@ final class PreHandleResultTest implements Scenarios {
 
             assertThat(result.status()).isEqualTo(PRE_HANDLE_FAILURE);
             assertThat(result.responseCode()).isEqualTo(responseCode);
-            assertThat(result.innerResults()).isNull();
+            assertThat(result.innerResult()).isNull();
             assertThat(result.payer()).isEqualTo(payer);
             assertThat(result.txInfo()).isSameAs(txInfo);
             assertThat(result.requiredKeys()).isNull();

@@ -141,7 +141,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     private OpWorkflowMetrics opWorkflowMetrics;
 
     private VersionedConfiguration configuration;
-    private Bytes serializedPayment;
+    private Transaction payment;
     private TransactionBody txBody;
     private Bytes requestBuffer;
     private TransactionInfo transactionInfo;
@@ -154,16 +154,12 @@ class QueryWorkflowImplTest extends AppTestBase {
         setupStandardStates();
 
         when(stateAccessor.apply(any())).thenReturn(new AutoCloseableWrapper<>(state, () -> {}));
-        final var transactionID =
-                TransactionID.newBuilder().accountID(ALICE.accountID()).build();
-        txBody = TransactionBody.newBuilder().transactionID(transactionID).build();
-        final var payment = Transaction.newBuilder().body(txBody).build();
-        serializedPayment = Transaction.PROTOBUF.toBytes(payment);
+        requestBuffer = Bytes.wrap(new byte[] {1, 2, 3});
+        payment = Transaction.newBuilder().build();
         final var queryHeader = QueryHeader.newBuilder().payment(payment).build();
         final var query = Query.newBuilder()
                 .fileGetInfo(FileGetInfoQuery.newBuilder().header(queryHeader))
                 .build();
-        requestBuffer = Query.PROTOBUF.toBytes(query);
         when(queryParser.parseStrict((ReadableSequentialData) notNull())).thenReturn(query);
 
         configuration = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), DEFAULT_CONFIG_VERSION);
@@ -171,11 +167,14 @@ class QueryWorkflowImplTest extends AppTestBase {
 
         when(feeManager.createFeeCalculator(eq(FILE_GET_INFO), any(), any())).thenReturn(feeCalculator);
 
+        final var transactionID =
+                TransactionID.newBuilder().accountID(ALICE.accountID()).build();
+        txBody = TransactionBody.newBuilder().transactionID(transactionID).build();
+
         final var signatureMap = SignatureMap.newBuilder().build();
         transactionInfo = new TransactionInfo(
-                payment, txBody, signatureMap, payment.signedTransactionBytes(), CRYPTO_TRANSFER, serializedPayment);
-        when(ingestChecker.runAllChecks(state, serializedPayment, configuration))
-                .thenReturn(transactionInfo);
+                payment, txBody, signatureMap, payment.signedTransactionBytes(), CRYPTO_TRANSFER, null);
+        when(ingestChecker.runAllChecks(state, payment, configuration)).thenReturn(transactionInfo);
 
         when(handler.extractHeader(query)).thenReturn(queryHeader);
         when(handler.createEmptyResponse(any())).thenAnswer((Answer<Response>) invocation -> {
@@ -585,7 +584,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                         .build());
         doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
                 .when(queryChecker)
-                .validateCryptoTransfer(eq(transactionInfo));
+                .validateCryptoTransfer(eq(transactionInfo), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -789,7 +788,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         doThrow(new PreCheckException(INVALID_TRANSACTION_BODY))
                 .when(ingestChecker)
-                .runAllChecks(state, serializedPayment, configuration);
+                .runAllChecks(state, payment, configuration);
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -811,7 +810,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
                 .when(queryChecker)
-                .validateCryptoTransfer(eq(transactionInfo));
+                .validateCryptoTransfer(eq(transactionInfo), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -975,7 +974,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         doThrow(new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED))
                 .when(submissionManager)
-                .submit(txBody, serializedPayment);
+                .submit(txBody, payment.bodyBytes());
         given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
         final var responseBuffer = newEmptyBuffer();
 

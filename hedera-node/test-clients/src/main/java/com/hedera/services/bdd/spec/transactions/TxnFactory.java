@@ -11,7 +11,6 @@ import com.hedera.hapi.platform.event.legacy.StateSignatureTransaction;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
-import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusDeleteTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusSubmitMessageTransactionBody;
@@ -455,10 +454,6 @@ public class TxnFactory {
     }
 
     public Consumer<TokenAirdropTransactionBody.Builder> defaultDefTokenAirdropTransactionBody() {
-        return builder -> {};
-    }
-
-    public Consumer<AtomicBatchTransactionBody.Builder> defaultDefAtomicBatchTransactionBody() {
         return builder -> {};
     }
 }
