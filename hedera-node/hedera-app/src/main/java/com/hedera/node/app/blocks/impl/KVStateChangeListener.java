@@ -53,6 +53,7 @@ import com.hedera.hapi.node.state.tss.TssEncryptionKeys;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.swirlds.state.StateChangeListener;
@@ -262,6 +263,9 @@ public class KVStateChangeListener implements StateChangeListener {
                     .build();
             case ProofKeySet proofKeySet -> MapChangeValue.newBuilder()
                     .proofKeySetValue(proofKeySet)
+                    .build();
+            case CrsPublicationTransactionBody crsPublicationTransactionBody -> MapChangeValue.newBuilder()
+                    .crsPublicationValue(crsPublicationTransactionBody)
                     .build();
             default -> throw new IllegalStateException(
                     "Unexpected value: " + value.getClass().getSimpleName());

@@ -18,6 +18,6 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration crsUpdateContributionTime,
         @ConfigProperty(defaultValue = "5s") @NetworkProperty Duration crsFinalizationDelay,
         @ConfigProperty(defaultValue = "1024") @NetworkProperty int initialCrsParties,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean historyEnabled,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean crsEnabled) {}
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean hintsEnabled,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean crsEnabled) {}

@@ -84,17 +84,25 @@ public interface HintsController {
 
     /**
      * Adds a CRS publication to the controller's state, if the network is still gathering contributions.
+     *
      * @param publication the CRS publication
+     * @param creatorId
      */
     void addCrsPublication(
             @NonNull CrsPublicationTransactionBody publication,
             @NonNull Instant consensusTime,
-            @NonNull WritableHintsStore hintsStore);
+            @NonNull WritableHintsStore hintsStore,
+            final long creatorId);
 
     /**
      * Verifies the given CRS update.
+     *
      * @param publication the publication
-     * @param hintsStore the hints store
+     * @param hintsStore  the hints store
+     * @param creatorId
      */
-    void verifyCrsUpdate(@NonNull CrsPublicationTransactionBody publication, @NonNull WritableHintsStore hintsStore);
+    void verifyCrsUpdate(
+            @NonNull CrsPublicationTransactionBody publication,
+            @NonNull WritableHintsStore hintsStore,
+            final long creatorId);
 }

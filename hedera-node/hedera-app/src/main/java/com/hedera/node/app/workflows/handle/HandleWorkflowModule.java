@@ -182,6 +182,7 @@ public interface HandleWorkflowModule {
                 utilHandlers.atomicBatchHandler(),
                 historyHandlers.historyProofKeyPublicationHandler(),
                 historyHandlers.historyProofSignatureHandler(),
-                historyHandlers.historyProofVoteHandler());
+                historyHandlers.historyProofVoteHandler(),
+                hintsHandlers.crsPublicationHandler());
     }
 }

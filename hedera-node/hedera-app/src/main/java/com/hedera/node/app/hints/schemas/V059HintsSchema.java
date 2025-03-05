@@ -71,15 +71,4 @@ public class V059HintsSchema extends Schema {
         states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
         states.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY).put(HintsConstruction.DEFAULT);
     }
-
-    @Override
-    public void restart(@NonNull final MigrationContext ctx) {
-        final var states = ctx.newStates();
-        final var activeConstruction =
-                requireNonNull(states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
-                        .get());
-        if (activeConstruction.hasHintsScheme()) {
-            signingContext.setConstruction(activeConstruction);
-        }
-    }
 }
