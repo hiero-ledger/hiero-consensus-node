@@ -259,7 +259,7 @@ public class AddressBookUtils {
                 final Roster previousRoster =
                         RosterRetriever.buildRoster(addressBookInitializer.getPreviousAddressBook());
                 if (!previousRoster.equals(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
-                        && !previousRoster.equals(RosterRetriever.retrievePreviousRoster(state, platformStateFacade))) {
+                        && !previousRoster.equals(RosterRetriever.retrievePreviousRoster(state))) {
                     throw new IllegalStateException(
                             "The previousRoster in the AddressBookInitializer doesn't match either the active or previous roster in state."
                                     + " AddressBookInitializer previousRoster = " + RosterUtils.toString(previousRoster)
@@ -267,8 +267,7 @@ public class AddressBookUtils {
                                     + RosterUtils.toString(
                                             RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
                                     + ", state previousRoster = "
-                                    + RosterUtils.toString(
-                                            RosterRetriever.retrievePreviousRoster(state, platformStateFacade)));
+                                    + RosterUtils.toString(RosterRetriever.retrievePreviousRoster(state)));
                 }
             }
 

@@ -139,7 +139,7 @@ public class ReconnectStateLoader {
             platformWiring.consensusSnapshotOverride(
                     Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(state)));
 
-            final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state, platformStateFacade);
+            final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
             platformWiring.getRosterUpdateInput().inject(new RosterUpdate(previousRoster, roster));
 
             final AncientMode ancientMode = platformContext
