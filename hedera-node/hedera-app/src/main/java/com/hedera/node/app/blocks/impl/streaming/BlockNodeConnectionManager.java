@@ -218,6 +218,7 @@ public class BlockNodeConnectionManager {
         retryExecutor.execute(() -> {
             try {
                 retry(connection::establishStream, INITIAL_RETRY_DELAY);
+                activeConnections.put(connection.getNodeConfig(), connection);
             } catch (Exception e) {
                 final var node = connection.getNodeConfig();
                 logger.error("Failed to re-establish stream to block node {}:{}: {}", node.address(), node.port(), e);
