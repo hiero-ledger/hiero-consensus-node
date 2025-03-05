@@ -286,7 +286,7 @@ jobs:
           name: version.txt
 
       - name: Cache Build Artifacts
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ~/artifact-build
           key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ github.sha }}
@@ -427,7 +427,7 @@ jobs:
           password: ${{ steps.google-auth.outputs.access_token }}
 
       - name: Restore Build Artifacts
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           fail-on-cache-miss: true
           path: ~/artifact-build
