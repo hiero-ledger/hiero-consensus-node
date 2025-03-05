@@ -2,6 +2,11 @@
 name: "[Main] Increment to Next Release Version"
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to run the workflow on:"
+        required: true
+        default: "main" # Default branch
 
 defaults:
   run:
@@ -25,7 +30,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: main
+          ref: ${{ input.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Setup Java

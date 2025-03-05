@@ -57,6 +57,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -625,8 +626,9 @@ public class ThrottleAccumulator {
             if (ethTxData == null) {
                 return UNKNOWN_NUM_IMPLICIT_CREATIONS;
             }
-
-            final boolean doesNotExist = !accountStore.containsAlias(Bytes.wrap(ethTxData.to()));
+            final var config = configSupplier.get().getConfigData(HederaConfig.class);
+            final boolean doesNotExist =
+                    !accountStore.containsAlias(config.shard(), config.realm(), Bytes.wrap(ethTxData.to()));
             if (doesNotExist && ethTxData.value().compareTo(BigInteger.ZERO) > 0) {
                 implicitCreationsCount++;
             }
@@ -746,7 +748,7 @@ public class ThrottleAccumulator {
             if (isOfEvmAddressSize(alias) && isEntityNumAlias(alias, idOrAlias.shardNum(), idOrAlias.realmNum())) {
                 return false;
             }
-            return accountStore.getAccountIDByAlias(alias) == null;
+            return accountStore.getAccountIDByAlias(idOrAlias.shardNum(), idOrAlias.realmNum(), alias) == null;
         }
         return false;
     }
