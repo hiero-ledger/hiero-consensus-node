@@ -29,6 +29,9 @@ Merkle tree.
   - [`RemoteNetwork`](#remotenetwork)
   - [`SubProcessNetwork`](#subprocessnetwork)
   - [Embedded networks](#embedded-networks)
+- [Block Node Testing](#block-node-testing)
+  - [Block Node Modes](#block-node-modes)
+  - [Running Tests with Block Node Simulator](#running-tests-with-block-node-simulator)
 - [Style guide](#style-guide)
   - [The `@HapiTest` checklist](#the-hapitest-checklist)
 - [JUnit Jupiter integrations](#junit-jupiter-integrations)
@@ -88,12 +91,12 @@ There are four implementations of the `HederaNetwork` interface, as follows:
 
 Examining the differences between these implementations as we move from black box testing to
 increasingly white box testing provides valuable insights into the key architectural elements of a
-Hedera network. Let’s take a closer look.
+Hedera network. Let's take a closer look.
 
 ### `RemoteNetwork`
 
 A `HapiSpec` executing against a `RemoteNetwork` behaves like any other client of that network. It
-sends transactions and queries to the network’s gRPC services and receives responses as protobuf
+sends transactions and queries to the network's gRPC services and receives responses as protobuf
 messages. While the `RemoteNetwork` provides the most realistic testing environment for a spec, it
 is also the most limited in terms of what the test can observe and manipulate. Network latency also
 makes it the slowest way to execute a spec.
@@ -158,6 +161,63 @@ time the requested amount. This lets us test staking rewards, contract expiratio
 time-dependent behaviors orders of magnitude faster than we could otherwise.
 
 ![embedded-network](./docs/assets/embedded-network.png)
+
+## Block Node Testing
+
+This section explains how to run tests with block nodes using the `hapi.spec.blocknode.mode` system property.
+
+### Block Node Modes
+
+The following block node modes are available:
+
+- `SIM` - Use simulated block nodes
+- `REAL` - Use Docker containers for block nodes
+- `LOCAL` - Use a local block node
+- If not specified, no block nodes will be used
+
+### Running Tests with Block Node Simulator
+
+#### Using Predefined Tasks
+
+The following predefined tasks are available for running tests with the block node simulator:
+
+- `hapiTestBlockNodeSimulator` - Runs tests tagged with `BLOCK_NODE_SIMULATOR`
+- `testSubprocessWithBlockNodeSimulator` - Runs subprocess tests with block node simulator
+
+Example:
+
+```bash
+# Run all block node simulator tests
+./gradlew hapiTestBlockNodeSimulator
+
+# Run subprocess tests with block node simulator
+./gradlew testSubprocessWithBlockNodeSimulator
+
+# Run a specific test with block node simulator
+./gradlew testSubprocessWithBlockNodeSimulator --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite"
+```
+
+#### Using the System Property Directly
+
+You can also set the system property directly with any Gradle task:
+
+```bash
+# Run a specific test with block node simulator
+./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite" -Dhapi.spec.blocknode.mode=SIM
+
+# Run with Docker containers for block nodes
+./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite" -Dhapi.spec.blocknode.mode=REAL
+
+# Run with a local block node
+./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite" -Dhapi.spec.blocknode.mode=LOCAL
+```
+
+#### Notes
+
+- The block node simulator is useful for testing how consensus nodes handle different response codes from block nodes.
+- When using the block node simulator, each consensus node will have a corresponding simulated block node.
+- The Docker container mode requires Docker to be installed and running on your machine.
+- The local block node mode requires you to have a local block node running.
 
 ## Style guide
 
