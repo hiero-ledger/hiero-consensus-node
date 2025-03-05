@@ -34,7 +34,7 @@ class ISSTestingToolStateTest {
     private static final int RUNNING_SUM_INDEX = 3;
     private ISSTestingToolMain main;
     private ISSTestingToolState state;
-    private ISSTestingToolStateLifecycles stateLifecycles;
+    private ISSTestingToolConsensusStateEventHandler consensusStateEventHandler;
     private Round round;
     private ConsensusEvent event;
     private List<ScopedSystemTransaction<StateSignatureTransaction>> consumedTransactions;
@@ -45,7 +45,7 @@ class ISSTestingToolStateTest {
     @BeforeEach
     void setUp() {
         state = new ISSTestingToolState();
-        stateLifecycles = new ISSTestingToolStateLifecycles();
+        consensusStateEventHandler = new ISSTestingToolConsensusStateEventHandler();
         main = mock(ISSTestingToolMain.class);
         final var random = new Random();
         round = mock(Round.class);
@@ -75,7 +75,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(bytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -98,7 +98,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -131,7 +131,7 @@ class ISSTestingToolStateTest {
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -155,7 +155,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(emptyStateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -180,7 +180,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(emptyStateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -220,7 +220,7 @@ class ISSTestingToolStateTest {
         when(round.iterator()).thenReturn(Collections.singletonList(event).iterator());
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).hasSize(3);
@@ -252,7 +252,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).hasSize(1);
@@ -282,7 +282,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).isEmpty();
@@ -293,7 +293,7 @@ class ISSTestingToolStateTest {
         // Given (empty)
 
         // When
-        final boolean result = stateLifecycles.onSealConsensusRound(round, state);
+        final boolean result = consensusStateEventHandler.onSealConsensusRound(round, state);
 
         // Then
         assertThat(result).isTrue();

@@ -6,7 +6,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -24,9 +24,9 @@ import org.apache.logging.log4j.Logger;
 /**
  * This class handles the lifecycle events for the {@link HelloSwirldDemoState}.
  */
-public class HelloSwirldDemoStateLifecycles implements StateLifecycles<HelloSwirldDemoState> {
+public class HelloSwirldDemoConsensusStateEventHandler implements ConsensusStateEventHandler<HelloSwirldDemoState> {
 
-    private static final Logger logger = LogManager.getLogger(HelloSwirldDemoStateLifecycles.class);
+    private static final Logger logger = LogManager.getLogger(HelloSwirldDemoConsensusStateEventHandler.class);
 
     @Override
     public void onHandleConsensusRound(
