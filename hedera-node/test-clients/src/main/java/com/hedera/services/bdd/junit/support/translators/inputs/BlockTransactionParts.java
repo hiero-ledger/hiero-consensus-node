@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.CreateScheduleOutput;
-import com.hedera.hapi.block.stream.output.TokenAirdropOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -228,18 +227,6 @@ public record BlockTransactionParts(
                 .filter(TransactionOutput::hasCreateSchedule)
                 .findAny()
                 .map(TransactionOutput::createScheduleOrThrow)
-                .orElseThrow();
-    }
-
-    /**
-     * Returns a token airdrop output or throws if it is not present.
-     */
-    public TokenAirdropOutput tokenAirdropOutputOrThrow() {
-        requireNonNull(transactionOutputs);
-        return Stream.of(transactionOutputs)
-                .filter(TransactionOutput::hasTokenAirdrop)
-                .findAny()
-                .map(TransactionOutput::tokenAirdropOrThrow)
                 .orElseThrow();
     }
 
