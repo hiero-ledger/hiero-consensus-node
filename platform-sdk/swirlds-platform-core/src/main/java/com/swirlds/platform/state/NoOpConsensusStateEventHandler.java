@@ -15,11 +15,11 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
 
 /**
- * A no-op implementation of {@link StateLifecycles} that does nothing.
+ * A no-op implementation of {@link ConsensusStateEventHandler} that does nothing.
  * It's useful for auxiliary code that doesn't handle new transactions (State Editor, State commands, Event Recovery workflow, etc.).
  */
-public enum NoOpStateLifecycles implements StateLifecycles<MerkleNodeState> {
-    NO_OP_STATE_LIFECYCLES;
+public enum NoOpConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
+    NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 
     @Override
     public void onPreHandle(

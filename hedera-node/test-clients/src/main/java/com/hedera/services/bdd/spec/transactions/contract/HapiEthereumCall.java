@@ -76,6 +76,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private ByteString alias = null;
     private byte[] explicitTo = null;
     private Integer chainId = CHAIN_ID;
+    private boolean wrongRecId;
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -86,6 +87,11 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         HapiEthereumCall call = new HapiEthereumCall();
         call.details = Optional.of(actionable);
         return call;
+    }
+
+    public HapiEthereumCall withWrongParityRecId() {
+        wrongRecId = true;
+        return this;
     }
 
     private HapiEthereumCall() {}
@@ -337,7 +343,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 null);
 
         byte[] privateKeyByteArray = getEcdsaPrivateKeyFromSpec(spec, privateKeyRef);
-        var signedEthTxData = Signing.signMessage(ethTxData, privateKeyByteArray);
+        var signedEthTxData = Signing.signMessage(ethTxData, privateKeyByteArray, wrongRecId);
         spec.registry().saveBytes(ETH_HASH_KEY, ByteString.copyFrom((signedEthTxData.getEthereumHash())));
 
         if (createCallDataFile || callData.length > MAX_CALL_DATA_SIZE) {
