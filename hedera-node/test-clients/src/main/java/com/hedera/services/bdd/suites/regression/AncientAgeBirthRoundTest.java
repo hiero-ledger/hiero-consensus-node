@@ -25,6 +25,10 @@ public class AncientAgeBirthRoundTest implements LifecycleTest {
         /*
         Note: This test should be run in subprocess mode. This is done by executing it with the 'testSubprocess' task:
         :test-clients:testSubprocess --tests "com.hedera.services.bdd.suites.regression.AncientAgeBirthRoundTest"
+
+        The purpose of this test is to validate the platform operates normally when birth round migration is enabled.
+        "Operates normally" in this context means the migration is successful, the nodes start successfully and events
+         are still being created and gossiped.
          */
 
         return hapiTest(
