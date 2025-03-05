@@ -62,6 +62,9 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public Bytes hashAddressBook(@NonNull long[] weights, @NonNull byte[][] publicKeys) {
         requireNonNull(weights);
         requireNonNull(publicKeys);
+        if (weights.length != publicKeys.length) {
+            throw new IllegalArgumentException("The number of weights and public keys must be the same");
+        }
         return Bytes.wrap(BRIDGE.hashAddressBook(publicKeys, weights));
     }
 
@@ -88,7 +91,12 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(nextAddressBookVerifyingKeys);
         requireNonNull(sourceSignatures);
         requireNonNull(targetMetadata);
-
+        if (currentAddressBookWeights.length != currentAddressBookVerifyingKeys.length) {
+            throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
+        }
+        if (nextAddressBookWeights.length != nextAddressBookVerifyingKeys.length) {
+            throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
+        }
         return Bytes.wrap(BRIDGE.proveChainOfTrust(
                 SNARK_KEYS.provingKey(),
                 SNARK_KEYS.verifyingKey(),

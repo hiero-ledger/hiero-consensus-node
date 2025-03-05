@@ -23,6 +23,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -323,11 +324,13 @@ public class ProofControllerImpl implements ProofController {
     private CompletableFuture<Void> startSigningFuture() {
         requireNonNull(targetMetadata);
         final var proofKeys = Map.copyOf(targetProofKeys);
-        final var targetWeights = weights.targetNodeWeights().values().stream()
+        final var nodeIds = weights.targetNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
-        final var proofKeysArray = weights.targetNodeWeights().keySet().stream()
-                .map(id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+        final var targetWeights =
+                Arrays.stream(nodeIds).map(weights::targetWeightOf).toArray();
+        final var proofKeysArray = Arrays.stream(nodeIds)
+                .mapToObj(id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
         return CompletableFuture.runAsync(
                 () -> {
@@ -363,17 +366,24 @@ public class ProofControllerImpl implements ProofController {
             sourceProofKeys = Map.copyOf(targetProofKeys);
         }
         final var targetMetadata = requireNonNull(this.targetMetadata);
-        final var sourceWeights = weights.sourceNodeWeights().values().stream()
+
+        final long[] sourceNodeIds = weights.sourceNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
-        final var targetWeights = weights.targetNodeWeights().values().stream()
+        final long[] targetNodeIds = weights.targetNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
-        final var sourceProofKeysArray = weights.sourceNodeWeights().keySet().stream()
-                .map(id -> sourceProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+        final var sourceWeights =
+                Arrays.stream(sourceNodeIds).map(weights::sourceWeightOf).toArray();
+        final var targetWeights =
+                Arrays.stream(targetNodeIds).map(weights::targetWeightOf).toArray();
+        final var sourceProofKeysArray = Arrays.stream(sourceNodeIds)
+                .mapToObj(
+                        id -> sourceProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
-        final var targetProofKeysArray = weights.targetNodeWeights().keySet().stream()
-                .map(id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+        final var targetProofKeysArray = Arrays.stream(targetNodeIds)
+                .mapToObj(
+                        id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
         return CompletableFuture.runAsync(
                 () -> {
@@ -382,8 +392,8 @@ public class ProofControllerImpl implements ProofController {
                     // Note that sourceWeights, sourceProofKeysArray and verifyingSignatures should have same length
                     // arrays.
                     // Any node that has not submitted signature will have null in verifyingSignatures.
-                    final var verifyingSignatures = weights.sourceNodeWeights().keySet().stream()
-                            .map(id -> Optional.ofNullable(signatures.get(id))
+                    final var verifyingSignatures = Arrays.stream(sourceNodeIds)
+                            .mapToObj(i -> Optional.ofNullable(signatures.get(i))
                                     .map(Bytes::toByteArray)
                                     .orElse(null))
                             .toArray(byte[][]::new);
