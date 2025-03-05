@@ -141,7 +141,7 @@ public class NetworkMetrics {
             }
         }
 
-        if (count <= 1) {
+        if (count > 1) {
             // don't average in the times[selfId]==0, so subtract 1 from the count
             final double pingValue = sum / (count - 1); // pingValue is in milliseconds
             avgPing.update(pingValue);

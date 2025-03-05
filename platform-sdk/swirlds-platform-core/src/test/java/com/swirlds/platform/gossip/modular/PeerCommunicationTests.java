@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -197,17 +198,17 @@ public class PeerCommunicationTests {
 
     private void establishBidirectionalConnection(int nodeFrom, int... to) {
         var otherPeers = new ArrayList<PeerInfo>();
-        for (int oidx : to) {
-            otherPeers.add(allPeers.get(oidx));
+        for (int otherNodeIndex : to) {
+            otherPeers.add(allPeers.get(otherNodeIndex));
         }
         controllers[nodeFrom].registerDedicatedThreads(
                 peerCommunications[nodeFrom].addRemovePeers(otherPeers, Collections.emptyList()));
         controllers[nodeFrom].applyDedicatedThreadsToModify();
 
-        for (int oidx : to) {
-            controllers[oidx].registerDedicatedThreads(peerCommunications[oidx].addRemovePeers(
+        for (int otherNodeIndex : to) {
+            controllers[otherNodeIndex].registerDedicatedThreads(peerCommunications[otherNodeIndex].addRemovePeers(
                     Collections.singletonList(allPeers.get(nodeFrom)), Collections.emptyList()));
-            controllers[oidx].applyDedicatedThreadsToModify();
+            controllers[otherNodeIndex].applyDedicatedThreadsToModify();
         }
     }
 
@@ -221,14 +222,14 @@ public class PeerCommunicationTests {
         validateCommunication(nodeA, nodeB, 1);
     }
 
-    private void validateCommunication(int nodeA, int nodeB, int treshold) {
+    private void validateCommunication(int nodeA, int nodeB, int threshold) {
         for (int i = 0; i < 10; i++) {
             synchronized (events) {
-                if (events.stream().filter(evt -> evt.isFrom(nodeA, nodeB)).count() >= treshold
+                if (events.stream().filter(evt -> evt.isFrom(nodeA, nodeB)).count() >= threshold
                         && events.stream()
                                         .filter(evt -> evt.isFrom(nodeB, nodeA))
                                         .count()
-                                >= treshold) {
+                                >= threshold) {
                     return;
                 }
             }
@@ -241,10 +242,10 @@ public class PeerCommunicationTests {
 
         synchronized (events) {
             assertTrue(
-                    events.stream().filter(evt -> evt.isFrom(nodeA, nodeB)).count() >= treshold,
+                    events.stream().filter(evt -> evt.isFrom(nodeA, nodeB)).count() >= threshold,
                     () -> "Expected communication between " + nodeA + " and " + nodeB);
             assertTrue(
-                    events.stream().filter(evt -> evt.isFrom(nodeB, nodeA)).count() >= treshold,
+                    events.stream().filter(evt -> evt.isFrom(nodeB, nodeA)).count() >= threshold,
                     () -> "Expected communication between " + nodeB + " and " + nodeA);
         }
     }
@@ -265,24 +266,11 @@ public class PeerCommunicationTests {
     }
 
     int[] rangeExcept(int upTo, int except) {
-        int[] result = new int[upTo - 1];
-        int i = 0;
-        for (int node = 0; node < upTo; node++) {
-            if (node != except) {
-                result[i] = node;
-                i++;
-            }
-        }
-        return result;
+        return IntStream.range(0, upTo).filter(i -> i != except).toArray();
     }
 
     int[] range(int fromInclusive, int toInclusive) {
-        int[] result = new int[toInclusive - fromInclusive + 1];
-        int i = 0;
-        for (int node = fromInclusive; node <= toInclusive; node++) {
-            result[i++] = node;
-        }
-        return result;
+        return IntStream.range(fromInclusive, toInclusive + 1).toArray();
     }
 
     @Test
