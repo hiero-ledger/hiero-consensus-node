@@ -3,6 +3,7 @@ package com.hedera.node.app.hapi.utils.ethereum;
 
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.DETERMINISTIC_DEPLOYER_TRANSACTION;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.WEIBARS_IN_A_TINYBAR;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,6 +22,7 @@ import com.swirlds.common.utility.CommonUtils;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
+import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.bouncycastle.util.BigIntegers;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class EthTxDataTest {
+    private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
 
     static final String SIGNATURE_ADDRESS = "a94f5374fce5edbc8e2a8697c15331677e6ebf0b";
     static final String SIGNATURE_PUBKEY = "033a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d";
@@ -182,6 +185,38 @@ class EthTxDataTest {
         assertNotNull(eip155Sigs);
         assertEquals(EIP_155_DEMO_ADDRESS, Hex.toHexString(eip155Sigs.address()));
         assertEquals(EIP_155_DEMO_PUBKEY, Hex.toHexString(eip155Sigs.publicKey()));
+    }
+
+    @Test
+    void extractEIP155SignatureWithNegativeRecoveryIdThrowsIAE() {
+        final var invalidRecoveryEip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
+                .replaceRecId(-1);
+
+        final var sigs = EthTxSigs.extractSignatures(invalidRecoveryEip155Tx);
+
+        // We changed the bytes signed in the test vector
+        assertNotEquals(EIP_155_DEMO_ADDRESS, Hex.toHexString(sigs.address()));
+        assertNotEquals(EIP_155_DEMO_PUBKEY, Hex.toHexString(sigs.publicKey()));
+    }
+
+    @Test
+    void extractSignatureThrowsWithInvalidR() {
+        final var rCurvePointAtNEip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
+                .replaceR(N.toByteArray());
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(rCurvePointAtNEip155Tx));
+        final var rCurvePointAt0Eip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
+                .replaceR(BigInteger.ZERO.toByteArray());
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(rCurvePointAt0Eip155Tx));
+    }
+
+    @Test
+    void extractSignatureThrowsWithInvalidS() {
+        final var sCurvePointAtNEip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
+                .replaceS(N.toByteArray());
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(sCurvePointAtNEip155Tx));
+        final var sCurvePointAt0Eip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
+                .replaceS(BigInteger.ZERO.toByteArray());
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(sCurvePointAt0Eip155Tx));
     }
 
     @Test

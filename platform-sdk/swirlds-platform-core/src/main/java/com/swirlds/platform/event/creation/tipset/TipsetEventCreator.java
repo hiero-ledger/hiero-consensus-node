@@ -8,7 +8,6 @@ import static com.swirlds.platform.system.events.EventConstants.CREATOR_ID_UNDEF
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
@@ -46,7 +45,6 @@ public class TipsetEventCreator implements EventCreator {
 
     private static final Logger logger = LogManager.getLogger(TipsetEventCreator.class);
 
-    private final Cryptography cryptography;
     private final Time time;
     private final Random random;
     private final Signer signer;
@@ -139,7 +137,6 @@ public class TipsetEventCreator implements EventCreator {
         final EventCreationConfig eventCreationConfig =
                 platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
 
-        cryptography = platformContext.getCryptography();
         antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
         tipsetMetrics = new TipsetMetrics(platformContext, roster);
         ancientMode = platformContext

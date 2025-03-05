@@ -4,17 +4,17 @@ package com.swirlds.demo.stats.signing;
 import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.demo.stats.signing.StatsSigningTestingToolMain.SYSTEM_TRANSACTION_MARKER;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -25,21 +25,21 @@ import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<StatsSigningTestingToolState> {
+public class StatsSigningTestingToolConsensusStateEventHandler
+        implements ConsensusStateEventHandler<StatsSigningTestingToolState> {
 
     /**
      * use this for all logging, as controlled by the optional data/log4j2.xml file
      */
-    private static final Logger logger = LogManager.getLogger(StatsSigningTestingToolStateLifecycles.class);
+    private static final Logger logger = LogManager.getLogger(StatsSigningTestingToolConsensusStateEventHandler.class);
+
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     /** if true, artificially take {@link #HANDLE_MICROS} to handle each consensus transaction */
     private static final boolean SYNTHETIC_HANDLE_TIME = false;
@@ -49,7 +49,7 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
 
     private final Supplier<SttTransactionPool> transactionPoolSupplier;
 
-    public StatsSigningTestingToolStateLifecycles(Supplier<SttTransactionPool> transactionPoolSupplier) {
+    public StatsSigningTestingToolConsensusStateEventHandler(Supplier<SttTransactionPool> transactionPoolSupplier) {
         this.transactionPoolSupplier = transactionPoolSupplier;
     }
 
@@ -79,7 +79,7 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
                         sttTransactionPool.expandSignatures(transaction.getApplicationTransaction());
                 if (transactionSignature != null) {
                     transaction.setMetadata(transactionSignature);
-                    CryptographyHolder.get().verifySync(List.of(transactionSignature));
+                    CRYPTOGRAPHY.verifySync(List.of(transactionSignature));
                 }
             });
         }
@@ -105,7 +105,7 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
     private void handleTransaction(final ConsensusTransaction trans, final StatsSigningTestingToolState state) {
         final TransactionSignature s = trans.getMetadata();
 
-        if (s != null && validateSignature(s, trans) && s.getSignatureStatus() != VerificationStatus.VALID) {
+        if (s != null && s.getSignatureStatus() != VerificationStatus.VALID) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Invalid Transaction Signature [ transactionId = {}, status = {}, signatureType = {},"
@@ -113,16 +113,9 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
                     TransactionCodec.txId(trans.getApplicationTransaction()),
                     s.getSignatureStatus(),
                     s.getSignatureType(),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(),
-                            s.getPublicKeyOffset(),
-                            s.getPublicKeyOffset() + s.getPublicKeyLength())),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(),
-                            s.getSignatureOffset(),
-                            s.getSignatureOffset() + s.getSignatureLength())),
-                    hex(Arrays.copyOfRange(
-                            s.getContentsDirect(), s.getMessageOffset(), s.getMessageOffset() + s.getMessageLength())));
+                    hex(s.getPublicKey()),
+                    hex(s.getSignature()),
+                    hex(s.getMessage()));
         }
 
         state.incrementRunningSum(TransactionCodec.txId(trans.getApplicationTransaction()));
@@ -171,27 +164,6 @@ public class StatsSigningTestingToolStateLifecycles implements StateLifecycles<S
                 // busy wait
             }
         }
-    }
-
-    private boolean validateSignature(final TransactionSignature signature, final Transaction transaction) {
-        try {
-            final Future<Void> future = signature.waitForFuture();
-            // Block & Ignore the Void return
-            future.get();
-            return true;
-        } catch (final InterruptedException e) {
-            logger.info(
-                    TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT.getMarker(),
-                    "handleTransaction Interrupted. This should happen only during a reconnect");
-            Thread.currentThread().interrupt();
-        } catch (final ExecutionException e) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "error while validating transaction signature for transaction {}",
-                    transaction,
-                    e);
-        }
-        return false;
     }
 
     @Override

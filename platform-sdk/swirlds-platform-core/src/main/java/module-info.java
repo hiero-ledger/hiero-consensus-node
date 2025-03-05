@@ -137,7 +137,6 @@ module com.swirlds.platform.core {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
-    requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.event.creator;
     requires transitive com.fasterxml.jackson.annotation;

@@ -24,8 +24,8 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -39,9 +39,8 @@ import com.swirlds.platform.system.events.Event;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.StateMetadata;
-import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.merkle.singleton.SingletonNode;
@@ -58,8 +57,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 
-public enum FakeStateLifecycles implements StateLifecycles<MerkleNodeState> {
-    FAKE_MERKLE_STATE_LIFECYCLES;
+public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
+    FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(AddressBookConfig.class)
@@ -83,7 +82,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkleNodeState> {
             registry.registerConstructable(new ClassConstructorPair(SingletonNode.class, SingletonNode::new));
             registry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
             registry.registerConstructable(new ClassConstructorPair(
-                    VirtualMap.class, () -> new VirtualMap(FakeStateLifecycles.CONFIGURATION)));
+                    VirtualMap.class, () -> new VirtualMap(FakeConsensusStateEventHandler.CONFIGURATION)));
             registry.registerConstructable(new ClassConstructorPair(
                     MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
             registry.registerConstructable(new ClassConstructorPair(
@@ -147,7 +146,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkleNodeState> {
                 .forEach(def -> {
                     final var md = new StateMetadata<>(RosterStateId.NAME, schema, def);
                     if (def.singleton()) {
-                        merkleStateRoot.putServiceStateIfAbsent(
+                        state.putServiceStateIfAbsent(
                                 md,
                                 () -> new SingletonNode<>(
                                         md.serviceName(),
@@ -156,7 +155,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkleNodeState> {
                                         md.stateDefinition().valueCodec(),
                                         null));
                     } else if (def.onDisk()) {
-                        merkleStateRoot.putServiceStateIfAbsent(md, () -> {
+                        state.putServiceStateIfAbsent(md, () -> {
                             final var keySerializer = new OnDiskKeySerializer<>(
                                     md.onDiskKeySerializerClassId(),
                                     md.onDiskKeyClassId(),
@@ -167,7 +166,7 @@ public enum FakeStateLifecycles implements StateLifecycles<MerkleNodeState> {
                                     md.stateDefinition().valueCodec());
                             final var tableConfig =
                                     new MerkleDbTableConfig((short) 1, DigestType.SHA_384, def.maxKeysHint(), 16);
-                            final var label = StateUtils.computeLabel(RosterStateId.NAME, def.stateKey());
+                            final var label = StateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
                             final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
                             final var virtualMap =
                                     new VirtualMap<>(label, keySerializer, valueSerializer, dsBuilder, CONFIGURATION);

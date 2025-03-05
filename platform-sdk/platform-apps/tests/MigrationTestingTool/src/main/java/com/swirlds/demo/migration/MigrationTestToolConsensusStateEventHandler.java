@@ -11,7 +11,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -32,8 +32,9 @@ import org.apache.logging.log4j.Logger;
 /**
  * This class handles the lifecycle events for the {@link MigrationTestingToolState}.
  */
-public class MigrationTestToolStateLifecycles implements StateLifecycles<MigrationTestingToolState> {
-    private static final Logger logger = LogManager.getLogger(MigrationTestToolStateLifecycles.class);
+public class MigrationTestToolConsensusStateEventHandler
+        implements ConsensusStateEventHandler<MigrationTestingToolState> {
+    private static final Logger logger = LogManager.getLogger(MigrationTestToolConsensusStateEventHandler.class);
 
     public NodeId selfId;
 
