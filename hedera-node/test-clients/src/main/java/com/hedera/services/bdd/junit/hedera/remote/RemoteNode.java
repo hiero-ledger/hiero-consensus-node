@@ -54,7 +54,7 @@ public class RemoteNode extends AbstractNode implements HederaNode {
     }
 
     @Override
-    public CompletableFuture<Void> logFuture(@NonNull final String pattern) {
-        throw new UnsupportedOperationException("Cannot await log file creation in an embedded network");
+    public CompletableFuture<Void> minLogsFuture(@NonNull final String pattern, final int n) {
+        throw new UnsupportedOperationException("Cannot scan the logs of a remote node");
     }
 }

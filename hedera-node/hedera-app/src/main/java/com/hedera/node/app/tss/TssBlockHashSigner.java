@@ -12,8 +12,9 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A {@link BlockHashSigner} that uses whatever parts of the TSS protocol are enabled to sign blocks.
@@ -57,13 +58,17 @@ import java.util.concurrent.CompletableFuture;
  * </ol>
  */
 public class TssBlockHashSigner implements BlockHashSigner {
-    public static final Bytes DISABLED_HINTS_METADTATA = Bytes.wrap(new byte[32]);
+    private static final Logger log = LogManager.getLogger(TssBlockHashSigner.class);
+
+    public static final String SIGNER_READY_MSG = "TSS protocol ready to sign blocks";
 
     @Nullable
     private final HintsService hintsService;
 
     @Nullable
     private final HistoryService historyService;
+
+    private boolean loggedReady = false;
 
     public TssBlockHashSigner(
             @NonNull final HintsService hintsService,
@@ -76,7 +81,13 @@ public class TssBlockHashSigner implements BlockHashSigner {
 
     @Override
     public boolean isReady() {
-        return (hintsService == null || hintsService.isReady()) && (historyService == null || historyService.isReady());
+        final boolean answer = (hintsService == null || hintsService.isReady())
+                && (historyService == null || historyService.isReady());
+        if (answer && !loggedReady) {
+            log.info(SIGNER_READY_MSG);
+            loggedReady = true;
+        }
+        return answer;
     }
 
     @Override
@@ -92,30 +103,11 @@ public class TssBlockHashSigner implements BlockHashSigner {
                 return hintsService.signFuture(blockHash);
             }
         } else {
-            final var vk =
-                    hintsService == null ? DISABLED_HINTS_METADTATA : hintsService.activeVerificationKeyOrThrow();
-            final var proof = historyService.getCurrentProof(vk);
             if (hintsService == null) {
-                return CompletableFuture.supplyAsync(() -> assemble(noThrowSha384HashOf(blockHash), vk, proof));
+                return CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
             } else {
-                return hintsService.signFuture(blockHash).thenApply(signature -> assemble(signature, vk, proof));
+                return hintsService.signFuture(blockHash);
             }
         }
-    }
-
-    /**
-     * Assembles the ledger signature from the given components.
-     *
-     * @param signature the hinTS aggregate signature
-     * @param vk the hinTS verification key
-     * @param proof the recursive proof that the verification key was honestly assigned to the current roster
-     * @return the assembled signature
-     */
-    static Bytes assemble(@NonNull final Bytes signature, @NonNull final Bytes vk, @NonNull final Bytes proof) {
-        final var buffer = ByteBuffer.wrap(new byte[(int) (signature.length() + vk.length() + proof.length())]);
-        signature.writeTo(buffer);
-        vk.writeTo(buffer);
-        proof.writeTo(buffer);
-        return Bytes.wrap(buffer.array());
     }
 }

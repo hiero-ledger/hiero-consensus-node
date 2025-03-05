@@ -19,6 +19,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.history.impl.ProofControllerImpl;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -35,11 +36,13 @@ import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordP
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -72,6 +75,16 @@ public class StreamValidationOp extends UtilOp {
             BlockContentsValidator.FACTORY,
             BlockNumberSequenceValidator.FACTORY,
             BlockItemNonceValidator.FACTORY);
+
+    private final int historyProofsToWaitFor;
+
+    @Nullable
+    private final Duration historyProofTimeout;
+
+    public StreamValidationOp(final int historyProofsToWaitFor, @Nullable final Duration historyProofTimeout) {
+        this.historyProofsToWaitFor = historyProofsToWaitFor;
+        this.historyProofTimeout = historyProofTimeout;
+    }
 
     public static void main(String[] args) {}
 
@@ -106,6 +119,14 @@ public class StreamValidationOp extends UtilOp {
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
+        }
+        if (historyProofsToWaitFor > 0) {
+            requireNonNull(historyProofTimeout);
+            log.info("Waiting up to {} for {} history proofs", historyProofTimeout, historyProofsToWaitFor);
+            spec.getNetworkNodes()
+                    .forEach(node -> node.minLogsFuture(ProofControllerImpl.PROOF_COMPLETE_MSG, historyProofsToWaitFor)
+                            .orTimeout(historyProofTimeout.getSeconds(), TimeUnit.SECONDS)
+                            .join());
         }
         // Freeze the network
         allRunFor(

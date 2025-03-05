@@ -111,13 +111,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
     private BlockStreamManagerTask worker;
-    // If not null, the part of the block preceding a possible first user transaction
+    // If not null, the part of the block preceding a possible first transaction
     @Nullable
-    private PreUserItems preUserItems;
+    private PreTxnItems preTxnItems;
 
     /**
-     * Represents the part of a block preceding a possible first user transaction; we defer writing this part until
-     * we know the timestamp of the first user transaction.
+     * Represents the part of a block preceding a possible first transaction; we defer writing this part until
+     * we know the timestamp of the first transaction.
      * <p>
      * <b>Important:</b> This first timestamp may be different from the first platform-assigned user transaction
      * time because of synthetic preceding transactions.
@@ -125,7 +125,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * @param headerBuilder the block header builder
      * @param postHeaderItems the post-header items
      */
-    private record PreUserItems(@NonNull BlockHeader.Builder headerBuilder, @NonNull List<BlockItem> postHeaderItems) {}
+    private record PreTxnItems(@NonNull BlockHeader.Builder headerBuilder, @NonNull List<BlockItem> postHeaderItems) {}
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
@@ -237,22 +237,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .hashAlgorithm(SHA2_384)
                     .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
                     .hapiProtoVersion(hapiVersion);
-            if (blockHashSigner.isReady()) {
-                preUserItems = new PreUserItems(header, new ArrayList<>());
-            } else {
-                // If the signer is not ready, we will not be accepting any user transactions
-                // until this block is over, so just write the header immediately
-                preUserItems = null;
-                worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
-            }
+            preTxnItems = new PreTxnItems(header, new ArrayList<>());
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
     }
 
     @Override
     public void setRoundFirstUserTransactionTime(@NonNull final Instant at) {
-        if (preUserItems != null) {
+        if (preTxnItems != null) {
             flushPreUserItems(asTimestamp(at));
+        } else {
+            log.warn("setRoundFirstUserTransactionTime() called redundantly at {}", at);
         }
     }
 
@@ -293,10 +288,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
         if (shouldCloseBlock(roundNum, roundsPerBlock)) {
-            // If there were no user transactions in the block, this writes all the accumulated
-            // items starting from the header, sacrificing the benefits of concurrency; but
-            // performance impact is irrelevant when there are no user transactions
-            if (preUserItems != null) {
+            // If there were no user or node transactions in the block, this writes all
+            // the accumulated items starting from the header, sacrificing the benefits
+            // of concurrency; but performance impact is irrelevant when there are no
+            // transactions of any sort
+            if (preTxnItems != null) {
                 flushPreUserItems(null);
             }
             // Flush all boundary state changes besides the BlockStreamInfo
@@ -380,8 +376,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
-        if (preUserItems != null) {
-            preUserItems.postHeaderItems().add(item);
+        if (preTxnItems != null) {
+            preTxnItems.postHeaderItems().add(item);
         } else {
             worker.addItem(item);
         }
@@ -466,11 +462,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * @param firstUserTransactionTime the first user transaction time
      */
     private void flushPreUserItems(@Nullable final Timestamp firstUserTransactionTime) {
-        requireNonNull(preUserItems);
-        final var header = preUserItems.headerBuilder().firstTransactionConsensusTime(firstUserTransactionTime);
+        requireNonNull(preTxnItems);
+        final var header = preTxnItems.headerBuilder().firstTransactionConsensusTime(firstUserTransactionTime);
         worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
-        preUserItems.postHeaderItems().forEach(worker::addItem);
-        preUserItems = null;
+        preTxnItems.postHeaderItems().forEach(worker::addItem);
+        preTxnItems = null;
     }
 
     /**

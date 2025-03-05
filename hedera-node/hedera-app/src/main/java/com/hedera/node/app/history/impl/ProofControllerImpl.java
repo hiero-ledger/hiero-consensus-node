@@ -47,6 +47,8 @@ public class ProofControllerImpl implements ProofController {
     private static final Comparator<ProofKey> PROOF_KEY_COMPARATOR = Comparator.comparingLong(ProofKey::nodeId);
     private static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
+    public static final String PROOF_COMPLETE_MSG = "History proof constructed";
+
     private final long selfId;
 
     /**
@@ -259,6 +261,7 @@ public class ProofControllerImpl implements ProofController {
         maybeWinningProof.ifPresent(proof -> {
             log.info("maybeWinningProof found!");
             construction = historyStore.completeProof(construction.constructionId(), proof);
+            log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
             if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                 proofConsumer.accept(proof);
                 if (ledgerId == null) {

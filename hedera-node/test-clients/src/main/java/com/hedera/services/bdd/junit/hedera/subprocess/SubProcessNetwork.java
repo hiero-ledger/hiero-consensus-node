@@ -21,6 +21,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.node.internal.network.Network;
@@ -429,9 +430,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     Thread.currentThread().getName());
             final var deferredRun = new DeferredRun(() -> {
                 final var deadline = Instant.now().plus(timeout);
-                // Block until all nodes are ACTIVE
+                // Block until all nodes are ACTIVE and are ready to sign blocks
                 nodes.forEach(node -> awaitStatus(node, ACTIVE, Duration.between(Instant.now(), deadline)));
-                nodes.forEach(node -> node.logFuture("Ledger ID to")
+                nodes.forEach(node -> node.logFuture(TssBlockHashSigner.SIGNER_READY_MSG)
                         .orTimeout(30, TimeUnit.MINUTES)
                         .join());
                 this.clients = HapiClients.clientsFor(this);
