@@ -148,7 +148,7 @@ public abstract class AbstractLongList<C> implements LongList {
 
     /**
      * Create a new long list with the specified chunk size, capacity, and reserved
-     * buffer size
+     * buffer size.
      *
      * @param longsPerChunk Number of longs to store in each chunk of memory allocated
      * @param capacity Maximum number of longs permissible for this long list
@@ -194,16 +194,11 @@ public abstract class AbstractLongList<C> implements LongList {
     }
 
     /**
-     * Create a long list from the specified file. The file must exist.
+     * Create a long list from the specified file with the specified chunk size, capacity, and reserved
+     * buffer size. The file must exist.
      *
      * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
      * is thrown.
-     *
-     * <p>The file contains a format version number, a header, and the list of longs. V2 header contains
-     * number of longs per chunk (int), capacity (long, max number of chunks), and min valid index (long).
-     * Number of chunks and capacity from the header are ignored, the values are initialized from
-     * constructor params. It allows changing (usually, increasing) long list capacity after node is
-     * restarted. V3 header contains just min valid index (long).
      *
      * @param path The file to load the long list from
      * @param longsPerChunk Number of longs to store in each chunk

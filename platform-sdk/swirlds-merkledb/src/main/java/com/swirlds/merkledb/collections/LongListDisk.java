@@ -77,7 +77,11 @@ public class LongListDisk extends AbstractLongList<Long> {
     }
 
     /**
-     * {@inheritDoc}
+     * Create a new on-disk long list with the specified capacity. Number of longs per chunk and
+     * reserved buffer size are read from the provided configuration.
+     *
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
      */
     public LongListDisk(final long capacity, final Configuration configuration) {
         super(capacity, configuration);
@@ -86,20 +90,36 @@ public class LongListDisk extends AbstractLongList<Long> {
     }
 
     /**
-     * {@inheritDoc}
+     * Create a new on-disk long list with the specified chunk size, capacity, and reserved
+     * buffer size.
+     *
+     * @param longsPerChunk Number of longs to store in each chunk of memory allocated
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before
+     *                           minimal index in the list
      */
     public LongListDisk(
             final int longsPerChunk,
             final long capacity,
-            final long reservedBufferLength,
+            final long reservedBufferSize,
             final @NonNull Configuration configuration) {
-        super(longsPerChunk, capacity, reservedBufferLength);
+        super(longsPerChunk, capacity, reservedBufferSize);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
     }
 
     /**
-     * {@inheritDoc}
+     * Create a new on-disk long list from a file that was saved and the specified capacity. Number of
+     * longs per chunk and reserved buffer size are read from the provided configuration.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param file The file to load the long list from
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListDisk(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
             throws IOException {
@@ -110,16 +130,28 @@ public class LongListDisk extends AbstractLongList<Long> {
     }
 
     /**
-     * {@inheritDoc}
+     * Create a long list from the specified file with the specified chunk size, capacity, and reserved
+     * buffer size. The file must exist.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param path The file to load the long list from
+     * @param longsPerChunk Number of longs to store in each chunk
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListDisk(
-            @NonNull final Path file,
+            @NonNull final Path path,
             final int longsPerChunk,
             final long capacity,
-            final long reservedBufferLength,
+            final long reservedBufferSize,
             final @NonNull Configuration configuration)
             throws IOException {
-        super(file, longsPerChunk, capacity, reservedBufferLength, configuration);
+        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
         // IDE complains that the tempFile is not initialized, but it's initialized in readBodyFromFileChannelOnInit
         // which is called from the constructor of the parent class
         if (tempFile == null) {

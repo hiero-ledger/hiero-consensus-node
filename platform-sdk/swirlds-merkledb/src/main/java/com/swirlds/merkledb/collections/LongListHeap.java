@@ -41,21 +41,41 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     private ByteBuffer initReadBuffer;
 
     /**
-     * {@inheritDoc}
+     * Create a new on-heap long list with the specified capacity. Number of longs per chunk and
+     * reserved buffer size are read from the provided configuration.
+     *
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
      */
     public LongListHeap(final long capacity, final Configuration configuration) {
         super(capacity, configuration);
     }
 
     /**
-     * {@inheritDoc}
+     * Create a new on-heap long list with the specified chunk size, capacity, and reserved
+     * buffer size.
+     *
+     * @param longsPerChunk Number of longs to store in each chunk of memory allocated
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before
+     *                           minimal index in the list
      */
-    public LongListHeap(final int longsPerChunk, final long capacity, final long reservedBufferLength) {
-        super(longsPerChunk, capacity, reservedBufferLength);
+    public LongListHeap(final int longsPerChunk, final long capacity, final long reservedBufferSize) {
+        super(longsPerChunk, capacity, reservedBufferSize);
     }
 
     /**
-     * {@inheritDoc}
+     * Create a new on-heap long list from a file that was saved and the specified capacity. Number of
+     * longs per chunk and reserved buffer size are read from the provided configuration.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param file The file to load the long list from
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
             throws IOException {
@@ -63,16 +83,28 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     }
 
     /**
-     * {@inheritDoc}
+     * Create a long list from the specified file with the specified chunk size, capacity, and reserved
+     * buffer size. The file must exist.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param path The file to load the long list from
+     * @param longsPerChunk Number of longs to store in each chunk
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListHeap(
-            @NonNull final Path file,
+            @NonNull final Path path,
             final int longsPerChunk,
             final long capacity,
-            final long reservedBufferLength,
+            final long reservedBufferSize,
             final Configuration configuration)
             throws IOException {
-        super(file, longsPerChunk, capacity, reservedBufferLength, configuration);
+        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
     }
 
     /**
