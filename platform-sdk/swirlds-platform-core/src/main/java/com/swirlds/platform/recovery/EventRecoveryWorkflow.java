@@ -37,8 +37,8 @@ import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.RecoveredState;
 import com.swirlds.platform.recovery.internal.RecoveryPlatform;
 import com.swirlds.platform.recovery.internal.StreamedRound;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -296,15 +296,15 @@ public final class EventRecoveryWorkflow {
         final RecoveryPlatform platform =
                 new RecoveryPlatform(configuration, initialState.get(), selfId, loadSigningKeys);
 
-        StateLifecycles stateLifecycles = appMain.newStateLifecycles();
+        ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
         SoftwareVersion softwareVersion =
                 platformStateFacade.creationSoftwareVersionOf(initialState.get().getState());
         initialState.get().init(platformContext);
         final var notificationEngine = platform.getNotificationEngine();
         notificationEngine.register(
                 NewRecoveredStateListener.class,
-                notification -> stateLifecycles.onNewRecoveredState(notification.getState()));
-        stateLifecycles.onStateInitialized(
+                notification -> consensusStateEventHandler.onNewRecoveredState(notification.getState()));
+        consensusStateEventHandler.onStateInitialized(
                 initialState.get().getState(), platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
         appMain.init(platform, platform.getSelfId());
 
@@ -322,7 +322,8 @@ public final class EventRecoveryWorkflow {
                     round.getEventCount(),
                     round.getRoundNum());
 
-            signedState = handleNextRound(stateLifecycles, platformContext, signedState, round, platformStateFacade);
+            signedState = handleNextRound(
+                    consensusStateEventHandler, platformContext, signedState, round, platformStateFacade);
             platform.setLatestState(signedState.get());
             lastEvent = getLastEvent(round);
         }
@@ -356,7 +357,7 @@ public final class EventRecoveryWorkflow {
      * @return the resulting signed state
      */
     private static ReservedSignedState handleNextRound(
-            @NonNull final StateLifecycles stateLifecycles,
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final PlatformContext platformContext,
             @NonNull final ReservedSignedState previousSignedState,
             @NonNull final StreamedRound round,
@@ -388,7 +389,7 @@ public final class EventRecoveryWorkflow {
             v.setCreationSoftwareVersion(platformStateFacade.creationSoftwareVersionOf(previousState.getState()));
         });
 
-        applyTransactions(stateLifecycles, previousState.getState(), newState, round);
+        applyTransactions(consensusStateEventHandler, previousState.getState(), newState, round);
 
         final boolean isFreezeState = isFreezeState(
                 previousState.getConsensusTimestamp(),
@@ -467,7 +468,7 @@ public final class EventRecoveryWorkflow {
      * @param round          the current round
      */
     static void applyTransactions(
-            final StateLifecycles<MerkleNodeState> stateLifecycles,
+            final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             final MerkleNodeState immutableState,
             final MerkleNodeState mutableState,
             final Round round) {
@@ -475,10 +476,10 @@ public final class EventRecoveryWorkflow {
         mutableState.throwIfImmutable();
 
         for (final ConsensusEvent event : round) {
-            stateLifecycles.onPreHandle(event, immutableState, NO_OP_CONSUMER);
+            consensusStateEventHandler.onPreHandle(event, immutableState, NO_OP_CONSUMER);
         }
 
-        stateLifecycles.onHandleConsensusRound(round, mutableState, NO_OP_CONSUMER);
+        consensusStateEventHandler.onHandleConsensusRound(round, mutableState, NO_OP_CONSUMER);
 
         // FUTURE WORK: there are currently no system transactions that are capable of modifying
         //  the state. If/when system transactions capable of modifying state are added, this workflow
