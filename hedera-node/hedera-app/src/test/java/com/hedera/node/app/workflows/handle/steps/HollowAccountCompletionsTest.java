@@ -197,7 +197,7 @@ public class HollowAccountCompletionsTest {
                 .build();
         final var ethTxSigs = new EthTxSigs(Bytes.EMPTY.toByteArray(), alias.toByteArray());
         when(ethereumTransactionHandler.maybeEthTxSigsFor(any(), any(), any())).thenReturn(ethTxSigs);
-        when(accountStore.getAccountIDByAlias(alias)).thenReturn(hollowId);
+        when(accountStore.getAccountIDByAlias(0, 0, alias)).thenReturn(hollowId);
         when(accountStore.getAccountById(hollowId)).thenReturn(hollowAccount);
         final var txnBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()

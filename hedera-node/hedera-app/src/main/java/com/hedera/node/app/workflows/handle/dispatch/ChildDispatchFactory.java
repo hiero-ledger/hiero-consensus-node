@@ -53,6 +53,7 @@ import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
@@ -120,6 +121,7 @@ public class ChildDispatchFactory {
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final TransactionChecker transactionChecker,
+            @NonNull final DeduplicationCache deduplicationCache,
             @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.dispatcher = requireNonNull(dispatcher);
         this.authorizer = requireNonNull(authorizer);
@@ -136,14 +138,15 @@ public class ChildDispatchFactory {
      * Creates a child dispatch. This method computes the transaction info and initializes record builder for the child
      * transaction. This method also computes a pre-handle result for the child transaction.
      *
-     * @param config the configuration
-     * @param stack the savepoint stack
-     * @param readableStoreFactory the readable store factory
-     * @param creatorInfo the node info of the creator
-     * @param topLevelFunction the top level functionality
-     * @param consensusNow the consensus time
-     * @param blockRecordInfo the block record info
-     * @param options the dispatch options
+     * @param config                  the configuration
+     * @param stack                   the savepoint stack
+     * @param readableStoreFactory    the readable store factory
+     * @param creatorInfo             the node info of the creator
+     * @param topLevelFunction        the top level functionality
+     * @param consensusNow            the consensus time
+     * @param blockRecordInfo         the block record info
+     * @param options                 the dispatch options
+     * @param overridePreHandleResult the override pre-handle result for the inner transaction from atomic batch
      * @return the child dispatch
      * @throws HandleException if the child stack base builder cannot be created
      */
@@ -156,7 +159,8 @@ public class ChildDispatchFactory {
             @NonNull final ThrottleAdviser throttleAdviser,
             @NonNull final Instant consensusNow,
             @NonNull final BlockRecordInfo blockRecordInfo,
-            @NonNull final DispatchOptions<?> options) {
+            @NonNull final DispatchOptions<?> options,
+            @Nullable final PreHandleResult overridePreHandleResult) {
         requireNonNull(config);
         requireNonNull(stack);
         requireNonNull(readableStoreFactory);
@@ -166,9 +170,16 @@ public class ChildDispatchFactory {
         requireNonNull(consensusNow);
         requireNonNull(blockRecordInfo);
         requireNonNull(options);
-
-        final var preHandleResult = preHandleChild(options.body(), options.payerId(), config, readableStoreFactory);
-        final var childVerifier = getKeyVerifier(options.effectiveKeyVerifier(), config, options.authorizingKeys());
+        // If there is an override pre-handle result, then this is an atomic batch inner transaction.
+        // If there is an override pre-handle result, we re-use it, and this dispatch will check signatures using the
+        // results from the override pre-handle result
+        final var preHandleResult = overridePreHandleResult != null
+                ? overridePreHandleResult
+                : preHandleChild(options.body(), options.payerId(), config, readableStoreFactory);
+        final var childVerifier = overridePreHandleResult != null
+                ? new DefaultKeyVerifier(
+                        0, config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
+                : getKeyVerifier(options.effectiveKeyVerifier(), config, options.authorizingKeys());
         boolean isLastAllowedPreset = false;
         if (options.body().hasScheduleCreate()) {
             final var scheduledFunction = functionalityForType(options.body()
@@ -277,7 +288,8 @@ public class ChildDispatchFactory {
                 throttleAdviser,
                 childFeeAccumulator,
                 dispatchMetadata,
-                transactionChecker);
+                transactionChecker,
+                null);
         final var childFees = dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId);
         final var congestionMultiplier = feeManager.congestionMultiplierFor(
                 txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
@@ -312,9 +324,9 @@ public class ChildDispatchFactory {
      * Dispatches the pre-handle checks for the child transaction. This runs pureChecks and then dispatches pre-handle
      * for child transaction.
      *
-     * @param txBody the transaction body
-     * @param syntheticPayerId the synthetic payer id
-     * @param config the configuration
+     * @param txBody               the transaction body
+     * @param syntheticPayerId     the synthetic payer id
+     * @param config               the configuration
      * @param readableStoreFactory the readable store factory
      * @return the pre-handle result
      */
@@ -324,7 +336,7 @@ public class ChildDispatchFactory {
             @NonNull final Configuration config,
             @NonNull final ReadableStoreFactory readableStoreFactory) {
         try {
-            final var pureChecksContext = new PureChecksContextImpl(txBody, config, dispatcher, transactionChecker);
+            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, txBody, syntheticPayerId, config, dispatcher, transactionChecker);
@@ -400,8 +412,8 @@ public class ChildDispatchFactory {
      * A null callback is useful for internal dispatches that do not need further signature verifications;
      * for example, hollow account completion and auto account creation.
      *
-     * @param callback the callback
-     * @param config the configuration
+     * @param callback        the callback
+     * @param config          the configuration
      * @param authorizingKeys any simple keys that authorized this verifier
      * @return the key verifier
      */
@@ -461,7 +473,7 @@ public class ChildDispatchFactory {
      * Provides the transaction information for the given dispatched transaction body.
      *
      * @param payerId the payer id
-     * @param txBody the transaction body
+     * @param txBody  the transaction body
      * @return the transaction information
      */
     public static TransactionInfo getTxnInfoFrom(
@@ -502,6 +514,7 @@ public class ChildDispatchFactory {
 
     /**
      * Initializes the user stream item builder with the transaction information.
+     *
      * @param builder the stream item builder
      * @param txnInfo the transaction info
      */
@@ -520,6 +533,7 @@ public class ChildDispatchFactory {
 
     /**
      * Returns the given set of keys as a sorted set.
+     *
      * @param keys the keys
      * @return the sorted set
      */

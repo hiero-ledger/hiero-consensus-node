@@ -42,7 +42,7 @@ public class PbjRecordHasher {
      * @return a Hash object
      */
     @NonNull
-    public <T extends Record> Hash hash(@NonNull final T record, @NonNull final Codec<T> codec) {
+    public <T> Hash hash(@NonNull final T record, @NonNull final Codec<T> codec) {
         try {
             codec.write(record, stream);
         } catch (final IOException e) {

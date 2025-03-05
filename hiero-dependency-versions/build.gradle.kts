@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    api(platform("io.netty:netty-bom:4.1.118.Final"))
+    api(platform("io.netty:netty-bom:4.1.119.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -22,12 +22,12 @@ val dagger = "2.55"
 val eclipseCollections = "11.1.0"
 val grpc = "1.70.0"
 val hederaCryptography = "0.1.1-SNAPSHOT"
-val helidon = "4.1.6"
+val helidon = "4.1.7"
 val jackson = "2.18.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.15.2"
-val pbj = "0.9.17" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
+val pbj = "0.9.19" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
 val protobuf = "4.29.3"
 val testContainers = "1.20.5"
 val tuweni = "2.4.2"
@@ -39,7 +39,7 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
         because("io.helidon.webclient.grpc")
     }
-    api("org.awaitility:awaitility:4.2.2") { because("awaitility") }
+    api("org.awaitility:awaitility:4.3.0") { because("awaitility") }
     api("com.fasterxml.jackson.core:jackson-core:$jackson") {
         because("com.fasterxml.jackson.core")
     }

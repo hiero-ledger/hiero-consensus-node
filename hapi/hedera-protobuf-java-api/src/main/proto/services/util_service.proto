@@ -1,0 +1,53 @@
+/**
+ * # Utility Service
+ * This service provides a transaction to generate a deterministic
+ * pseudo-random value, either a 32-bit integer within a requested range
+ * or a 384-bit byte array.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.service.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.util">>> This comment is special code for setting PBJ Compiler java package
+
+import "services/transaction_response.proto";
+import "services/transaction.proto";
+
+/**
+ * The Utility Service provides a pseudo-random number generator.
+ *
+ * The single gRPC call defined for this service simply reports a single
+ * pseudo-random number in the transaction record. That value may either
+ * be a 32-bit integer within a requested range, or a 384-bit byte array.
+ *
+ * ### Block Stream Effects
+ * The requested value is reported exclusively in a `UtilPrngOutput` message.
+ */
+service UtilService {
+    /**
+     * Generate a pseudo-random value.
+       * <p>
+       * The request body MUST be a
+       * [UtilPrngTransactionBody](#proto.UtilPrngTransactionBody)
+     */
+    rpc prng (Transaction) returns (TransactionResponse);
+
+
+    /**
+    * Execute a batch of transactions atomically.
+    * <p>
+    * All transactions in the batch will be executed in order, and if any
+    * transaction fails, the entire batch will fail.
+    // TODO: Add more details about the batch transaction
+    */
+    rpc atomicBatch (Transaction) returns (TransactionResponse);
+}

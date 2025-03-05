@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT_NUM;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.messageHash;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
@@ -17,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -28,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauth
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall.SignatureType;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
@@ -69,8 +72,9 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
     @Test
     void revertsWithNoAccountAtAddress() {
-        given(nativeOperations.resolveAlias(any())).willReturn(MISSING_ENTITY_NUMBER);
-
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         subject = getSubject(APPROVED_HEADLONG_ADDRESS);
 
         final var result = subject.execute(frame).fullResult().result();
@@ -82,6 +86,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
     @Test
     void revertsWhenEcdsaIsNotEvmAddress() {
         given(nativeOperations.getAccount(OWNER_ACCOUNT_NUM)).willReturn(OWNER_ACCOUNT);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = getSubject(asHeadlongAddress(OWNER_ACCOUNT_NUM));
 
