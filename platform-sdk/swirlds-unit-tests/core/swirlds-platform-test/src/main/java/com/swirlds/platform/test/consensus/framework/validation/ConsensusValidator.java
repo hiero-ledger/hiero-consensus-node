@@ -35,11 +35,18 @@ public class ConsensusValidator {
         return new ConsensusValidator();
     }
 
+    /**
+     * Removes a specific validation type noted by its {@link ConsensusValidationType}
+     * */
     public @NonNull ConsensusValidator remove(final ConsensusValidationType type) {
         consensusOutputValidationsMap.remove(type);
         return this;
     }
 
+    /**
+     * Initializes a standard {@link ConsensusValidator} instance with default consensus output and
+     * consensus round validations.
+     * */
     public @NonNull ConsensusValidator standard() {
         consensusOutputValidationsMap.putAll(Map.of(
                 INPUTS_ARE_SAME, InputEventsValidation::validateInputsAreTheSame,
@@ -51,11 +58,17 @@ public class ConsensusValidator {
         return this;
     }
 
+    /**
+     * Adds a ratio related validation for consensus output.
+     * */
     public @NonNull ConsensusValidator ratios(@NonNull final EventRatioValidation ratioValidation) {
         consensusOutputValidationsMap.put(RATIOS, ratioValidation);
         return this;
     }
 
+    /**
+     * Initializes {@link ConsensusValidator} with only consensus round validations.
+     * */
     public @NonNull ConsensusValidator rounds() {
         consensusRoundValidationsMap.putAll(Map.of(
                 CONSENSUS_EVENTS, RoundContentValidation::validateRounds,
@@ -63,10 +76,16 @@ public class ConsensusValidator {
         return this;
     }
 
+    /**
+     * Initializes {@link ConsensusValidator} with only consensus output validations.
+     * */
     public @NonNull List<ConsensusOutputValidation> getConsensusOutputList() {
         return consensusOutputValidationsMap.values().stream().toList();
     }
 
+    /**
+     * Returns validations related to consensus round.
+     * */
     public @NonNull List<ConsensusRoundValidation> getConsensusRoundList() {
         return consensusRoundValidationsMap.values().stream().toList();
     }
