@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle;
+package com.swirlds.common.merkle.utility;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 
@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import java.util.Set;
 
 /**
- * Utility class for reading a snapshot of a {@link MerkleStateRoot} from disk.
+ * Utility class for reading a snapshot of a Merkle tree from disk.
  */
 public class MerkleTreeSnapshotReader {
 

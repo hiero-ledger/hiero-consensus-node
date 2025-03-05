@@ -453,10 +453,18 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     }
 
     public TransactionRecord getFirstNonStakingChildRecord() {
-        return getChildRecords().stream()
-                .filter(child -> !isEndOfStakingPeriodRecord(child))
-                .findFirst()
-                .orElseThrow();
+        return nonStakingRecordsFrom(getChildRecords()).stream().findFirst().orElseThrow();
+    }
+
+    /**
+     * Get all child records except for the staking records.
+     * @param records the list of records
+     * @return the list of non-staking records
+     */
+    public static List<TransactionRecord> nonStakingRecordsFrom(List<TransactionRecord> records) {
+        return records.stream()
+                .filter(record -> !isEndOfStakingPeriodRecord(record))
+                .toList();
     }
 
     public List<TransactionRecord> getChildRecords() {

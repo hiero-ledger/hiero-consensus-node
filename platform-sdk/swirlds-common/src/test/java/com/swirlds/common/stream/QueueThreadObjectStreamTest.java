@@ -51,8 +51,8 @@ class QueueThreadObjectStreamTest {
         queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
                 .setForwardTo(consumer)
                 .build();
-        runningHashCalculator = new RunningHashCalculatorForStream<>(queueThread, cryptography);
-        hashCalculator = new HashCalculatorForStream<>(runningHashCalculator, cryptography);
+        runningHashCalculator = new RunningHashCalculatorForStream<>(queueThread);
+        hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
         hashCalculator.setRunningHash(initialHash);
 
         iterator = new ObjectForTestStreamGenerator(totalNum, intervalMs, Instant.now()).getIterator();

@@ -7,7 +7,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * Builds {@link Cryptography} instances.
  */
-@Deprecated
 public final class CryptographyFactory {
 
     private CryptographyFactory() {}

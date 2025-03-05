@@ -282,6 +282,21 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
+     * with the startup value of the given property on the target network; and execute its delegate.
+     *
+     * @param factory the factory for the delegate operation
+     * @return the operation that will execute the delegate created from the target network's startup value
+     */
+    public static SpecOperation doWithShardAndRealm(@NonNull final BiFunction<Long, Long, SpecOperation> factory) {
+        return withOpContext((spec, opLog) -> {
+            final long shard = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.shard");
+            final long realm = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.realm");
+            allRunFor(spec, factory.apply(shard, realm));
+        });
+    }
+
+    /**
+     * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
      * with the startup value of the given property on the target network and its current consensus time; and
      * execute its delegate.
      *
