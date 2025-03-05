@@ -140,10 +140,15 @@ public class NetworkMetrics {
                 count++;
             }
         }
-        // don't average in the times[selfId]==0, so subtract 1 from the count
-        final double pingValue = sum / (count - 1); // pingValue is in milliseconds
 
-        avgPing.update(pingValue);
+        if (count <= 1) {
+            // don't average in the times[selfId]==0, so subtract 1 from the count
+            final double pingValue = sum / (count - 1); // pingValue is in milliseconds
+            avgPing.update(pingValue);
+        } else {
+            // we are not yet connected to any other node
+            avgPing.update(0);
+        }
 
         long totalBytesSent = 0;
         for (final Iterator<Connection> iterator = connections.iterator(); iterator.hasNext(); ) {
