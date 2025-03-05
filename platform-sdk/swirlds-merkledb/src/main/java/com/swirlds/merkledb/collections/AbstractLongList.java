@@ -9,6 +9,7 @@ import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -124,43 +125,79 @@ public abstract class AbstractLongList<C> implements LongList {
      * A length of a buffer that is reserved to remain intact after memory optimization that is
      * happening in {@link LongList#updateValidRange}
      */
-    protected final long reservedBufferLength;
-
-    /** Platform configuration */
-    protected Configuration configuration;
+    protected final long reservedBufferSize;
 
     /**
-     * Construct a new long list with the specified number of longs per chunk and capacity.
+     * Create a new long list with the specified capacity. Number of longs per chunk and
+     * reserved buffer size are read from the provided configuration.
      *
-     * @param longsPerChunk number of longs to store in each chunk of memory allocated
-     * @param capacity the maximum number of longs permissible for this LongList
-     * @param reservedBufferLength reserved buffer length that the list should have before minimal index in the list
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
      */
-    protected AbstractLongList(final int longsPerChunk, final long capacity, final long reservedBufferLength) {
-        if (capacity < 0) {
-            throw new IllegalArgumentException("The maximum number of longs must be non-negative, not " + capacity);
-        }
-        if (longsPerChunk <= 0) {
-            throw new IllegalArgumentException(CHUNK_SIZE_ZERO_OR_NEGATIVE_MSG.formatted(longsPerChunk));
-        }
-        if (longsPerChunk > MAX_NUM_LONGS_PER_CHUNK) {
-            throw new IllegalArgumentException(
-                    CHUNK_SIZE_EXCEEDED_MSG.formatted(longsPerChunk, MAX_NUM_LONGS_PER_CHUNK));
-        }
+    protected AbstractLongList(final long capacity, final Configuration configuration) {
+        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+        checkCapacity(capacity);
         this.capacity = capacity;
-        this.longsPerChunk = longsPerChunk;
-        final int chunkCount = calculateNumberOfChunks(capacity);
-        if (chunkCount > MAX_NUM_CHUNKS) {
-            throw new IllegalArgumentException(MAX_CHUNKS_EXCEEDED_MSG.formatted(MAX_NUM_CHUNKS));
-        }
-        chunkList = new AtomicReferenceArray<>(chunkCount);
+        this.longsPerChunk = merkleDbConfig.longListChunkSize();
+        this.reservedBufferSize = merkleDbConfig.longListReservedBufferSize();
+
+        chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
         // multiplyExact throws exception if we overflow and int
-        memoryChunkSize = Math.multiplyExact(longsPerChunk, Long.BYTES);
-        this.reservedBufferLength = reservedBufferLength;
+        memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
     }
 
     /**
-     * Read a long list from the specified file. The file must exist.
+     * Create a new long list with the specified chunk size, capacity, and reserved
+     * buffer size
+     *
+     * @param longsPerChunk Number of longs to store in each chunk of memory allocated
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before
+     *                           minimal index in the list
+     */
+    protected AbstractLongList(final int longsPerChunk, final long capacity, final long reservedBufferSize) {
+        checkCapacity(capacity);
+        this.capacity = capacity;
+        checkLongsPerChunk(longsPerChunk);
+        this.longsPerChunk = longsPerChunk;
+        this.reservedBufferSize = reservedBufferSize;
+
+        chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
+        // multiplyExact throws exception if we overflow and int
+        memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
+    }
+
+    /**
+     * Create a new long list from a file that was saved and the specified capacity. Number of
+     * longs per chunk and reserved buffer size are read from the provided configuration.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param file The file to load the long list from
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
+     */
+    public AbstractLongList(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+            throws IOException {
+        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+        checkCapacity(capacity);
+        this.capacity = capacity;
+        this.longsPerChunk = merkleDbConfig.longListChunkSize();
+        this.memoryChunkSize = longsPerChunk * Long.BYTES;
+        this.reservedBufferSize = merkleDbConfig.longListReservedBufferSize();
+
+        chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(this.capacity));
+        loadFromFile(file, configuration);
+    }
+
+    /**
+     * Create a long list from the specified file. The file must exist.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
      *
      * <p>The file contains a format version number, a header, and the list of longs. V2 header contains
      * number of longs per chunk (int), capacity (long, max number of chunks), and min valid index (long).
@@ -168,10 +205,10 @@ public abstract class AbstractLongList<C> implements LongList {
      * constructor params. It allows changing (usually, increasing) long list capacity after node is
      * restarted. V3 header contains just min valid index (long).
      *
-     * @param path File to read header from
+     * @param path The file to load the long list from
      * @param longsPerChunk Number of longs to store in each chunk
      * @param capacity Maximum number of longs permissible for this long list
-     * @param reservedBufferLength Reserved buffer length that the list should have before minimal index in the list
+     * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
      * @param configuration Platform configuration
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
@@ -180,13 +217,21 @@ public abstract class AbstractLongList<C> implements LongList {
             @NonNull final Path path,
             final int longsPerChunk,
             final long capacity,
-            final long reservedBufferLength,
+            final long reservedBufferSize,
             @NonNull final Configuration configuration)
             throws IOException {
+        this.longsPerChunk = longsPerChunk;
+        this.memoryChunkSize = longsPerChunk * Long.BYTES;
+        this.capacity = capacity;
+        this.reservedBufferSize = reservedBufferSize;
+
+        chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(this.capacity));
+        loadFromFile(path, configuration);
+    }
+
+    private void loadFromFile(@NonNull final Path path, @NonNull Configuration configuration) throws IOException {
         requireNonNull(configuration);
-        this.configuration = configuration;
         final File file = path.toFile();
-        this.reservedBufferLength = reservedBufferLength;
         if (!file.exists() || file.length() == 0) {
             throw new IOException("Cannot load index, file doesn't exist: " + file.getAbsolutePath());
         }
@@ -211,13 +256,10 @@ public abstract class AbstractLongList<C> implements LongList {
             }
 
             final ByteBuffer headerBuffer = readFromFileChannel(fileChannel, formatMetadataSize);
-            this.longsPerChunk = longsPerChunk;
             if (formatVersion == MIN_VALID_INDEX_SUPPORT_VERSION) {
                 headerBuffer.getInt(); // ignored: longs per chunk
             }
-            memoryChunkSize = longsPerChunk * Long.BYTES;
 
-            this.capacity = capacity;
             if (formatVersion == MIN_VALID_INDEX_SUPPORT_VERSION) {
                 headerBuffer.getLong(); // ignored: capacity
             }
@@ -244,12 +286,7 @@ public abstract class AbstractLongList<C> implements LongList {
                         "Failed to read index from file, " + "size=" + size.get() + ", capacity=" + capacity);
             }
 
-            final int chunkCount = calculateNumberOfChunks(capacity);
-            if (chunkCount > MAX_NUM_CHUNKS) {
-                throw new IllegalArgumentException(MAX_CHUNKS_EXCEEDED_MSG.formatted(MAX_NUM_CHUNKS));
-            }
-            chunkList = new AtomicReferenceArray<>(chunkCount);
-            readBodyFromFileChannelOnInit(file.getName(), fileChannel);
+            readBodyFromFileChannelOnInit(file.getName(), fileChannel, configuration);
         }
     }
 
@@ -261,7 +298,8 @@ public abstract class AbstractLongList<C> implements LongList {
      * @param fileChannel the file channel to read the list body from
      * @throws IOException if there was a problem reading the file
      */
-    protected void readBodyFromFileChannelOnInit(final String sourceFileName, final FileChannel fileChannel)
+    protected void readBodyFromFileChannelOnInit(
+            final String sourceFileName, final FileChannel fileChannel, final Configuration configuration)
             throws IOException {
         if (minValidIndex.get() < 0) {
             // Empty list, nothing to read
@@ -487,6 +525,11 @@ public abstract class AbstractLongList<C> implements LongList {
         return longsPerChunk;
     }
 
+    // For testing purposes
+    final long getReservedBufferSize() {
+        return reservedBufferSize;
+    }
+
     /**
      * Create a stream over the data in this LongList. This is designed for testing and may be
      * inconsistent under current modifications.
@@ -618,7 +661,7 @@ public abstract class AbstractLongList<C> implements LongList {
      */
     private void shrinkLeftSideIfNeeded(final long newMinValidIndex) {
         final int firstValidChunkWithBuffer =
-                toIntExact(max((newMinValidIndex - reservedBufferLength) / longsPerChunk, 0));
+                toIntExact(max((newMinValidIndex - reservedBufferSize) / longsPerChunk, 0));
         final int firstChunkIndexToDelete = firstValidChunkWithBuffer - 1;
         for (int i = firstChunkIndexToDelete; i >= 0; i--) {
             final C chunk = chunkList.get(i);
@@ -653,7 +696,7 @@ public abstract class AbstractLongList<C> implements LongList {
     private void shrinkRightSideIfNeeded(long oldMaxValidIndex, long newMaxValidIndex) {
         final int listLength = chunkList.length();
         final int lastValidChunkWithBufferIndex =
-                toIntExact(min((newMaxValidIndex + reservedBufferLength) / longsPerChunk, listLength - 1));
+                toIntExact(min((newMaxValidIndex + reservedBufferSize) / longsPerChunk, listLength - 1));
         final int firstChunkIndexToDelete = lastValidChunkWithBufferIndex + 1;
         final int numberOfChunks = calculateNumberOfChunks(oldMaxValidIndex);
 
@@ -714,7 +757,9 @@ public abstract class AbstractLongList<C> implements LongList {
      * @return number of memory chunks that this list may have
      */
     protected int calculateNumberOfChunks(final long totalNumberOfElements) {
-        return toIntExact((totalNumberOfElements - 1) / longsPerChunk + 1);
+        final int chunkCount = toIntExact((totalNumberOfElements - 1) / longsPerChunk + 1);
+        checkChunkCount(chunkCount);
+        return chunkCount;
     }
 
     /**
@@ -780,6 +825,28 @@ public abstract class AbstractLongList<C> implements LongList {
             if (chunk != null) {
                 closeChunk(chunk);
             }
+        }
+    }
+
+    private void checkCapacity(final long capacity) {
+        if (capacity < 0) {
+            throw new IllegalArgumentException("The maximum number of longs must be non-negative, not " + capacity);
+        }
+    }
+
+    private void checkLongsPerChunk(final long longsPerChunk) {
+        if (longsPerChunk <= 0) {
+            throw new IllegalArgumentException(CHUNK_SIZE_ZERO_OR_NEGATIVE_MSG.formatted(longsPerChunk));
+        }
+        if (longsPerChunk > MAX_NUM_LONGS_PER_CHUNK) {
+            throw new IllegalArgumentException(
+                    CHUNK_SIZE_EXCEEDED_MSG.formatted(longsPerChunk, MAX_NUM_LONGS_PER_CHUNK));
+        }
+    }
+
+    private void checkChunkCount(final int chunkCount) {
+        if (chunkCount > MAX_NUM_CHUNKS) {
+            throw new IllegalArgumentException(MAX_CHUNKS_EXCEEDED_MSG.formatted(MAX_NUM_CHUNKS));
         }
     }
 }

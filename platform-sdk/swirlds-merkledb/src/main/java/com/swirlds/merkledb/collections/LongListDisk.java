@@ -62,7 +62,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     /**
      * Offsets of the chunks that are free to be used. The offsets are relative to the start of the file.
      */
-    private final Deque<Long> freeChunks;
+    private final Deque<Long> freeChunks = new ConcurrentLinkedDeque<>();
 
     /**
      * A helper flag to make sure close() can be called multiple times.
@@ -76,30 +76,41 @@ public class LongListDisk extends AbstractLongList<Long> {
                 ThreadLocal.withInitial(() -> ByteBuffer.allocate(Long.BYTES).order(ByteOrder.nativeOrder()));
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    public LongListDisk(final long capacity, final Configuration configuration) {
+        super(capacity, configuration);
+        initFileChannel(configuration);
+        fillBufferWithZeroes(initOrGetTransferBuffer());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public LongListDisk(
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferLength,
             final @NonNull Configuration configuration) {
         super(longsPerChunk, capacity, reservedBufferLength);
-        try {
-            assert tempFile == null;
-            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration);
-            currentFileChannel = FileChannel.open(
-                    tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        freeChunks = new ConcurrentLinkedDeque<>();
+        initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
     }
 
     /**
-     * Create a {@link LongListDisk} on a file, if the file doesn't exist it will be created.
-     *
-     * @param file The file to read and write to
-     * @param configuration platform configuration
-     * @throws IOException If there was a problem reading the file
+     * {@inheritDoc}
+     */
+    public LongListDisk(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+            throws IOException {
+        super(file, capacity, configuration);
+        if (tempFile == null) {
+            throw new IllegalStateException("The temp file is not initialized");
+        }
+    }
+
+    /**
+     * {@inheritDoc}
      */
     public LongListDisk(
             @NonNull final Path file,
@@ -109,7 +120,6 @@ public class LongListDisk extends AbstractLongList<Long> {
             final @NonNull Configuration configuration)
             throws IOException {
         super(file, longsPerChunk, capacity, reservedBufferLength, configuration);
-        freeChunks = new ConcurrentLinkedDeque<>();
         // IDE complains that the tempFile is not initialized, but it's initialized in readBodyFromFileChannelOnInit
         // which is called from the constructor of the parent class
         if (tempFile == null) {
@@ -117,16 +127,30 @@ public class LongListDisk extends AbstractLongList<Long> {
         }
     }
 
+    private void initFileChannel(final Configuration configuration) {
+        if (tempFile != null) {
+            throw new IllegalStateException("The temp file has been already initialized");
+        }
+        try {
+            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration);
+            currentFileChannel = FileChannel.open(
+                    tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     /** {@inheritDoc} */
     @Override
-    protected void readBodyFromFileChannelOnInit(final String sourceFileName, final FileChannel fileChannel)
+    protected void readBodyFromFileChannelOnInit(
+            final String sourceFileName, final FileChannel fileChannel, final Configuration configuration)
             throws IOException {
         tempFile = createTempFile(sourceFileName, configuration);
 
         currentFileChannel = FileChannel.open(
                 tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
 
-        super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel);
+        super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel, configuration);
     }
 
     /** {@inheritDoc} */

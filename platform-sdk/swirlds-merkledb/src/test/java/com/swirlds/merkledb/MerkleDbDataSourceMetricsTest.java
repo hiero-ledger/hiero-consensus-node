@@ -53,7 +53,7 @@ class MerkleDbDataSourceMetricsTest {
         assertEventuallyEquals(
                 0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
         // create db
-        dataSource = createDataSource(testDirectory, TABLE_NAME, fixed_fixed, COUNT, HASHES_RAM_THRESHOLD);
+        dataSource = createDataSource(testDirectory, TABLE_NAME, fixed_fixed, COUNT * 10, HASHES_RAM_THRESHOLD);
 
         metrics = createMetrics();
         dataSource.registerMetrics(metrics);

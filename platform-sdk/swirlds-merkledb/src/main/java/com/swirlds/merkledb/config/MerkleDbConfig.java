@@ -66,10 +66,10 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "500000000") long maxNumOfKeys,
         @Positive @ConfigProperty(defaultValue = "" + 4_000_000_000L) long size,
-        @Min(0) @ConfigProperty(defaultValue = "" + 8388608L) long hashesRamToDiskThreshold,
-        @Positive @ConfigProperty(defaultValue = "" + 1L * MEBIBYTES_TO_BYTES) int hashStoreRamBufferSize,
-        @Positive @ConfigProperty(defaultValue = "" + 1L * MEBIBYTES_TO_BYTES) int longListChunkSize,
-        @Positive @ConfigProperty(defaultValue = "" + 1L * MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
+        @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
+        @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
+        @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
+        @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "3") int compactionThreads,
         @ConstraintMethod("minNumberOfFilesInCompactionValidation") @ConfigProperty(defaultValue = "8")
                 int minNumberOfFilesInCompaction,

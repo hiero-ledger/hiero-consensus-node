@@ -20,7 +20,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -70,6 +76,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     private static long directMemoryUsedAtStart;
 
     // Factory methods for creating different configurations of LongList instances
+
+    protected abstract T createLongList(final long capacity, final Configuration config);
 
     protected abstract T createLongList(final int longsPerChunk, final long capacity, final long reservedBufferLength);
 
@@ -203,6 +211,23 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     }
 
     // Tests without `@Order`
+
+    @Test
+    void testParamsFromConfig() {
+        final Configuration config = ConfigurationBuilder.create()
+                .withConfigDataType(MerkleDbConfig.class)
+                .withConfigDataType(StateCommonConfig.class)
+                .withConfigDataType(TemporaryFileConfig.class)
+                .withSource(new SimpleConfigSource("merkleDb.longListChunkSize", "12000"))
+                .withSource(new SimpleConfigSource("merkleDb.longListReservedBufferSize", "1111"))
+                .build();
+        final long capacity = 12345;
+        try (final AbstractLongList<?> longList = createLongList(capacity, config)) {
+            assertEquals(capacity, longList.capacity());
+            assertEquals(12000, longList.getLongsPerChunk());
+            assertEquals(1111, longList.getReservedBufferSize());
+        }
+    }
 
     @SuppressWarnings("resource")
     @Test

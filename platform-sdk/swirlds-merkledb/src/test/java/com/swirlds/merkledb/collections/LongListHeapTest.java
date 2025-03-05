@@ -3,12 +3,18 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
+import com.swirlds.config.api.Configuration;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.provider.Arguments;
 
 public class LongListHeapTest extends AbstractLongListTest<LongListHeap> {
+
+    @Override
+    protected LongListHeap createLongList(long capacity, Configuration config) {
+        return new LongListHeap(capacity, config);
+    }
 
     @Override
     protected LongListHeap createLongList(

@@ -41,21 +41,29 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     private ByteBuffer initReadBuffer;
 
     /**
-     * Construct a new LongListHeap with the specified number of longs per chunk and maximum number
-     * of longs.
-     *
-     * @param longsPerChunk number of longs to store in each chunk of memory allocated
-     * @param capacity the maximum number of longs permissible for this LongList
+     * {@inheritDoc}
+     */
+    public LongListHeap(final long capacity, final Configuration configuration) {
+        super(capacity, configuration);
+    }
+
+    /**
+     * {@inheritDoc}
      */
     public LongListHeap(final int longsPerChunk, final long capacity, final long reservedBufferLength) {
         super(longsPerChunk, capacity, reservedBufferLength);
     }
 
     /**
-     * Create a {@link LongListHeap} from a file that was saved.
-     *
-     * @param file the file to read from
-     * @throws IOException If there was a problem reading the file
+     * {@inheritDoc}
+     */
+    public LongListHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+            throws IOException {
+        super(file, capacity, configuration);
+    }
+
+    /**
+     * {@inheritDoc}
      */
     public LongListHeap(
             @NonNull final Path file,
@@ -67,13 +75,16 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
         super(file, longsPerChunk, capacity, reservedBufferLength, configuration);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    protected void readBodyFromFileChannelOnInit(final String sourceFileName, final FileChannel fileChannel)
+    protected void readBodyFromFileChannelOnInit(
+            final String sourceFileName, final FileChannel fileChannel, Configuration configuration)
             throws IOException {
         initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.nativeOrder());
         try {
-            super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel);
+            super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel, configuration);
         } finally {
             MemoryUtils.closeDirectByteBuffer(initReadBuffer);
         }

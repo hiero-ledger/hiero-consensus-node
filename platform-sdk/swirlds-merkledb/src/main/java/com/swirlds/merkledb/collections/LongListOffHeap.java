@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
  * value for any given index is easily found using modular arithmetic. Note that <br>
  * to reduce memory consumption one can use {@link LongList#updateValidRange(long, long)}.
  * A call to this method discards memory chunks reserved for the indices that are before the index
- * passed as an argument subtracted by {@link AbstractLongList#reservedBufferLength}. The idea is to
- * keep the amount of memory defined by {@link AbstractLongList#reservedBufferLength} reserved even
+ * passed as an argument subtracted by {@link AbstractLongList#reservedBufferSize}. The idea is to
+ * keep the amount of memory defined by {@link AbstractLongList#reservedBufferSize} reserved even
  * though it serves indices that are before the minimal index. It may be a good idea because there
  * is a good chance that the indices in this range may be used (e.g. in case of mass deletion from
  * an instance of {@link com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore})
@@ -38,20 +38,29 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
     private static final Logger logger = LogManager.getLogger(LongListOffHeap.class);
 
     /**
-     * Construct a new LongListOffHeap with the specified chunk size
-     *
-     * @param longsPerChunk size for each chunk of memory to allocate. Max 16Gb = 16,384Mb
-     * @param capacity the maximum number of longs permissible for this LongList
-     * @param reservedBufferLength the number of indices before the minimal index to keep reserved
+     * {@inheritDoc}
      */
-    public LongListOffHeap(final int longsPerChunk, final long capacity, final long reservedBufferLength) {
-        super(longsPerChunk, capacity, reservedBufferLength);
+    public LongListOffHeap(final long capacity, final Configuration configuration) {
+        super(capacity, configuration);
     }
 
     /**
-     * Create a {@link LongListOffHeap} from a file that was saved.
-     *
-     * @throws IOException If there was a problem reading the file
+     * {@inheritDoc}
+     */
+    public LongListOffHeap(final int longsPerChunk, final long capacity, final long reservedBufferSize) {
+        super(longsPerChunk, capacity, reservedBufferSize);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public LongListOffHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+            throws IOException {
+        super(file, capacity, configuration);
+    }
+
+    /**
+     * {@inheritDoc}
      */
     public LongListOffHeap(
             @NonNull final Path file,

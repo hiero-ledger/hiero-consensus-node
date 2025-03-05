@@ -3,12 +3,18 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
+import com.swirlds.config.api.Configuration;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.provider.Arguments;
 
 public class LongListDiskTest extends AbstractLongListTest<LongListDisk> {
+
+    @Override
+    protected LongListDisk createLongList(long capacity, Configuration config) {
+        return new LongListDisk(capacity, config);
+    }
 
     @Override
     protected LongListDisk createLongList(
