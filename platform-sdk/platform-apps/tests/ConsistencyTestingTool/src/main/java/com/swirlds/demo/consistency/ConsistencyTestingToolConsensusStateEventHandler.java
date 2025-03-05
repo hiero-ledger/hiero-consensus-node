@@ -3,14 +3,14 @@ package com.swirlds.demo.consistency;
 
 import static com.swirlds.demo.consistency.ConsistencyTestingToolState.isSystemTransaction;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -32,7 +32,8 @@ import org.apache.logging.log4j.Logger;
 /**
  * This class handles lifecycle events for the {@link ConsistencyTestingToolState}
  */
-public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<ConsistencyTestingToolState> {
+public class ConsistencyTestingToolConsensusStateEventHandler
+        implements ConsensusStateEventHandler<ConsistencyTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
 
@@ -47,7 +48,7 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
      */
     private Duration freezeAfterGenesis = null;
 
-    public ConsistencyTestingToolStateLifecycles(@NonNull final PlatformStateFacade platformStateFacade) {
+    public ConsistencyTestingToolConsensusStateEventHandler(@NonNull final PlatformStateFacade platformStateFacade) {
         this.platformStateFacade = platformStateFacade;
     }
 
@@ -80,7 +81,7 @@ public class ConsistencyTestingToolStateLifecycles implements StateLifecycles<Co
 
         state.initState(logFilePath);
 
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
     }
 
     /**
