@@ -41,14 +41,10 @@ public final class RosterRetriever {
     /**
      * Retrieve the current active Roster from the state.
      * <p>
-     * This method first checks the RosterState/RosterMap entities,
-     * and if they contain an active roster, then returns it.
-     * If the active roster is missing from RosterState,
-     * then fall back to reading an AddressBook from the PlatformState
-     * and converting it to a Roster.
+     * This method tries to read an active roster from the RosterState/RosterMap entities,
+     * and if they contain the active roster, then returns it.
      * <p>
      * This method may return null in case the RosterService states are not populated,
-     * and the PlatformService state doesn't have an AddressBook,
      * which generally represents a new network genesis case.
      *
      * @return an active Roster for the round of the state, or a Roster that represents the current AddressBook in PlatformState
@@ -66,7 +62,7 @@ public final class RosterRetriever {
 
     /**
      * Retrieve the previous Roster from the state, or null if the roster has never changed yet.
-     *
+     * <p>
      * The previous roster is the one that has been in use prior to the current active roster,
      * i.e. prior to the one returned by the retrieveActiveOrGenesisRoster() method.
      *
@@ -74,8 +70,7 @@ public final class RosterRetriever {
      * @return the previous roster, or null
      */
     @Nullable
-    public static Roster retrievePreviousRoster(
-            @NonNull final State state, @NonNull final PlatformStateFacade platformStateFacade) {
+    public static Roster retrievePreviousRoster(@NonNull final State state) {
         final ReadableSingletonState<RosterState> rosterState =
                 state.getReadableStates(ROSTER_SERVICE).getSingleton(ROSTER_STATES_KEY);
         final List<RoundRosterPair> roundRosterPairs =
