@@ -18,7 +18,6 @@ import java.util.Map;
  * A standard implementation of {@link BranchDetector}.
  */
 public class DefaultBranchDetector implements BranchDetector {
-
     /**
      * The current event window.
      */
