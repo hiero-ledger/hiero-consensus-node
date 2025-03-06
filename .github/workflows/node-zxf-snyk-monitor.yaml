@@ -39,9 +39,6 @@ jobs:
       - name: Compile
         run: ./gradlew assemble
 
-      - name: Disable Gradle Configuration Cache
-        run: sed -i 's/^org.gradle.configuration-cache=.*$/org.gradle.configuration-cache=false/' gradle.properties
-
       - name: Setup NodeJS
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
@@ -55,4 +52,4 @@ jobs:
       - name: Run Snyk Monitor
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk monitor --all-projects --policy-path=.snyk --trust-policies --org=hiero-consensus-node --debug
+        run: snyk monitor --subProject=aggregation --configuration-matching=mainRuntimeClasspath --policy-path=.snyk --trust-policies --org=hiero-consensus-node
