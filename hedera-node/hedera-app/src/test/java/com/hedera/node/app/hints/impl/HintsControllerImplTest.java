@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -76,8 +78,8 @@ class HintsControllerImplTest {
             new HintsKeyPublication(1L, Bytes.wrap("ONE"), 15, PREPROCESSING_START_TIME.minusSeconds(1));
     private static final HintsKeyPublication TARDY_NODE_TWO_PUBLICATION =
             new HintsKeyPublication(2L, Bytes.wrap("TWO"), 1, PREPROCESSING_START_TIME.plusSeconds(1));
-    private static final Map<Long, Long> TARGET_NODE_WEIGHTS = Map.of(1L, 8L, 2L, 2L);
-    private static final Map<Long, Long> SOURCE_NODE_WEIGHTS = Map.of(0L, 8L, 1L, 10L, 2L, 3L);
+    private static final SortedMap<Long, Long> TARGET_NODE_WEIGHTS = new TreeMap<>(Map.of(1L, 8L, 2L, 2L));
+    private static final SortedMap<Long, Long> SOURCE_NODE_WEIGHTS = new TreeMap<>(Map.of(0L, 8L, 1L, 10L, 2L, 3L));
     private static final Set<Long> SOURCE_NODE_IDS = Set.of(0L, 1L, 2L);
     private static final Bytes INITIAL_CRS = Bytes.wrap("CRS");
     private static final Bytes NEW_CRS = Bytes.wrap("newCRS");
@@ -185,12 +187,7 @@ class HintsControllerImplTest {
         given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
         runScheduledTasks();
 
-        given(library.preprocess(
-                        any(),
-                        eq(Map.of(0, EXPECTED_NODE_ONE_PUBLICATION.hintsKey())),
-                        eq(Map.of(0, TARGET_NODE_WEIGHTS.get(1L))),
-                        eq(EXPECTED_PARTY_SIZE)))
-                .willReturn(ENCODED_PREPROCESSED_KEYS);
+        given(library.preprocess(any(), any(), any(), eq(EXPECTED_PARTY_SIZE))).willReturn(ENCODED_PREPROCESSED_KEYS);
         given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
                 .willReturn(CompletableFuture.completedFuture(null));
 
@@ -229,8 +226,7 @@ class HintsControllerImplTest {
         final Map<Integer, Bytes> expectedHintsKeys =
                 Map.of(EXPECTED_NODE_ONE_PUBLICATION.partyId(), EXPECTED_NODE_ONE_PUBLICATION.hintsKey());
         final Map<Integer, Long> expectedWeights = Map.of(EXPECTED_NODE_ONE_PUBLICATION.partyId(), 8L);
-        given(library.preprocess(any(), eq(expectedHintsKeys), eq(expectedWeights), eq(EXPECTED_PARTY_SIZE)))
-                .willReturn(ENCODED_PREPROCESSED_KEYS);
+        given(library.preprocess(any(), any(), any(), eq(EXPECTED_PARTY_SIZE))).willReturn(ENCODED_PREPROCESSED_KEYS);
         given(submissions.submitHintsVote(CONSTRUCTION_ID, PREPROCESSED_KEYS))
                 .willReturn(CompletableFuture.completedFuture(null));
         given(weights.targetWeightOf(1L)).willReturn(TARGET_NODE_WEIGHTS.get(1L));
@@ -244,7 +240,7 @@ class HintsControllerImplTest {
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
-        given(weights.targetNodeWeights()).willReturn(Map.of(SELF_ID, 1L));
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
 
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
         assertNull(scheduledTasks.poll());
@@ -271,7 +267,7 @@ class HintsControllerImplTest {
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
-        given(weights.targetNodeWeights()).willReturn(Map.of(SELF_ID, 1L));
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
         given(weights.targetWeightThreshold()).willReturn(1L);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 

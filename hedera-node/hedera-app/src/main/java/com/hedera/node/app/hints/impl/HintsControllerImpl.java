@@ -211,7 +211,7 @@ public class HintsControllerImpl implements HintsController {
      *
      * @param now                   the current consensus time
      * @param hintsStore            the writable hints store
-     * @param isActive
+     * @param isActive              if the platform is active
      */
     @Override
     public void advanceCRSWork(
@@ -566,9 +566,9 @@ public class HintsControllerImpl implements HintsController {
     /**
      * Returns a future that completes to a validation of the given hints key.
      *
-     * @param crs      the initial CRS
-     * @param partyId  the party ID
-     * @param hintsKey the hints key
+     * @param crs        the initial CRS
+     * @param partyId    the party ID
+     * @param hintsKey   the hints key
      * @return the future
      */
     private CompletableFuture<Validation> validationFuture(
@@ -630,10 +630,14 @@ public class HintsControllerImpl implements HintsController {
                     final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
                             .map(CompletableFuture::join)
                             .filter(Validation::isValid)
-                            .collect(toMap(Validation::partyId, Validation::hintsKey));
+                            .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
                     final var aggregatedWeights = nodePartyIds.entrySet().stream()
                             .filter(entry -> hintKeys.containsKey(entry.getValue()))
-                            .collect(toMap(Map.Entry::getValue, entry -> weights.targetWeightOf(entry.getKey())));
+                            .collect(toMap(
+                                    Map.Entry::getValue,
+                                    entry -> weights.targetWeightOf(entry.getKey()),
+                                    (a, b) -> a,
+                                    TreeMap::new));
                     final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
                     final var preprocessedKeys = PreprocessedKeys.newBuilder()
                             .verificationKey(Bytes.wrap(output.verificationKey()))
@@ -670,21 +674,19 @@ public class HintsControllerImpl implements HintsController {
      * {@link CrsUpdateOutput}.
      *
      * @param oldCRSLength the length of the old CRS
-     * @param output       the output of the {@link HintsLibrary#updateCrs(Bytes, Bytes)}
+     * @param output the output of the {@link HintsLibrary#updateCrs(Bytes, Bytes)}
      * @return the hinTS key
      */
     public static CrsUpdateOutput decodeCrsUpdate(final long oldCRSLength, @NonNull final Bytes output) {
         requireNonNull(output);
-        requireNonNull(output);
-        final Bytes crs = output.slice(0, oldCRSLength);
-        final Bytes proof = output.slice(oldCRSLength, output.length() - oldCRSLength);
+        final var crs = output.slice(0, oldCRSLength);
+        final var proof = output.slice(oldCRSLength, output.length() - oldCRSLength);
         return new CrsUpdateOutput(crs, proof);
     }
 
     /**
      * A structured representation of the output of {@link HintsLibrary#updateCrs(Bytes, Bytes)}.
-     *
-     * @param crs   the updated CRS
+     * @param crs the updated CRS
      * @param proof the proof of the update
      */
     public record CrsUpdateOutput(@NonNull Bytes crs, @NonNull Bytes proof) {}

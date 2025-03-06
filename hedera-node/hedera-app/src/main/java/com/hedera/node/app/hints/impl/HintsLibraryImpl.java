@@ -8,7 +8,9 @@ import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.SplittableRandom;
 
 /**
@@ -63,18 +65,23 @@ public class HintsLibraryImpl implements HintsLibrary {
     @Override
     public AggregationAndVerificationKeys preprocess(
             @NonNull final Bytes crs,
-            @NonNull final Map<Integer, Bytes> hintsKeys,
-            @NonNull final Map<Integer, Long> weights,
+            @NonNull final SortedMap<Integer, Bytes> hintsKeys,
+            @NonNull final SortedMap<Integer, Long> weights,
             final int n) {
         requireNonNull(crs);
         requireNonNull(hintsKeys);
         requireNonNull(weights);
+        if (!hintsKeys.keySet().equals(weights.keySet())) {
+            throw new IllegalArgumentException("The number of hint keys and weights must be the same");
+        }
         final int[] parties =
                 hintsKeys.keySet().stream().mapToInt(Integer::intValue).toArray();
-        final byte[][] hintsPublicKeys =
-                hintsKeys.values().stream().map(Bytes::toByteArray).toArray(byte[][]::new);
+        final byte[][] hintsPublicKeys = Arrays.stream(parties)
+                .mapToObj(hintsKeys::get)
+                .map(Bytes::toByteArray)
+                .toArray(byte[][]::new);
         final long[] weightsArray =
-                weights.values().stream().mapToLong(Long::longValue).toArray();
+                Arrays.stream(parties).mapToLong(weights::get).toArray();
         return BRIDGE.preprocess(crs.toByteArray(), parties, hintsPublicKeys, weightsArray, n);
     }
 
@@ -116,8 +123,9 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(partialSignatures);
         final int[] parties =
                 partialSignatures.keySet().stream().mapToInt(Integer::intValue).toArray();
-        final byte[][] signatures =
-                partialSignatures.values().stream().map(Bytes::toByteArray).toArray(byte[][]::new);
+        final byte[][] signatures = Arrays.stream(parties)
+                .mapToObj(party -> partialSignatures.get(party).toByteArray())
+                .toArray(byte[][]::new);
         return Bytes.wrap(BRIDGE.aggregateSignatures(
                 crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures));
     }

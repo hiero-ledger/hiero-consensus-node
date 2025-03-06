@@ -24,6 +24,7 @@ import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -264,22 +265,11 @@ public class ProofControllerImpl implements ProofController {
                 .collect(groupingBy(
                         entry -> entry.getValue().proofOrThrow(),
                         summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
-        log.info(
-                "proofWeights now (threshold={}): {}",
-                weights.sourceWeightThreshold(),
-                proofWeights.entrySet().stream()
-                        .map(e -> List.of(
-                                e.getValue(),
-                                CommonUtils.hex(com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf(
-                                                e.getKey().proof())
-                                        .toByteArray())))
-                        .toList());
         final var maybeWinningProof = proofWeights.entrySet().stream()
                 .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
                 .map(Map.Entry::getKey)
                 .findFirst();
         maybeWinningProof.ifPresent(proof -> {
-            log.info("maybeWinningProof found!");
             construction = historyStore.completeProof(construction.constructionId(), proof);
             log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
             if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
@@ -289,7 +279,7 @@ public class ProofControllerImpl implements ProofController {
                     final var encodedId =
                             encodeLedgerId(proof.sourceAddressBookHash().toByteArray(), targetMetadata.toByteArray());
                     historyStore.setLedgerId(encodedId);
-                    log.info("Set Ledger ID to {}", encodedId);
+                    log.info("Set ledger id to {}", encodedId);
                 }
             }
         });
@@ -387,22 +377,20 @@ public class ProofControllerImpl implements ProofController {
     private CompletableFuture<Void> startSigningFuture() {
         requireNonNull(targetMetadata);
         final var proofKeys = Map.copyOf(targetProofKeys);
-        log.info("startSigningFuture targetProofKeys {}", targetProofKeys);
-        final var targetWeights = weights.targetNodeWeights().values().stream()
+        final var nodeIds = weights.targetNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
-        final var proofKeysArray = weights.targetNodeWeights().keySet().stream()
-                .map(id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+        final var targetWeights =
+                Arrays.stream(nodeIds).map(weights::targetWeightOf).toArray();
+        final var proofKeysArray = Arrays.stream(nodeIds)
+                .mapToObj(id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
         return CompletableFuture.runAsync(
                 () -> {
                     final var targetHash = library.hashAddressBook(targetWeights, proofKeysArray);
-                    log.info("hashAddressBook {}", targetHash);
                     final var history = new History(targetHash, targetMetadata);
                     final var message = encodeHistory(history);
-                    log.info("schnorrKeyPair.privateKey() {}", schnorrKeyPair.privateKey());
                     final var signature = library.signSchnorr(message, schnorrKeyPair.privateKey());
-                    log.info("signSchnorr {}", signature);
                     final var historySignature = new HistorySignature(history, signature);
                     submissions
                             .submitAssemblySignature(construction.constructionId(), historySignature)
@@ -431,17 +419,23 @@ public class ProofControllerImpl implements ProofController {
             sourceProofKeys = Map.copyOf(targetProofKeys);
         }
         final var targetMetadata = requireNonNull(this.targetMetadata);
-        final var sourceWeights = weights.sourceNodeWeights().values().stream()
+        final long[] sourceNodeIds = weights.sourceNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
-        final var targetWeights = weights.targetNodeWeights().values().stream()
+        final long[] targetNodeIds = weights.targetNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
-        final var sourceProofKeysArray = weights.sourceNodeWeights().keySet().stream()
-                .map(id -> sourceProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+        final var sourceWeights =
+                Arrays.stream(sourceNodeIds).map(weights::sourceWeightOf).toArray();
+        final var targetWeights =
+                Arrays.stream(targetNodeIds).map(weights::targetWeightOf).toArray();
+        final var sourceProofKeysArray = Arrays.stream(sourceNodeIds)
+                .mapToObj(
+                        id -> sourceProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
-        final var targetProofKeysArray = weights.targetNodeWeights().keySet().stream()
-                .map(id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
+        final var targetProofKeysArray = Arrays.stream(targetNodeIds)
+                .mapToObj(
+                        id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
         final long inProgressId = construction.constructionId();
         final var proofKeyList = proofKeyListFrom(targetProofKeys);
@@ -449,8 +443,9 @@ public class ProofControllerImpl implements ProofController {
                 () -> {
                     final var sourceHash = library.hashAddressBook(sourceWeights, sourceProofKeysArray);
                     final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
-                    final var verifyingSignatures = weights.sourceNodeWeights().keySet().stream()
-                            .map(id -> Optional.ofNullable(signatures.get(id))
+                    // Nodes that did not submit signatures have null in their array index here
+                    final var verifyingSignatures = Arrays.stream(sourceNodeIds)
+                            .mapToObj(i -> Optional.ofNullable(signatures.get(i))
                                     .map(Bytes::toByteArray)
                                     .orElse(null))
                             .toArray(byte[][]::new);

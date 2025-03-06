@@ -5,6 +5,7 @@ import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.SortedMap;
 
 /**
  * The cryptographic operations required by the {@link HintsService}.
@@ -15,8 +16,8 @@ import java.util.Map;
  *   {@link HintsLibrary#updateCrs(Bytes, Bytes)}, and {@link HintsLibrary#verifyCrsUpdate(Bytes, Bytes, Bytes)}.</li>
  *   <li><b>Key generation</b> ({@code KGen}) - Implemented by {@link HintsLibrary#newBlsKeyPair()}.</li>
  *   <li><b>Hint generation</b> ({@code HintGen}) - Implemented by {@link HintsLibrary#computeHints(Bytes, Bytes, int, int)}.</li>
- *   <li><b>Preprocessing</b> ({@code Preprocess}) - Implemented by using {@link HintsLibrary#preprocess(Bytes, Map, Map, int)}
- *   to select the hinTS keys to use as input to {@link HintsLibrary#preprocess(Bytes, Map, Map, int)}.</li>
+ *   <li><b>Preprocessing</b> ({@code Preprocess}) - Implemented by using {@link HintsLibrary#preprocess(Bytes, SortedMap, SortedMap, int)}
+ *   to select the hinTS keys to use as input to {@link HintsLibrary#preprocess(Bytes, SortedMap, SortedMap, int)}.</li>
  *   <li><b>Partial signatures</b> ({@code Sign}) - Implemented by {@link HintsLibrary#signBls(Bytes, Bytes)}.</li>
  *   <li><b>Verifying partial signatures</b> ({@code PartialVerify}) - Implemented by using
  *   {@link HintsLibrary#verifyBls(Bytes, Bytes, Bytes, Bytes, int)}.</li>
@@ -67,7 +68,7 @@ public interface HintsLibrary {
      * @param n the number of parties
      * @return the hints
      */
-    Bytes computeHints(@NonNull final Bytes crs, @NonNull Bytes blsPrivateKey, int partyId, int n);
+    Bytes computeHints(@NonNull Bytes crs, @NonNull Bytes blsPrivateKey, int partyId, int n);
 
     /**
      * Validates the hinTS public key for the given number of parties.
@@ -78,7 +79,7 @@ public interface HintsLibrary {
      * @param n the number of parties
      * @return true if the hints are valid; false otherwise
      */
-    boolean validateHintsKey(@NonNull final Bytes crs, @NonNull Bytes hintsKey, int partyId, int n);
+    boolean validateHintsKey(@NonNull Bytes crs, @NonNull Bytes hintsKey, int partyId, int n);
 
     /**
      * Runs the hinTS preprocessing algorithm on the given validated hint keys and party weights for the given number
@@ -97,9 +98,9 @@ public interface HintsLibrary {
      * @return the preprocessed keys
      */
     AggregationAndVerificationKeys preprocess(
-            @NonNull final Bytes crs,
-            @NonNull Map<Integer, Bytes> hintsKeys,
-            @NonNull Map<Integer, Long> weights,
+            @NonNull Bytes crs,
+            @NonNull SortedMap<Integer, Bytes> hintsKeys,
+            @NonNull SortedMap<Integer, Long> weights,
             int n);
 
     /**
@@ -122,10 +123,10 @@ public interface HintsLibrary {
      * @return true if the signature is valid; false otherwise
      */
     boolean verifyBls(
-            @NonNull final Bytes crs,
+            @NonNull Bytes crs,
             @NonNull Bytes signature,
             @NonNull Bytes message,
-            @NonNull final Bytes aggregationKey,
+            @NonNull Bytes aggregationKey,
             int partyId);
 
     /**
@@ -137,7 +138,7 @@ public interface HintsLibrary {
      * @return the aggregated signature
      */
     Bytes aggregateSignatures(
-            @NonNull final Bytes crs,
+            @NonNull Bytes crs,
             @NonNull Bytes aggregationKey,
             @NonNull Bytes verificationKey,
             @NonNull Map<Integer, Bytes> partialSignatures);
@@ -156,7 +157,7 @@ public interface HintsLibrary {
      * @return true if the signature is valid; false otherwise
      */
     boolean verifyAggregate(
-            @NonNull final Bytes crs,
+            @NonNull Bytes crs,
             @NonNull Bytes signature,
             @NonNull Bytes message,
             @NonNull Bytes verificationKey,

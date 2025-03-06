@@ -431,8 +431,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     Thread.currentThread().getName());
             final var deferredRun = new DeferredRun(() -> {
                 final var deadline = Instant.now().plus(timeout);
-                // Block until all nodes are ACTIVE and are ready to sign blocks
+                // Block until all nodes are ACTIVE 
                 nodes.forEach(node -> awaitStatus(node, ACTIVE, Duration.between(Instant.now(), deadline)));
+                // And are ready to sign blocks
                 nodes.forEach(node -> node.logFuture(TssBlockHashSigner.SIGNER_READY_MSG)
                         .orTimeout(30, TimeUnit.MINUTES)
                         .join());
