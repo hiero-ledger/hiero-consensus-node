@@ -217,7 +217,7 @@ public class HintsControllerImpl implements HintsController {
      *
      * @param now        the current consensus time
      * @param hintsStore the writable hints store
-     * @param isActive
+     * @param isActive    whether this node is active in the network
      */
     @Override
     public void advanceCRSWork(
