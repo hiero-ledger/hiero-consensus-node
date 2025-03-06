@@ -80,11 +80,16 @@ jobs:
       - name: Git-Semver Setup Action
         uses: DJ-BBot/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
 
-      - name: Create Release Notes with Markdown
+      - name: Create Release Notes - Markdown Format
         run: |
           echo ""
-          echo "Release Notes:"
+          echo "Release Notes (Markdown Formatted):"
           echo ""
-          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}"
+          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" >> ${GITHUB_STEP_SUMMARY}
           echo ""
           echo "Successfully created release notes!" >> ${GITHUB_STEP_SUMMARY}
+
+      - name: Create Release Notes - JSON Structure
+        run: |
+          echo "Release Notes (JSON Structure):"
+          git-semver log "${{ steps.validate.outputs.release-identifier }}"
