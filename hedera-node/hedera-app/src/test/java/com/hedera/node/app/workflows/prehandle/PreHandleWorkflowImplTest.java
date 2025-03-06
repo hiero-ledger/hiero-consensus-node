@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
@@ -602,7 +603,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var txBytes = asByteArray(txInfo.transaction());
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
             when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));
-            when(transactionChecker.parseAndCheck(any(Bytes.class), maxBytes)).thenReturn(txInfo);
+            when(transactionChecker.parseAndCheck(any(Bytes.class), eq(maxBytes))).thenReturn(txInfo);
             when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(payerKey, sigFuture));
 
             // When we pre-handle the transaction
@@ -788,7 +789,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var txInfo = scenario().withPayer(hollowAccountID).txInfo();
             final var txBytes = asByteArray(txInfo.transaction());
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
-            when(transactionChecker.parseAndCheck(any(Bytes.class), maxBytes)).thenReturn(txInfo);
+            when(transactionChecker.parseAndCheck(any(Bytes.class), eq(maxBytes))).thenReturn(txInfo);
             when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(finalizedKey, sigFuture));
             when(sigFuture.evmAlias()).thenReturn(hollowAccountAlias);
             when(sigFuture.get(anyLong(), any()))
@@ -829,7 +830,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var txInfo = scenario().withPayer(payerAccountID).txInfo();
             final var txBytes = asByteArray(txInfo.transaction());
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
-            when(transactionChecker.parseAndCheck(any(Bytes.class), maxBytes)).thenReturn(txInfo);
+            when(transactionChecker.parseAndCheck(any(Bytes.class), eq(maxBytes))).thenReturn(txInfo);
             when(signatureVerifier.verify(any(), any()))
                     .thenReturn(Map.of(payerKey, payerSigFuture, finalizedKey, nonPayerSigFuture));
             when(payerSigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));

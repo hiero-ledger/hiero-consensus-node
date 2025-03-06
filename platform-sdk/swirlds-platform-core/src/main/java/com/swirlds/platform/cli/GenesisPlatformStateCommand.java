@@ -10,7 +10,6 @@ import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -73,12 +72,6 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                 v.setRound(PlatformStateAccessor.GENESIS_ROUND);
                 v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot(
                         configuration.getConfigData(EventConfig.class).getAncientMode()));
-
-                // FUTURE WORK: remove once the AddressBook setters are deprecated and the fields are nullified.
-                // For now, we have to keep these calls to ensure RosterRetriever won't fall back to using these values.
-                System.out.printf("Nullifying Address Books %n");
-                v.setAddressBook(null);
-                v.setPreviousAddressBook(null);
             });
             {
                 System.out.printf("Resetting the RosterService state %n");
@@ -89,7 +82,8 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                 ((CommittableWritableStates) writableStates).commit();
             }
             System.out.printf("Hashing state %n");
-            MerkleCryptoFactory.getInstance()
+            platformContext
+                    .getMerkleCryptography()
                     .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());

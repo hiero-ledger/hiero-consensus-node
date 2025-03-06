@@ -2,14 +2,11 @@
 package com.hedera.services.bdd.junit.support.translators.inputs;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.CreateScheduleOutput;
-import com.hedera.hapi.block.stream.output.CryptoTransferOutput;
-import com.hedera.hapi.block.stream.output.TokenAirdropOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -234,18 +231,6 @@ public record BlockTransactionParts(
     }
 
     /**
-     * Returns a token airdrop output or throws if it is not present.
-     */
-    public TokenAirdropOutput tokenAirdropOutputOrThrow() {
-        requireNonNull(transactionOutputs);
-        return Stream.of(transactionOutputs)
-                .filter(TransactionOutput::hasTokenAirdrop)
-                .findAny()
-                .map(TransactionOutput::tokenAirdropOrThrow)
-                .orElseThrow();
-    }
-
-    /**
      * Returns the {@link TransactionOutput} of the given kind if it is present.
      * @param kind the kind of output
      * @return the output if present
@@ -264,9 +249,6 @@ public record BlockTransactionParts(
      * @return the assessed custom fees
      */
     public List<AssessedCustomFee> assessedCustomFees() {
-        return outputIfPresent(TransactionOutput.TransactionOneOfType.CRYPTO_TRANSFER)
-                .map(TransactionOutput::cryptoTransferOrThrow)
-                .map(CryptoTransferOutput::assessedCustomFees)
-                .orElse(emptyList());
+        return transactionResult().assessedCustomFees();
     }
 }

@@ -311,7 +311,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If the transaction fails TransactionChecker, a failure response is returned with the right error")
         void onsetFailsWithPreCheckException(ResponseCodeEnum failureReason) throws PreCheckException {
             // Given a TransactionChecker that will throw a PreCheckException with the given failure reason
-            when(transactionChecker.parseAndCheck(any(), maxBytes)).thenThrow(new PreCheckException(failureReason));
+            when(transactionChecker.parseAndCheck(any(), eq(maxBytes))).thenThrow(new PreCheckException(failureReason));
 
             // When the transaction is checked
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
@@ -324,7 +324,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
         void randomException() throws PreCheckException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(transactionChecker.parseAndCheck(any(), maxBytes)).thenThrow(new RuntimeException("check exception"));
+            when(transactionChecker.parseAndCheck(any(), eq(maxBytes))).thenThrow(new RuntimeException("check exception"));
 
             // When the transaction is submitted, then the exception is bubbled up
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))

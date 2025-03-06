@@ -158,8 +158,10 @@ public interface PreHandleWorkflow {
         if (metadata instanceof PreHandleResult result) {
             previousResult = result;
         } else {
-            // This should be impossible since the Platform contract guarantees that StateLifecycles.onPreHandle()
-            // is always called before StateLifecycles.onHandleTransaction(); and our preHandle() implementation
+            // This should be impossible since the Platform contract guarantees that
+            // ConsensusStateEventHandler.onPreHandle()
+            // is always called before ConsensusStateEventHandler.onHandleTransaction(); and our preHandle()
+            // implementation
             // always sets the metadata to a PreHandleResult
             log.error(
                     "Received transaction without PreHandleResult metadata from node {} (was {})",

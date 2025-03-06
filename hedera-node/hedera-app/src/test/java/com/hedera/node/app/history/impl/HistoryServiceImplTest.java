@@ -79,10 +79,8 @@ class HistoryServiceImplTest {
     }
 
     @Test
-    void onlyReadyGivenProof() {
+    void alwaysReady() {
         withLiveSubject();
-        assertFalse(subject.isReady());
-        subject.accept(HistoryProof.DEFAULT);
         assertTrue(subject.isReady());
     }
 

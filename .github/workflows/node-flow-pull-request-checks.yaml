@@ -102,6 +102,19 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
+  hapi-tests-iss:
+    name: HAPI Tests (ISS)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: Standard
+      enable-unit-tests: false
+      enable-hapi-tests-iss: true
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
   hapi-tests-token:
     name: HAPI Tests (Token)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
