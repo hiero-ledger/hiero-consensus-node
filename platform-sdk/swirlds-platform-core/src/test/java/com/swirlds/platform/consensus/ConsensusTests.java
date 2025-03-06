@@ -9,6 +9,7 @@ import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.test.fixtures.PlatformTest;
+import com.swirlds.platform.test.fixtures.consensus.ConsensusTestConfig;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
