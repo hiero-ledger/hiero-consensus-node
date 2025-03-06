@@ -88,7 +88,7 @@ public class SyncGossipController implements GossipController {
     }
 
     /**
-     * Start gossiping. Spin up all the threads registered in {@link #registerDedicatedThreads(Collection)} and {@link #registerThingToStart(Startable)}
+     * Start gossiping. Spin up all the threads registered in {@link #registerDedicatedThreads(Collection)} and {@link #registerThingToStart(Stoppable)}
      */
     void start() {
         if (started) {
